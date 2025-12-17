@@ -11,7 +11,7 @@ class RoleController extends Controller
      */
     public function index()
     {
-        //
+        return view('roles.index');
     }
 
     /**
@@ -19,7 +19,7 @@ class RoleController extends Controller
      */
     public function create()
     {
-        //
+        return view('roles.new');
     }
 
     /**
@@ -43,7 +43,7 @@ class RoleController extends Controller
      */
     public function edit(string $id)
     {
-        //
+        return view('roles.edit');
     }
 
     /**

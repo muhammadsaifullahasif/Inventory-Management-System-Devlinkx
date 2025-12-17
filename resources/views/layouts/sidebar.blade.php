@@ -40,7 +40,7 @@
                     with font-awesome or any other icon font library -->
                 <li class="nav-item">
                     <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                        <i class="nav-icon fas fa-tachoneter-alt"></i>
+                        <i class="nav-icon fas fa-tachometer-alt"></i>
                         <p>Dashboard</p>
                     </a>
                 </li>
@@ -68,8 +68,8 @@
                     </ul>
                 </li>
                 
-                <li class="nav-item {{ request()->routeIs('roles.*') ? 'menu-open' : '' }}">
-                    <a href="#" class="nav-link {{ request()->routeIs('roles.*') ? 'active' : '' }}">
+                <li class="nav-item {{ request()->routeIs(['roles.*', 'permissions.*']) ? 'menu-open' : '' }}">
+                    <a href="#" class="nav-link {{ request()->routeIs(['roles.*', 'permissions.*']) ? 'active' : '' }}">
                         <i class="nav-icon fas fa-user-tag"></i>
                         <p>
                             Roles

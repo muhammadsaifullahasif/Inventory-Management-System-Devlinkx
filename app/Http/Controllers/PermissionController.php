@@ -11,7 +11,7 @@ class PermissionController extends Controller
      */
     public function index()
     {
-        //
+        return view('permissions.index');
     }
 
     /**
@@ -19,7 +19,7 @@ class PermissionController extends Controller
      */
     public function create()
     {
-        //
+        return view('permissions.new');
     }
 
     /**
@@ -43,7 +43,7 @@ class PermissionController extends Controller
      */
     public function edit(string $id)
     {
-        //
+        return view('permissions.edit');
     }
 
     /**
