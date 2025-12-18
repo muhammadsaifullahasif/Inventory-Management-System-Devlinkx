@@ -23,5 +23,18 @@
 @endsection
 
 @section('content')
-    
+    <div class="card card-body w-50">
+        <form action="{{ route('permissions.update', $permission->id) }}" method="post">
+            @csrf
+            @method('PUT')
+            <div class="mb-3">
+                <label for="name">Name: <span class="text-danger">*</span></label>
+                <input type="text" id="name" name="name" value="{{ old('name', $permission->name) }}" class="form-control @error('name') is-invalid @enderror" placeholder="Permission Name">
+                @error('name')
+                    <span class="invalid-feedback">{{ $message }}</span>
+                @enderror
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </div>
 @endsection
