@@ -7,7 +7,9 @@
             <div class="row mb-2">
                 <div class="col-sm-6">
                     <h1 class="m-0 d-inline mr-2">Categories Edit</h1>
-                    <a href="{{ route('categories.create') }}" class="btn btn-outline-primary btn-sm mb-3">Add Category</a>
+                    @can('add categories')
+                        <a href="{{ route('categories.create') }}" class="btn btn-outline-primary btn-sm mb-3">Add Category</a>
+                    @endcan
                 </div><!-- /.col -->
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">

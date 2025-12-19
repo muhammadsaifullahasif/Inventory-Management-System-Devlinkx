@@ -44,6 +44,7 @@
                         <p>Dashboard</p>
                     </a>
                 </li>
+
                 @canany(['view categories', 'add categories', 'edit categories', 'delete categories'])
                     <li class="nav-item {{ request()->routeIs('categories.*') ? 'menu-open' : '' }}">
                         <a href="#" class="nav-link {{ request()->routeIs('categories.*') ? 'active' : '' }}">
@@ -73,7 +74,37 @@
                         </ul>
                     </li>
                 @endcan
-                
+
+                @canany(['view brands', 'add brands', 'edit brands', 'delete brands'])
+                    <li class="nav-item {{ request()->routeIs('brands.*') ? 'menu-open' : '' }}">
+                        <a href="#" class="nav-link {{ request()->routeIs('brands.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-th"></i>
+                            <p>
+                                Brands
+                                <i class="right fas fa-angle-left"></i>
+                            </p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            @canany(['view brands', 'edit brands', 'delete brands'])
+                                <li class="nav-item">
+                                    <a href="{{ route('brands.index') }}" class="nav-link {{ request()->routeIs('brands.index') ? 'active' : '' }}">
+                                        <i class="far fa-circle nav-icon"></i>
+                                        <p>All Brands</p>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('add brands')
+                                <li class="nav-item">
+                                    <a href="{{ route('brands.create') }}" class="nav-link {{ request()->routeIs('brands.create') ? 'active' : '' }}">
+                                        <i class="far fa-circle nav-icon"></i>
+                                        <p>Add Brand</p>
+                                    </a>
+                                </li>
+                            @endcan
+                        </ul>
+                    </li>
+                @endcan
+
                 @canany(['view users', 'add users', 'edit users', 'delete users'])
                     <li class="nav-item {{ request()->routeIs('users.*') ? 'menu-open' : '' }}">
                         <a href="#" class="nav-link {{ request()->routeIs('users.*') ? 'active' : '' }}">

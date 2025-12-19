@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PermissionController;
@@ -20,4 +21,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Categories
     Route::resource('/categories', CategoryController::class);
+
+    // Brands
+    Route::resource('/brands', BrandController::class);
 });
