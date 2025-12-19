@@ -44,6 +44,36 @@
                         <p>Dashboard</p>
                     </a>
                 </li>
+                @canany(['view categories', 'add categories', 'edit categories', 'delete categories'])
+                    <li class="nav-item {{ request()->routeIs('categories.*') ? 'menu-open' : '' }}">
+                        <a href="#" class="nav-link {{ request()->routeIs('categories.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-th-large"></i>
+                            <p>
+                                Categories
+                                <i class="right fas fa-angle-left"></i>
+                            </p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            @canany(['view categories', 'edit categories', 'delete categories'])
+                                <li class="nav-item">
+                                    <a href="{{ route('categories.index') }}" class="nav-link {{ request()->routeIs('categories.index') ? 'active' : '' }}">
+                                        <i class="far fa-circle nav-icon"></i>
+                                        <p>All Categories</p>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('add categories')
+                                <li class="nav-item">
+                                    <a href="{{ route('categories.create') }}" class="nav-link {{ request()->routeIs('categories.create') ? 'active' : '' }}">
+                                        <i class="far fa-circle nav-icon"></i>
+                                        <p>Add Category</p>
+                                    </a>
+                                </li>
+                            @endcan
+                        </ul>
+                    </li>
+                @endcan
+                
                 @canany(['view users', 'add users', 'edit users', 'delete users'])
                     <li class="nav-item {{ request()->routeIs('users.*') ? 'menu-open' : '' }}">
                         <a href="#" class="nav-link {{ request()->routeIs('users.*') ? 'active' : '' }}">

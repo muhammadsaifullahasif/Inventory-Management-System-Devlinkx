@@ -22,7 +22,7 @@ class RoleController extends Controller
      */
     public function create()
     {
-        $permissions = Permission::orderBy('name')->get();
+        $permissions = Permission::orderBy('created_at', 'DESC')->get();
         return view('roles.new', compact('permissions'));
     }
 
@@ -64,7 +64,7 @@ class RoleController extends Controller
     public function edit(string $id)
     {
         $role = Role::findOrFail($id);
-        $permissions = Permission::orderBy('name')->get();
+        $permissions = Permission::orderBy('created_at', 'DESC')->get();
         $hasPermissions = $role->permissions->pluck('name');
         return view('roles.edit', compact('role', 'permissions', 'hasPermissions'));
     }
