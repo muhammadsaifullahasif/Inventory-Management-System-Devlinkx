@@ -5,6 +5,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PermissionController;
 
@@ -24,4 +25,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Brands
     Route::resource('/brands', BrandController::class);
+
+    // Suppliers
+    Route::resource('/suppliers', SupplierController::class);
 });
