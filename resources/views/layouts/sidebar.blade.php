@@ -45,9 +45,9 @@
                     </a>
                 </li>
 
-                @canany(['view warehouses', 'add warehouses', 'edit warehouses', 'delete warehouses'])
-                    <li class="nav-item {{ request()->routeIs('warehouses.*') ? 'menu-open' : '' }}">
-                        <a href="#" class="nav-link {{ request()->routeIs('warehouses.*') ? 'active' : '' }}">
+                @canany(['view warehouses', 'add warehouses', 'edit warehouses', 'delete warehouses', 'view racks', 'add racks', 'edit racks', 'delete racks'])
+                    <li class="nav-item {{ request()->routeIs(['warehouses.*', 'racks.*']) ? 'menu-open' : '' }}">
+                        <a href="#" class="nav-link {{ request()->routeIs(['warehouses.*', 'racks.*']) ? 'active' : '' }}">
                             <i class="nav-icon fas fa-warehouse"></i>
                             <p>
                                 Warehouses
@@ -68,6 +68,14 @@
                                     <a href="{{ route('warehouses.create') }}" class="nav-link {{ request()->routeIs('warehouses.create') ? 'active' : '' }}">
                                         <i class="far fa-circle nav-icon"></i>
                                         <p>Add Warehouse</p>
+                                    </a>
+                                </li>
+                            @endcan
+                            @canany(['view racks', 'add racks', 'edit racks', 'delete racks'])
+                                <li class="nav-item">
+                                    <a href="{{ route('racks.index') }}" class="nav-link {{ request()->routeIs('racks.index') ? 'active' : '' }}">
+                                        <i class="far fa-circle nav-icon"></i>
+                                        <p>Racks</p>
                                     </a>
                                 </li>
                             @endcan

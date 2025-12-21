@@ -1,12 +1,14 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\RackController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\PermissionController;
 
 Auth::routes();
@@ -28,4 +30,10 @@ Route::middleware(['auth'])->group(function () {
 
     // Suppliers
     Route::resource('/suppliers', SupplierController::class);
+
+    // Warehouses
+    Route::resource('/warehouses', WarehouseController::class);
+
+    // Racks
+    Route::resource('/racks', RackController::class);
 });

@@ -40,6 +40,12 @@ class WarehouseController extends Controller
                 'is_default' => $request->is_default ? '1' : '0'
             ]);
 
+            if ($request->is_default) {
+                // Unset other warehouses as default
+                Warehouse::where('id', '!=', Warehouse::latest()->first()->id)
+                    ->update(['is_default' => '0']);
+            }
+
             return redirect()->route('warehouses.index')->with('success', 'Warehouse created successfully.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'An error occurred while creating the warehouse: ' . $e->getMessage())->withInput();
@@ -79,6 +85,12 @@ class WarehouseController extends Controller
             $warehouse->name = $request->name;
             $warehouse->is_default = $request->is_default ? '1' : '0';
             $warehouse->save();
+
+            if ($request->is_default) {
+                // Unset other warehouses as default
+                Warehouse::where('id', '!=', $warehouse->id)
+                    ->update(['is_default' => '0']);
+            }
 
             return redirect()->route('warehouses.index')->with('success', 'Warehouse updated successfully.');
         } catch (\Exception $e) {

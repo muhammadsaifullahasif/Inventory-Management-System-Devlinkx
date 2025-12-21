@@ -16,4 +16,9 @@ class Warehouse extends Model
         'active_status',
         'delete_status',
     ];
+
+    public function racks()
+    {
+        return $this->hasMany(Rack::class);
+    }
 }
