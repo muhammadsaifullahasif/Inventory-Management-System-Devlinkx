@@ -45,6 +45,36 @@
                     </a>
                 </li>
 
+                @canany(['view warehouses', 'add warehouses', 'edit warehouses', 'delete warehouses'])
+                    <li class="nav-item {{ request()->routeIs('warehouses.*') ? 'menu-open' : '' }}">
+                        <a href="#" class="nav-link {{ request()->routeIs('warehouses.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-warehouse"></i>
+                            <p>
+                                Warehouses
+                                <i class="right fas fa-angle-left"></i>
+                            </p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            @canany(['view warehouses', 'edit warehouses', 'delete warehouses'])
+                                <li class="nav-item">
+                                    <a href="{{ route('warehouses.index') }}" class="nav-link {{ request()->routeIs('warehouses.index') ? 'active' : '' }}">
+                                        <i class="far fa-circle nav-icon"></i>
+                                        <p>All Warehouses</p>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('add warehouses')
+                                <li class="nav-item">
+                                    <a href="{{ route('warehouses.create') }}" class="nav-link {{ request()->routeIs('warehouses.create') ? 'active' : '' }}">
+                                        <i class="far fa-circle nav-icon"></i>
+                                        <p>Add Warehouse</p>
+                                    </a>
+                                </li>
+                            @endcan
+                        </ul>
+                    </li>
+                @endcan
+
                 @canany(['view suppliers', 'add suppliers', 'edit suppliers', 'delete suppliers'])
                     <li class="nav-item {{ request()->routeIs('suppliers.*') ? 'menu-open' : '' }}">
                         <a href="#" class="nav-link {{ request()->routeIs('suppliers.*') ? 'active' : '' }}">
