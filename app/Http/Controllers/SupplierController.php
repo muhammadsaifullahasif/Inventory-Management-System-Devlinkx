@@ -5,9 +5,18 @@ namespace App\Http\Controllers;
 use Carbon\Carbon;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class SupplierController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(PermissionMiddleware::using('view suppliers'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('add suppliers'), ['only' => ['create', 'store']]);
+        $this->middleware(PermissionMiddleware::using('edit suppliers'), ['only' => ['edit', 'update']]);
+        $this->middleware(PermissionMiddleware::using('delete suppliers'), ['only' => ['destroy']]);
+    }
+
     /**
      * Display a listing of the resource.
      */

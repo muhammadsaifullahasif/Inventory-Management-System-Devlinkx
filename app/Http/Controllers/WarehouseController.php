@@ -4,9 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class WarehouseController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(PermissionMiddleware::using('view warehouses'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('add warehouses'), ['only' => ['create', 'store']]);
+        $this->middleware(PermissionMiddleware::using('edit warehouses'), ['only' => ['edit', 'update']]);
+        $this->middleware(PermissionMiddleware::using('delete warehouses'), ['only' => ['destroy']]);
+    }
+
     /**
      * Display a listing of the resource.
      */

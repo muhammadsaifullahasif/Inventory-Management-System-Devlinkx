@@ -7,9 +7,18 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class ProductController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(PermissionMiddleware::using('view products'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('add products'), ['only' => ['create', 'store']]);
+        $this->middleware(PermissionMiddleware::using('edit products'), ['only' => ['edit', 'update']]);
+        $this->middleware(PermissionMiddleware::using('delete products'), ['only' => ['destroy']]);
+    }
+    
     /**
      * Display a listing of the resource.
      */

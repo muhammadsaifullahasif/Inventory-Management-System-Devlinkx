@@ -5,9 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\Brand;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class BrandController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(PermissionMiddleware::using('view brands'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('add brands'), ['only' => ['create', 'store']]);
+        $this->middleware(PermissionMiddleware::using('edit brands'), ['only' => ['edit', 'update']]);
+        $this->middleware(PermissionMiddleware::using('delete brands'), ['only' => ['destroy']]);
+    }
+
     /**
      * Display a listing of the resource.
      */

@@ -5,9 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\Rack;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class RackController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(PermissionMiddleware::using('view racks'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('add racks'), ['only' => ['create', 'store']]);
+        $this->middleware(PermissionMiddleware::using('edit racks'), ['only' => ['edit', 'update']]);
+        $this->middleware(PermissionMiddleware::using('delete racks'), ['only' => ['destroy']]);
+    }
+    
     /**
      * Display a listing of the resource.
      */

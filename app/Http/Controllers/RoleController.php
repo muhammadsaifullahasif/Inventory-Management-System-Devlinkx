@@ -5,9 +5,18 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class RoleController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(PermissionMiddleware::using('view roles'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('add roles'), ['only' => ['create', 'store']]);
+        $this->middleware(PermissionMiddleware::using('edit roles'), ['only' => ['edit', 'update']]);
+        $this->middleware(PermissionMiddleware::using('delete roles'), ['only' => ['destroy']]);
+    }
+
     /**
      * Display a listing of the resource.
      */
