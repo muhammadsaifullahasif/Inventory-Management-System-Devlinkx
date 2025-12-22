@@ -5,6 +5,7 @@ use App\Http\Controllers\RackController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\DashboardController;
@@ -36,4 +37,8 @@ Route::middleware(['auth'])->group(function () {
 
     // Racks
     Route::resource('/racks', RackController::class);
+    Route::get('/warehouses/{warehouse}/racks', [RackController::class, 'getRacksByWarehouse'])->name('warehouses.racks');
+
+    // Products
+    Route::resource('/products', ProductController::class);
 });

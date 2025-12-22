@@ -65,6 +65,17 @@ class RackController extends Controller
     }
 
     /**
+     * Get racks by warehouse
+     * @return \Illuminate\Http\JsonResponse
+     * @param Warehouse $warehouse
+     */
+    public function getRacksByWarehouse(Warehouse $warehouse)
+    {
+        $racks = $warehouse->racks()->select('id', 'name')->get();
+        return response()->json($racks);
+    }
+
+    /**
      * Show the form for editing the specified resource.
      */
     public function edit(string $id)
