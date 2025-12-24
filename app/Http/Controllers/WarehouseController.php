@@ -40,7 +40,10 @@ class WarehouseController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'is_default' => 'nullable|boolean'
+            'is_default' => 'nullable|boolean',
+            'racks' => 'nullable|integer|min:0',
+            'rack' => 'nullable|array',
+            'rack.*' => 'nullable|string|max:255',
         ]);
 
         try {
@@ -48,6 +51,17 @@ class WarehouseController extends Controller
                 'name' => $request->name,
                 'is_default' => $request->is_default ? '1' : '0'
             ]);
+
+            // Handle racks creation
+            if ($request->has('rack') && is_array($request->rack)) {
+                foreach ($request->rack as $rackName) {
+                    if (!empty($rackName)) {
+                        $warehouse->racks()->create([
+                            'name' => $rackName,
+                        ]);
+                    }
+                }
+            }
 
             if ($request->is_default) {
                 // Unset other warehouses as default
@@ -74,7 +88,7 @@ class WarehouseController extends Controller
      */
     public function edit(string $id)
     {
-        $warehouse = Warehouse::findOrFail($id);
+        $warehouse = Warehouse::with('racks')->findOrFail($id);
         return view('warehouses.edit', compact('warehouse'));
     }
 
@@ -85,7 +99,12 @@ class WarehouseController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'is_default' => 'nullable|boolean'
+            'is_default' => 'nullable|boolean',
+            'racks' => 'nullable|integer|min:0',
+            'rack' => 'nullable|array',
+            'rack.*' => 'nullable|string|max:255',
+            'rack_id' => 'nullable|array',
+            'rack_id.*' => 'nullable|integer',
         ]);
 
 
@@ -94,6 +113,34 @@ class WarehouseController extends Controller
             $warehouse->name = $request->name;
             $warehouse->is_default = $request->is_default ? '1' : '0';
             $warehouse->save();
+
+            // Handle racks update
+            if ($request->has('rack') && is_array($request->rack)) {
+                $rackIds = $request->rack_id ?? [];
+                $existingRackIds = [];
+
+                foreach ($request->rack as $index => $rackName) {
+                    if (!empty($rackName)) {
+                        $rackId = $rackIds[$index] ?? null;
+
+                        if ($rackId && $rackId != '') {
+                            // Update existing rack
+                            $rack = $warehouse->racks()->find($rackId);
+                            if ($rack) {
+                                $rack->update(['name' => $rackName]);
+                                $existingRackIds[] = $rackId;
+                            }
+                        } else {
+                            // Create new rack
+                            $newRack = $warehouse->racks()->create(['name' => $rackName]);
+                            $existingRackIds[] = $newRack->id;
+                        }
+                    }
+                }
+
+                // Delete racks that were removed
+                $warehouse->racks()->whereNotIn('id', $existingRackIds)->delete();
+            }
 
             if ($request->is_default) {
                 // Unset other warehouses as default

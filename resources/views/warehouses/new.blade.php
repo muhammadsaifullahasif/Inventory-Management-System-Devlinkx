@@ -41,7 +41,73 @@
                     <label for="is_default" class="custom-control-label">Is Default</label>
                 </div>
             </div>
+            <div class="mb-3">
+                <label for="racks">No of Racks:</label>
+                <input type="text" id="racks" name="racks" value="{{ old('racks', 1) }}" class="form-control" placeholder="Number of Racks in Warehouse">
+                @error('racks')
+                    <span class="invalid-feedback">{{ $message }}</span>
+                @enderror
+            </div>
+            <div id="racksCountContainer" class="table-responsive">
+                <table class="table table-striped table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">#</th>
+                            <th>Name</th>
+                        </tr>
+                    </thead>
+                    <tbody id="racksCountTable">
+                        <tr>
+                            <td>1</td>
+                            <td><input type="text" name="rack[]" value="Rack-1" class="form-control form-control-sm" placeholder="Rack Name"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
             <button type="submit" class="btn btn-primary">Save</button>
         </form>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        $(document).ready(function(){
+            // Function to update table rows based on racks count
+            function updateRacksTable(count) {
+                var currentRows = $('#racksCountTable tr').length;
+                var racksCount = parseInt(count) || 0;
+
+                if (racksCount < 0) racksCount = 0;
+
+                // If new count is greater, add rows
+                if (racksCount > currentRows) {
+                    for (var i = currentRows + 1; i <= racksCount; i++) {
+                        $('#racksCountTable').append(`
+                            <tr>
+                                <td>${i}</td>
+                                <td><input type="text" name="rack[]" value="Rack-${i}" class="form-control form-control-sm" placeholder="Rack Name"></td>
+                            </tr>
+                        `);
+                    }
+                }
+                // If new count is less, remove rows from the end
+                else if (racksCount < currentRows) {
+                    var rowsToRemove = currentRows - racksCount;
+                    $('#racksCountTable tr').slice(-rowsToRemove).remove();
+                }
+            }
+
+            // Trigger on input change (works for typing, not just blur)
+            $('#racks').on('blur', function(){
+                var racks = $(this).val();
+                updateRacksTable(racks);
+            });
+
+            // Also trigger on change event
+            $('#racks').on('change', function(){
+                var racks = $(this).val();
+                updateRacksTable(racks);
+            });
+        });
+    </script>
+@endpush
