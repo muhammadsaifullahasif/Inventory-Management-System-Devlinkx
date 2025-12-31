@@ -30,8 +30,6 @@
                 <tr>
                     <th style="width: 50px;">#</th>
                     <th>Name</th>
-                    <th>Warehouse</th>
-                    <th>Rack</th>
                     <th>Price</th>
                     <th>Quantity</th>
                     <th>Category</th>
@@ -48,15 +46,14 @@
                             {{ $product->name }}<br>
                             {{ $product->barcode }}
                         </td>
-                        <td>{{ $product->warehouse->name ?? 'N/A' }}</td>
-                        <td>{{ $product->rack->name ?? 'N/A' }}</td>
                         <td>{{ $product->price }}</td>
-                        <td>{{ $product->stock_quantity }}</td>
+                        <td>{{ $product->product_stocks->sum('quantity'); }}</td>
                         <td>{{ $product->category->name ?? 'N/A' }}</td>
                         <td>{{ $product->brand->name ?? 'N/A' }}</td>
                         <td>{{ \Carbon\Carbon::parse($product->created_at)->format('d M, Y') }}</td>
                         <td>
                             <div class="btn-group">
+                                <a href="{{ route('products.show', $product->id) }}" class="btn btn-success btn-sm"><i class="fas fa-eye"></i></a>
                                 <a href="{{ route('products.edit', $product->id) }}" class="btn btn-primary btn-sm"><i class="fas fa-edit"></i></a>
                                 <form action="{{ route('products.destroy', $product->id) }}" method="POST" id="product-{{ $product->id }}-delete-form">
                                     @csrf
@@ -68,7 +65,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10" class="text-center">No Record Found.</td>
+                        <td colspan="8" class="text-center">No Record Found.</td>
                     </tr>
                 @endforelse
             </tbody>

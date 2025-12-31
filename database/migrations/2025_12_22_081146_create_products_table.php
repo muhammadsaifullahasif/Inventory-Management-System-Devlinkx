@@ -17,8 +17,8 @@ return new class extends Migration
             $table->string('sku')->unique();
             $table->string('barcode')->unique();
             // $table->string('barcode_image')->nullable();
-            $table->bigInteger('warehouse_id')->unsigned();
-            $table->bigInteger('rack_id')->unsigned()->nullable();
+            // $table->bigInteger('warehouse_id')->unsigned();
+            // $table->bigInteger('rack_id')->unsigned()->nullable();
             $table->bigInteger('category_id')->unsigned();
             $table->bigInteger('brand_id')->unsigned()->nullable();
             $table->string('short_description')->nullable();

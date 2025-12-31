@@ -79,32 +79,6 @@
                 </div>
             </div>
             <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="warehouse_id">Warehouse: <span class="text-danger">*</span></label>
-                    <select name="warehouse_id" id="warehouse_id" class="form-control @error('warehouse_id') is-invalid @enderror">
-                        <option value="">Select Warehouse</option>
-                        @foreach ($warehouses as $warehouse)
-                            <option value="{{ $warehouse->id }}" {{ old('warehouse_id', $product->warehouse_id) == $warehouse->id ? 'selected' : '' }}>{{ $warehouse->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('warehouse_id')
-                        <span class="invalid-feedback">{{ $message }}</span>
-                    @enderror
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="rack_id">Rack: <span class="text-danger">*</span></label>
-                    <select name="rack_id" id="rack_id" class="form-control @error('rack_id') is-invalid @enderror">
-                        <option value="">Select Rack</option>
-                        @foreach ($racks as $rack)
-                            <option value="{{ $rack->id }}" {{ old('rack_id', $product->rack_id) == $rack->id ? 'selected' : '' }}>{{ $rack->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('rack_id')
-                        <span class="invalid-feedback">{{ $message }}</span>
-                    @enderror
-                </div>
-            </div>
-            <div class="row">
                 <div class="col-md-3 mb-3">
                     <label for="weight">Weight:</label>
                     <input type="text" id="weight" name="weight" value="{{ old('weight', $product->product_meta['weight']) }}" class="form-control @error('weight') is-invalid @enderror" placeholder="Weight">

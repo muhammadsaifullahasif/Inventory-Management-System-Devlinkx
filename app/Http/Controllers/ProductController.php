@@ -34,7 +34,6 @@ class ProductController extends Controller
      */
     public function create()
     {
-        $warehouses = Warehouse::all();
         $categories = Category::all();
         $brands = Brand::all();
         return view('products.new', compact('warehouses', 'categories', 'brands'));
@@ -51,8 +50,6 @@ class ProductController extends Controller
             'name' => 'required|string|max:255',
             'sku' => 'required|string|max:100|unique:products,sku',
             'barcode' => 'nullable|string|max:100|unique:products,barcode',
-            'warehouse_id' => 'required|exists:warehouses,id',
-            'rack_id' => 'required|exists:racks,id',
             'category_id' => 'required|exists:categories,id',
             'brand_id' => 'nullable|exists:brands,id',
             'short_description' => 'nullable|string|max:500',
@@ -71,8 +68,6 @@ class ProductController extends Controller
             $product->name = $request->name;
             $product->sku = $request->sku;
             $product->barcode = $request->barcode;
-            $product->warehouse_id = $request->warehouse_id;
-            $product->rack_id = $request->rack_id;
             $product->category_id = $request->category_id;
             $product->brand_id = $request->brand_id;
             if (empty($request->sale_price)) {
@@ -134,7 +129,29 @@ class ProductController extends Controller
      */
     public function show(string $id)
     {
-        //
+        $product = Product::findOrFail($id);
+        return view('products.show', compact('product'));
+    }
+
+    /**
+     * Search the specified resource.
+     */
+    public function search(string $query)
+    {
+        $products = Product::where('name', 'LIKE', "%$query%")
+            ->orWhere('sku', 'LIKE', "%$query%")
+            ->orWhere('barcode', 'LIKE', "%$query%")
+            ->orWhereHas('category', function ($categoryQuery) use ($query) {
+                $categoryQuery->where('name', 'LIKE', "%$query%");
+            })
+            ->orWhereHas('brand', function ($brandQuery) use ($query) {
+                $brandQuery->where('name', 'LIKE', "%$query%");
+            })
+            ->get();
+
+        return response()->json($products);
+
+        // return view('products.index', compact('products'));
     }
 
     /**
@@ -143,7 +160,6 @@ class ProductController extends Controller
     public function edit(string $id)
     {
         $product = Product::findOrFail($id);
-        $warehouses = Warehouse::all();
         $categories = Category::all();
         $brands = Brand::all();
         $racks = $product->warehouse ? $product->warehouse->racks : collect();
@@ -159,8 +175,6 @@ class ProductController extends Controller
             'name' => 'required|string|max:255',
             'sku' => 'required|string|max:100|unique:products,sku,' . $id,
             'barcode' => 'nullable|string|max:100|unique:products,barcode,' . $id,
-            'warehouse_id' => 'required|exists:warehouses,id',
-            'rack_id' => 'required|exists:racks,id',
             'category_id' => 'required|exists:categories,id',
             'brand_id' => 'nullable|exists:brands,id',
             'short_description' => 'nullable|string|max:500',
@@ -178,8 +192,6 @@ class ProductController extends Controller
             $product->name = $request->name;
             $product->sku = $request->sku;
             $product->barcode = $request->barcode;
-            $product->warehouse_id = $request->warehouse_id;
-            $product->rack_id = $request->rack_id;
             $product->category_id = $request->category_id;
             $product->brand_id = $request->brand_id;
             if (empty($request->sale_price)) {

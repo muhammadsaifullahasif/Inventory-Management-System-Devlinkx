@@ -77,19 +77,15 @@ class Product extends Model
         return $array;
     }
 
-    public function warehouse() {
-        return $this->belongsTo(Warehouse::class, 'warehouse_id');
-    }
-
-    public function rack() {
-        return $this->belongsTo(Rack::class, 'rack_id');
-    }
-
     public function category() {
         return $this->belongsTo(Category::class, 'category_id');
     }
 
     public function brand() {
         return $this->belongsTo(Brand::class, 'brand_id');
+    }
+
+    public function product_stocks() {
+        return $this->hasMany(ProductStock::class, 'product_id');
     }
 }

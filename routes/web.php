@@ -7,6 +7,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\WarehouseController;
@@ -41,4 +42,9 @@ Route::middleware(['auth'])->group(function () {
 
     // Products
     Route::resource('/products', ProductController::class);
+    Route::get('/products/search/{query}', [ProductController::class, 'search'])->name('products.search');
+
+    // Purchases
+    Route::resource('/purchases', PurchaseController::class);
+    Route::post('/purchases/{id}/receive-stock', [PurchaseController::class, 'purchase_receive_stock'])->name('purchases.receive.stock');
 });

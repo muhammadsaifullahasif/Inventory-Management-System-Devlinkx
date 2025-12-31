@@ -80,7 +80,7 @@ class RackController extends Controller
      */
     public function getRacksByWarehouse(Warehouse $warehouse)
     {
-        $racks = $warehouse->racks()->select('id', 'name')->get();
+        $racks = $warehouse->racks()->select('id', 'name', 'is_default')->get();
         return response()->json($racks);
     }
 
