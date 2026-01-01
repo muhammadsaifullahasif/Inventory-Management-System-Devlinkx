@@ -29,6 +29,7 @@
             <thead>
                 <tr>
                     <th style="width: 50px;">#</th>
+                    <th>Barcode</th>
                     <th>Name</th>
                     <th>Price</th>
                     <th>Quantity</th>
@@ -42,6 +43,19 @@
                 @forelse ($products as $product)
                     <tr>
                         <td>{{ $product->id }}</td>
+                        <td style="width: 100px;">
+                            <div style="max-width: 100px;">
+                                @php
+                                    // Make Barcode object of Code128 encoding.
+                                    $barcode = (new Picqer\Barcode\Types\TypeCode128())->getBarcode($product->barcode);
+                                    $renderer = new Picqer\Barcode\Renderers\SvgRenderer();
+                                    // $renderer->setSvgType($renderer::TYPE_SVG_INLINE); // Changes the output to be used inline inside HTML documents, instead of a standalone SVG image (default)
+                                    $renderer->setSvgType($renderer::TYPE_SVG_STANDALONE); // If you want to force the default, create a stand alone SVG image
+                                    // echo $renderer->render($barcode, 80, 40);
+                                @endphp
+                                {!! $renderer->render($barcode, 100, 40) !!}
+                            </div>
+                        </td>
                         <td>
                             {{ $product->name }}<br>
                             {{ $product->barcode }}

@@ -40,8 +40,8 @@ return new class extends Migration
             $table->enum('active_status', [1, 0])->default(1);
             $table->enum('delete_status', [1, 0])->default(0);
             $table->timestamps();
-            $table->foreign('warehouse_id')->references('id')->on('warehouses')->onDelete('cascade');
-            $table->foreign('rack_id')->references('id')->on('racks')->onDelete('set null');
+            // $table->foreign('warehouse_id')->references('id')->on('warehouses')->onDelete('cascade');
+            // $table->foreign('rack_id')->references('id')->on('racks')->onDelete('set null');
             $table->foreign('category_id')->references('id')->on('categories')->onDelete('cascade');
             $table->foreign('brand_id')->references('id')->on('brands')->onDelete('set null');
         });

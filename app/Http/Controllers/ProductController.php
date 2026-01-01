@@ -36,7 +36,7 @@ class ProductController extends Controller
     {
         $categories = Category::all();
         $brands = Brand::all();
-        return view('products.new', compact('warehouses', 'categories', 'brands'));
+        return view('products.new', compact('categories', 'brands'));
     }
 
     /**
@@ -162,8 +162,7 @@ class ProductController extends Controller
         $product = Product::findOrFail($id);
         $categories = Category::all();
         $brands = Brand::all();
-        $racks = $product->warehouse ? $product->warehouse->racks : collect();
-        return view('products.edit', compact('product', 'warehouses', 'categories', 'brands', 'racks'));
+        return view('products.edit', compact('product', 'categories', 'brands'));
     }
 
     /**
