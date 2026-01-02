@@ -5,12 +5,6 @@
         <li class="nav-item">
             <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
         </li>
-        <li class="nav-item d-none d-sm-inline-block">
-            <a href="#" class="nav-link">Home</a>
-        </li>
-        <li class="nav-item d-none d-sm-inline-block">
-            <a href="#" class="nav-link">Contact</a>
-        </li>
     </ul>
 
     <!-- Right navbar links -->
@@ -129,9 +123,11 @@
             </a>
         </li>
         <li class="nav-item">
-            <a class="nav-link" data-widget="control-sidebar" data-controlsidebar-slide="true" href="#"
-                role="button">
-                <i class="fas fa-th-large"></i>
+            <form method="POST" action="{{ route('logout') }}" id="nav-logout-form">
+                @csrf
+            </form>
+            <a class="nav-link" onclick="event.preventDefault();document.getElementById('nav-logout-form').submit();" title="Logout" href="{{ route('logout') }}" role="button">
+                <i class="fas fa-sign-out-alt"></i>
             </a>
         </li>
     </ul>
