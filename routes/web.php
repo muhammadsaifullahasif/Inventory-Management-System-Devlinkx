@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\EbayController;
 use App\Http\Controllers\RackController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\SalesChannelController;
 
 Auth::routes();
 
@@ -47,4 +49,21 @@ Route::middleware(['auth'])->group(function () {
     // Purchases
     Route::resource('/purchases', PurchaseController::class);
     Route::post('/purchases/{id}/receive-stock', [PurchaseController::class, 'purchase_receive_stock'])->name('purchases.receive.stock');
+
+    // Sales Channel
+    Route::resource('/sales-channels', SalesChannelController::class);
+
+    // Ebay Integration
+    Route::get('/ebay', [EbayController::class, 'index'])->name('ebay.index');
+    Route::get('/ebay/auth', [EbayController::class, 'getAccessToken'])->name('ebay.auth');
+
+    // eBay OAuth Flow
+    Route::get('/ebay/authorize', [EbayController::class, 'redirectToEbay'])->name('ebay.authorize');
+    Route::get('/ebay/callback', [EbayController::class, 'callback'])->name('ebay.callback');
+
+    // eBay Listings
+    Route::get('/ebay/inventory-items', [EbayController::class, 'getInventoryItems'])->name('ebay.inventory.items');
+    Route::get('/ebay/listings/active', [EbayController::class, 'getActiveListings'])->name('ebay.listings.active');
+    Route::get('/ebay/listings/all', [EbayController::class, 'getAllListings'])->name('ebay.listings.all');
+    Route::get('/ebay/listings/{status}', [EbayController::class, 'getListingsByStatus'])->name('ebay.listings.status');
 });

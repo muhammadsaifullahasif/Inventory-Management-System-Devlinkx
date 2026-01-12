@@ -25,7 +25,7 @@
 @endsection
 
 @section('content')
-    <div class="card card-body w-50">
+    <div class="card card-body">
         <form action="{{ route('brands.store') }}" method="post">
             @csrf
             <div class="mb-3">

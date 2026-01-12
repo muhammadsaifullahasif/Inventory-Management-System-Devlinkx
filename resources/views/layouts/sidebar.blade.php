@@ -1,5 +1,5 @@
 <!-- Main Sidebar Container -->
-<aside class="main-sidebar sidebar-dark-primary elevation-4">
+<aside class="main-sidebar sidebar-light-primary elevation-4">
     <!-- Brand Logo -->
     <a href="index3.html" class="brand-link">
         <img src="{{ asset('dist/img/AdminLTELogo.png') }}" alt="AdminLTE Logo" class="brand-image img-circle elevation-3"
@@ -66,7 +66,7 @@
                             @can('add products')
                                 <li class="nav-item">
                                     <a href="{{ route('products.create') }}" class="nav-link {{ request()->routeIs('products.create') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
+                                        <i class="fas fa-plus-circle nav-icon"></i>
                                         <p>Add Product</p>
                                     </a>
                                 </li>
@@ -112,7 +112,7 @@
                             @can('add purchases')
                                 <li class="nav-item">
                                     <a href="{{ route('purchases.create') }}" class="nav-link {{ request()->routeIs('purchases.create') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
+                                        <i class="fas fa-plus-circle nav-icon"></i>
                                         <p>Add Purchase</p>
                                     </a>
                                 </li>
@@ -142,7 +142,7 @@
                             @can('add warehouses')
                                 <li class="nav-item">
                                     <a href="{{ route('warehouses.create') }}" class="nav-link {{ request()->routeIs('warehouses.create') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
+                                        <i class="fas fa-plus-circle nav-icon"></i>
                                         <p>Add Warehouse</p>
                                     </a>
                                 </li>
@@ -152,6 +152,36 @@
                                     <a href="{{ route('racks.index') }}" class="nav-link {{ request()->routeIs('racks.index') ? 'active' : '' }}">
                                         <i class="far fa-circle nav-icon"></i>
                                         <p>Racks</p>
+                                    </a>
+                                </li>
+                            @endcan
+                        </ul>
+                    </li>
+                @endcan
+
+                @canany(['view sales-channels', 'add sales-channels', 'edit sales-channels', 'delete sales-channels'])
+                    <li class="nav-item {{ request()->routeIs('sales-channels.*') ? 'menu-open' : '' }}">
+                        <a href="#" class="nav-link {{ request()->routeIs('sales-channels.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-th"></i>
+                            <p>
+                                Sale Channels
+                                <i class="right fas fa-angle-left"></i>
+                            </p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            @canany(['view sales-channels', 'edit sales-channels', 'delete sales-channels'])
+                                <li class="nav-item">
+                                    <a href="{{ route('sales-channels.index') }}" class="nav-link {{ request()->routeIs('sales-channels.index') ? 'active' : '' }}">
+                                        <i class="far fa-circle nav-icon"></i>
+                                        <p>All Sales Channel</p>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('add sales-channel')
+                                <li class="nav-item">
+                                    <a href="{{ route('sales-channels.create') }}" class="nav-link {{ request()->routeIs('sales-channels.create') ? 'active' : '' }}">
+                                        <i class="fas fa-plus-circle nav-icon"></i>
+                                        <p>Add Sales Channel</p>
                                     </a>
                                 </li>
                             @endcan
@@ -180,7 +210,7 @@
                             @can('add suppliers')
                                 <li class="nav-item">
                                     <a href="{{ route('suppliers.create') }}" class="nav-link {{ request()->routeIs('suppliers.create') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
+                                        <i class="fas fa-plus-circle nav-icon"></i>
                                         <p>Add Supplier</p>
                                     </a>
                                 </li>
@@ -210,7 +240,7 @@
                             @can('add users')
                                 <li class="nav-item">
                                     <a href="{{ route('users.create') }}" class="nav-link {{ request()->routeIs('users.create') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
+                                        <i class="fas fa-plus-circle nav-icon"></i>
                                         <p>Add User</p>
                                     </a>
                                 </li>
@@ -240,7 +270,7 @@
                             @can('add roles')
                                 <li class="nav-item">
                                     <a href="{{ route('roles.create') }}" class="nav-link {{ request()->routeIs('roles.create') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
+                                        <i class="fas fa-plus-circle nav-icon"></i>
                                         <p>Add Role</p>
                                     </a>
                                 </li>

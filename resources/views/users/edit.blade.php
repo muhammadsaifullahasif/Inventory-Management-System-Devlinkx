@@ -23,7 +23,7 @@
 @endsection
 
 @section('content')
-    <div class="card card-body w-50">
+    <div class="card card-body">
         <form action="{{ route('users.update', $user->id) }}" method="post">
             @csrf
             @method('PUT')
