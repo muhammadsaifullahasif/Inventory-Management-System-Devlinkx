@@ -75,6 +75,10 @@ class EbayService
                 ->withHeaders([
                     'Authorization' => 'Bearer ' . $salesChannel->access_token,
                     'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                    'Accept-Encoding' => 'gzip',
+                    'Accept-Language' => 'en-US',
+                    'Content-Language' => 'en-US',
                 ])
                 ->get('https://api.ebay.com/sell/inventory/v1/inventory_item', [
                     'limit' => $limit,
