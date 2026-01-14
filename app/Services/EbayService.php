@@ -115,7 +115,9 @@ class EbayService
                 throw new Exception('eBay get inventory items failed: ' . $response->body());
             }
 
-            return $response->json();
+            dd($response->json());
+
+            // return $response->json();
         } catch (Exception $e) {
             Log::error('eBay getInventoryItems Error', [
                 'message' => $e->getMessage(),
