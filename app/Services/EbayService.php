@@ -92,6 +92,9 @@ class EbayService
             //     ]);
 
             $response = Http::withToken($salesChannel->access_token)
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                ])
                 ->post('https://api.ebay.com/sell/feed/v1/inventory_task', [
                     'feedType' => 'LMS_ACTIVE_INVENTORY_REPORT',
                     'schemaVersion' => '1.0',
@@ -115,7 +118,13 @@ class EbayService
                 throw new Exception('eBay get inventory items failed: ' . $response->body());
             }
 
-            dd($response->json());
+            $statusCode = $response->status();
+
+            $locationHeader = $response->header('Location');
+            preg_match('/inventory_task\/(.+)$/', $locationHeader, $matches);
+            $taskId = $matches[1] ?? null;
+
+            dd($statusCode, $taskId, $locationHeader);
 
             // return $response->json();
         } catch (Exception $e) {
