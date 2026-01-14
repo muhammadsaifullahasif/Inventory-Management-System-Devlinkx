@@ -15,6 +15,19 @@ use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\SalesChannelController;
 
+Route::get('/run-migrations', function() {
+    if (!app()->environment('local')) {
+        abort(403, 'Migrations can only be run in the local environment.');
+    }
+
+    Artisan::call('migrate', ['--force' => true]);
+
+    return response()->json([
+        'message' => 'Migrations ran successfully.',
+        'output' => Artisan::output()
+    ]);
+});
+
 Auth::routes();
 
 // Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
