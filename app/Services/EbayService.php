@@ -86,6 +86,7 @@ class EbayService
                 ]);
 
             Log::info('eBay Get Inventory Items Response', [
+                'data' => $response->json(),
                 'status' => $response->status(),
                 'limit' => $limit,
                 'offset' => $offset,
