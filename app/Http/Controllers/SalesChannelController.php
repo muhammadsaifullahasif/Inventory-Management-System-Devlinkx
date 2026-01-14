@@ -119,7 +119,32 @@ class SalesChannelController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'client_id' => 'required|string|max:255',
+            'client_secret' => 'required|string|max:255',
+            'ru_name' => 'required|string|max:255',
+            'user_scopes' => 'required|string'
+        ]);
+
+        try {
+            // Update sales channel logic here
+            $sales_channel = SalesChannel::findOrFail($id);
+            $sales_channel->name = $request->input('name');
+            $sales_channel->client_id = $request->input('client_id');
+            $sales_channel->client_secret = $request->input('client_secret');
+            $sales_channel->ru_name = $request->input('ru_name');
+            $sales_channel->user_scopes = $request->input('user_scopes');
+            $sales_channel->save();
+
+            session(['sales_channel_id' => $sales_channel->id]);
+
+            return redirect(env('EBAY_AUTH_URL') . '?client_id=' . $sales_channel->client_id . '&response_type=code' . '&redirect_uri=' . $sales_channel->ru_name . '&scope=' . urlencode($sales_channel->user_scopes));
+
+            // return redirect()->route('sales-channels.index')->with('success', 'Sales Channel updated successfully.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'An error occurred while updating the sales channel.'])->withInput();
+        }
     }
 
     /**
