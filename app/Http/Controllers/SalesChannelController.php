@@ -69,31 +69,35 @@ class SalesChannelController extends Controller
     
     public function ebay_callback(Request $request)
     {
-        $code = request('code');
+        try {
+            $code = request('code');
 
-        $sales_channel_id = session('sales_channel_id');
-        $sales_channel = SalesChannel::find($sales_channel_id);
-        
-        $response = Http::asForm()
-            ->withBasicAuth($sales_channel->client_id, $sales_channel->client_secret)
-            ->post(env('EBAY_TOKEN_URL'), [
-                'grant_type'   => 'authorization_code',
-                'code'         => $code,
-                'redirect_uri' => $sales_channel->ru_name,
-            ]);
-        
-        $response_data = $response->json();
+            $sales_channel_id = session('sales_channel_id');
+            $sales_channel = SalesChannel::find($sales_channel_id);
+            
+            $response = Http::asForm()
+                ->withBasicAuth($sales_channel->client_id, $sales_channel->client_secret)
+                ->post(env('EBAY_TOKEN_URL'), [
+                    'grant_type'   => 'authorization_code',
+                    'code'         => $code,
+                    'redirect_uri' => $sales_channel->ru_name,
+                ]);
+            
+            $response_data = $response->json();
 
-        $sales_channel->authorization_code = $code;
-        $sales_channel->access_token = $response_data['access_token'];
-        $sales_channel->access_token_expires_at = now()->addSeconds($response_data['expires_in']);
-        $sales_channel->refresh_token = $response_data['refresh_token'];
-        $sales_channel->refresh_token_expires_at = now()->addSeconds($response_data['refresh_token_expires_in']);
-        $sales_channel->save();
-        
-        // dd($response->status(), $response->json());
+            $sales_channel->authorization_code = $code;
+            $sales_channel->access_token = $response_data['access_token'];
+            $sales_channel->access_token_expires_at = now()->addSeconds($response_data['expires_in']);
+            $sales_channel->refresh_token = $response_data['refresh_token'];
+            $sales_channel->refresh_token_expires_at = now()->addSeconds($response_data['refresh_token_expires_in']);
+            $sales_channel->save();
+            
+            // dd($response->status(), $response->json());
 
-        return redirect()->route('sales-channels.index')->with('success', 'Sales Channel created or updated successfully.');
+            return redirect()->route('sales-channels.index')->with('success', 'Sales Channel created or updated successfully.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->route('sales-channels.index')->with('error', 'Authorization code is missing or invalid.');
+        }
         
     }
 
@@ -152,6 +156,13 @@ class SalesChannelController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        try {
+            $sales_channel = SalesChannel::findOrFail($id);
+            $sales_channel->delete();
+
+            return redirect()->route('sales-channels.index')->with('success', 'Sales Channel deleted successfully.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'An error occurred while deleting the sales channel: ' . $e->getMessage());
+        }
     }
 }
