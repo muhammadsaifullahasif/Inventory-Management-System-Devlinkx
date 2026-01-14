@@ -110,7 +110,8 @@ class SalesChannelController extends Controller
      */
     public function edit(string $id)
     {
-        //
+        $sales_channel = SalesChannel::findOrFail($id);
+        return view('sales-channel.edit', compact('sales_channel'));
     }
 
     /**
