@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\SalesChannel;
 use Illuminate\Http\Request;
 use App\Services\EbayService;
-use Illuminate\Support\Facades\Http;
 
 class EbayController extends Controller
 {
@@ -16,55 +15,21 @@ class EbayController extends Controller
         $this->ebayService = $ebayService;
     }
 
-    public function index(EbayService $ebay)
-    {
-        $results = $ebay->searchItems('fender');
-        return response()->json($results);
-    }
-
-    public function getAccessToken(EbayService $ebay)
-    {
-        // $token = $ebay->getAccessToken();
-        // return response()->json($token);
-
-        $response = Http::asForm()
-            ->withBasicAuth(env('EBAY_CLIENT_ID'), env('EBAY_CLIENT_SECRET'))
-            ->post('https://api.ebay.com/identity/v1/oauth2/token', [
-                'grant_type' => 'authorization_code',
-                'code' => $request->code,
-                'redirect_uri' => env('EBAY_REDIRECT_URI')
-            ]);
-
-        return $response;
-    }
-
     /**
-     * Get all inventory items from eBay
+     * Get all inventory items from eBay for a specific sales channel
      */
     public function getInventoryItems(string $id)
     {
         try {
-            $sales_channels = SalesChannel::findOrFail($id);
+            $salesChannel = SalesChannel::findOrFail($id);
 
-            $response = Http::timeout(60)
-                ->connectTimeout(30)
-                ->withOptions([
-                    'verify' => false,
-                    'debug' => false,
-                ])
-                ->withHeaders([
-                    'Authorization' => 'Bearer ' . $sales_channels->access_token,
-                    'Content-Type' => 'application/json',
-                ])
-                ->get('https://api.ebay.com/sell/inventory/v1/inventory_item');
+            // Check if access token is expired
+            if ($this->isAccessTokenExpired($salesChannel)) {
+                // Refresh the token
+                $salesChannel = $this->refreshAccessToken($salesChannel);
+            }
 
-            $inventoryItems = $response->json();
-
-            // dd($inventoryItems);
-            // $limit = $request->input('limit', 100);
-            // $offset = $request->input('offset', 0);
-
-            // $inventoryItems = $this->ebayService->getInventoryItems($limit, $offset);
+            $inventoryItems = $this->ebayService->getInventoryItems($salesChannel);
 
             return response()->json([
                 'success' => true,
@@ -79,15 +44,19 @@ class EbayController extends Controller
     }
 
     /**
-     * Get active listings from eBay
+     * Get active listings from eBay for a specific sales channel
      */
-    public function getActiveListings(Request $request)
+    public function getActiveListings(string $id)
     {
         try {
-            $limit = $request->input('limit', 100);
-            $offset = $request->input('offset', 0);
+            $salesChannel = SalesChannel::findOrFail($id);
 
-            $activeListings = $this->ebayService->getActiveListings($limit, $offset);
+            // Check if access token is expired
+            if ($this->isAccessTokenExpired($salesChannel)) {
+                $salesChannel = $this->refreshAccessToken($salesChannel);
+            }
+
+            $activeListings = $this->ebayService->getActiveListings($salesChannel);
 
             return response()->json([
                 'success' => true,
@@ -102,17 +71,24 @@ class EbayController extends Controller
     }
 
     /**
-     * Get all listings from eBay (active, ended, drafts)
+     * Get all listings from eBay (active, ended, drafts) for a specific sales channel
      * Status options: ALL, PUBLISHED, UNPUBLISHED, ENDED
      */
-    public function getAllListings(Request $request)
+    public function getAllListings(Request $request, string $id)
     {
         try {
-            $status = $request->input('status', 'ALL'); // ALL, PUBLISHED, UNPUBLISHED, ENDED
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            // Check if access token is expired
+            if ($this->isAccessTokenExpired($salesChannel)) {
+                $salesChannel = $this->refreshAccessToken($salesChannel);
+            }
+
+            $status = $request->input('status', 'ALL');
             $limit = $request->input('limit', 100);
             $offset = $request->input('offset', 0);
 
-            $allListings = $this->ebayService->getAllListings($status, $limit, $offset);
+            $allListings = $this->ebayService->getAllListings($salesChannel, $status, $limit, $offset);
 
             return response()->json([
                 'success' => true,
@@ -132,38 +108,16 @@ class EbayController extends Controller
     }
 
     /**
-     * Get listings by specific status
+     * Redirect user to eBay for authorization for a specific sales channel
      */
-    public function getListingsByStatus(Request $request, $status)
+    public function redirectToEbay(string $id)
     {
-        try {
-            $limit = $request->input('limit', 100);
-            $offset = $request->input('offset', 0);
+        $salesChannel = SalesChannel::findOrFail($id);
 
-            $listings = $this->ebayService->getAllListings(strtoupper($status), $limit, $offset);
-
-            return response()->json([
-                'success' => true,
-                'data' => $listings,
-                'status' => strtoupper($status),
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Redirect user to eBay for authorization
-     */
-    public function redirectToEbay()
-    {
-        $state = bin2hex(random_bytes(16));
+        $state = $id . '|' . bin2hex(random_bytes(16));
         session(['ebay_oauth_state' => $state]);
 
-        $authUrl = $this->ebayService->getAuthorizationUrl($state);
+        $authUrl = $this->ebayService->getAuthorizationUrl($salesChannel, $state);
         return redirect()->away($authUrl);
     }
 
@@ -172,17 +126,29 @@ class EbayController extends Controller
      */
     public function callback(Request $request)
     {
-        // Log all incoming parameters for debugging
         \Log::info('eBay OAuth Callback', [
             'all_params' => $request->all(),
             'session_state' => session('ebay_oauth_state'),
         ]);
 
         try {
+            $stateParam = $request->input('state');
+            $sessionState = session('ebay_oauth_state');
+
             // Verify state parameter
-            if ($request->input('state') !== session('ebay_oauth_state')) {
+            if ($stateParam !== $sessionState) {
                 throw new \Exception('Invalid state parameter');
             }
+
+            // Extract sales channel ID from state
+            $stateParts = explode('|', $stateParam);
+            $salesChannelId = $stateParts[0] ?? null;
+
+            if (!$salesChannelId) {
+                throw new \Exception('Sales channel ID not found in state');
+            }
+
+            $salesChannel = SalesChannel::findOrFail($salesChannelId);
 
             // Check for errors
             if ($request->has('error')) {
@@ -191,26 +157,36 @@ class EbayController extends Controller
 
             // Exchange code for token
             $code = $request->input('code');
-            $tokenData = $this->ebayService->getUserAccessToken($code);
+            $tokenData = $this->ebayService->getUserAccessToken($salesChannel, $code);
 
             \Log::info('eBay Token Data Received', [
                 'has_access_token' => isset($tokenData['access_token']),
                 'has_refresh_token' => isset($tokenData['refresh_token']),
                 'expires_in' => $tokenData['expires_in'] ?? null,
+                'sales_channel_id' => $salesChannel->id,
             ]);
 
-            // Store tokens in session (or database for production)
-            session([
-                'ebay_access_token' => $tokenData['access_token'],
-                'ebay_refresh_token' => $tokenData['refresh_token'] ?? null,
-                'ebay_token_expires_at' => now()->addSeconds($tokenData['expires_in']),
+            // Store tokens in database
+            $salesChannel->authorization_code = $code;
+            $salesChannel->access_token = $tokenData['access_token'];
+            $salesChannel->access_token_expires_at = now()->addSeconds($tokenData['expires_in']);
+
+            if (isset($tokenData['refresh_token'])) {
+                $salesChannel->refresh_token = $tokenData['refresh_token'];
+                // eBay refresh tokens typically expire in 18 months
+                if (isset($tokenData['refresh_token_expires_in'])) {
+                    $salesChannel->refresh_token_expires_at = now()->addSeconds($tokenData['refresh_token_expires_in']);
+                }
+            }
+
+            $salesChannel->save();
+
+            \Log::info('eBay Tokens Stored in Database', [
+                'sales_channel_id' => $salesChannel->id,
+                'access_token_expires_at' => $salesChannel->access_token_expires_at,
             ]);
 
-            \Log::info('eBay Tokens Stored in Session', [
-                'session_has_token' => session()->has('ebay_access_token'),
-            ]);
-
-            return redirect()->route('ebay.inventory.items')
+            return redirect()->route('sales-channels.index')
                 ->with('success', 'Successfully connected to eBay!');
         } catch (\Exception $e) {
             \Log::error('eBay Callback Error', [
@@ -218,8 +194,59 @@ class EbayController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return redirect()->route('dashboard')
+            return redirect()->route('sales-channels.index')
                 ->with('error', 'eBay authorization failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Check if the access token is expired
+     */
+    private function isAccessTokenExpired(SalesChannel $salesChannel): bool
+    {
+        if (empty($salesChannel->access_token) || empty($salesChannel->access_token_expires_at)) {
+            return true;
+        }
+
+        // Consider token expired if it expires within the next 5 minutes (buffer time)
+        return now()->addMinutes(5)->greaterThanOrEqualTo($salesChannel->access_token_expires_at);
+    }
+
+    /**
+     * Refresh the access token using the refresh token
+     */
+    private function refreshAccessToken(SalesChannel $salesChannel): SalesChannel
+    {
+        if (empty($salesChannel->refresh_token)) {
+            throw new \Exception('No refresh token available. Please re-authorize with eBay.');
+        }
+
+        // Check if refresh token is also expired
+        if ($salesChannel->refresh_token_expires_at && now()->greaterThanOrEqualTo($salesChannel->refresh_token_expires_at)) {
+            throw new \Exception('Refresh token has expired. Please re-authorize with eBay.');
+        }
+
+        $tokenData = $this->ebayService->refreshUserToken($salesChannel);
+
+        // Update the sales channel with new tokens
+        $salesChannel->access_token = $tokenData['access_token'];
+        $salesChannel->access_token_expires_at = now()->addSeconds($tokenData['expires_in']);
+
+        // Update refresh token if a new one is provided
+        if (isset($tokenData['refresh_token'])) {
+            $salesChannel->refresh_token = $tokenData['refresh_token'];
+            if (isset($tokenData['refresh_token_expires_in'])) {
+                $salesChannel->refresh_token_expires_at = now()->addSeconds($tokenData['refresh_token_expires_in']);
+            }
+        }
+
+        $salesChannel->save();
+
+        \Log::info('eBay access token refreshed for sales channel', [
+            'sales_channel_id' => $salesChannel->id,
+            'new_expires_at' => $salesChannel->access_token_expires_at,
+        ]);
+
+        return $salesChannel;
     }
 }
