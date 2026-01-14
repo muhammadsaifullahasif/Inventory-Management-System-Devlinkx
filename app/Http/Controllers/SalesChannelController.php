@@ -83,9 +83,9 @@ class SalesChannelController extends Controller
                     'redirect_uri' => $sales_channel->ru_name,
                 ]);
             
-            dd($response->status(), $response->json());
+            // dd($response->status(), $response->json());
             
-            // $response_data = $response->json();
+            $response_data = $response->json();
 
             $sales_channel->authorization_code = $code;
             $sales_channel->access_token = $response_data['access_token'];
