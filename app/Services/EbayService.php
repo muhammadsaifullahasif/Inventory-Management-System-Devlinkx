@@ -92,9 +92,10 @@ class EbayService
             //     ]);
 
             $response = Http::withToken($salesChannel->access_token)
-                ->post('https://api.ebay.com/sell/feed/v1/feed', [
+                ->post('https://api.ebay.com/sell/feed/v1/inventory_task', [
                     'feedType' => 'LMS_ACTIVE_INVENTORY_REPORT',
-                    'marketplaceId' => ['EBAY_US'],
+                    'schemaVersion' => '1.0',
+                    // 'marketplaceId' => ['EBAY_US'],
                 ]);
 
             Log::info('eBay Get Inventory Items Response', [
