@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SalesChannel;
 use Illuminate\Http\Request;
 use App\Services\EbayService;
 use Illuminate\Support\Facades\Http;
