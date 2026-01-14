@@ -83,6 +83,8 @@ class SalesChannelController extends Controller
                     'redirect_uri' => $sales_channel->ru_name,
                 ]);
             
+            dd($response->status(), $response->json());
+            
             $response_data = $response->json();
 
             $sales_channel->authorization_code = $code;
@@ -92,7 +94,6 @@ class SalesChannelController extends Controller
             $sales_channel->refresh_token_expires_at = now()->addSeconds($response_data['refresh_token_expires_in']);
             $sales_channel->save();
             
-            dd($response->status(), $response->json());
 
             return redirect()->route('sales-channels.index')->with('success', 'Sales Channel created or updated successfully.');
         } catch (\Illuminate\Validation\ValidationException $e) {
