@@ -80,10 +80,11 @@ class SalesChannelController extends Controller
         $sales_channel->refresh_token = $response_data['refresh_token'];
         $sales_channel->refresh_token_expires_at = now()->addSeconds($response_data['refresh_token_expires_in']);
         $sales_channel->save();
+        
+        dd($response->status(), $response->json());
 
         return redirect()->route('sales-channels.index')->with('success', 'Sales Channel created successfully.');
         
-        // dd($response->status(), $response->json());
     }
 
     /**
