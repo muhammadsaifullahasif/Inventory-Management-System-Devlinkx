@@ -85,17 +85,23 @@ class EbayService
             //         'offset' => $offset,
             //     ]);
 
+            // $response = Http::withToken($salesChannel->access_token)
+            //     ->get('https://api.ebay.com/sell/inventory/v1/inventory_item', [
+            //         'limit' => $limit,
+            //         'offset' => $offset,
+            //     ]);
+
             $response = Http::withToken($salesChannel->access_token)
-                ->get('https://api.ebay.com/sell/inventory/v1/inventory_item', [
-                    'limit' => $limit,
-                    'offset' => $offset,
+                ->post('https://api.ebay.com/sell/feed/v1/feed', [
+                    'feedType' => 'LMS_ACTIVE_INVENTORY_REPORT',
+                    'marketplaceId' => ['EBAY_US'],
                 ]);
 
             Log::info('eBay Get Inventory Items Response', [
                 'data' => $response->json(),
                 'status' => $response->status(),
-                'limit' => $limit,
-                'offset' => $offset,
+                // 'limit' => $limit,
+                // 'offset' => $offset,
                 'sales_channel_id' => $salesChannel->id,
             ]);
 
