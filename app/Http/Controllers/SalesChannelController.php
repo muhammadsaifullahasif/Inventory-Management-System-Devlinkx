@@ -5,15 +5,25 @@ namespace App\Http\Controllers;
 use App\Models\SalesChannel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class SalesChannelController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(PermissionMiddleware::using('view sales_channels'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('add sales_channels'), ['only' => ['create', 'store']]);
+        $this->middleware(PermissionMiddleware::using('edit sales_channels'), ['only' => ['edit', 'update']]);
+        $this->middleware(PermissionMiddleware::using('delete sales_channels'), ['only' => ['destroy']]);
+    }
+
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        return view('sales-channel.index');
+        $sales_channels = SalesChannel::orderBy('id', 'DESC')->paginate(25);
+        return view('sales-channel.index', compact('sales_channels'));
     }
 
     /**
@@ -83,7 +93,7 @@ class SalesChannelController extends Controller
         
         // dd($response->status(), $response->json());
 
-        return redirect()->route('sales-channels.index')->with('success', 'Sales Channel created successfully.');
+        return redirect()->route('sales-channels.index')->with('success', 'Sales Channel created or updated successfully.');
         
     }
 
