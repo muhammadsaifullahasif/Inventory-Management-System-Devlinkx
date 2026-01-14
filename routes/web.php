@@ -29,6 +29,20 @@ Route::get('/run-migrations', function() {
     ]);
 });
 
+Route::get('/rollback-migrations', function() {
+    // Allow only local or staging environments to run this route
+    if (!app()->environment(['local', 'staging'])) {
+        abort(403, 'Migrations can only be rolled back in the local or staging environments.');
+    }
+
+    Artisan::call('migrate:rollback', ['--force' => true]);
+
+    return response()->json([
+        'message' => 'Migrations rolled back successfully.',
+        'output' => Artisan::output()
+    ]);
+});
+
 Auth::routes();
 
 // Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
