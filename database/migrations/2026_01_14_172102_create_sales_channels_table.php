@@ -19,9 +19,9 @@ return new class extends Migration
             $table->string('ru_name');
             $table->string('user_scopes');
             $table->text('authorization_code')->nullable();
-            $table->string('access_token')->nullable();
+            $table->text('access_token')->nullable();
             $table->dateTime('access_token_expires_at')->nullable();
-            $table->string('refresh_token')->nullable();
+            $table->text('refresh_token')->nullable();
             $table->dateTime('refresh_token_expires_at')->nullable();
             $table->text('additional_info')->nullable();
             $table->string('status')->default('active');
