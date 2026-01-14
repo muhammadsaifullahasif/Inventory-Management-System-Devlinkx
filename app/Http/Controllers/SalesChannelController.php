@@ -34,7 +34,7 @@ class SalesChannelController extends Controller
             'client_id' => 'required|string|max:255',
             'client_secret' => 'required|string|max:255',
             'ru_name' => 'required|string|max:255',
-            'user_scopes' => 'required|string|max:255'
+            'user_scopes' => 'required|string'
         ]);
 
         try {
