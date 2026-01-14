@@ -44,7 +44,7 @@
             </div>
             <div class="mb-3">
                 <label for="client_secret">Client Secret: <span class="text-danger">*</span></label>
-                <input type="password" name="client_secret" id="client_secret" class="form-control @error('client_secret') is-invalid @enderror" required>
+                <input type="password" name="client_secret" id="client_secret" value="{{ old('client_secret') }}" class="form-control @error('client_secret') is-invalid @enderror" required>
                 @error('client_secret')
                     <span class="invalid-feedback">{{ $message }}</span>
                 @enderror
