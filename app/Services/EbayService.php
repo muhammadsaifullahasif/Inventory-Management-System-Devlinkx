@@ -66,20 +66,26 @@ class EbayService
     public function getInventoryItems(SalesChannel $salesChannel, int $limit = 100, int $offset = 0): array
     {
         try {
-            $response = Http::timeout(60)
-                ->connectTimeout(30)
-                ->withOptions([
-                    'verify' => false,
-                    'debug' => false,
-                ])
-                ->withHeaders([
-                    'Authorization' => 'Bearer ' . $salesChannel->access_token,
-                    'Content-Type' => 'application/json',
-                    'Accept' => 'application/json',
-                    'Accept-Encoding' => 'gzip',
-                    'Accept-Language' => 'en-US',
-                    'Content-Language' => 'en-US',
-                ])
+            // $response = Http::timeout(60)
+            //     ->connectTimeout(30)
+            //     ->withOptions([
+            //         'verify' => false,
+            //         'debug' => false,
+            //     ])
+            //     ->withHeaders([
+            //         'Authorization' => 'Bearer ' . $salesChannel->access_token,
+            //         'Content-Type' => 'application/json',
+            //         'Accept' => 'application/json',
+            //         'Accept-Encoding' => 'gzip',
+            //         'Accept-Language' => 'en-US',
+            //         'Content-Language' => 'en-US',
+            //     ])
+            //     ->get('https://api.ebay.com/sell/inventory/v1/inventory_item', [
+            //         'limit' => $limit,
+            //         'offset' => $offset,
+            //     ]);
+
+            $response = Http::withToken($salesChannel->access_token)
                 ->get('https://api.ebay.com/sell/inventory/v1/inventory_item', [
                     'limit' => $limit,
                     'offset' => $offset,
