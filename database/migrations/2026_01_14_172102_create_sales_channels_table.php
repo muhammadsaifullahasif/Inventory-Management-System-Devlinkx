@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('client_id');
             $table->string('client_secret');
             $table->string('ru_name');
-            $table->string('user_scopes');
+            $table->text('user_scopes');
             $table->text('authorization_code')->nullable();
             $table->text('access_token')->nullable();
             $table->dateTime('access_token_expires_at')->nullable();
