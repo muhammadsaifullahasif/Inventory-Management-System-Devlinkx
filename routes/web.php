@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\EbayController;
 use App\Http\Controllers\RackController;
 use App\Http\Controllers\RoleController;
