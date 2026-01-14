@@ -52,6 +52,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Sales Channel
     Route::resource('/sales-channels', SalesChannelController::class);
+    Route::get('/ebay/callback', [SalesChannelController::class, 'ebay_callback'])->name('ebay.callback');
 
     // Ebay Integration
     Route::get('/ebay', [EbayController::class, 'index'])->name('ebay.index');
@@ -59,7 +60,6 @@ Route::middleware(['auth'])->group(function () {
 
     // eBay OAuth Flow
     Route::get('/ebay/authorize', [EbayController::class, 'redirectToEbay'])->name('ebay.authorize');
-    Route::get('/ebay/callback', [EbayController::class, 'callback'])->name('ebay.callback');
 
     // eBay Listings
     Route::get('/ebay/inventory-items', [EbayController::class, 'getInventoryItems'])->name('ebay.inventory.items');

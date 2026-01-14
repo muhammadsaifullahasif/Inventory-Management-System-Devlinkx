@@ -30,12 +30,27 @@ class SalesChannelController extends Controller
     {
         $params = [
             'client_id' => env('EBAY_CLIENT_ID'),
-            'redirect_uri' => env('EBAY_REDIRECT_URI'),
+            'redirect_uri' => env('EBAY_RU_NAME'),
             'response_type' => 'code',
             'scope' => env('EBAY_USER_SCOPES'),
         ];
 
-        return redirect('https://auth.ebay.com/oauth2/authorize?' . http_build_query($params));
+        return redirect('https://auth.ebay.com/oauth2/authorize' . '?client_id=' . env('EBAY_CLIENT_ID') . '&response_type=code' . '&redirect_uri=' . env('EBAY_RU_NAME') . '&scope=' . urlencode(env('EBAY_USER_SCOPES')));
+    }
+    
+    public function ebay_callback(Request $request)
+    {
+        $code = request('code');
+        
+        $response = Http::asForm()
+            ->withBasicAuth(env('EBAY_CLIENT_ID'), env('EBAY_CLIENT_SECRET'))
+            ->post('https://api.ebay.com/identity/v1/oauth2/token', [
+                'grant_type'   => 'authorization_code',
+                'code'         => $code,
+                'redirect_uri' => env('EBAY_RU_NAME'),
+            ]);
+        
+        dd($response->status(), $response->json());
     }
 
     /**
