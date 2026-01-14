@@ -90,7 +90,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ebay/authorize', [EbayController::class, 'redirectToEbay'])->name('ebay.authorize');
 
     // eBay Listings
-    Route::get('/ebay/inventory-items', [EbayController::class, 'getInventoryItems'])->name('ebay.inventory.items');
+    Route::get('/ebay/inventory-items/{id}', [EbayController::class, 'getInventoryItems'])->name('ebay.inventory.items');
     Route::get('/ebay/listings/active', [EbayController::class, 'getActiveListings'])->name('ebay.listings.active');
     Route::get('/ebay/listings/all', [EbayController::class, 'getAllListings'])->name('ebay.listings.all');
     Route::get('/ebay/listings/{status}', [EbayController::class, 'getListingsByStatus'])->name('ebay.listings.status');

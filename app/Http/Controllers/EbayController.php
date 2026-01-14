@@ -40,13 +40,30 @@ class EbayController extends Controller
     /**
      * Get all inventory items from eBay
      */
-    public function getInventoryItems(Request $request)
+    public function getInventoryItems(string $id)
     {
         try {
-            $limit = $request->input('limit', 100);
-            $offset = $request->input('offset', 0);
+            $sales_channels = SalesChannel::findOrFail($id);
 
-            $inventoryItems = $this->ebayService->getInventoryItems($limit, $offset);
+            $response = Http::timeout(60)
+                ->connectTimeout(30)
+                ->withOptions([
+                    'verify' => false,
+                    'debug' => false,
+                ])
+                ->withHeaders([
+                    'Authorization' => 'Bearer ' . $sales_channels->access_token,
+                    'Content-Type' => 'application/json',
+                ])
+                ->get('https://api.ebay.com/sell/inventory/v1/inventory_item');
+
+            $inventoryItems = $response->json();
+
+            // dd($inventoryItems);
+            // $limit = $request->input('limit', 100);
+            // $offset = $request->input('offset', 0);
+
+            // $inventoryItems = $this->ebayService->getInventoryItems($limit, $offset);
 
             return response()->json([
                 'success' => true,
