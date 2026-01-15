@@ -8,358 +8,107 @@ use App\Services\EbayService;
 
 class EbayController extends Controller
 {
-    protected $ebayService;
-
-    public function __construct(EbayService $ebayService)
-    {
-        $this->ebayService = $ebayService;
-    }
+    public function __construct(protected EbayService $ebayService) {}
 
     /**
-     * Get all active listings from eBay seller's store
-     * This uses the Trading API GetMyeBaySelling to fetch all your listings
+     * Get active listings (paginated)
      */
-    public function getSellerListings(Request $request, string $id)
+    public function getActiveListings(Request $request, string $id)
     {
         try {
-            $salesChannel = SalesChannel::findOrFail($id);
+            $salesChannel = $this->getSalesChannelWithValidToken($id);
 
-            // Check if access token is expired
-            if ($this->isAccessTokenExpired($salesChannel)) {
-                $salesChannel = $this->refreshAccessToken($salesChannel);
-            }
-
-            $page = $request->input('page', 1);
-            $perPage = $request->input('per_page', 100);
-
-            $listings = $this->ebayService->getActiveSellerListings($salesChannel, $page, $perPage);
+            $listings = $this->ebayService->getActiveListings(
+                $salesChannel,
+                $request->input('page', 1),
+                $request->input('per_page', 100)
+            );
 
             return response()->json($listings);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
+            return $this->errorResponse($e->getMessage());
         }
     }
 
     /**
-     * Get ALL active listings from eBay (fetches all pages automatically)
+     * Get ALL active listings
      */
-    public function getAllSellerListings(string $id)
+    public function getAllActiveListings(string $id)
     {
         try {
-            $salesChannel = SalesChannel::findOrFail($id);
-
-            // Check if access token is expired
-            if ($this->isAccessTokenExpired($salesChannel)) {
-                $salesChannel = $this->refreshAccessToken($salesChannel);
-            }
-
-            $listings = $this->ebayService->getAllActiveSellerListings($salesChannel);
+            $salesChannel = $this->getSalesChannelWithValidToken($id);
+            $listings = $this->ebayService->getAllActiveListings($salesChannel);
 
             return response()->json($listings);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
+            return $this->errorResponse($e->getMessage());
         }
     }
 
     /**
-     * Get single item details from eBay
-     */
-    public function getItemDetails(string $id, string $itemId)
-    {
-        try {
-            $salesChannel = SalesChannel::findOrFail($id);
-
-            // Check if access token is expired
-            if ($this->isAccessTokenExpired($salesChannel)) {
-                $salesChannel = $this->refreshAccessToken($salesChannel);
-            }
-
-            $itemDetails = $this->ebayService->getItemDetails($salesChannel, $itemId);
-
-            return response()->json($itemDetails);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Get unsold listings from eBay (ended without sale)
-     * Note: eBay "Drafts" in Seller Hub are NOT accessible via API - they are stored locally
-     * This returns listings that were published but ended without a sale
+     * Get unsold listings (paginated)
      */
     public function getUnsoldListings(Request $request, string $id)
     {
         try {
-            $salesChannel = SalesChannel::findOrFail($id);
+            $salesChannel = $this->getSalesChannelWithValidToken($id);
 
-            if ($this->isAccessTokenExpired($salesChannel)) {
-                $salesChannel = $this->refreshAccessToken($salesChannel);
-            }
-
-            $page = $request->input('page', 1);
-            $perPage = $request->input('per_page', 100);
-            $durationInDays = $request->input('days', 60);
-
-            $listings = $this->ebayService->getUnsoldListings($salesChannel, $page, $perPage, $durationInDays);
+            $listings = $this->ebayService->getUnsoldListings(
+                $salesChannel,
+                $request->input('page', 1),
+                $request->input('per_page', 100),
+                $request->input('days', 60)
+            );
 
             return response()->json($listings);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
+            return $this->errorResponse($e->getMessage());
         }
     }
 
     /**
-     * Get ALL unsold listings from eBay
+     * Get ALL unsold listings
      */
     public function getAllUnsoldListings(Request $request, string $id)
     {
         try {
-            $salesChannel = SalesChannel::findOrFail($id);
-
-            if ($this->isAccessTokenExpired($salesChannel)) {
-                $salesChannel = $this->refreshAccessToken($salesChannel);
-            }
-
-            $durationInDays = $request->input('days', 60);
-            $listings = $this->ebayService->getAllUnsoldListings($salesChannel, $durationInDays);
+            $salesChannel = $this->getSalesChannelWithValidToken($id);
+            $listings = $this->ebayService->getAllUnsoldListings(
+                $salesChannel,
+                $request->input('days', 60)
+            );
 
             return response()->json($listings);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
+            return $this->errorResponse($e->getMessage());
         }
     }
 
     /**
-     * Alias for getUnsoldListings (backward compatibility)
+     * Get single item details
      */
-    public function getDraftListings(Request $request, string $id)
-    {
-        return $this->getUnsoldListings($request, $id);
-    }
-
-    /**
-     * Alias for getAllUnsoldListings (backward compatibility)
-     */
-    public function getAllDraftListings(string $id)
-    {
-        $request = request();
-        return $this->getAllUnsoldListings($request, $id);
-    }
-
-    /**
-     * Get scheduled listings from eBay
-     */
-    public function getScheduledListings(Request $request, string $id)
+    public function getItemDetails(string $id, string $itemId)
     {
         try {
-            $salesChannel = SalesChannel::findOrFail($id);
+            $salesChannel = $this->getSalesChannelWithValidToken($id);
+            $itemDetails = $this->ebayService->getItemDetails($salesChannel, $itemId);
 
-            if ($this->isAccessTokenExpired($salesChannel)) {
-                $salesChannel = $this->refreshAccessToken($salesChannel);
-            }
-
-            $page = $request->input('page', 1);
-            $perPage = $request->input('per_page', 100);
-
-            $listings = $this->ebayService->getScheduledListings($salesChannel, $page, $perPage);
-
-            return response()->json($listings);
+            return response()->json($itemDetails);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
+            return $this->errorResponse($e->getMessage());
         }
     }
 
     /**
-     * Get sold listings from eBay (items that were sold)
-     * Note: eBay limits this to last 60 days max
-     */
-    public function getSoldListings(Request $request, string $id)
-    {
-        try {
-            $salesChannel = SalesChannel::findOrFail($id);
-
-            if ($this->isAccessTokenExpired($salesChannel)) {
-                $salesChannel = $this->refreshAccessToken($salesChannel);
-            }
-
-            $page = $request->input('page', 1);
-            $perPage = $request->input('per_page', 100);
-            $durationInDays = $request->input('days', 60);
-
-            $listings = $this->ebayService->getSoldListings($salesChannel, $page, $perPage, $durationInDays);
-
-            return response()->json($listings);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Get ALL sold listings from eBay
-     */
-    public function getAllSoldListings(Request $request, string $id)
-    {
-        try {
-            $salesChannel = SalesChannel::findOrFail($id);
-
-            if ($this->isAccessTokenExpired($salesChannel)) {
-                $salesChannel = $this->refreshAccessToken($salesChannel);
-            }
-
-            $durationInDays = $request->input('days', 60);
-            $listings = $this->ebayService->getAllSoldListings($salesChannel, $durationInDays);
-
-            return response()->json($listings);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Alias for getSoldListings (backward compatibility)
-     */
-    public function getCompletedListings(Request $request, string $id)
-    {
-        return $this->getSoldListings($request, $id);
-    }
-
-    /**
-     * Alias for getAllSoldListings (backward compatibility)
-     */
-    public function getAllCompletedListings(string $id)
-    {
-        $request = request();
-        return $this->getAllSoldListings($request, $id);
-    }
-
-    /**
-     * Get inventory items using Inventory API (SKU-based)
-     * Note: Only returns items created via the Inventory API
-     */
-    public function getInventoryItems(string $id)
-    {
-        try {
-            $salesChannel = SalesChannel::findOrFail($id);
-
-            // Check if access token is expired
-            if ($this->isAccessTokenExpired($salesChannel)) {
-                $salesChannel = $this->refreshAccessToken($salesChannel);
-            }
-
-            $inventoryItems = $this->ebayService->getInventoryItems($salesChannel);
-
-            return response()->json([
-                'success' => true,
-                'data' => $inventoryItems,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Get active offers/listings from Inventory API
-     */
-    public function getActiveListings(string $id)
-    {
-        try {
-            $salesChannel = SalesChannel::findOrFail($id);
-
-            // Check if access token is expired
-            if ($this->isAccessTokenExpired($salesChannel)) {
-                $salesChannel = $this->refreshAccessToken($salesChannel);
-            }
-
-            $activeListings = $this->ebayService->getActiveListings($salesChannel);
-
-            return response()->json([
-                'success' => true,
-                'data' => $activeListings,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Get all listings from eBay (active, ended, drafts) for a specific sales channel
-     * Status options: ALL, PUBLISHED, UNPUBLISHED, ENDED
-     */
-    public function getAllListings(Request $request, string $id)
-    {
-        try {
-            $salesChannel = SalesChannel::findOrFail($id);
-
-            // Check if access token is expired
-            if ($this->isAccessTokenExpired($salesChannel)) {
-                $salesChannel = $this->refreshAccessToken($salesChannel);
-            }
-
-            $status = $request->input('status', 'ALL');
-            $limit = $request->input('limit', 100);
-            $offset = $request->input('offset', 0);
-
-            $allListings = $this->ebayService->getAllListings($salesChannel, $status, $limit, $offset);
-
-            return response()->json([
-                'success' => true,
-                'data' => $allListings,
-                'filter' => [
-                    'status' => $status,
-                    'limit' => $limit,
-                    'offset' => $offset,
-                ],
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Redirect user to eBay for authorization for a specific sales channel
+     * Redirect user to eBay for authorization
      */
     public function redirectToEbay(string $id)
     {
         $salesChannel = SalesChannel::findOrFail($id);
-
         $state = $id . '|' . bin2hex(random_bytes(16));
         session(['ebay_oauth_state' => $state]);
 
-        $authUrl = $this->ebayService->getAuthorizationUrl($salesChannel, $state);
-        return redirect()->away($authUrl);
+        return redirect()->away($this->ebayService->getAuthorizationUrl($salesChannel, $state));
     }
 
     /**
@@ -376,12 +125,10 @@ class EbayController extends Controller
             $stateParam = $request->input('state');
             $sessionState = session('ebay_oauth_state');
 
-            // Verify state parameter
             if ($stateParam !== $sessionState) {
                 throw new \Exception('Invalid state parameter');
             }
 
-            // Extract sales channel ID from state
             $stateParts = explode('|', $stateParam);
             $salesChannelId = $stateParts[0] ?? null;
 
@@ -391,30 +138,19 @@ class EbayController extends Controller
 
             $salesChannel = SalesChannel::findOrFail($salesChannelId);
 
-            // Check for errors
             if ($request->has('error')) {
                 throw new \Exception('eBay authorization failed: ' . $request->input('error_description', $request->input('error')));
             }
 
-            // Exchange code for token
             $code = $request->input('code');
             $tokenData = $this->ebayService->getUserAccessToken($salesChannel, $code);
 
-            \Log::info('eBay Token Data Received', [
-                'has_access_token' => isset($tokenData['access_token']),
-                'has_refresh_token' => isset($tokenData['refresh_token']),
-                'expires_in' => $tokenData['expires_in'] ?? null,
-                'sales_channel_id' => $salesChannel->id,
-            ]);
-
-            // Store tokens in database
             $salesChannel->authorization_code = $code;
             $salesChannel->access_token = $tokenData['access_token'];
             $salesChannel->access_token_expires_at = now()->addSeconds($tokenData['expires_in']);
 
             if (isset($tokenData['refresh_token'])) {
                 $salesChannel->refresh_token = $tokenData['refresh_token'];
-                // eBay refresh tokens typically expire in 18 months
                 if (isset($tokenData['refresh_token_expires_in'])) {
                     $salesChannel->refresh_token_expires_at = now()->addSeconds($tokenData['refresh_token_expires_in']);
                 }
@@ -422,18 +158,10 @@ class EbayController extends Controller
 
             $salesChannel->save();
 
-            \Log::info('eBay Tokens Stored in Database', [
-                'sales_channel_id' => $salesChannel->id,
-                'access_token_expires_at' => $salesChannel->access_token_expires_at,
-            ]);
-
             return redirect()->route('sales-channels.index')
                 ->with('success', 'Successfully connected to eBay!');
         } catch (\Exception $e) {
-            \Log::error('eBay Callback Error', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
+            \Log::error('eBay Callback Error', ['message' => $e->getMessage()]);
 
             return redirect()->route('sales-channels.index')
                 ->with('error', 'eBay authorization failed: ' . $e->getMessage());
@@ -441,7 +169,21 @@ class EbayController extends Controller
     }
 
     /**
-     * Check if the access token is expired
+     * Get sales channel with valid token (refresh if needed)
+     */
+    private function getSalesChannelWithValidToken(string $id): SalesChannel
+    {
+        $salesChannel = SalesChannel::findOrFail($id);
+
+        if ($this->isAccessTokenExpired($salesChannel)) {
+            $salesChannel = $this->refreshAccessToken($salesChannel);
+        }
+
+        return $salesChannel;
+    }
+
+    /**
+     * Check if access token is expired
      */
     private function isAccessTokenExpired(SalesChannel $salesChannel): bool
     {
@@ -449,12 +191,11 @@ class EbayController extends Controller
             return true;
         }
 
-        // Consider token expired if it expires within the next 5 minutes (buffer time)
         return now()->addMinutes(5)->greaterThanOrEqualTo($salesChannel->access_token_expires_at);
     }
 
     /**
-     * Refresh the access token using the refresh token
+     * Refresh access token
      */
     private function refreshAccessToken(SalesChannel $salesChannel): SalesChannel
     {
@@ -462,18 +203,15 @@ class EbayController extends Controller
             throw new \Exception('No refresh token available. Please re-authorize with eBay.');
         }
 
-        // Check if refresh token is also expired
         if ($salesChannel->refresh_token_expires_at && now()->greaterThanOrEqualTo($salesChannel->refresh_token_expires_at)) {
             throw new \Exception('Refresh token has expired. Please re-authorize with eBay.');
         }
 
         $tokenData = $this->ebayService->refreshUserToken($salesChannel);
 
-        // Update the sales channel with new tokens
         $salesChannel->access_token = $tokenData['access_token'];
         $salesChannel->access_token_expires_at = now()->addSeconds($tokenData['expires_in']);
 
-        // Update refresh token if a new one is provided
         if (isset($tokenData['refresh_token'])) {
             $salesChannel->refresh_token = $tokenData['refresh_token'];
             if (isset($tokenData['refresh_token_expires_in'])) {
@@ -483,11 +221,22 @@ class EbayController extends Controller
 
         $salesChannel->save();
 
-        \Log::info('eBay access token refreshed for sales channel', [
+        \Log::info('eBay access token refreshed', [
             'sales_channel_id' => $salesChannel->id,
             'new_expires_at' => $salesChannel->access_token_expires_at,
         ]);
 
         return $salesChannel;
+    }
+
+    /**
+     * Return error response
+     */
+    private function errorResponse(string $message, int $status = 500)
+    {
+        return response()->json([
+            'success' => false,
+            'message' => $message,
+        ], $status);
     }
 }
