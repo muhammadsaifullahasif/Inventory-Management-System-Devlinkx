@@ -92,9 +92,11 @@ class EbayController extends Controller
     }
 
     /**
-     * Get draft/unsold listings from eBay
+     * Get unsold listings from eBay (ended without sale)
+     * Note: eBay "Drafts" in Seller Hub are NOT accessible via API - they are stored locally
+     * This returns listings that were published but ended without a sale
      */
-    public function getDraftListings(Request $request, string $id)
+    public function getUnsoldListings(Request $request, string $id)
     {
         try {
             $salesChannel = SalesChannel::findOrFail($id);
@@ -105,8 +107,9 @@ class EbayController extends Controller
 
             $page = $request->input('page', 1);
             $perPage = $request->input('per_page', 100);
+            $durationInDays = $request->input('days', 60);
 
-            $listings = $this->ebayService->getDraftListings($salesChannel, $page, $perPage);
+            $listings = $this->ebayService->getUnsoldListings($salesChannel, $page, $perPage, $durationInDays);
 
             return response()->json($listings);
         } catch (\Exception $e) {
@@ -118,9 +121,9 @@ class EbayController extends Controller
     }
 
     /**
-     * Get ALL draft listings from eBay
+     * Get ALL unsold listings from eBay
      */
-    public function getAllDraftListings(string $id)
+    public function getAllUnsoldListings(Request $request, string $id)
     {
         try {
             $salesChannel = SalesChannel::findOrFail($id);
@@ -129,7 +132,8 @@ class EbayController extends Controller
                 $salesChannel = $this->refreshAccessToken($salesChannel);
             }
 
-            $listings = $this->ebayService->getAllDraftListings($salesChannel);
+            $durationInDays = $request->input('days', 60);
+            $listings = $this->ebayService->getAllUnsoldListings($salesChannel, $durationInDays);
 
             return response()->json($listings);
         } catch (\Exception $e) {
@@ -138,6 +142,23 @@ class EbayController extends Controller
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Alias for getUnsoldListings (backward compatibility)
+     */
+    public function getDraftListings(Request $request, string $id)
+    {
+        return $this->getUnsoldListings($request, $id);
+    }
+
+    /**
+     * Alias for getAllUnsoldListings (backward compatibility)
+     */
+    public function getAllDraftListings(string $id)
+    {
+        $request = request();
+        return $this->getAllUnsoldListings($request, $id);
     }
 
     /**
@@ -167,9 +188,10 @@ class EbayController extends Controller
     }
 
     /**
-     * Get completed/sold listings from eBay
+     * Get sold listings from eBay (items that were sold)
+     * Note: eBay limits this to last 60 days max
      */
-    public function getCompletedListings(Request $request, string $id)
+    public function getSoldListings(Request $request, string $id)
     {
         try {
             $salesChannel = SalesChannel::findOrFail($id);
@@ -180,8 +202,9 @@ class EbayController extends Controller
 
             $page = $request->input('page', 1);
             $perPage = $request->input('per_page', 100);
+            $durationInDays = $request->input('days', 60);
 
-            $listings = $this->ebayService->getCompletedListings($salesChannel, $page, $perPage);
+            $listings = $this->ebayService->getSoldListings($salesChannel, $page, $perPage, $durationInDays);
 
             return response()->json($listings);
         } catch (\Exception $e) {
@@ -193,9 +216,9 @@ class EbayController extends Controller
     }
 
     /**
-     * Get ALL completed/sold listings from eBay
+     * Get ALL sold listings from eBay
      */
-    public function getAllCompletedListings(string $id)
+    public function getAllSoldListings(Request $request, string $id)
     {
         try {
             $salesChannel = SalesChannel::findOrFail($id);
@@ -204,7 +227,8 @@ class EbayController extends Controller
                 $salesChannel = $this->refreshAccessToken($salesChannel);
             }
 
-            $listings = $this->ebayService->getAllCompletedListings($salesChannel);
+            $durationInDays = $request->input('days', 60);
+            $listings = $this->ebayService->getAllSoldListings($salesChannel, $durationInDays);
 
             return response()->json($listings);
         } catch (\Exception $e) {
@@ -213,6 +237,23 @@ class EbayController extends Controller
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Alias for getSoldListings (backward compatibility)
+     */
+    public function getCompletedListings(Request $request, string $id)
+    {
+        return $this->getSoldListings($request, $id);
+    }
+
+    /**
+     * Alias for getAllSoldListings (backward compatibility)
+     */
+    public function getAllCompletedListings(string $id)
+    {
+        $request = request();
+        return $this->getAllSoldListings($request, $id);
     }
 
     /**

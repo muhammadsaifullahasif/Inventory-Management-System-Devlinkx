@@ -131,9 +131,11 @@ class EbayService
     }
 
     /**
-     * Get draft/unsold listings from eBay using GetMyeBaySelling API
+     * Get unsold listings from eBay using GetMyeBaySelling API
+     * These are listings that ended without a sale (expired, not sold)
+     * Note: eBay "Drafts" in Seller Hub are NOT accessible via API
      */
-    public function getDraftListings(SalesChannel $salesChannel, int $page = 1, int $entriesPerPage = 100): array
+    public function getUnsoldListings(SalesChannel $salesChannel, int $page = 1, int $entriesPerPage = 100, int $durationInDays = 60): array
     {
         try {
             $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
@@ -142,6 +144,7 @@ class EbayService
     <WarningLevel>High</WarningLevel>
     <UnsoldList>
         <Include>true</Include>
+        <DurationInDays>' . $durationInDays . '</DurationInDays>
         <Pagination>
             <EntriesPerPage>' . $entriesPerPage . '</EntriesPerPage>
             <PageNumber>' . $page . '</PageNumber>
@@ -162,13 +165,13 @@ class EbayService
                 ->withBody($xmlRequest, 'text/xml')
                 ->post('https://api.ebay.com/ws/api.dll');
 
-            Log::info('eBay GetMyeBaySelling (Drafts) Response', [
+            Log::info('eBay GetMyeBaySelling (Unsold) Response', [
                 'status' => $response->status(),
                 'sales_channel_id' => $salesChannel->id,
             ]);
 
             if ($response->failed()) {
-                Log::error('eBay GetMyeBaySelling (Drafts) Failed', [
+                Log::error('eBay GetMyeBaySelling (Unsold) Failed', [
                     'status' => $response->status(),
                     'body' => $response->body(),
                     'sales_channel_id' => $salesChannel->id,
@@ -178,12 +181,20 @@ class EbayService
 
             return $this->parseGetMyeBaySellingResponse($response->body(), 'UnsoldList');
         } catch (Exception $e) {
-            Log::error('eBay getDraftListings Error', [
+            Log::error('eBay getUnsoldListings Error', [
                 'message' => $e->getMessage(),
                 'sales_channel_id' => $salesChannel->id,
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * Alias for getUnsoldListings (for backward compatibility)
+     */
+    public function getDraftListings(SalesChannel $salesChannel, int $page = 1, int $entriesPerPage = 100): array
+    {
+        return $this->getUnsoldListings($salesChannel, $page, $entriesPerPage);
     }
 
     /**
@@ -372,9 +383,10 @@ class EbayService
     }
 
     /**
-     * Get completed/sold listings from eBay using GetMyeBaySelling API
+     * Get sold listings from eBay using GetMyeBaySelling API
+     * Note: eBay limits SoldList to last 60 days max
      */
-    public function getCompletedListings(SalesChannel $salesChannel, int $page = 1, int $entriesPerPage = 100): array
+    public function getSoldListings(SalesChannel $salesChannel, int $page = 1, int $entriesPerPage = 100, int $durationInDays = 60): array
     {
         try {
             $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
@@ -383,11 +395,11 @@ class EbayService
     <WarningLevel>High</WarningLevel>
     <SoldList>
         <Include>true</Include>
+        <DurationInDays>' . min($durationInDays, 60) . '</DurationInDays>
         <Pagination>
             <EntriesPerPage>' . $entriesPerPage . '</EntriesPerPage>
             <PageNumber>' . $page . '</PageNumber>
         </Pagination>
-        <DurationInDays>60</DurationInDays>
     </SoldList>
     <DetailLevel>ReturnAll</DetailLevel>
 </GetMyeBaySellingRequest>';
@@ -404,13 +416,13 @@ class EbayService
                 ->withBody($xmlRequest, 'text/xml')
                 ->post('https://api.ebay.com/ws/api.dll');
 
-            Log::info('eBay GetMyeBaySelling (Completed) Response', [
+            Log::info('eBay GetMyeBaySelling (Sold) Response', [
                 'status' => $response->status(),
                 'sales_channel_id' => $salesChannel->id,
             ]);
 
             if ($response->failed()) {
-                Log::error('eBay GetMyeBaySelling (Completed) Failed', [
+                Log::error('eBay GetMyeBaySelling (Sold) Failed', [
                     'status' => $response->status(),
                     'body' => $response->body(),
                     'sales_channel_id' => $salesChannel->id,
@@ -420,7 +432,7 @@ class EbayService
 
             return $this->parseGetMyeBaySellingResponse($response->body(), 'SoldList');
         } catch (Exception $e) {
-            Log::error('eBay getCompletedListings Error', [
+            Log::error('eBay getSoldListings Error', [
                 'message' => $e->getMessage(),
                 'sales_channel_id' => $salesChannel->id,
             ]);
@@ -429,16 +441,25 @@ class EbayService
     }
 
     /**
-     * Get ALL completed/sold listings (handles pagination automatically)
+     * Alias for getSoldListings (for backward compatibility)
      */
-    public function getAllCompletedListings(SalesChannel $salesChannel): array
+    public function getCompletedListings(SalesChannel $salesChannel, int $page = 1, int $entriesPerPage = 100): array
+    {
+        return $this->getSoldListings($salesChannel, $page, $entriesPerPage);
+    }
+
+    /**
+     * Get ALL sold listings (handles pagination automatically)
+     * Note: eBay limits to last 60 days
+     */
+    public function getAllSoldListings(SalesChannel $salesChannel, int $durationInDays = 60): array
     {
         $allItems = [];
         $page = 1;
         $entriesPerPage = 200;
 
         do {
-            $response = $this->getCompletedListings($salesChannel, $page, $entriesPerPage);
+            $response = $this->getSoldListings($salesChannel, $page, $entriesPerPage, $durationInDays);
             $allItems = array_merge($allItems, $response['items']);
 
             $totalPages = $response['pagination']['totalPages'];
@@ -454,16 +475,24 @@ class EbayService
     }
 
     /**
-     * Get ALL draft listings (handles pagination automatically)
+     * Alias for getAllSoldListings (for backward compatibility)
      */
-    public function getAllDraftListings(SalesChannel $salesChannel): array
+    public function getAllCompletedListings(SalesChannel $salesChannel): array
+    {
+        return $this->getAllSoldListings($salesChannel);
+    }
+
+    /**
+     * Get ALL unsold listings (handles pagination automatically)
+     */
+    public function getAllUnsoldListings(SalesChannel $salesChannel, int $durationInDays = 60): array
     {
         $allItems = [];
         $page = 1;
         $entriesPerPage = 200;
 
         do {
-            $response = $this->getDraftListings($salesChannel, $page, $entriesPerPage);
+            $response = $this->getUnsoldListings($salesChannel, $page, $entriesPerPage, $durationInDays);
             $allItems = array_merge($allItems, $response['items']);
 
             $totalPages = $response['pagination']['totalPages'];
@@ -476,6 +505,14 @@ class EbayService
             'total_items' => count($allItems),
             'items' => $allItems,
         ];
+    }
+
+    /**
+     * Alias for getAllUnsoldListings (for backward compatibility)
+     */
+    public function getAllDraftListings(SalesChannel $salesChannel): array
+    {
+        return $this->getAllUnsoldListings($salesChannel);
     }
 
     /**

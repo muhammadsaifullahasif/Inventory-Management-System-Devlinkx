@@ -95,14 +95,21 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ebay/seller-listings-all/{id}', [EbayController::class, 'getAllSellerListings'])->name('ebay.seller.listings.all');
     Route::get('/ebay/item/{id}/{itemId}', [EbayController::class, 'getItemDetails'])->name('ebay.item.details');
 
-    // eBay Draft/Unsold Listings
+    // eBay Unsold Listings (ended without sale - NOT the same as Seller Hub "Drafts")
+    // Note: eBay "Drafts" in Seller Hub are NOT accessible via API - they are stored locally in eBay
+    Route::get('/ebay/unsold-listings/{id}', [EbayController::class, 'getUnsoldListings'])->name('ebay.unsold.listings');
+    Route::get('/ebay/unsold-listings-all/{id}', [EbayController::class, 'getAllUnsoldListings'])->name('ebay.unsold.listings.all');
+    // Backward compatibility aliases for draft routes
     Route::get('/ebay/draft-listings/{id}', [EbayController::class, 'getDraftListings'])->name('ebay.draft.listings');
     Route::get('/ebay/draft-listings-all/{id}', [EbayController::class, 'getAllDraftListings'])->name('ebay.draft.listings.all');
 
     // eBay Scheduled Listings
     Route::get('/ebay/scheduled-listings/{id}', [EbayController::class, 'getScheduledListings'])->name('ebay.scheduled.listings');
 
-    // eBay Completed/Sold Listings
+    // eBay Sold Listings (items that sold - limited to last 60 days by eBay)
+    Route::get('/ebay/sold-listings/{id}', [EbayController::class, 'getSoldListings'])->name('ebay.sold.listings');
+    Route::get('/ebay/sold-listings-all/{id}', [EbayController::class, 'getAllSoldListings'])->name('ebay.sold.listings.all');
+    // Backward compatibility aliases for completed routes
     Route::get('/ebay/completed-listings/{id}', [EbayController::class, 'getCompletedListings'])->name('ebay.completed.listings');
     Route::get('/ebay/completed-listings-all/{id}', [EbayController::class, 'getAllCompletedListings'])->name('ebay.completed.listings.all');
 
