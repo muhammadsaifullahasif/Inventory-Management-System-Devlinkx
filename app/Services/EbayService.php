@@ -61,41 +61,41 @@ class EbayService
     }
 
     /**
-     * Get all active listings from eBay using Trading API (GetMyeBaySelling)
-     * This returns all your active listings in your eBay store
+     * Get all active listings from eBay using Trading API (GetSellerList)
+     * This returns detailed item information including images, descriptions, categories
      */
     public function getActiveSellerListings(SalesChannel $salesChannel, int $page = 1, int $entriesPerPage = 100): array
     {
         try {
-            $xmlRequest = $this->buildGetMyeBaySellingRequest($page, $entriesPerPage);
+            $xmlRequest = $this->buildGetSellerListRequest($page, $entriesPerPage);
 
             $response = Http::timeout(120)
                 ->connectTimeout(30)
                 ->withHeaders([
                     'X-EBAY-API-SITEID' => '0', // 0 = US
                     'X-EBAY-API-COMPATIBILITY-LEVEL' => '967',
-                    'X-EBAY-API-CALL-NAME' => 'GetMyeBaySelling',
+                    'X-EBAY-API-CALL-NAME' => 'GetSellerList',
                     'X-EBAY-API-IAF-TOKEN' => $salesChannel->access_token,
                     'Content-Type' => 'text/xml',
                 ])
                 ->withBody($xmlRequest, 'text/xml')
                 ->post('https://api.ebay.com/ws/api.dll');
 
-            Log::info('eBay GetMyeBaySelling Response', [
+            Log::info('eBay GetSellerList Response', [
                 'status' => $response->status(),
                 'sales_channel_id' => $salesChannel->id,
             ]);
 
             if ($response->failed()) {
-                Log::error('eBay GetMyeBaySelling Failed', [
+                Log::error('eBay GetSellerList Failed', [
                     'status' => $response->status(),
                     'body' => $response->body(),
                     'sales_channel_id' => $salesChannel->id,
                 ]);
-                throw new Exception('eBay GetMyeBaySelling failed: ' . $response->body());
+                throw new Exception('eBay GetSellerList failed: ' . $response->body());
             }
 
-            return $this->parseGetMyeBaySellingResponse($response->body());
+            return $this->parseGetSellerListResponse($response->body());
         } catch (Exception $e) {
             Log::error('eBay getActiveSellerListings Error', [
                 'message' => $e->getMessage(),
@@ -106,41 +106,35 @@ class EbayService
     }
 
     /**
-     * Build XML request for GetMyeBaySelling
+     * Build XML request for GetSellerList - returns full item details
      */
-    private function buildGetMyeBaySellingRequest(int $page, int $entriesPerPage): string
+    private function buildGetSellerListRequest(int $page, int $entriesPerPage): string
     {
+        // Get items ending within the next 120 days (max allowed)
+        $startTime = gmdate('Y-m-d\TH:i:s\Z');
+        $endTime = gmdate('Y-m-d\TH:i:s\Z', strtotime('+120 days'));
+
         return '<?xml version="1.0" encoding="utf-8"?>
-<GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+<GetSellerListRequest xmlns="urn:ebay:apis:eBLBaseComponents">
     <ErrorLanguage>en_US</ErrorLanguage>
     <WarningLevel>High</WarningLevel>
-    <ActiveList>
-        <Include>true</Include>
-        <Pagination>
-            <EntriesPerPage>' . $entriesPerPage . '</EntriesPerPage>
-            <PageNumber>' . $page . '</PageNumber>
-        </Pagination>
-        <Sort>TimeLeft</Sort>
-    </ActiveList>
     <DetailLevel>ReturnAll</DetailLevel>
-    <OutputSelector>ActiveList.ItemArray.Item.ItemID</OutputSelector>
-    <OutputSelector>ActiveList.ItemArray.Item.Title</OutputSelector>
-    <OutputSelector>ActiveList.ItemArray.Item.SellingStatus.CurrentPrice</OutputSelector>
-    <OutputSelector>ActiveList.ItemArray.Item.Quantity</OutputSelector>
-    <OutputSelector>ActiveList.ItemArray.Item.QuantityAvailable</OutputSelector>
-    <OutputSelector>ActiveList.ItemArray.Item.PictureDetails</OutputSelector>
-    <OutputSelector>ActiveList.ItemArray.Item.ListingDetails</OutputSelector>
-    <OutputSelector>ActiveList.ItemArray.Item.SKU</OutputSelector>
-    <OutputSelector>ActiveList.ItemArray.Item.ConditionDisplayName</OutputSelector>
-    <OutputSelector>ActiveList.ItemArray.Item.PrimaryCategory</OutputSelector>
-    <OutputSelector>ActiveList.PaginationResult</OutputSelector>
-</GetMyeBaySellingRequest>';
+    <StartTimeFrom>' . $startTime . '</StartTimeFrom>
+    <StartTimeTo>' . $endTime . '</StartTimeTo>
+    <IncludeWatchCount>true</IncludeWatchCount>
+    <Pagination>
+        <EntriesPerPage>' . $entriesPerPage . '</EntriesPerPage>
+        <PageNumber>' . $page . '</PageNumber>
+    </Pagination>
+    <Sort>StartTime</Sort>
+    <GranularityLevel>Fine</GranularityLevel>
+</GetSellerListRequest>';
     }
 
     /**
-     * Parse XML response from GetMyeBaySelling
+     * Parse XML response from GetSellerList
      */
-    private function parseGetMyeBaySellingResponse(string $xmlResponse): array
+    private function parseGetSellerListResponse(string $xmlResponse): array
     {
         $xml = simplexml_load_string($xmlResponse);
 
@@ -151,8 +145,9 @@ class EbayService
         // Check for errors
         $ack = (string) $xml->Ack;
         if ($ack === 'Failure') {
-            $errorMessage = (string) $xml->Errors->ShortMessage ?? 'Unknown error';
-            throw new Exception('eBay API Error: ' . $errorMessage);
+            $errorMessage = isset($xml->Errors->ShortMessage) ? (string) $xml->Errors->ShortMessage : 'Unknown error';
+            $longMessage = isset($xml->Errors->LongMessage) ? (string) $xml->Errors->LongMessage : '';
+            throw new Exception('eBay API Error: ' . $errorMessage . ' - ' . $longMessage);
         }
 
         $result = [
@@ -162,36 +157,67 @@ class EbayService
             'pagination' => [
                 'totalEntries' => 0,
                 'totalPages' => 0,
-                'pageNumber' => 1,
+                'pageNumber' => (int) ($xml->PageNumber ?? 1),
             ],
         ];
 
         // Parse pagination
-        if (isset($xml->ActiveList->PaginationResult)) {
-            $result['pagination']['totalEntries'] = (int) $xml->ActiveList->PaginationResult->TotalNumberOfEntries;
-            $result['pagination']['totalPages'] = (int) $xml->ActiveList->PaginationResult->TotalNumberOfPages;
+        if (isset($xml->PaginationResult)) {
+            $result['pagination']['totalEntries'] = (int) $xml->PaginationResult->TotalNumberOfEntries;
+            $result['pagination']['totalPages'] = (int) $xml->PaginationResult->TotalNumberOfPages;
         }
 
         // Parse items
-        if (isset($xml->ActiveList->ItemArray->Item)) {
-            foreach ($xml->ActiveList->ItemArray->Item as $item) {
+        if (isset($xml->ItemArray->Item)) {
+            foreach ($xml->ItemArray->Item as $item) {
                 $parsedItem = [
                     'item_id' => (string) $item->ItemID,
                     'title' => (string) $item->Title,
                     'sku' => (string) ($item->SKU ?? ''),
+                    'description' => (string) ($item->Description ?? ''),
                     'price' => [
                         'value' => (float) ($item->SellingStatus->CurrentPrice ?? 0),
                         'currency' => (string) ($item->SellingStatus->CurrentPrice['currencyID'] ?? 'USD'),
                     ],
+                    'buy_it_now_price' => [
+                        'value' => (float) ($item->BuyItNowPrice ?? 0),
+                        'currency' => (string) ($item->BuyItNowPrice['currencyID'] ?? 'USD'),
+                    ],
+                    'start_price' => [
+                        'value' => (float) ($item->StartPrice ?? 0),
+                        'currency' => (string) ($item->StartPrice['currencyID'] ?? 'USD'),
+                    ],
                     'quantity' => (int) ($item->Quantity ?? 0),
                     'quantity_available' => (int) ($item->QuantityAvailable ?? 0),
+                    'quantity_sold' => (int) ($item->SellingStatus->QuantitySold ?? 0),
+                    'condition_id' => (string) ($item->ConditionID ?? ''),
                     'condition' => (string) ($item->ConditionDisplayName ?? ''),
+                    'condition_description' => (string) ($item->ConditionDescription ?? ''),
                     'category' => [
                         'id' => (string) ($item->PrimaryCategory->CategoryID ?? ''),
                         'name' => (string) ($item->PrimaryCategory->CategoryName ?? ''),
                     ],
+                    'secondary_category' => [
+                        'id' => (string) ($item->SecondaryCategory->CategoryID ?? ''),
+                        'name' => (string) ($item->SecondaryCategory->CategoryName ?? ''),
+                    ],
+                    'listing_type' => (string) ($item->ListingType ?? ''),
+                    'listing_status' => (string) ($item->SellingStatus->ListingStatus ?? ''),
                     'listing_url' => (string) ($item->ListingDetails->ViewItemURL ?? ''),
+                    'listing_duration' => (string) ($item->ListingDuration ?? ''),
+                    'start_time' => (string) ($item->ListingDetails->StartTime ?? ''),
+                    'end_time' => (string) ($item->ListingDetails->EndTime ?? ''),
+                    'watch_count' => (int) ($item->WatchCount ?? 0),
+                    'hit_count' => (int) ($item->HitCount ?? 0),
+                    'location' => (string) ($item->Location ?? ''),
+                    'country' => (string) ($item->Country ?? ''),
+                    'postal_code' => (string) ($item->PostalCode ?? ''),
                     'images' => [],
+                    'gallery_url' => (string) ($item->PictureDetails->GalleryURL ?? ''),
+                    'item_specifics' => [],
+                    'variations' => [],
+                    'shipping_details' => [],
+                    'return_policy' => [],
                 ];
 
                 // Parse images
@@ -199,6 +225,71 @@ class EbayService
                     foreach ($item->PictureDetails->PictureURL as $imageUrl) {
                         $parsedItem['images'][] = (string) $imageUrl;
                     }
+                }
+
+                // Parse item specifics (attributes like Brand, MPN, etc.)
+                if (isset($item->ItemSpecifics->NameValueList)) {
+                    foreach ($item->ItemSpecifics->NameValueList as $specific) {
+                        $name = (string) $specific->Name;
+                        $values = [];
+                        if (isset($specific->Value)) {
+                            foreach ($specific->Value as $value) {
+                                $values[] = (string) $value;
+                            }
+                        }
+                        $parsedItem['item_specifics'][$name] = count($values) === 1 ? $values[0] : $values;
+                    }
+                }
+
+                // Parse variations (for multi-variation listings)
+                if (isset($item->Variations->Variation)) {
+                    foreach ($item->Variations->Variation as $variation) {
+                        $variationData = [
+                            'sku' => (string) ($variation->SKU ?? ''),
+                            'quantity' => (int) ($variation->Quantity ?? 0),
+                            'quantity_sold' => (int) ($variation->SellingStatus->QuantitySold ?? 0),
+                            'price' => (float) ($variation->StartPrice ?? 0),
+                            'specifics' => [],
+                        ];
+
+                        if (isset($variation->VariationSpecifics->NameValueList)) {
+                            foreach ($variation->VariationSpecifics->NameValueList as $specific) {
+                                $variationData['specifics'][(string) $specific->Name] = (string) ($specific->Value ?? '');
+                            }
+                        }
+
+                        $parsedItem['variations'][] = $variationData;
+                    }
+                }
+
+                // Parse shipping details
+                if (isset($item->ShippingDetails)) {
+                    $parsedItem['shipping_details'] = [
+                        'shipping_type' => (string) ($item->ShippingDetails->ShippingType ?? ''),
+                        'global_shipping' => (string) ($item->ShippingDetails->GlobalShipping ?? 'false') === 'true',
+                    ];
+
+                    // Parse shipping service options
+                    if (isset($item->ShippingDetails->ShippingServiceOptions)) {
+                        $parsedItem['shipping_details']['services'] = [];
+                        foreach ($item->ShippingDetails->ShippingServiceOptions as $service) {
+                            $parsedItem['shipping_details']['services'][] = [
+                                'service' => (string) ($service->ShippingService ?? ''),
+                                'cost' => (float) ($service->ShippingServiceCost ?? 0),
+                                'free_shipping' => (string) ($service->FreeShipping ?? 'false') === 'true',
+                            ];
+                        }
+                    }
+                }
+
+                // Parse return policy
+                if (isset($item->ReturnPolicy)) {
+                    $parsedItem['return_policy'] = [
+                        'returns_accepted' => (string) ($item->ReturnPolicy->ReturnsAcceptedOption ?? ''),
+                        'returns_within' => (string) ($item->ReturnPolicy->ReturnsWithinOption ?? ''),
+                        'refund' => (string) ($item->ReturnPolicy->RefundOption ?? ''),
+                        'shipping_cost_paid_by' => (string) ($item->ReturnPolicy->ShippingCostPaidByOption ?? ''),
+                    ];
                 }
 
                 $result['items'][] = $parsedItem;
@@ -225,6 +316,13 @@ class EbayService
 
             $totalPages = $response['pagination']['totalPages'];
             $page++;
+
+            Log::info('eBay GetSellerList Pagination', [
+                'page' => $page - 1,
+                'totalPages' => $totalPages,
+                'itemsFetched' => count($response['items']),
+                'totalItemsSoFar' => count($allItems),
+            ]);
         } while ($page <= $totalPages);
 
         return [
@@ -232,6 +330,128 @@ class EbayService
             'total_items' => count($allItems),
             'items' => $allItems,
         ];
+    }
+
+    /**
+     * Get single item details using GetItem API
+     */
+    public function getItemDetails(SalesChannel $salesChannel, string $itemId): array
+    {
+        try {
+            $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
+<GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <ErrorLanguage>en_US</ErrorLanguage>
+    <WarningLevel>High</WarningLevel>
+    <DetailLevel>ReturnAll</DetailLevel>
+    <ItemID>' . $itemId . '</ItemID>
+    <IncludeItemSpecifics>true</IncludeItemSpecifics>
+    <IncludeWatchCount>true</IncludeWatchCount>
+</GetItemRequest>';
+
+            $response = Http::timeout(60)
+                ->connectTimeout(30)
+                ->withHeaders([
+                    'X-EBAY-API-SITEID' => '0',
+                    'X-EBAY-API-COMPATIBILITY-LEVEL' => '967',
+                    'X-EBAY-API-CALL-NAME' => 'GetItem',
+                    'X-EBAY-API-IAF-TOKEN' => $salesChannel->access_token,
+                    'Content-Type' => 'text/xml',
+                ])
+                ->withBody($xmlRequest, 'text/xml')
+                ->post('https://api.ebay.com/ws/api.dll');
+
+            Log::info('eBay GetItem Response', [
+                'status' => $response->status(),
+                'item_id' => $itemId,
+                'sales_channel_id' => $salesChannel->id,
+            ]);
+
+            if ($response->failed()) {
+                throw new Exception('eBay GetItem failed: ' . $response->body());
+            }
+
+            $xml = simplexml_load_string($response->body());
+
+            if ($xml === false) {
+                throw new Exception('Failed to parse eBay XML response');
+            }
+
+            $ack = (string) $xml->Ack;
+            if ($ack === 'Failure') {
+                $errorMessage = isset($xml->Errors->ShortMessage) ? (string) $xml->Errors->ShortMessage : 'Unknown error';
+                throw new Exception('eBay API Error: ' . $errorMessage);
+            }
+
+            $item = $xml->Item;
+
+            return [
+                'success' => true,
+                'item' => [
+                    'item_id' => (string) $item->ItemID,
+                    'title' => (string) $item->Title,
+                    'sku' => (string) ($item->SKU ?? ''),
+                    'description' => (string) ($item->Description ?? ''),
+                    'price' => [
+                        'value' => (float) ($item->SellingStatus->CurrentPrice ?? 0),
+                        'currency' => (string) ($item->SellingStatus->CurrentPrice['currencyID'] ?? 'USD'),
+                    ],
+                    'quantity' => (int) ($item->Quantity ?? 0),
+                    'quantity_available' => (int) ($item->QuantityAvailable ?? 0),
+                    'quantity_sold' => (int) ($item->SellingStatus->QuantitySold ?? 0),
+                    'condition_id' => (string) ($item->ConditionID ?? ''),
+                    'condition' => (string) ($item->ConditionDisplayName ?? ''),
+                    'category' => [
+                        'id' => (string) ($item->PrimaryCategory->CategoryID ?? ''),
+                        'name' => (string) ($item->PrimaryCategory->CategoryName ?? ''),
+                    ],
+                    'listing_url' => (string) ($item->ListingDetails->ViewItemURL ?? ''),
+                    'images' => $this->parseImages($item),
+                    'item_specifics' => $this->parseItemSpecifics($item),
+                ],
+            ];
+        } catch (Exception $e) {
+            Log::error('eBay getItemDetails Error', [
+                'message' => $e->getMessage(),
+                'item_id' => $itemId,
+                'sales_channel_id' => $salesChannel->id,
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Helper to parse images from item
+     */
+    private function parseImages($item): array
+    {
+        $images = [];
+        if (isset($item->PictureDetails->PictureURL)) {
+            foreach ($item->PictureDetails->PictureURL as $imageUrl) {
+                $images[] = (string) $imageUrl;
+            }
+        }
+        return $images;
+    }
+
+    /**
+     * Helper to parse item specifics
+     */
+    private function parseItemSpecifics($item): array
+    {
+        $specifics = [];
+        if (isset($item->ItemSpecifics->NameValueList)) {
+            foreach ($item->ItemSpecifics->NameValueList as $specific) {
+                $name = (string) $specific->Name;
+                $values = [];
+                if (isset($specific->Value)) {
+                    foreach ($specific->Value as $value) {
+                        $values[] = (string) $value;
+                    }
+                }
+                $specifics[$name] = count($values) === 1 ? $values[0] : $values;
+            }
+        }
+        return $specifics;
     }
 
     /**

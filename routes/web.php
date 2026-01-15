@@ -89,10 +89,11 @@ Route::middleware(['auth'])->group(function () {
     // eBay OAuth Flow
     Route::get('/ebay/authorize/{id}', [EbayController::class, 'redirectToEbay'])->name('ebay.authorize');
 
-    // eBay Seller Listings (Trading API - GetMyeBaySelling)
-    // Use these routes to get your actual eBay store listings
+    // eBay Seller Listings (Trading API - GetSellerList)
+    // Use these routes to get your actual eBay store listings with full details
     Route::get('/ebay/seller-listings/{id}', [EbayController::class, 'getSellerListings'])->name('ebay.seller.listings');
     Route::get('/ebay/seller-listings-all/{id}', [EbayController::class, 'getAllSellerListings'])->name('ebay.seller.listings.all');
+    Route::get('/ebay/item/{id}/{itemId}', [EbayController::class, 'getItemDetails'])->name('ebay.item.details');
 
     // eBay Inventory API Listings (SKU-based inventory)
     Route::get('/ebay/inventory-items/{id}', [EbayController::class, 'getInventoryItems'])->name('ebay.inventory.items');

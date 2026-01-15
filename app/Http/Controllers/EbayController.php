@@ -68,6 +68,30 @@ class EbayController extends Controller
     }
 
     /**
+     * Get single item details from eBay
+     */
+    public function getItemDetails(string $id, string $itemId)
+    {
+        try {
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            // Check if access token is expired
+            if ($this->isAccessTokenExpired($salesChannel)) {
+                $salesChannel = $this->refreshAccessToken($salesChannel);
+            }
+
+            $itemDetails = $this->ebayService->getItemDetails($salesChannel, $itemId);
+
+            return response()->json($itemDetails);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Get inventory items using Inventory API (SKU-based)
      * Note: Only returns items created via the Inventory API
      */
