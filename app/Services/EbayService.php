@@ -124,7 +124,15 @@ class EbayService
             preg_match('/inventory_task\/(.+)$/', $locationHeader, $matches);
             $taskId = $matches[1] ?? null;
 
-            dd($statusCode, $taskId, $locationHeader);
+            $task_response = Http::withToken($salesChannel->access_token)
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                ])
+                ->get("https://api.ebay.com/sell/feed/v1/task/{$taskId}");
+
+            dd($task_response->status(), $task_response->json());
+
+            // dd($statusCode, $taskId, $locationHeader);
 
             // return $response->json();
         } catch (Exception $e) {
