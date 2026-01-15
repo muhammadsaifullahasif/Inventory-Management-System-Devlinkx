@@ -117,4 +117,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ebay/inventory-items/{id}', [EbayController::class, 'getInventoryItems'])->name('ebay.inventory.items');
     Route::get('/ebay/listings/active/{id}', [EbayController::class, 'getActiveListings'])->name('ebay.listings.active');
     Route::get('/ebay/listings/all/{id}', [EbayController::class, 'getAllListings'])->name('ebay.listings.all');
+
+    Route::get('/ebay/listings-all/active/{id}', [EbayController::class, 'getAllActiveListings'])->name('ebay.listings-all.active');
 });
