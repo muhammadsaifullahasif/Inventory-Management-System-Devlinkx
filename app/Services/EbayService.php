@@ -96,7 +96,7 @@ class EbayService
                     'Content-Type' => 'application/json',
                 ])
                 ->post('https://api.ebay.com/sell/feed/v1/inventory_task', [
-                    'feedType' => 'LMS_ACTIVE_INVENTORY_REPORT',
+                    'feed_type' => 'LMS_ACTIVE_INVENTORY_REPORT',
                     'schemaVersion' => '1.0',
                     'marketplaceId' => ['EBAY_US'],
                 ]);
