@@ -9,6 +9,11 @@ use Illuminate\Support\Facades\Http;
 
 class EbayController extends Controller
 {
+    private const EBAY_API_URL = 'https://api.ebay.com/ws/api.dll';
+    private const EBAY_TOKEN_URL = 'https://api.ebay.com/identity/v1/oauth2/token';
+    private const API_COMPATIBILITY_LEVEL = '967';
+    private const API_SITE_ID = '0'; // US
+    
     public function __construct(protected EbayService $ebayService) {}
 
     /**
