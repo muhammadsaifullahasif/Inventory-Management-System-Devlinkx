@@ -92,6 +92,81 @@ class EbayController extends Controller
     }
 
     /**
+     * Get draft/unsold listings from eBay
+     */
+    public function getDraftListings(Request $request, string $id)
+    {
+        try {
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            if ($this->isAccessTokenExpired($salesChannel)) {
+                $salesChannel = $this->refreshAccessToken($salesChannel);
+            }
+
+            $page = $request->input('page', 1);
+            $perPage = $request->input('per_page', 100);
+
+            $listings = $this->ebayService->getDraftListings($salesChannel, $page, $perPage);
+
+            return response()->json($listings);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get ALL draft listings from eBay
+     */
+    public function getAllDraftListings(string $id)
+    {
+        try {
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            if ($this->isAccessTokenExpired($salesChannel)) {
+                $salesChannel = $this->refreshAccessToken($salesChannel);
+            }
+
+            $listings = $this->ebayService->getAllDraftListings($salesChannel);
+
+            return response()->json($listings);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get scheduled listings from eBay
+     */
+    public function getScheduledListings(Request $request, string $id)
+    {
+        try {
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            if ($this->isAccessTokenExpired($salesChannel)) {
+                $salesChannel = $this->refreshAccessToken($salesChannel);
+            }
+
+            $page = $request->input('page', 1);
+            $perPage = $request->input('per_page', 100);
+
+            $listings = $this->ebayService->getScheduledListings($salesChannel, $page, $perPage);
+
+            return response()->json($listings);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Get inventory items using Inventory API (SKU-based)
      * Note: Only returns items created via the Inventory API
      */

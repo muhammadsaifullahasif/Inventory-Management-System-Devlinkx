@@ -95,6 +95,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ebay/seller-listings-all/{id}', [EbayController::class, 'getAllSellerListings'])->name('ebay.seller.listings.all');
     Route::get('/ebay/item/{id}/{itemId}', [EbayController::class, 'getItemDetails'])->name('ebay.item.details');
 
+    // eBay Draft/Unsold Listings
+    Route::get('/ebay/draft-listings/{id}', [EbayController::class, 'getDraftListings'])->name('ebay.draft.listings');
+    Route::get('/ebay/draft-listings-all/{id}', [EbayController::class, 'getAllDraftListings'])->name('ebay.draft.listings.all');
+
+    // eBay Scheduled Listings
+    Route::get('/ebay/scheduled-listings/{id}', [EbayController::class, 'getScheduledListings'])->name('ebay.scheduled.listings');
+
     // eBay Inventory API Listings (SKU-based inventory)
     Route::get('/ebay/inventory-items/{id}', [EbayController::class, 'getInventoryItems'])->name('ebay.inventory.items');
     Route::get('/ebay/listings/active/{id}', [EbayController::class, 'getActiveListings'])->name('ebay.listings.active');

@@ -131,6 +131,223 @@ class EbayService
     }
 
     /**
+     * Get draft/unsold listings from eBay using GetMyeBaySelling API
+     */
+    public function getDraftListings(SalesChannel $salesChannel, int $page = 1, int $entriesPerPage = 100): array
+    {
+        try {
+            $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
+<GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <ErrorLanguage>en_US</ErrorLanguage>
+    <WarningLevel>High</WarningLevel>
+    <UnsoldList>
+        <Include>true</Include>
+        <Pagination>
+            <EntriesPerPage>' . $entriesPerPage . '</EntriesPerPage>
+            <PageNumber>' . $page . '</PageNumber>
+        </Pagination>
+    </UnsoldList>
+    <DetailLevel>ReturnAll</DetailLevel>
+</GetMyeBaySellingRequest>';
+
+            $response = Http::timeout(120)
+                ->connectTimeout(30)
+                ->withHeaders([
+                    'X-EBAY-API-SITEID' => '0',
+                    'X-EBAY-API-COMPATIBILITY-LEVEL' => '967',
+                    'X-EBAY-API-CALL-NAME' => 'GetMyeBaySelling',
+                    'X-EBAY-API-IAF-TOKEN' => $salesChannel->access_token,
+                    'Content-Type' => 'text/xml',
+                ])
+                ->withBody($xmlRequest, 'text/xml')
+                ->post('https://api.ebay.com/ws/api.dll');
+
+            Log::info('eBay GetMyeBaySelling (Drafts) Response', [
+                'status' => $response->status(),
+                'sales_channel_id' => $salesChannel->id,
+            ]);
+
+            if ($response->failed()) {
+                Log::error('eBay GetMyeBaySelling (Drafts) Failed', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'sales_channel_id' => $salesChannel->id,
+                ]);
+                throw new Exception('eBay GetMyeBaySelling failed: ' . $response->body());
+            }
+
+            return $this->parseGetMyeBaySellingResponse($response->body(), 'UnsoldList');
+        } catch (Exception $e) {
+            Log::error('eBay getDraftListings Error', [
+                'message' => $e->getMessage(),
+                'sales_channel_id' => $salesChannel->id,
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Get scheduled listings from eBay using GetMyeBaySelling API
+     */
+    public function getScheduledListings(SalesChannel $salesChannel, int $page = 1, int $entriesPerPage = 100): array
+    {
+        try {
+            $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
+<GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <ErrorLanguage>en_US</ErrorLanguage>
+    <WarningLevel>High</WarningLevel>
+    <ScheduledList>
+        <Include>true</Include>
+        <Pagination>
+            <EntriesPerPage>' . $entriesPerPage . '</EntriesPerPage>
+            <PageNumber>' . $page . '</PageNumber>
+        </Pagination>
+    </ScheduledList>
+    <DetailLevel>ReturnAll</DetailLevel>
+</GetMyeBaySellingRequest>';
+
+            $response = Http::timeout(120)
+                ->connectTimeout(30)
+                ->withHeaders([
+                    'X-EBAY-API-SITEID' => '0',
+                    'X-EBAY-API-COMPATIBILITY-LEVEL' => '967',
+                    'X-EBAY-API-CALL-NAME' => 'GetMyeBaySelling',
+                    'X-EBAY-API-IAF-TOKEN' => $salesChannel->access_token,
+                    'Content-Type' => 'text/xml',
+                ])
+                ->withBody($xmlRequest, 'text/xml')
+                ->post('https://api.ebay.com/ws/api.dll');
+
+            Log::info('eBay GetMyeBaySelling (Scheduled) Response', [
+                'status' => $response->status(),
+                'sales_channel_id' => $salesChannel->id,
+            ]);
+
+            if ($response->failed()) {
+                throw new Exception('eBay GetMyeBaySelling failed: ' . $response->body());
+            }
+
+            return $this->parseGetMyeBaySellingResponse($response->body(), 'ScheduledList');
+        } catch (Exception $e) {
+            Log::error('eBay getScheduledListings Error', [
+                'message' => $e->getMessage(),
+                'sales_channel_id' => $salesChannel->id,
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Parse GetMyeBaySelling response for different list types
+     */
+    private function parseGetMyeBaySellingResponse(string $xmlResponse, string $listType = 'ActiveList'): array
+    {
+        $xml = simplexml_load_string($xmlResponse);
+
+        if ($xml === false) {
+            throw new Exception('Failed to parse eBay XML response');
+        }
+
+        $ack = (string) $xml->Ack;
+        if ($ack === 'Failure') {
+            $errorMessage = isset($xml->Errors->ShortMessage) ? (string) $xml->Errors->ShortMessage : 'Unknown error';
+            $longMessage = isset($xml->Errors->LongMessage) ? (string) $xml->Errors->LongMessage : '';
+            throw new Exception('eBay API Error: ' . $errorMessage . ' - ' . $longMessage);
+        }
+
+        $result = [
+            'success' => true,
+            'ack' => $ack,
+            'list_type' => $listType,
+            'items' => [],
+            'pagination' => [
+                'totalEntries' => 0,
+                'totalPages' => 0,
+                'pageNumber' => 1,
+            ],
+        ];
+
+        // Get the list container based on type
+        $listContainer = $xml->$listType ?? null;
+
+        if ($listContainer) {
+            // Parse pagination
+            if (isset($listContainer->PaginationResult)) {
+                $result['pagination']['totalEntries'] = (int) $listContainer->PaginationResult->TotalNumberOfEntries;
+                $result['pagination']['totalPages'] = (int) $listContainer->PaginationResult->TotalNumberOfPages;
+            }
+
+            // Parse items
+            if (isset($listContainer->ItemArray->Item)) {
+                foreach ($listContainer->ItemArray->Item as $item) {
+                    $parsedItem = [
+                        'item_id' => (string) $item->ItemID,
+                        'title' => (string) $item->Title,
+                        'sku' => (string) ($item->SKU ?? ''),
+                        'price' => [
+                            'value' => (float) ($item->SellingStatus->CurrentPrice ?? $item->BuyItNowPrice ?? $item->StartPrice ?? 0),
+                            'currency' => (string) ($item->SellingStatus->CurrentPrice['currencyID'] ?? $item->BuyItNowPrice['currencyID'] ?? 'USD'),
+                        ],
+                        'quantity' => (int) ($item->Quantity ?? 0),
+                        'quantity_available' => (int) ($item->QuantityAvailable ?? $item->Quantity ?? 0),
+                        'condition' => (string) ($item->ConditionDisplayName ?? ''),
+                        'category' => [
+                            'id' => (string) ($item->PrimaryCategory->CategoryID ?? ''),
+                            'name' => (string) ($item->PrimaryCategory->CategoryName ?? ''),
+                        ],
+                        'listing_type' => (string) ($item->ListingType ?? ''),
+                        'listing_status' => (string) ($item->SellingStatus->ListingStatus ?? 'Draft'),
+                        'listing_url' => (string) ($item->ListingDetails->ViewItemURL ?? ''),
+                        'start_time' => (string) ($item->ListingDetails->StartTime ?? ''),
+                        'end_time' => (string) ($item->ListingDetails->EndTime ?? ''),
+                        'images' => [],
+                    ];
+
+                    // Parse images
+                    if (isset($item->PictureDetails->PictureURL)) {
+                        foreach ($item->PictureDetails->PictureURL as $imageUrl) {
+                            $parsedItem['images'][] = (string) $imageUrl;
+                        }
+                    } elseif (isset($item->PictureDetails->GalleryURL)) {
+                        $parsedItem['images'][] = (string) $item->PictureDetails->GalleryURL;
+                    }
+
+                    $result['items'][] = $parsedItem;
+                }
+            }
+        }
+
+        $result['total_items'] = count($result['items']);
+
+        return $result;
+    }
+
+    /**
+     * Get ALL draft listings (handles pagination automatically)
+     */
+    public function getAllDraftListings(SalesChannel $salesChannel): array
+    {
+        $allItems = [];
+        $page = 1;
+        $entriesPerPage = 200;
+
+        do {
+            $response = $this->getDraftListings($salesChannel, $page, $entriesPerPage);
+            $allItems = array_merge($allItems, $response['items']);
+
+            $totalPages = $response['pagination']['totalPages'];
+            $page++;
+        } while ($page <= $totalPages && $totalPages > 0);
+
+        return [
+            'success' => true,
+            'list_type' => 'UnsoldList',
+            'total_items' => count($allItems),
+            'items' => $allItems,
+        ];
+    }
+
+    /**
      * Parse XML response from GetSellerList
      */
     private function parseGetSellerListResponse(string $xmlResponse): array
