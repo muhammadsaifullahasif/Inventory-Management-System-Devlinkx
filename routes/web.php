@@ -87,11 +87,15 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ebay/auth', [EbayController::class, 'getAccessToken'])->name('ebay.auth');
 
     // eBay OAuth Flow
-    Route::get('/ebay/authorize', [EbayController::class, 'redirectToEbay'])->name('ebay.authorize');
+    Route::get('/ebay/authorize/{id}', [EbayController::class, 'redirectToEbay'])->name('ebay.authorize');
 
-    // eBay Listings
+    // eBay Seller Listings (Trading API - GetMyeBaySelling)
+    // Use these routes to get your actual eBay store listings
+    Route::get('/ebay/seller-listings/{id}', [EbayController::class, 'getSellerListings'])->name('ebay.seller.listings');
+    Route::get('/ebay/seller-listings-all/{id}', [EbayController::class, 'getAllSellerListings'])->name('ebay.seller.listings.all');
+
+    // eBay Inventory API Listings (SKU-based inventory)
     Route::get('/ebay/inventory-items/{id}', [EbayController::class, 'getInventoryItems'])->name('ebay.inventory.items');
-    Route::get('/ebay/listings/active', [EbayController::class, 'getActiveListings'])->name('ebay.listings.active');
-    Route::get('/ebay/listings/all', [EbayController::class, 'getAllListings'])->name('ebay.listings.all');
-    Route::get('/ebay/listings/{status}', [EbayController::class, 'getListingsByStatus'])->name('ebay.listings.status');
+    Route::get('/ebay/listings/active/{id}', [EbayController::class, 'getActiveListings'])->name('ebay.listings.active');
+    Route::get('/ebay/listings/all/{id}', [EbayController::class, 'getAllListings'])->name('ebay.listings.all');
 });

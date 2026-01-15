@@ -61,49 +61,206 @@ class EbayService
     }
 
     /**
-     * Get inventory items from eBay
+     * Get all active listings from eBay using Trading API (GetMyeBaySelling)
+     * This returns all your active listings in your eBay store
+     */
+    public function getActiveSellerListings(SalesChannel $salesChannel, int $page = 1, int $entriesPerPage = 100): array
+    {
+        try {
+            $xmlRequest = $this->buildGetMyeBaySellingRequest($page, $entriesPerPage);
+
+            $response = Http::timeout(120)
+                ->connectTimeout(30)
+                ->withHeaders([
+                    'X-EBAY-API-SITEID' => '0', // 0 = US
+                    'X-EBAY-API-COMPATIBILITY-LEVEL' => '967',
+                    'X-EBAY-API-CALL-NAME' => 'GetMyeBaySelling',
+                    'X-EBAY-API-IAF-TOKEN' => $salesChannel->access_token,
+                    'Content-Type' => 'text/xml',
+                ])
+                ->withBody($xmlRequest, 'text/xml')
+                ->post('https://api.ebay.com/ws/api.dll');
+
+            Log::info('eBay GetMyeBaySelling Response', [
+                'status' => $response->status(),
+                'sales_channel_id' => $salesChannel->id,
+            ]);
+
+            if ($response->failed()) {
+                Log::error('eBay GetMyeBaySelling Failed', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'sales_channel_id' => $salesChannel->id,
+                ]);
+                throw new Exception('eBay GetMyeBaySelling failed: ' . $response->body());
+            }
+
+            return $this->parseGetMyeBaySellingResponse($response->body());
+        } catch (Exception $e) {
+            Log::error('eBay getActiveSellerListings Error', [
+                'message' => $e->getMessage(),
+                'sales_channel_id' => $salesChannel->id,
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Build XML request for GetMyeBaySelling
+     */
+    private function buildGetMyeBaySellingRequest(int $page, int $entriesPerPage): string
+    {
+        return '<?xml version="1.0" encoding="utf-8"?>
+<GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <ErrorLanguage>en_US</ErrorLanguage>
+    <WarningLevel>High</WarningLevel>
+    <ActiveList>
+        <Include>true</Include>
+        <Pagination>
+            <EntriesPerPage>' . $entriesPerPage . '</EntriesPerPage>
+            <PageNumber>' . $page . '</PageNumber>
+        </Pagination>
+        <Sort>TimeLeft</Sort>
+    </ActiveList>
+    <DetailLevel>ReturnAll</DetailLevel>
+    <OutputSelector>ActiveList.ItemArray.Item.ItemID</OutputSelector>
+    <OutputSelector>ActiveList.ItemArray.Item.Title</OutputSelector>
+    <OutputSelector>ActiveList.ItemArray.Item.SellingStatus.CurrentPrice</OutputSelector>
+    <OutputSelector>ActiveList.ItemArray.Item.Quantity</OutputSelector>
+    <OutputSelector>ActiveList.ItemArray.Item.QuantityAvailable</OutputSelector>
+    <OutputSelector>ActiveList.ItemArray.Item.PictureDetails</OutputSelector>
+    <OutputSelector>ActiveList.ItemArray.Item.ListingDetails</OutputSelector>
+    <OutputSelector>ActiveList.ItemArray.Item.SKU</OutputSelector>
+    <OutputSelector>ActiveList.ItemArray.Item.ConditionDisplayName</OutputSelector>
+    <OutputSelector>ActiveList.ItemArray.Item.PrimaryCategory</OutputSelector>
+    <OutputSelector>ActiveList.PaginationResult</OutputSelector>
+</GetMyeBaySellingRequest>';
+    }
+
+    /**
+     * Parse XML response from GetMyeBaySelling
+     */
+    private function parseGetMyeBaySellingResponse(string $xmlResponse): array
+    {
+        $xml = simplexml_load_string($xmlResponse);
+
+        if ($xml === false) {
+            throw new Exception('Failed to parse eBay XML response');
+        }
+
+        // Check for errors
+        $ack = (string) $xml->Ack;
+        if ($ack === 'Failure') {
+            $errorMessage = (string) $xml->Errors->ShortMessage ?? 'Unknown error';
+            throw new Exception('eBay API Error: ' . $errorMessage);
+        }
+
+        $result = [
+            'success' => true,
+            'ack' => $ack,
+            'items' => [],
+            'pagination' => [
+                'totalEntries' => 0,
+                'totalPages' => 0,
+                'pageNumber' => 1,
+            ],
+        ];
+
+        // Parse pagination
+        if (isset($xml->ActiveList->PaginationResult)) {
+            $result['pagination']['totalEntries'] = (int) $xml->ActiveList->PaginationResult->TotalNumberOfEntries;
+            $result['pagination']['totalPages'] = (int) $xml->ActiveList->PaginationResult->TotalNumberOfPages;
+        }
+
+        // Parse items
+        if (isset($xml->ActiveList->ItemArray->Item)) {
+            foreach ($xml->ActiveList->ItemArray->Item as $item) {
+                $parsedItem = [
+                    'item_id' => (string) $item->ItemID,
+                    'title' => (string) $item->Title,
+                    'sku' => (string) ($item->SKU ?? ''),
+                    'price' => [
+                        'value' => (float) ($item->SellingStatus->CurrentPrice ?? 0),
+                        'currency' => (string) ($item->SellingStatus->CurrentPrice['currencyID'] ?? 'USD'),
+                    ],
+                    'quantity' => (int) ($item->Quantity ?? 0),
+                    'quantity_available' => (int) ($item->QuantityAvailable ?? 0),
+                    'condition' => (string) ($item->ConditionDisplayName ?? ''),
+                    'category' => [
+                        'id' => (string) ($item->PrimaryCategory->CategoryID ?? ''),
+                        'name' => (string) ($item->PrimaryCategory->CategoryName ?? ''),
+                    ],
+                    'listing_url' => (string) ($item->ListingDetails->ViewItemURL ?? ''),
+                    'images' => [],
+                ];
+
+                // Parse images
+                if (isset($item->PictureDetails->PictureURL)) {
+                    foreach ($item->PictureDetails->PictureURL as $imageUrl) {
+                        $parsedItem['images'][] = (string) $imageUrl;
+                    }
+                }
+
+                $result['items'][] = $parsedItem;
+            }
+        }
+
+        $result['total_items'] = count($result['items']);
+
+        return $result;
+    }
+
+    /**
+     * Get ALL active listings (handles pagination automatically)
+     */
+    public function getAllActiveSellerListings(SalesChannel $salesChannel): array
+    {
+        $allItems = [];
+        $page = 1;
+        $entriesPerPage = 200; // Max allowed by eBay
+
+        do {
+            $response = $this->getActiveSellerListings($salesChannel, $page, $entriesPerPage);
+            $allItems = array_merge($allItems, $response['items']);
+
+            $totalPages = $response['pagination']['totalPages'];
+            $page++;
+        } while ($page <= $totalPages);
+
+        return [
+            'success' => true,
+            'total_items' => count($allItems),
+            'items' => $allItems,
+        ];
+    }
+
+    /**
+     * Get inventory items using Inventory API (for SKU-based inventory)
+     * Note: This only returns items created via the Inventory API
      */
     public function getInventoryItems(SalesChannel $salesChannel, int $limit = 100, int $offset = 0): array
     {
         try {
-            // $response = Http::timeout(60)
-            //     ->connectTimeout(30)
-            //     ->withOptions([
-            //         'verify' => false,
-            //         'debug' => false,
-            //     ])
-            //     ->withHeaders([
-            //         'Authorization' => 'Bearer ' . $salesChannel->access_token,
-            //         'Content-Type' => 'application/json',
-            //         'Accept' => 'application/json',
-            //         'Accept-Encoding' => 'gzip',
-            //         'Accept-Language' => 'en-US',
-            //         'Content-Language' => 'en-US',
-            //     ])
-            //     ->get('https://api.ebay.com/sell/inventory/v1/inventory_item', [
-            //         'limit' => $limit,
-            //         'offset' => $offset,
-            //     ]);
-
-            // $response = Http::withToken($salesChannel->access_token)
-            //     ->get('https://api.ebay.com/sell/inventory/v1/inventory_item', [
-            //         'limit' => $limit,
-            //         'offset' => $offset,
-            //     ]);
-
-            $response = Http::withToken($salesChannel->access_token)
-                ->withHeaders([
-                    'Content-Type' => 'application/json',
+            $response = Http::timeout(60)
+                ->connectTimeout(30)
+                ->withOptions([
+                    'verify' => false,
+                    'debug' => false,
                 ])
-                ->post('https://api.ebay.com/sell/feed/v1/inventory_task', [
-                    'feed_type' => 'LMS_ACTIVE_INVENTORY_REPORT',
-                    'schemaVersion' => '1.0',
-                    'marketplaceId' => ['EBAY_US'],
+                ->withHeaders([
+                    'Authorization' => 'Bearer ' . $salesChannel->access_token,
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                ])
+                ->get('https://api.ebay.com/sell/inventory/v1/inventory_item', [
+                    'limit' => $limit,
+                    'offset' => $offset,
                 ]);
 
             Log::info('eBay Get Inventory Items Response', [
-                'data' => $response->json(),
                 'status' => $response->status(),
+                'limit' => $limit,
+                'offset' => $offset,
                 'sales_channel_id' => $salesChannel->id,
             ]);
 
@@ -116,23 +273,7 @@ class EbayService
                 throw new Exception('eBay get inventory items failed: ' . $response->body());
             }
 
-            $statusCode = $response->status();
-
-            $locationHeader = $response->header('Location');
-            preg_match('/inventory_task\/(.+)$/', $locationHeader, $matches);
-            $taskId = $matches[1] ?? null;
-
-            $task_response = Http::withToken($salesChannel->access_token)
-                ->withHeaders([
-                    'Content-Type' => 'application/json',
-                ])
-                ->get("https://api.ebay.com/sell/feed/v1/task/{$taskId}");
-
-            dd($task_response->status(), $task_response->json());
-
-            // dd($statusCode, $taskId, $locationHeader);
-
-            // return $response->json();
+            return $response->json();
         } catch (Exception $e) {
             Log::error('eBay getInventoryItems Error', [
                 'message' => $e->getMessage(),

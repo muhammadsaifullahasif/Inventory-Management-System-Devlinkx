@@ -16,7 +16,60 @@ class EbayController extends Controller
     }
 
     /**
-     * Get all inventory items from eBay for a specific sales channel
+     * Get all active listings from eBay seller's store
+     * This uses the Trading API GetMyeBaySelling to fetch all your listings
+     */
+    public function getSellerListings(Request $request, string $id)
+    {
+        try {
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            // Check if access token is expired
+            if ($this->isAccessTokenExpired($salesChannel)) {
+                $salesChannel = $this->refreshAccessToken($salesChannel);
+            }
+
+            $page = $request->input('page', 1);
+            $perPage = $request->input('per_page', 100);
+
+            $listings = $this->ebayService->getActiveSellerListings($salesChannel, $page, $perPage);
+
+            return response()->json($listings);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get ALL active listings from eBay (fetches all pages automatically)
+     */
+    public function getAllSellerListings(string $id)
+    {
+        try {
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            // Check if access token is expired
+            if ($this->isAccessTokenExpired($salesChannel)) {
+                $salesChannel = $this->refreshAccessToken($salesChannel);
+            }
+
+            $listings = $this->ebayService->getAllActiveSellerListings($salesChannel);
+
+            return response()->json($listings);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get inventory items using Inventory API (SKU-based)
+     * Note: Only returns items created via the Inventory API
      */
     public function getInventoryItems(string $id)
     {
@@ -25,7 +78,6 @@ class EbayController extends Controller
 
             // Check if access token is expired
             if ($this->isAccessTokenExpired($salesChannel)) {
-                // Refresh the token
                 $salesChannel = $this->refreshAccessToken($salesChannel);
             }
 
@@ -44,7 +96,7 @@ class EbayController extends Controller
     }
 
     /**
-     * Get active listings from eBay for a specific sales channel
+     * Get active offers/listings from Inventory API
      */
     public function getActiveListings(string $id)
     {
