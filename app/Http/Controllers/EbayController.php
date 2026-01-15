@@ -41,6 +41,7 @@ class EbayController extends Controller
 
             $allItems = [];
             $page = 1;
+            $perPage = 100;
 
             do {
                 $endTimeFrom = gmdate('Y-m-d\TH:i:s\Z');
