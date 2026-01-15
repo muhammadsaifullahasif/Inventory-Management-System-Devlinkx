@@ -102,6 +102,10 @@ Route::middleware(['auth'])->group(function () {
     // eBay Scheduled Listings
     Route::get('/ebay/scheduled-listings/{id}', [EbayController::class, 'getScheduledListings'])->name('ebay.scheduled.listings');
 
+    // eBay Completed/Sold Listings
+    Route::get('/ebay/completed-listings/{id}', [EbayController::class, 'getCompletedListings'])->name('ebay.completed.listings');
+    Route::get('/ebay/completed-listings-all/{id}', [EbayController::class, 'getAllCompletedListings'])->name('ebay.completed.listings.all');
+
     // eBay Inventory API Listings (SKU-based inventory)
     Route::get('/ebay/inventory-items/{id}', [EbayController::class, 'getInventoryItems'])->name('ebay.inventory.items');
     Route::get('/ebay/listings/active/{id}', [EbayController::class, 'getActiveListings'])->name('ebay.listings.active');

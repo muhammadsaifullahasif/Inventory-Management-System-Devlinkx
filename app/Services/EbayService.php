@@ -290,6 +290,7 @@ class EbayService
                         ],
                         'quantity' => (int) ($item->Quantity ?? 0),
                         'quantity_available' => (int) ($item->QuantityAvailable ?? $item->Quantity ?? 0),
+                        'quantity_sold' => (int) ($item->SellingStatus->QuantitySold ?? 0),
                         'condition' => (string) ($item->ConditionDisplayName ?? ''),
                         'category' => [
                             'id' => (string) ($item->PrimaryCategory->CategoryID ?? ''),
@@ -302,6 +303,54 @@ class EbayService
                         'end_time' => (string) ($item->ListingDetails->EndTime ?? ''),
                         'images' => [],
                     ];
+
+                    // For sold items, add transaction/order details
+                    if ($listType === 'SoldList' && isset($item->SellingStatus)) {
+                        $parsedItem['selling_status'] = [
+                            'current_price' => (float) ($item->SellingStatus->CurrentPrice ?? 0),
+                            'quantity_sold' => (int) ($item->SellingStatus->QuantitySold ?? 0),
+                            'bid_count' => (int) ($item->SellingStatus->BidCount ?? 0),
+                        ];
+
+                        // Parse transaction details if available
+                        if (isset($item->TransactionArray->Transaction)) {
+                            $parsedItem['transactions'] = [];
+                            foreach ($item->TransactionArray->Transaction as $transaction) {
+                                $transactionData = [
+                                    'transaction_id' => (string) ($transaction->TransactionID ?? ''),
+                                    'transaction_price' => (float) ($transaction->TransactionPrice ?? 0),
+                                    'quantity_purchased' => (int) ($transaction->QuantityPurchased ?? 0),
+                                    'paid_time' => (string) ($transaction->PaidTime ?? ''),
+                                    'shipped_time' => (string) ($transaction->ShippedTime ?? ''),
+                                    'order_line_item_id' => (string) ($transaction->OrderLineItemID ?? ''),
+                                ];
+
+                                // Buyer info
+                                if (isset($transaction->Buyer)) {
+                                    $transactionData['buyer'] = [
+                                        'user_id' => (string) ($transaction->Buyer->UserID ?? ''),
+                                        'email' => (string) ($transaction->Buyer->Email ?? ''),
+                                    ];
+                                }
+
+                                // Shipping address
+                                if (isset($transaction->Buyer->BuyerInfo->ShippingAddress)) {
+                                    $addr = $transaction->Buyer->BuyerInfo->ShippingAddress;
+                                    $transactionData['shipping_address'] = [
+                                        'name' => (string) ($addr->Name ?? ''),
+                                        'street1' => (string) ($addr->Street1 ?? ''),
+                                        'street2' => (string) ($addr->Street2 ?? ''),
+                                        'city' => (string) ($addr->CityName ?? ''),
+                                        'state' => (string) ($addr->StateOrProvince ?? ''),
+                                        'postal_code' => (string) ($addr->PostalCode ?? ''),
+                                        'country' => (string) ($addr->CountryName ?? ''),
+                                    ];
+                                }
+
+                                $parsedItem['transactions'][] = $transactionData;
+                            }
+                        }
+                    }
 
                     // Parse images
                     if (isset($item->PictureDetails->PictureURL)) {
@@ -320,6 +369,88 @@ class EbayService
         $result['total_items'] = count($result['items']);
 
         return $result;
+    }
+
+    /**
+     * Get completed/sold listings from eBay using GetMyeBaySelling API
+     */
+    public function getCompletedListings(SalesChannel $salesChannel, int $page = 1, int $entriesPerPage = 100): array
+    {
+        try {
+            $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
+<GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <ErrorLanguage>en_US</ErrorLanguage>
+    <WarningLevel>High</WarningLevel>
+    <SoldList>
+        <Include>true</Include>
+        <Pagination>
+            <EntriesPerPage>' . $entriesPerPage . '</EntriesPerPage>
+            <PageNumber>' . $page . '</PageNumber>
+        </Pagination>
+        <DurationInDays>60</DurationInDays>
+    </SoldList>
+    <DetailLevel>ReturnAll</DetailLevel>
+</GetMyeBaySellingRequest>';
+
+            $response = Http::timeout(120)
+                ->connectTimeout(30)
+                ->withHeaders([
+                    'X-EBAY-API-SITEID' => '0',
+                    'X-EBAY-API-COMPATIBILITY-LEVEL' => '967',
+                    'X-EBAY-API-CALL-NAME' => 'GetMyeBaySelling',
+                    'X-EBAY-API-IAF-TOKEN' => $salesChannel->access_token,
+                    'Content-Type' => 'text/xml',
+                ])
+                ->withBody($xmlRequest, 'text/xml')
+                ->post('https://api.ebay.com/ws/api.dll');
+
+            Log::info('eBay GetMyeBaySelling (Completed) Response', [
+                'status' => $response->status(),
+                'sales_channel_id' => $salesChannel->id,
+            ]);
+
+            if ($response->failed()) {
+                Log::error('eBay GetMyeBaySelling (Completed) Failed', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'sales_channel_id' => $salesChannel->id,
+                ]);
+                throw new Exception('eBay GetMyeBaySelling failed: ' . $response->body());
+            }
+
+            return $this->parseGetMyeBaySellingResponse($response->body(), 'SoldList');
+        } catch (Exception $e) {
+            Log::error('eBay getCompletedListings Error', [
+                'message' => $e->getMessage(),
+                'sales_channel_id' => $salesChannel->id,
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Get ALL completed/sold listings (handles pagination automatically)
+     */
+    public function getAllCompletedListings(SalesChannel $salesChannel): array
+    {
+        $allItems = [];
+        $page = 1;
+        $entriesPerPage = 200;
+
+        do {
+            $response = $this->getCompletedListings($salesChannel, $page, $entriesPerPage);
+            $allItems = array_merge($allItems, $response['items']);
+
+            $totalPages = $response['pagination']['totalPages'];
+            $page++;
+        } while ($page <= $totalPages && $totalPages > 0);
+
+        return [
+            'success' => true,
+            'list_type' => 'SoldList',
+            'total_items' => count($allItems),
+            'items' => $allItems,
+        ];
     }
 
     /**

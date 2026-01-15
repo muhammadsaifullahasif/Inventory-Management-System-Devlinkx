@@ -167,6 +167,55 @@ class EbayController extends Controller
     }
 
     /**
+     * Get completed/sold listings from eBay
+     */
+    public function getCompletedListings(Request $request, string $id)
+    {
+        try {
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            if ($this->isAccessTokenExpired($salesChannel)) {
+                $salesChannel = $this->refreshAccessToken($salesChannel);
+            }
+
+            $page = $request->input('page', 1);
+            $perPage = $request->input('per_page', 100);
+
+            $listings = $this->ebayService->getCompletedListings($salesChannel, $page, $perPage);
+
+            return response()->json($listings);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get ALL completed/sold listings from eBay
+     */
+    public function getAllCompletedListings(string $id)
+    {
+        try {
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            if ($this->isAccessTokenExpired($salesChannel)) {
+                $salesChannel = $this->refreshAccessToken($salesChannel);
+            }
+
+            $listings = $this->ebayService->getAllCompletedListings($salesChannel);
+
+            return response()->json($listings);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Get inventory items using Inventory API (SKU-based)
      * Note: Only returns items created via the Inventory API
      */
