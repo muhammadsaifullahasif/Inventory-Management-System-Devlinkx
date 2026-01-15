@@ -110,23 +110,22 @@ class EbayService
      */
     private function buildGetSellerListRequest(int $page, int $entriesPerPage): string
     {
-        // Get items ending within the next 120 days (max allowed)
-        $startTime = gmdate('Y-m-d\TH:i:s\Z');
-        $endTime = gmdate('Y-m-d\TH:i:s\Z', strtotime('+120 days'));
+        // Use EndTime range to get active listings (items ending in the future)
+        $endTimeFrom = gmdate('Y-m-d\TH:i:s\Z');
+        $endTimeTo = gmdate('Y-m-d\TH:i:s\Z', strtotime('+120 days'));
 
         return '<?xml version="1.0" encoding="utf-8"?>
 <GetSellerListRequest xmlns="urn:ebay:apis:eBLBaseComponents">
     <ErrorLanguage>en_US</ErrorLanguage>
     <WarningLevel>High</WarningLevel>
     <DetailLevel>ReturnAll</DetailLevel>
-    <StartTimeFrom>' . $startTime . '</StartTimeFrom>
-    <StartTimeTo>' . $endTime . '</StartTimeTo>
+    <EndTimeFrom>' . $endTimeFrom . '</EndTimeFrom>
+    <EndTimeTo>' . $endTimeTo . '</EndTimeTo>
     <IncludeWatchCount>true</IncludeWatchCount>
     <Pagination>
         <EntriesPerPage>' . $entriesPerPage . '</EntriesPerPage>
         <PageNumber>' . $page . '</PageNumber>
     </Pagination>
-    <Sort>StartTime</Sort>
     <GranularityLevel>Fine</GranularityLevel>
 </GetSellerListRequest>';
     }
