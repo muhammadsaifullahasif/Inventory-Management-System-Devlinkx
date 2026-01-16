@@ -42,7 +42,7 @@
                         <td>{{ \Carbon\Carbon::parse($sales_channel->created_at)->format('d M, Y') }}</td>
                         <td>
                             <div class="btn-group">
-                                <a href="{{ route('ebay.seller.listings.all', $sales_channel->id) }}" class="btn btn-success btn-sm">Import Products</a>
+                                <a href="{{ route('ebay.listings-all.active', $sales_channel->id) }}" class="btn btn-success btn-sm">Import Products</a>
                                 @can('edit sales_channels')
                                     <a href="{{ route('sales-channels.edit', $sales_channel->id) }}" class="btn btn-primary btn-sm"><i class="fas fa-edit"></i></a>
                                 @endcan
