@@ -50,6 +50,8 @@ class EbayController extends Controller
                 $response = $this->callTradingApi($salesChannel, 'GetSellerList', $xmlRequest);
                 $response =  $this->parseActiveListingsResponse($response);
 
+                dd($response);
+
                 $allItems = array_merge($allItems, $response['items']);
                 $totalPages = $response['pagination']['totalPages'];
                 $page++;
@@ -61,7 +63,7 @@ class EbayController extends Controller
                 'items' => $allItems,
             ];
 
-            dd($allItems);
+            // dd($allItems);
 
             foreach ($allItems as $item) {
                 if (empty($item['sku'])) {
