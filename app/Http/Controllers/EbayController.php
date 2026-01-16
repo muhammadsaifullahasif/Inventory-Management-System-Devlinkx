@@ -48,9 +48,9 @@ class EbayController extends Controller
                         <GranularityLevel>Fine</GranularityLevel>
                     </GetSellerListRequest>';
                 $response = $this->callTradingApi($salesChannel, 'GetSellerList', $xmlRequest);
+                dd($response);
                 $response =  $this->parseActiveListingsResponse($response);
 
-                dd($response);
 
                 $allItems = array_merge($allItems, $response['items']);
                 $totalPages = $response['pagination']['totalPages'];
