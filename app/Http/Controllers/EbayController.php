@@ -61,7 +61,55 @@ class EbayController extends Controller
                 'items' => $allItems,
             ];
 
+            dd($allItems);
+
             foreach ($allItems as $item) {
+                if (empty($item['sku'])) {
+                    updateListing(
+                        array( 'sku' => $item['item_id'] ),
+                        $id,
+                        $item['item_id']
+                    );
+                }
+
+                $product = new Product();
+                $product->name = $item['title'];
+                $product->sku = empty($item['sku']) ? $item['item_id'] : $item['sku'];
+                $product->barcode = empty($item['sku']) ? $item['item_id'] : $item['sku'];
+                // $product->category_id = $item['category_id'];
+                $product->save();
+
+                $product->product_meta()->createMany([
+                    [
+                        'meta_key' => 'weight',
+                        'meta_value' => $request->weight,
+                    ],
+                    [
+                        'meta_key' => 'length',
+                        'meta_value' => $request->length,
+                    ],
+                    [
+                        'meta_key' => 'width',
+                        'meta_value' => $request->width,
+                    ],
+                    [
+                        'meta_key' => 'height',
+                        'meta_value' => $request->height,
+                    ],
+                    [
+                        'meta_key' => 'regular_price',
+                        'meta_value' => $request->regular_price,
+                    ],
+                    [
+                        'meta_key' => 'sale_price',
+                        'meta_value' => $request->sale_price,
+                    ],
+                    [
+                        'meta_key' => 'alert_quantity',
+                        'meta_value' => $request->alert_quantity ?? 0,
+                    ]
+                ]);
+                // $product->stock_quantity = $item['stock_quantity'];
                 // Here you can implement logic to save or update the item in your database
                 // For example:
                 // Product::updateOrCreate(

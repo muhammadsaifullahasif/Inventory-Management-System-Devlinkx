@@ -27,4 +27,9 @@ class SalesChannel extends Model
         'access_token_expires_at' => 'datetime',
         'refresh_token_expires_at' => 'datetime',
     ];
+
+    public function products()
+    {
+        return $this->belongsToMany(Product::class, 'sales_channel_product');
+    }
 }

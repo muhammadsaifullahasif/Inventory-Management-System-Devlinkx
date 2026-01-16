@@ -88,4 +88,8 @@ class Product extends Model
     public function product_stocks() {
         return $this->hasMany(ProductStock::class, 'product_id');
     }
+
+    public function sales_channels() {
+        return $this->belongsToMany(SalesChannel::class, 'sales_channel_product');
+    }
 }
