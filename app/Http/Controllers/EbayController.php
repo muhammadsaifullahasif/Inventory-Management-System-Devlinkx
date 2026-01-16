@@ -6,6 +6,8 @@ use App\Models\SalesChannel;
 use Illuminate\Http\Request;
 use App\Services\EbayService;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Exception;
 
 class EbayController extends Controller
 {
@@ -58,6 +60,23 @@ class EbayController extends Controller
                 'total_items' => count($allItems),
                 'items' => $allItems,
             ];
+
+            foreach ($allItems as $item) {
+                // Here you can implement logic to save or update the item in your database
+                // For example:
+                // Product::updateOrCreate(
+                //     ['ebay_item_id' => $item['item_id']],
+                //     [
+                //         'title' => $item['title'],
+                //         'sku' => $item['sku'],
+                //         'price' => $item['price']['value'],
+                //         'currency' => $item['price']['currency'],
+                //         'quantity' => $item['quantity'],
+                //         'listing_url' => $item['listing_url'],
+                //         // Add other fields as necessary
+                //     ]
+                // );
+            }
             // $listings = $this->ebayService->getAllActiveListings($salesChannel);
 
             return response()->json($listings);
@@ -377,5 +396,189 @@ class EbayController extends Controller
         }
 
         return $response->json();
+    }
+
+    /**
+     * Update an eBay listing using item_id (ReviseItem API)
+     *
+     * Supported fields: title, description, price, quantity, sku
+     */
+    public function updateListing(array $data, string $id, string $itemId)
+    {
+        try {
+            $salesChannel = $this->getSalesChannelWithValidToken($id);
+
+            // Build the ReviseItem XML request
+            $xmlParts = [];
+
+            // Title
+            if ($data['title']) {
+                $xmlParts[] = '<Title>' . htmlspecialchars($data['title']) . '</Title>';
+            }
+
+            // Description
+            if (isset($data['description'])) {
+                $xmlParts[] = '<Description><![CDATA[' . $data['description'] . ']]></Description>';
+            }
+
+            // Price (StartPrice for Buy It Now / Fixed Price)
+            if (isset($data['price'])) {
+                $currency = $data['currency'] ?? 'USD';
+                $xmlParts[] = '<StartPrice currencyID="' . $currency . '">' . $data['price'] . '</StartPrice>';
+            }
+
+            // Quantity
+            if (isset($data['quantity'])) {
+                $xmlParts[] = '<Quantity>' . (int) $data['quantity'] . '</Quantity>';
+            }
+
+            // SKU
+            if (isset($data['sku'])) {
+                $xmlParts[] = '<SKU>' . htmlspecialchars($data['sku']) . '</SKU>';
+            }
+
+            // Condition
+            if (isset($data['condition_id'])) {
+                $xmlParts[] = '<ConditionID>' . (int) $data['condition_id'] . '</ConditionID>';
+            }
+
+            if (empty($xmlParts)) {
+                return $this->errorResponse('No fields provided to update', 400);
+            }
+
+            $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
+                <ReviseItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                    <ErrorLanguage>en_US</ErrorLanguage>
+                    <WarningLevel>High</WarningLevel>
+                    <Item>
+                        <ItemID>' . $itemId . '</ItemID>
+                        ' . implode("\n                        ", $xmlParts) . '
+                    </Item>
+                </ReviseItemRequest>';
+
+            $response = $this->callTradingApi($salesChannel, 'ReviseItem', $xmlRequest);
+            $result = $this->parseReviseItemResponse($response);
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Update listing quantity only (quick method)
+     */
+    public function updateListingQuantity(Request $request, string $id, string $itemId)
+    {
+        try {
+            $salesChannel = $this->getSalesChannelWithValidToken($id);
+
+            $quantity = (int) $request->input('quantity', 0);
+
+            $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
+                <ReviseItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                    <ErrorLanguage>en_US</ErrorLanguage>
+                    <WarningLevel>High</WarningLevel>
+                    <Item>
+                        <ItemID>' . $itemId . '</ItemID>
+                        <Quantity>' . $quantity . '</Quantity>
+                    </Item>
+                </ReviseItemRequest>';
+
+            $response = $this->callTradingApi($salesChannel, 'ReviseItem', $xmlRequest);
+            $result = $this->parseReviseItemResponse($response);
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Update listing price only (quick method)
+     */
+    public function updateListingPrice(Request $request, string $id, string $itemId)
+    {
+        try {
+            $salesChannel = $this->getSalesChannelWithValidToken($id);
+
+            $price = $request->input('price');
+            $currency = $request->input('currency', 'USD');
+
+            if (!$price) {
+                return $this->errorResponse('Price is required', 400);
+            }
+
+            $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
+                <ReviseItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                    <ErrorLanguage>en_US</ErrorLanguage>
+                    <WarningLevel>High</WarningLevel>
+                    <Item>
+                        <ItemID>' . $itemId . '</ItemID>
+                        <StartPrice currencyID="' . $currency . '">' . $price . '</StartPrice>
+                    </Item>
+                </ReviseItemRequest>';
+
+            $response = $this->callTradingApi($salesChannel, 'ReviseItem', $xmlRequest);
+            $result = $this->parseReviseItemResponse($response);
+
+            return response()->json($result);
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Parse ReviseItem response
+     */
+    private function parseReviseItemResponse(string $xmlResponse): array
+    {
+        $xml = simplexml_load_string($xmlResponse);
+        $this->checkForErrors($xml);
+
+        $result = [
+            'success' => true,
+            'item_id' => (string) ($xml->ItemID ?? ''),
+            'ack' => (string) $xml->Ack,
+            'fees' => [],
+        ];
+
+        // Parse listing fees if any
+        if (isset($xml->Fees->Fee)) {
+            foreach ($xml->Fees->Fee as $fee) {
+                $result['fees'][] = [
+                    'name' => (string) $fee->Name,
+                    'fee' => (float) $fee->Fee,
+                    'currency' => (string) ($fee->Fee['currencyID'] ?? 'USD'),
+                ];
+            }
+        }
+
+        // Check for warnings
+        if (isset($xml->Errors) && (string) $xml->Ack === 'Warning') {
+            $result['warnings'] = [];
+            foreach ($xml->Errors as $error) {
+                if ((string) $error->SeverityCode === 'Warning') {
+                    $result['warnings'][] = [
+                        'code' => (string) $error->ErrorCode,
+                        'message' => (string) $error->ShortMessage,
+                        'long_message' => (string) $error->LongMessage,
+                    ];
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Return error response
+     */
+    private function errorResponse(string $message, int $status = 500)
+    {
+        return response()->json([
+            'success' => false,
+            'message' => $message,
+        ], $status);
     }
 }

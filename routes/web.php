@@ -84,4 +84,9 @@ Route::middleware(['auth'])->group(function () {
 
     // eBay Seller Listings (Trading API - GetSellerList)
     Route::get('/ebay/listings-all/active/{id}', [EbayController::class, 'getAllActiveListings'])->name('ebay.listings-all.active');
+
+    // eBay Update Listing (Trading API - ReviseItem)
+    // Route::put('/ebay/listing/{id}/{itemId}', [EbayController::class, 'updateListing'])->name('ebay.listing.update');
+    // Route::patch('/ebay/listing/{id}/{itemId}/quantity', [EbayController::class, 'updateListingQuantity'])->name('ebay.listing.update.quantity');
+    // Route::patch('/ebay/listing/{id}/{itemId}/price', [EbayController::class, 'updateListingPrice'])->name('ebay.listing.update.price');
 });
