@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\SalesChannel;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use App\Services\EbayService;
 use Illuminate\Support\Facades\Http;
@@ -48,69 +49,73 @@ class EbayController extends Controller
                         <GranularityLevel>Fine</GranularityLevel>
                     </GetSellerListRequest>';
                 $response = $this->callTradingApi($salesChannel, 'GetSellerList', $xmlRequest);
-                dd($response);
                 $response =  $this->parseActiveListingsResponse($response);
-
-
+                
                 $allItems = array_merge($allItems, $response['items']);
                 $totalPages = $response['pagination']['totalPages'];
                 $page++;
             } while ($page <= $totalPages);
-
+                
             $listings =  [
                 'success' => true,
                 'total_items' => count($allItems),
                 'items' => $allItems,
             ];
 
-            // dd($allItems);
-
             foreach ($allItems as $item) {
-                if (empty($item['sku'])) {
-                    updateListing(
-                        array( 'sku' => $item['item_id'] ),
-                        $id,
-                        $item['item_id']
-                    );
-                }
+                // if (empty($item['sku'])) {
+                //     $this->updateListing(
+                //         array( 'sku' => $item['item_id'] ),
+                //         $id,
+                //         $item['item_id']
+                //     );
+                // }
 
-                $product = new Product();
-                $product->name = $item['title'];
-                $product->sku = empty($item['sku']) ? $item['item_id'] : $item['sku'];
-                $product->barcode = empty($item['sku']) ? $item['item_id'] : $item['sku'];
-                // $product->category_id = $item['category_id'];
-                $product->save();
+                // $product = new Product();
+                // $product->name = $item['title'];
+                // $product->sku = empty($item['sku']) ? $item['item_id'] : $item['sku'];
+                // $product->barcode = empty($item['sku']) ? $item['item_id'] : $item['sku'];
+                // // $product->category_id = $item['category_id'];
+                // $product->save();
 
-                $product->product_meta()->createMany([
-                    [
-                        'meta_key' => 'weight',
-                        'meta_value' => $request->weight,
-                    ],
-                    [
-                        'meta_key' => 'length',
-                        'meta_value' => $request->length,
-                    ],
-                    [
-                        'meta_key' => 'width',
-                        'meta_value' => $request->width,
-                    ],
-                    [
-                        'meta_key' => 'height',
-                        'meta_value' => $request->height,
-                    ],
-                    [
-                        'meta_key' => 'regular_price',
-                        'meta_value' => $request->regular_price,
-                    ],
-                    [
-                        'meta_key' => 'sale_price',
-                        'meta_value' => $request->sale_price,
-                    ],
-                    [
-                        'meta_key' => 'alert_quantity',
-                        'meta_value' => $request->alert_quantity ?? 0,
-                    ]
-                ]);
+                // $product->product_meta()->createMany([
+                //     [
+                //         'meta_key' => 'weight',
+                //         'meta_value' => $item['dimensions']['weight'] ?? null,
+                //     ],
+                //     [
+                //         'meta_key' => 'length',
+                //         'meta_value' => $item['dimensions']['length'] ?? null,
+                //     ],
+                //     [
+                //         'meta_key' => 'width',
+                //         'meta_value' => $item['dimensions']['width'] ?? null,
+                //     ],
+                //     [
+                //         'meta_key' => 'height',
+                //         'meta_value' => $item['dimensions']['height'] ?? null,
+                //     ],
+                //     [
+                //         'meta_key' => 'regular_price',
+                //         'meta_value' => $item['regular_price']['value'] ?? $item['price']['value'],
+                //     ],
+                //     [
+                //         'meta_key' => 'sale_price',
+                //         'meta_value' => $item['sale_price']['value'] ?? null,
+                //     ],
+                //     [
+                //         'meta_key' => 'alert_quantity',
+                //         'meta_value' => 0,
+                //     ],
+                //     [
+                //         'meta_key' => 'description',
+                //         'meta_value' => $item['description'] ?? '',
+                //     ],
+                //     [
+                //         'meta_key' => 'ebay_item_id',
+                //         'meta_value' => $item['item_id'],
+                //     ],
+                // ]);
                 // $product->stock_quantity = $item['stock_quantity'];
                 // Here you can implement logic to save or update the item in your database
                 // For example:
@@ -129,6 +134,7 @@ class EbayController extends Controller
             }
             // $listings = $this->ebayService->getAllActiveListings($salesChannel);
 
+            dd($listings);
             return response()->json($listings);
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage());
@@ -196,14 +202,51 @@ class EbayController extends Controller
      */
     private function parseItem($item, bool $includeFullDetails = false): array
     {
+        // Get current selling price
+        $currentPrice = (float) ($item->SellingStatus->CurrentPrice ?? $item->BuyItNowPrice ?? $item->StartPrice ?? 0);
+        $currency = (string) ($item->SellingStatus->CurrentPrice['currencyID'] ?? 'USD');
+
+        // Check for strike-through price (original price when item is on sale)
+        // eBay uses DiscountPriceInfo for sale pricing
+        $regularPrice = $currentPrice;
+        $salePrice = null;
+        $isOnSale = false;
+
+        if (isset($item->DiscountPriceInfo)) {
+            // OriginalRetailPrice is the strike-through price (regular price)
+            if (isset($item->DiscountPriceInfo->OriginalRetailPrice)) {
+                $regularPrice = (float) $item->DiscountPriceInfo->OriginalRetailPrice;
+                $salePrice = $currentPrice;
+                $isOnSale = true;
+            }
+            // MinimumAdvertisedPrice for MAP pricing
+            if (isset($item->DiscountPriceInfo->MinimumAdvertisedPrice)) {
+                $regularPrice = (float) $item->DiscountPriceInfo->MinimumAdvertisedPrice;
+                $salePrice = $currentPrice;
+                $isOnSale = true;
+            }
+        }
+
         $parsed = [
             'item_id' => (string) $item->ItemID,
             'title' => (string) $item->Title,
             'sku' => (string) ($item->SKU ?? ''),
             'price' => [
-                'value' => (float) ($item->SellingStatus->CurrentPrice ?? $item->BuyItNowPrice ?? $item->StartPrice ?? 0),
-                'currency' => (string) ($item->SellingStatus->CurrentPrice['currencyID'] ?? 'USD'),
+                'value' => $currentPrice,
+                'currency' => $currency,
             ],
+            'regular_price' => [
+                'value' => $regularPrice,
+                'currency' => $currency,
+            ],
+            'sale_price' => $salePrice !== null ? [
+                'value' => $salePrice,
+                'currency' => $currency,
+            ] : null,
+            'is_on_sale' => $isOnSale,
+            'start_price' => (float) ($item->StartPrice ?? 0),
+            'buy_it_now_price' => (float) ($item->BuyItNowPrice ?? 0),
+            'reserve_price' => (float) ($item->ReservePrice ?? 0),
             'quantity' => (int) ($item->Quantity ?? 0),
             'quantity_available' => (int) ($item->QuantityAvailable ?? 0),
             'quantity_sold' => (int) ($item->SellingStatus->QuantitySold ?? 0),
@@ -219,6 +262,7 @@ class EbayController extends Controller
             'start_time' => (string) ($item->ListingDetails->StartTime ?? ''),
             'end_time' => (string) ($item->ListingDetails->EndTime ?? ''),
             'images' => $this->parseImages($item),
+            'dimensions' => $this->parseDimensions($item),
         ];
 
         if ($includeFullDetails) {
@@ -233,6 +277,71 @@ class EbayController extends Controller
         }
 
         return $parsed;
+    }
+
+    /**
+     * Parse item dimensions from ShippingPackageDetails
+     */
+    private function parseDimensions($item): array
+    {
+        $dimensions = [
+            'weight' => null,
+            'weight_unit' => null,
+            'length' => null,
+            'width' => null,
+            'height' => null,
+            'dimension_unit' => null,
+        ];
+
+        // Check ShippingPackageDetails for package dimensions
+        if (isset($item->ShippingPackageDetails)) {
+            $pkg = $item->ShippingPackageDetails;
+
+            // Weight
+            if (isset($pkg->WeightMajor)) {
+                $weightMajor = (float) $pkg->WeightMajor;
+                $weightMinor = (float) ($pkg->WeightMinor ?? 0);
+                $dimensions['weight'] = $weightMajor + ($weightMinor / 16); // Convert oz to lbs
+                $dimensions['weight_unit'] = (string) ($pkg->WeightMajor['unit'] ?? 'lbs');
+            }
+
+            // Dimensions
+            if (isset($pkg->PackageDepth)) {
+                $dimensions['length'] = (float) $pkg->PackageDepth;
+                $dimensions['dimension_unit'] = (string) ($pkg->PackageDepth['unit'] ?? 'inches');
+            }
+            if (isset($pkg->PackageWidth)) {
+                $dimensions['width'] = (float) $pkg->PackageWidth;
+            }
+            if (isset($pkg->PackageLength)) {
+                $dimensions['height'] = (float) $pkg->PackageLength;
+            }
+        }
+
+        // Also check ShippingDetails for calculated shipping weight
+        if (isset($item->ShippingDetails->CalculatedShippingRate)) {
+            $calc = $item->ShippingDetails->CalculatedShippingRate;
+
+            if ($dimensions['weight'] === null && isset($calc->WeightMajor)) {
+                $weightMajor = (float) $calc->WeightMajor;
+                $weightMinor = (float) ($calc->WeightMinor ?? 0);
+                $dimensions['weight'] = $weightMajor + ($weightMinor / 16);
+                $dimensions['weight_unit'] = (string) ($calc->WeightMajor['unit'] ?? 'lbs');
+            }
+
+            if ($dimensions['length'] === null && isset($calc->PackageDepth)) {
+                $dimensions['length'] = (float) $calc->PackageDepth;
+                $dimensions['dimension_unit'] = (string) ($calc->PackageDepth['unit'] ?? 'inches');
+            }
+            if ($dimensions['width'] === null && isset($calc->PackageWidth)) {
+                $dimensions['width'] = (float) $calc->PackageWidth;
+            }
+            if ($dimensions['height'] === null && isset($calc->PackageLength)) {
+                $dimensions['height'] = (float) $calc->PackageLength;
+            }
+        }
+
+        return $dimensions;
     }
 
     /**
