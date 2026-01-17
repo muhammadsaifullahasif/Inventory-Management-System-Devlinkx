@@ -58,24 +58,24 @@ class EbayController extends Controller
 
             // Update SKUs for items that don't have one
             foreach ($allItems as $index => $item) {
-                if (empty($item['sku'])) {
-                    $updateResult = $this->updateListing(
-                        ['sku' => $item['item_id']],
-                        $id,
-                        $item['item_id'],
-                        true // Return array instead of JSON response
-                    );
+                // if (empty($item['sku'])) {
+                //     $updateResult = $this->updateListing(
+                //         ['sku' => $item['item_id']],
+                //         $id,
+                //         $item['item_id'],
+                //         true // Return array instead of JSON response
+                //     );
 
-                    // Update the item in our array if the update was successful
-                    if ($updateResult['success'] ?? false) {
-                        $allItems[$index]['sku'] = $item['item_id'];
-                    }
+                //     // Update the item in our array if the update was successful
+                //     if ($updateResult['success'] ?? false) {
+                //         $allItems[$index]['sku'] = $item['item_id'];
+                //     }
 
-                    Log::info('SKU Update Result', [
-                        'item_id' => $item['item_id'],
-                        'result' => $updateResult,
-                    ]);
-                }
+                //     Log::info('SKU Update Result', [
+                //         'item_id' => $item['item_id'],
+                //         'result' => $updateResult,
+                //     ]);
+                // }
             }
 
             // Build response with updated items
