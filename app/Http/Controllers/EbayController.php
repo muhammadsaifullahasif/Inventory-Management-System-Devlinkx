@@ -57,32 +57,69 @@ class EbayController extends Controller
             } while ($page <= $totalPages);
 
             // Update SKUs for items that don't have one
+            set_time_limit(600); // Set PHP max execution time to 10 minutes
+
+            $skuUpdateCount = 0;
+            $skuUpdateErrors = [];
+
             foreach ($allItems as $index => $item) {
-                // if (empty($item['sku'])) {
-                //     $updateResult = $this->updateListing(
-                //         ['sku' => $item['item_id']],
-                //         $id,
-                //         $item['item_id'],
-                //         true // Return array instead of JSON response
-                //     );
+                if (empty($item['sku'])) {
+                    try {
+                        $updateResult = $this->updateListing(
+                            ['sku' => $item['item_id']],
+                            $id,
+                            $item['item_id'],
+                            true // Return array instead of JSON response
+                        );
 
-                //     // Update the item in our array if the update was successful
-                //     if ($updateResult['success'] ?? false) {
-                //         $allItems[$index]['sku'] = $item['item_id'];
-                //     }
+                        // Update the item in our array if the update was successful
+                        if ($updateResult['success'] ?? false) {
+                            $allItems[$index]['sku'] = $item['item_id'];
+                            $skuUpdateCount++;
+                        } else {
+                            $skuUpdateErrors[] = [
+                                'item_id' => $item['item_id'],
+                                'error' => $updateResult['message'] ?? 'Unknown error',
+                            ];
+                        }
 
-                //     Log::info('SKU Update Result', [
-                //         'item_id' => $item['item_id'],
-                //         'result' => $updateResult,
-                //     ]);
-                // }
+                        Log::info('SKU Update Result', [
+                            'item_id' => $item['item_id'],
+                            'result' => $updateResult,
+                        ]);
+
+                        // Small delay to avoid rate limiting
+                        usleep(200000); // 200ms delay between requests
+
+                    } catch (\Exception $e) {
+                        Log::error('SKU Update Exception', [
+                            'item_id' => $item['item_id'],
+                            'error' => $e->getMessage(),
+                        ]);
+                        $skuUpdateErrors[] = [
+                            'item_id' => $item['item_id'],
+                            'error' => $e->getMessage(),
+                        ];
+                    }
+                }
             }
+
+            Log::info('SKU Update Summary', [
+                'total_updated' => $skuUpdateCount,
+                'total_errors' => count($skuUpdateErrors),
+                'errors' => $skuUpdateErrors,
+            ]);
 
             // Build response with updated items
             $listings = [
                 'success' => true,
                 'total_items' => count($allItems),
                 'items' => $allItems,
+                'sku_updates' => [
+                    'updated' => $skuUpdateCount,
+                    'errors' => count($skuUpdateErrors),
+                    'error_details' => $skuUpdateErrors,
+                ],
             ];
             // $listings = $this->ebayService->getAllActiveListings($salesChannel);
 
@@ -131,8 +168,8 @@ class EbayController extends Controller
      */
     private function callTradingApi(SalesChannel $salesChannel, string $callName, string $xmlRequest): string
     {
-        $response = Http::timeout(120)
-            ->connectTimeout(30)
+        $response = Http::timeout(300) // Increased to 5 minutes
+            ->connectTimeout(60) // Increased to 60 seconds
             ->withHeaders([
                 'X-EBAY-API-SITEID' => self::API_SITE_ID,
                 'X-EBAY-API-COMPATIBILITY-LEVEL' => self::API_COMPATIBILITY_LEVEL,
