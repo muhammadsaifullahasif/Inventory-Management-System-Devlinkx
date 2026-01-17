@@ -63,19 +63,19 @@ class EbayController extends Controller
             ];
 
             foreach ($allItems as $item) {
-                // if (empty($item['sku'])) {
-                //     $updateResult = $this->updateListing(
-                //         ['sku' => $item['item_id']],
-                //         $id,
-                //         $item['item_id'],
-                //         true // Return array instead of JSON response
-                //     );
+                if (empty($item['sku'])) {
+                    $updateResult = $this->updateListing(
+                        ['sku' => $item['item_id']],
+                        $id,
+                        $item['item_id'],
+                        true // Return array instead of JSON response
+                    );
 
-                //     Log::info('SKU Update Result', [
-                //         'item_id' => $item['item_id'],
-                //         'result' => $updateResult,
-                //     ]);
-                // }
+                    Log::info('SKU Update Result', [
+                        'item_id' => $item['item_id'],
+                        'result' => $updateResult,
+                    ]);
+                }
 
                 // $product = new Product();
                 // $product->name = $item['title'];
