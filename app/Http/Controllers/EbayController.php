@@ -55,14 +55,9 @@ class EbayController extends Controller
                 $totalPages = $response['pagination']['totalPages'];
                 $page++;
             } while ($page <= $totalPages);
-                
-            $listings =  [
-                'success' => true,
-                'total_items' => count($allItems),
-                'items' => $allItems,
-            ];
 
-            foreach ($allItems as $item) {
+            // Update SKUs for items that don't have one
+            foreach ($allItems as $index => $item) {
                 if (empty($item['sku'])) {
                     $updateResult = $this->updateListing(
                         ['sku' => $item['item_id']],
@@ -71,73 +66,24 @@ class EbayController extends Controller
                         true // Return array instead of JSON response
                     );
 
+                    // Update the item in our array if the update was successful
+                    if ($updateResult['success'] ?? false) {
+                        $allItems[$index]['sku'] = $item['item_id'];
+                    }
+
                     Log::info('SKU Update Result', [
                         'item_id' => $item['item_id'],
                         'result' => $updateResult,
                     ]);
                 }
-
-                // $product = new Product();
-                // $product->name = $item['title'];
-                // $product->sku = empty($item['sku']) ? $item['item_id'] : $item['sku'];
-                // $product->barcode = empty($item['sku']) ? $item['item_id'] : $item['sku'];
-                // // $product->category_id = $item['category_id'];
-                // $product->save();
-
-                // $product->product_meta()->createMany([
-                //     [
-                //         'meta_key' => 'weight',
-                //         'meta_value' => $item['dimensions']['weight'] ?? null,
-                //     ],
-                //     [
-                //         'meta_key' => 'length',
-                //         'meta_value' => $item['dimensions']['length'] ?? null,
-                //     ],
-                //     [
-                //         'meta_key' => 'width',
-                //         'meta_value' => $item['dimensions']['width'] ?? null,
-                //     ],
-                //     [
-                //         'meta_key' => 'height',
-                //         'meta_value' => $item['dimensions']['height'] ?? null,
-                //     ],
-                //     [
-                //         'meta_key' => 'regular_price',
-                //         'meta_value' => $item['regular_price']['value'] ?? $item['price']['value'],
-                //     ],
-                //     [
-                //         'meta_key' => 'sale_price',
-                //         'meta_value' => $item['sale_price']['value'] ?? null,
-                //     ],
-                //     [
-                //         'meta_key' => 'alert_quantity',
-                //         'meta_value' => 0,
-                //     ],
-                //     [
-                //         'meta_key' => 'description',
-                //         'meta_value' => $item['description'] ?? '',
-                //     ],
-                //     [
-                //         'meta_key' => 'ebay_item_id',
-                //         'meta_value' => $item['item_id'],
-                //     ],
-                // ]);
-                // $product->stock_quantity = $item['stock_quantity'];
-                // Here you can implement logic to save or update the item in your database
-                // For example:
-                // Product::updateOrCreate(
-                //     ['ebay_item_id' => $item['item_id']],
-                //     [
-                //         'title' => $item['title'],
-                //         'sku' => $item['sku'],
-                //         'price' => $item['price']['value'],
-                //         'currency' => $item['price']['currency'],
-                //         'quantity' => $item['quantity'],
-                //         'listing_url' => $item['listing_url'],
-                //         // Add other fields as necessary
-                //     ]
-                // );
             }
+
+            // Build response with updated items
+            $listings = [
+                'success' => true,
+                'total_items' => count($allItems),
+                'items' => $allItems,
+            ];
             // $listings = $this->ebayService->getAllActiveListings($salesChannel);
 
             // dd(json_encode($listings));
