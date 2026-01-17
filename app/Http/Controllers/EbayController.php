@@ -66,16 +66,16 @@ class EbayController extends Controller
             $skuUpdateCount = 0;
             $skuUpdateErrors = [];
 
-            /*foreach ($allItems as $index => $item) {
-                if (empty($item['sku'])) {
-                    // Update the SKU in Ebay
-                    $updateResult = $this->updateListing(
-                        ['sku' => $item['item_id']],
-                        $id,
-                        $item['item_id'],
-                        true // Return array instead of JSON response
-                    );
-                }
+            foreach ($allItems as $index => $item) {
+                // if (empty($item['sku'])) {
+                //     // Update the SKU in Ebay
+                //     $updateResult = $this->updateListing(
+                //         ['sku' => $item['item_id']],
+                //         $id,
+                //         $item['item_id'],
+                //         true // Return array instead of JSON response
+                //     );
+                // }
 
                 $warehouse = Warehouse::where('is_default', true)->first();
                 $rack = Rack::where('warehouse_id', $warehouse->id)->where('is_default', true)->first();
@@ -169,18 +169,19 @@ class EbayController extends Controller
                 );
 
                 // Add stock using update with DB::raw or create
+                $quantity = ($item['quantity'] - $item['quantity_sold']);
                 $product->product_stocks()
                     ->where('product_id', $product->id)
                     ->where('warehouse_id', $warehouse->id)
                     ->where('rack_id', $rack->id)
-                    ->update(['quantity' => DB::raw('quantity + ' . $item['quantity'])])
+                    ->update(['quantity' => DB::raw('quantity + ' . $quantity)])
                     ?: $product->product_stocks()->create([
                         'product_id' => $product->id,
                         'warehouse_id' => $warehouse->id,
                         'rack_id' => $rack->id,
-                        'quantity' => $item['quantity']
+                        'quantity' => $quantity
                     ]);
-            }*/
+            }
 
             // Build response with updated items
             $listings = [
