@@ -197,8 +197,8 @@ class EbayController extends Controller
             // $listings = $this->ebayService->getAllActiveListings($salesChannel);
 
             // dd(json_encode($listings));
-            return response()->json($listings);
-            // return redirect()->back()->with('success', 'Ebay listings synchronized successfully.');
+            // return response()->json($listings);
+            return redirect()->back()->with('success', 'Ebay listings synchronized successfully.');
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage());
         }
