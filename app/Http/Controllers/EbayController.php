@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\SalesChannel;
+use Exception;
 use App\Models\Product;
+use Illuminate\Support\Str;
+use App\Models\SalesChannel;
 use Illuminate\Http\Request;
 use App\Services\EbayService;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Exception;
+use Illuminate\Support\Facades\Http;
 
 class EbayController extends Controller
 {
@@ -62,69 +63,125 @@ class EbayController extends Controller
             $skuUpdateCount = 0;
             $skuUpdateErrors = [];
 
-            // foreach ($allItems as $index => $item) {
-            //     if (empty($item['sku'])) {
-            //         try {
-            //             $updateResult = $this->updateListing(
-            //                 ['sku' => $item['item_id']],
-            //                 $id,
-            //                 $item['item_id'],
-            //                 true // Return array instead of JSON response
-            //             );
+            foreach ($allItems as $index => $item) {
+                /*if (empty($item['sku'])) {
+                    // Update the SKU in Ebay
+                    $updateResult = $this->updateListing(
+                        ['sku' => $item['item_id']],
+                        $id,
+                        $item['item_id'],
+                        true // Return array instead of JSON response
+                    );
+                }*/
 
-            //             // Update the item in our array if the update was successful
-            //             if ($updateResult['success'] ?? false) {
-            //                 $allItems[$index]['sku'] = $item['item_id'];
-            //                 $skuUpdateCount++;
-            //             } else {
-            //                 $skuUpdateErrors[] = [
-            //                     'item_id' => $item['item_id'],
-            //                     'error' => $updateResult['message'] ?? 'Unknown error',
-            //                 ];
-            //             }
+                $warehouse = Warehouse::where('is_default', true)->first();
+                $rack = Rack::where('warehouse_id', $warehouse->id)->where('is_default', true)->first();
+                $category = Category::whereLike('name', '%' . $item['category']['name'] . '%')->first();
+                if ($category == null) {
+                    $category = Category::create([
+                        'name' => $item['category']['name'],
+                        'slug' => Str::slug($item['category']['name']),
+                    ]);
+                    if (!$category) {
+                        $category = Category::first();
+                    }
+                }
 
-            //             Log::info('SKU Update Result', [
-            //                 'item_id' => $item['item_id'],
-            //                 'result' => $updateResult,
-            //             ]);
+                $product = Product::updateOrCreate(
+                    [
+                        'sku' => empty($item['sku']) ? $item['item_id'] : $item['sku'],
+                    ],
+                    [
+                        'name' => $item['title'],
+                        'barcode' => empty($item['sku']) ? $item['item_id'] : $item['sku'],
+                        'category_id' => $category->id,
+                        'short_description' => '',
+                        'description' => $item['description'] ?? '',
+                        'price' => $item['price']['value'],
+                    ]
+                );
 
-            //             // Small delay to avoid rate limiting
-            //             usleep(200000); // 200ms delay between requests
-
-            //         } catch (\Exception $e) {
-            //             Log::error('SKU Update Exception', [
-            //                 'item_id' => $item['item_id'],
-            //                 'error' => $e->getMessage(),
-            //             ]);
-            //             $skuUpdateErrors[] = [
-            //                 'item_id' => $item['item_id'],
-            //                 'error' => $e->getMessage(),
-            //             ];
-            //         }
-            //     }
-            // }
-
-            // Log::info('SKU Update Summary', [
-            //     'total_updated' => $skuUpdateCount,
-            //     'total_errors' => count($skuUpdateErrors),
-            //     'errors' => $skuUpdateErrors,
-            // ]);
+                // Update product meta
+                $product->product_meta()->upsert(
+                    [
+                        [
+                            'meta_key' => 'item_id',
+                            'meta_value' => $item['item_id'] ?? '',
+                        ],
+                        [
+                            'meta_key' => 'listing_url',
+                            'meta_value' => $item['listing_url'] ?? '',
+                        ],
+                        [
+                            'meta_key' => 'listing_type',
+                            'meta_value' => $item['listing_type'] ?? '',
+                        ],
+                        [
+                            'meta_key' => 'listing_status',
+                            'meta_value' => $item['listing_status'] ?? '',
+                        ],
+                        [
+                            'meta_key' => 'weight',
+                            'meta_value' => $item['dimensions']['weight'] ?? '',
+                        ],
+                        [
+                            'meta_key' => 'weight_unit',
+                            'meta_value' => $item['dimensions']['weight_unit'] ?? '',
+                        ],
+                        [
+                            'meta_key' => 'length',
+                            'meta_value' => $item['dimensions']['length'] ?? '',
+                        ],
+                        [
+                            'meta_key' => 'width',
+                            'meta_value' => $item['dimensions']['width'] ?? '',
+                        ],
+                        [
+                            'meta_key' => 'height',
+                            'meta_value' => $item['dimensions']['height'] ?? '',
+                        ],
+                        [
+                            'meta_key' => 'dimension_unit',
+                            'meta_value' => $item['dimensions']['dimension_unit'] ?? '',
+                        ],
+                        [
+                            'meta_key' => 'regular_price',
+                            'meta_value' => empty($item['regular_price']['value']) ? $item['price']['value'] : $item['regular_price']['value'],
+                        ],
+                        [
+                            'meta_key' => 'sale_price',
+                            'meta_value' => (empty($item['sale_price']['value']) || $item['sale_price']['value'] === null) ? '' : $item['sale_price']['value'],
+                        ],
+                        [
+                            'meta_key' => 'shipping_details',
+                            'meta_value' => json_encode($item['shipping_details'] ?? []),
+                        ],
+                        [
+                            'meta_key' => 'return_policy',
+                            'meta_value' => json_encode($item['return_policy'] ?? []),
+                        ]
+                    ], 
+                    ['product_id', 'meta_key'], 
+                    ['meta_value']
+                );
+            }
 
             // Build response with updated items
-            $listings = [
-                'success' => true,
-                'total_items' => count($allItems),
-                'items' => $allItems,
+            // $listings = [
+                // 'success' => true,
+                // 'total_items' => count($allItems),
+                // 'items' => $allItems,
                 // 'sku_updates' => [
                 //     'updated' => $skuUpdateCount,
                 //     'errors' => count($skuUpdateErrors),
                 //     'error_details' => $skuUpdateErrors,
                 // ],
-            ];
+            // ];
             // $listings = $this->ebayService->getAllActiveListings($salesChannel);
 
             // dd(json_encode($listings));
-            return response()->json($listings);
+            // return response()->json($listings);
+            return redirect()->back()->with('success', 'Ebay listings synchronized successfully.');
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage());
         }
