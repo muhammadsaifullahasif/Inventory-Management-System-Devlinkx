@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use App\Models\SalesChannel;
 use Illuminate\Http\Request;
 use App\Services\EbayService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 
