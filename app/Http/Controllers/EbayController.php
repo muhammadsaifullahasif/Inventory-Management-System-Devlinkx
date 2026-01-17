@@ -91,6 +91,13 @@ class EbayController extends Controller
                     }
                 }
 
+                $product = Product::where('sku', ($item['sku'] === '') ? $item['item_id'] : $item['sku'])->first();
+                if ($product) {
+                    $product_exists = true;
+                } else {
+                    $product_exists = false;
+                }
+
                 $product = Product::updateOrCreate(
                     [
                         'sku' => ($item['sku'] === '') ? $item['item_id'] : $item['sku'],
@@ -169,19 +176,24 @@ class EbayController extends Controller
                     ['meta_value']
                 );
 
-                // Add stock using update with DB::raw or create
-                $quantity = ($item['quantity'] - $item['quantity_sold']);
-                $product->product_stocks()
-                    ->where('product_id', $product->id)
-                    ->where('warehouse_id', $warehouse->id)
-                    ->where('rack_id', $rack->id)
-                    ->update(['quantity' => DB::raw('quantity + ' . $quantity)])
-                    ?: $product->product_stocks()->create([
-                        'product_id' => $product->id,
-                        'warehouse_id' => $warehouse->id,
-                        'rack_id' => $rack->id,
-                        'quantity' => $quantity
-                    ]);
+                if ($product_exists) {
+                    // Skip stock update if product already existed
+                    continue;
+                } else {
+                    // Add stock using update with DB::raw or create
+                    $quantity = ($item['quantity'] - $item['quantity_sold']);
+                    $product->product_stocks()
+                        ->where('product_id', $product->id)
+                        ->where('warehouse_id', $warehouse->id)
+                        ->where('rack_id', $rack->id)
+                        ->update(['quantity' => DB::raw('quantity + ' . $quantity)])
+                        ?: $product->product_stocks()->create([
+                            'product_id' => $product->id,
+                            'warehouse_id' => $warehouse->id,
+                            'rack_id' => $rack->id,
+                            'quantity' => $quantity
+                        ]);
+                }
             }
 
             // Build response with updated items
