@@ -93,7 +93,7 @@ class EbayController extends Controller
 
                 $product = Product::updateOrCreate(
                     [
-                        'sku' => empty($item['sku']) ? $item['item_id'] : $item['sku'],
+                        'sku' => ($item['sku'] === '') ? $item['item_id'] : $item['sku'],
                     ],
                     [
                         'name' => $item['title'],
