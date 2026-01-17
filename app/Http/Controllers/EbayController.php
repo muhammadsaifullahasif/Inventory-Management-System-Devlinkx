@@ -91,6 +91,15 @@ class EbayController extends Controller
             ]);
 
             foreach ($allItems as $index => $item) {
+                // if (empty($item['sku'])) {
+                //     // Update the SKU in Ebay
+                //     $updateResult = $this->updateListing(
+                //         ['sku' => $item['item_id']],
+                //         $id,
+                //         $item['item_id'],
+                //         true // Return array instead of JSON response
+                //     );
+                // }
                 try {
                     // Get or create category
                     $category = Category::whereLike('name', '%' . $item['category']['name'] . '%')->first();
@@ -230,6 +239,8 @@ class EbayController extends Controller
                                 'quantity' => $quantity
                             ]);
                     }
+
+                    $product->sales_channels()->sync([$salesChannel->id], false);
 
                     // Log progress every 10 items
                     if (($index + 1) % 10 === 0) {
