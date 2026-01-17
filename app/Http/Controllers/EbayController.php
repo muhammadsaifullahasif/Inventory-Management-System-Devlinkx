@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use Exception;
+use App\Models\Rack;
 use App\Models\Product;
+use App\Models\Category;
+use App\Models\Warehouse;
 use Illuminate\Support\Str;
 use App\Models\SalesChannel;
 use Illuminate\Http\Request;
