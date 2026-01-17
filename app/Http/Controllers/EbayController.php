@@ -134,7 +134,7 @@ class EbayController extends Controller
             }
             // $listings = $this->ebayService->getAllActiveListings($salesChannel);
 
-            dd(json_encode($listings));
+            // dd(json_encode($listings));
             return response()->json($listings);
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage());
