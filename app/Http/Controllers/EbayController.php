@@ -183,16 +183,16 @@ class EbayController extends Controller
             }*/
 
             // Build response with updated items
-            // $listings = [
-                // 'success' => true,
-                // 'total_items' => count($allItems),
-                // 'items' => $allItems,
+            $listings = [
+                'success' => true,
+                'total_items' => count($allItems),
+                'items' => $allItems,
                 // 'sku_updates' => [
                 //     'updated' => $skuUpdateCount,
                 //     'errors' => count($skuUpdateErrors),
                 //     'error_details' => $skuUpdateErrors,
                 // ],
-            // ];
+            ];
             // $listings = $this->ebayService->getAllActiveListings($salesChannel);
 
             // dd(json_encode($listings));
