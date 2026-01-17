@@ -142,6 +142,39 @@ class EbayController extends Controller
     }
 
     /**
+     * Get single item with full details including original/regular price
+     */
+    public function getItemDetails(string $id, string $itemId)
+    {
+        try {
+            $salesChannel = $this->getSalesChannelWithValidToken($id);
+
+            $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
+                <GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                    <ErrorLanguage>en_US</ErrorLanguage>
+                    <WarningLevel>High</WarningLevel>
+                    <DetailLevel>ReturnAll</DetailLevel>
+                    <ItemID>' . $itemId . '</ItemID>
+                    <IncludeItemSpecifics>true</IncludeItemSpecifics>
+                    <IncludeWatchCount>true</IncludeWatchCount>
+                </GetItemRequest>';
+
+            $response = $this->callTradingApi($salesChannel, 'GetItem', $xmlRequest);
+            $xml = simplexml_load_string($response);
+            $this->checkForErrors($xml);
+
+            $item = $this->parseItem($xml->Item, true);
+
+            return response()->json([
+                'success' => true,
+                'item' => $item,
+            ]);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
      * Call eBay Trading API
      */
     private function callTradingApi(SalesChannel $salesChannel, string $callName, string $xmlRequest): string
@@ -206,12 +239,16 @@ class EbayController extends Controller
         $currentPrice = (float) ($item->SellingStatus->CurrentPrice ?? $item->BuyItNowPrice ?? $item->StartPrice ?? 0);
         $currency = (string) ($item->SellingStatus->CurrentPrice['currencyID'] ?? 'USD');
 
+        // Get StartPrice (original listing price)
+        $startPrice = (float) ($item->StartPrice ?? 0);
+
         // Check for strike-through price (original price when item is on sale)
         // eBay uses DiscountPriceInfo for sale pricing
         $regularPrice = $currentPrice;
         $salePrice = null;
         $isOnSale = false;
 
+        // Method 1: Check DiscountPriceInfo (most reliable for sale prices)
         if (isset($item->DiscountPriceInfo)) {
             // OriginalRetailPrice is the strike-through price (regular price)
             if (isset($item->DiscountPriceInfo->OriginalRetailPrice)) {
@@ -225,6 +262,40 @@ class EbayController extends Controller
                 $salePrice = $currentPrice;
                 $isOnSale = true;
             }
+            // SoldOneBay and SoldOffeBay pricing
+            if (isset($item->DiscountPriceInfo->PricingTreatment)) {
+                $pricingTreatment = (string) $item->DiscountPriceInfo->PricingTreatment;
+                if ($pricingTreatment === 'STP' || $pricingTreatment === 'MAP') {
+                    $isOnSale = true;
+                }
+            }
+        }
+
+        // Method 2: Check ListingDetails for promotional sale
+        if (!$isOnSale && isset($item->ListingDetails->StartPrice)) {
+            $listingStartPrice = (float) $item->ListingDetails->StartPrice;
+            if ($listingStartPrice > $currentPrice) {
+                $regularPrice = $listingStartPrice;
+                $salePrice = $currentPrice;
+                $isOnSale = true;
+            }
+        }
+
+        // Method 3: Check SellingStatus for PromotionalSaleDetails
+        if (!$isOnSale && isset($item->SellingStatus->PromotionalSaleDetails)) {
+            $promoDetails = $item->SellingStatus->PromotionalSaleDetails;
+            if (isset($promoDetails->OriginalPrice)) {
+                $regularPrice = (float) $promoDetails->OriginalPrice;
+                $salePrice = $currentPrice;
+                $isOnSale = true;
+            }
+        }
+
+        // Method 4: Compare StartPrice with CurrentPrice
+        if (!$isOnSale && $startPrice > 0 && $startPrice > $currentPrice) {
+            $regularPrice = $startPrice;
+            $salePrice = $currentPrice;
+            $isOnSale = true;
         }
 
         $parsed = [
