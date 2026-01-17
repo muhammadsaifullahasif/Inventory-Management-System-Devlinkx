@@ -64,11 +64,17 @@ class EbayController extends Controller
 
             foreach ($allItems as $item) {
                 if (empty($item['sku'])) {
-                    $this->updateListing(
-                        array( 'sku' => $item['item_id'] ),
+                    $updateResult = $this->updateListing(
+                        ['sku' => $item['item_id']],
                         $id,
-                        $item['item_id']
+                        $item['item_id'],
+                        true // Return array instead of JSON response
                     );
+
+                    Log::info('SKU Update Result', [
+                        'item_id' => $item['item_id'],
+                        'result' => $updateResult,
+                    ]);
                 }
 
                 // $product = new Product();
@@ -633,7 +639,7 @@ class EbayController extends Controller
      *
      * Supported fields: title, description, price, quantity, sku
      */
-    public function updateListing(array $data, string $id, string $itemId)
+    public function updateListing(array $data, string $id, string $itemId, bool $returnArray = false)
     {
         try {
             $salesChannel = $this->getSalesChannelWithValidToken($id);
@@ -642,7 +648,7 @@ class EbayController extends Controller
             $xmlParts = [];
 
             // Title
-            if ($data['title']) {
+            if (isset($data['title']) && !empty($data['title'])) {
                 $xmlParts[] = '<Title>' . htmlspecialchars($data['title']) . '</Title>';
             }
 
@@ -673,7 +679,8 @@ class EbayController extends Controller
             }
 
             if (empty($xmlParts)) {
-                return $this->errorResponse('No fields provided to update', 400);
+                $error = ['success' => false, 'message' => 'No fields provided to update'];
+                return $returnArray ? $error : $this->errorResponse('No fields provided to update', 400);
             }
 
             $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
@@ -686,12 +693,30 @@ class EbayController extends Controller
                     </Item>
                 </ReviseItemRequest>';
 
+            Log::info('eBay ReviseItem Request', [
+                'item_id' => $itemId,
+                'data' => $data,
+                'xml' => $xmlRequest,
+            ]);
+
             $response = $this->callTradingApi($salesChannel, 'ReviseItem', $xmlRequest);
+
+            Log::info('eBay ReviseItem Response', [
+                'item_id' => $itemId,
+                'response' => $response,
+            ]);
+
             $result = $this->parseReviseItemResponse($response);
 
-            return response()->json($result);
+            return $returnArray ? $result : response()->json($result);
         } catch (Exception $e) {
-            return $this->errorResponse($e->getMessage());
+            Log::error('eBay ReviseItem Error', [
+                'item_id' => $itemId,
+                'error' => $e->getMessage(),
+            ]);
+
+            $error = ['success' => false, 'message' => $e->getMessage()];
+            return $returnArray ? $error : $this->errorResponse($e->getMessage());
         }
     }
 
