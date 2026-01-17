@@ -63,13 +63,13 @@ class EbayController extends Controller
             ];
 
             foreach ($allItems as $item) {
-                // if (empty($item['sku'])) {
-                //     $this->updateListing(
-                //         array( 'sku' => $item['item_id'] ),
-                //         $id,
-                //         $item['item_id']
-                //     );
-                // }
+                if (empty($item['sku'])) {
+                    $this->updateListing(
+                        array( 'sku' => $item['item_id'] ),
+                        $id,
+                        $item['item_id']
+                    );
+                }
 
                 // $product = new Product();
                 // $product->name = $item['title'];
