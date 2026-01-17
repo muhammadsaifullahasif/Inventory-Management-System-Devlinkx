@@ -62,53 +62,53 @@ class EbayController extends Controller
             $skuUpdateCount = 0;
             $skuUpdateErrors = [];
 
-            foreach ($allItems as $index => $item) {
-                if (empty($item['sku'])) {
-                    try {
-                        $updateResult = $this->updateListing(
-                            ['sku' => $item['item_id']],
-                            $id,
-                            $item['item_id'],
-                            true // Return array instead of JSON response
-                        );
+            // foreach ($allItems as $index => $item) {
+            //     if (empty($item['sku'])) {
+            //         try {
+            //             $updateResult = $this->updateListing(
+            //                 ['sku' => $item['item_id']],
+            //                 $id,
+            //                 $item['item_id'],
+            //                 true // Return array instead of JSON response
+            //             );
 
-                        // Update the item in our array if the update was successful
-                        if ($updateResult['success'] ?? false) {
-                            $allItems[$index]['sku'] = $item['item_id'];
-                            $skuUpdateCount++;
-                        } else {
-                            $skuUpdateErrors[] = [
-                                'item_id' => $item['item_id'],
-                                'error' => $updateResult['message'] ?? 'Unknown error',
-                            ];
-                        }
+            //             // Update the item in our array if the update was successful
+            //             if ($updateResult['success'] ?? false) {
+            //                 $allItems[$index]['sku'] = $item['item_id'];
+            //                 $skuUpdateCount++;
+            //             } else {
+            //                 $skuUpdateErrors[] = [
+            //                     'item_id' => $item['item_id'],
+            //                     'error' => $updateResult['message'] ?? 'Unknown error',
+            //                 ];
+            //             }
 
-                        Log::info('SKU Update Result', [
-                            'item_id' => $item['item_id'],
-                            'result' => $updateResult,
-                        ]);
+            //             Log::info('SKU Update Result', [
+            //                 'item_id' => $item['item_id'],
+            //                 'result' => $updateResult,
+            //             ]);
 
-                        // Small delay to avoid rate limiting
-                        usleep(200000); // 200ms delay between requests
+            //             // Small delay to avoid rate limiting
+            //             usleep(200000); // 200ms delay between requests
 
-                    } catch (\Exception $e) {
-                        Log::error('SKU Update Exception', [
-                            'item_id' => $item['item_id'],
-                            'error' => $e->getMessage(),
-                        ]);
-                        $skuUpdateErrors[] = [
-                            'item_id' => $item['item_id'],
-                            'error' => $e->getMessage(),
-                        ];
-                    }
-                }
-            }
+            //         } catch (\Exception $e) {
+            //             Log::error('SKU Update Exception', [
+            //                 'item_id' => $item['item_id'],
+            //                 'error' => $e->getMessage(),
+            //             ]);
+            //             $skuUpdateErrors[] = [
+            //                 'item_id' => $item['item_id'],
+            //                 'error' => $e->getMessage(),
+            //             ];
+            //         }
+            //     }
+            // }
 
-            Log::info('SKU Update Summary', [
-                'total_updated' => $skuUpdateCount,
-                'total_errors' => count($skuUpdateErrors),
-                'errors' => $skuUpdateErrors,
-            ]);
+            // Log::info('SKU Update Summary', [
+            //     'total_updated' => $skuUpdateCount,
+            //     'total_errors' => count($skuUpdateErrors),
+            //     'errors' => $skuUpdateErrors,
+            // ]);
 
             // Build response with updated items
             $listings = [
