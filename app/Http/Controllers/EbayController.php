@@ -61,157 +61,219 @@ class EbayController extends Controller
                 $page++;
             } while ($page <= $totalPages);
 
-            // Update SKUs for items that don't have one
-            set_time_limit(600); // Set PHP max execution time to 10 minutes
+            // Set PHP max execution time to 10 minutes
+            set_time_limit(600);
 
-            $skuUpdateCount = 0;
-            $skuUpdateErrors = [];
+            // Tracking counters
+            $totalListings = count($allItems);
+            $insertedCount = 0;
+            $updatedCount = 0;
+            $errorCount = 0;
+            $errors = [];
+
+            // Get default warehouse and rack once (outside the loop for efficiency)
+            $warehouse = Warehouse::where('is_default', true)->first();
+            if (!$warehouse) {
+                Log::error('eBay Sync Error: No default warehouse found');
+                return redirect()->back()->with('error', 'No default warehouse found. Please set a default warehouse.');
+            }
+
+            $rack = Rack::where('warehouse_id', $warehouse->id)->where('is_default', true)->first();
+            if (!$rack) {
+                Log::error('eBay Sync Error: No default rack found for warehouse', ['warehouse_id' => $warehouse->id]);
+                return redirect()->back()->with('error', 'No default rack found for the default warehouse.');
+            }
+
+            Log::info('eBay Sync Started', [
+                'total_listings' => $totalListings,
+                'warehouse_id' => $warehouse->id,
+                'rack_id' => $rack->id,
+            ]);
 
             foreach ($allItems as $index => $item) {
-                // if (empty($item['sku'])) {
-                //     // Update the SKU in Ebay
-                //     $updateResult = $this->updateListing(
-                //         ['sku' => $item['item_id']],
-                //         $id,
-                //         $item['item_id'],
-                //         true // Return array instead of JSON response
-                //     );
-                // }
-
-                $warehouse = Warehouse::where('is_default', true)->first();
-                $rack = Rack::where('warehouse_id', $warehouse->id)->where('is_default', true)->first();
-                $category = Category::whereLike('name', '%' . $item['category']['name'] . '%')->first();
-                if ($category == null) {
-                    $category = Category::create([
-                        'name' => $item['category']['name'],
-                        'slug' => Str::slug($item['category']['name']),
-                    ]);
-                    if (!$category) {
-                        $category = Category::first();
-                    }
-                }
-
-                $product = Product::where('sku', ($item['sku'] === '') ? $item['item_id'] : $item['sku'])->first();
-                if ($product) {
-                    $product_exists = true;
-                } else {
-                    $product_exists = false;
-                }
-
-                $product = Product::updateOrCreate(
-                    [
-                        'sku' => ($item['sku'] === '') ? $item['item_id'] : $item['sku'],
-                    ],
-                    [
-                        'name' => $item['title'],
-                        'barcode' => empty($item['sku']) ? $item['item_id'] : $item['sku'],
-                        'category_id' => $category->id,
-                        'short_description' => '',
-                        'description' => $item['description'] ?? '',
-                        'price' => $item['price']['value'],
-                    ]
-                );
-
-                // Update product meta
-                $product->product_meta()->upsert(
-                    [
-                        [
-                            'meta_key' => 'item_id',
-                            'meta_value' => $item['item_id'] ?? '',
-                        ],
-                        [
-                            'meta_key' => 'listing_url',
-                            'meta_value' => $item['listing_url'] ?? '',
-                        ],
-                        [
-                            'meta_key' => 'listing_type',
-                            'meta_value' => $item['listing_type'] ?? '',
-                        ],
-                        [
-                            'meta_key' => 'listing_status',
-                            'meta_value' => $item['listing_status'] ?? '',
-                        ],
-                        [
-                            'meta_key' => 'weight',
-                            'meta_value' => $item['dimensions']['weight'] ?? '',
-                        ],
-                        [
-                            'meta_key' => 'weight_unit',
-                            'meta_value' => $item['dimensions']['weight_unit'] ?? '',
-                        ],
-                        [
-                            'meta_key' => 'length',
-                            'meta_value' => $item['dimensions']['length'] ?? '',
-                        ],
-                        [
-                            'meta_key' => 'width',
-                            'meta_value' => $item['dimensions']['width'] ?? '',
-                        ],
-                        [
-                            'meta_key' => 'height',
-                            'meta_value' => $item['dimensions']['height'] ?? '',
-                        ],
-                        [
-                            'meta_key' => 'dimension_unit',
-                            'meta_value' => $item['dimensions']['dimension_unit'] ?? '',
-                        ],
-                        [
-                            'meta_key' => 'regular_price',
-                            'meta_value' => empty($item['regular_price']['value']) ? $item['price']['value'] : $item['regular_price']['value'],
-                        ],
-                        [
-                            'meta_key' => 'sale_price',
-                            'meta_value' => (empty($item['sale_price']['value']) || $item['sale_price']['value'] === null) ? '' : $item['sale_price']['value'],
-                        ],
-                        [
-                            'meta_key' => 'shipping_details',
-                            'meta_value' => json_encode($item['shipping_details'] ?? []),
-                        ],
-                        [
-                            'meta_key' => 'return_policy',
-                            'meta_value' => json_encode($item['return_policy'] ?? []),
-                        ]
-                    ], 
-                    ['product_id', 'meta_key'], 
-                    ['meta_value']
-                );
-
-                if ($product_exists) {
-                    // Skip stock update if product already existed
-                    continue;
-                } else {
-                    // Add stock using update with DB::raw or create
-                    $quantity = ($item['quantity'] - $item['quantity_sold']);
-                    $product->product_stocks()
-                        ->where('product_id', $product->id)
-                        ->where('warehouse_id', $warehouse->id)
-                        ->where('rack_id', $rack->id)
-                        ->update(['quantity' => DB::raw('quantity + ' . $quantity)])
-                        ?: $product->product_stocks()->create([
-                            'product_id' => $product->id,
-                            'warehouse_id' => $warehouse->id,
-                            'rack_id' => $rack->id,
-                            'quantity' => $quantity
+                try {
+                    // Get or create category
+                    $category = Category::whereLike('name', '%' . $item['category']['name'] . '%')->first();
+                    if ($category == null) {
+                        $category = Category::create([
+                            'name' => $item['category']['name'],
+                            'slug' => Str::slug($item['category']['name']),
                         ]);
+                        if (!$category) {
+                            $category = Category::first();
+                        }
+                    }
+
+                    if (!$category) {
+                        throw new Exception('No category found or could be created');
+                    }
+
+                    $sku = ($item['sku'] === '') ? $item['item_id'] : $item['sku'];
+
+                    // Check if product exists
+                    $existingProduct = Product::where('sku', $sku)->first();
+                    $productExists = $existingProduct !== null;
+
+                    // Create or update product
+                    $product = Product::updateOrCreate(
+                        [
+                            'sku' => $sku,
+                        ],
+                        [
+                            'name' => $item['title'],
+                            'barcode' => empty($item['sku']) ? $item['item_id'] : $item['sku'],
+                            'category_id' => $category->id,
+                            'short_description' => '',
+                            'description' => $item['description'] ?? '',
+                            'price' => $item['price']['value'],
+                        ]
+                    );
+
+                    if (!$product) {
+                        throw new Exception('Failed to create/update product');
+                    }
+
+                    // Update product meta
+                    $product->product_meta()->upsert(
+                        [
+                            [
+                                'product_id' => $product->id,
+                                'meta_key' => 'item_id',
+                                'meta_value' => $item['item_id'] ?? '',
+                            ],
+                            [
+                                'product_id' => $product->id,
+                                'meta_key' => 'listing_url',
+                                'meta_value' => $item['listing_url'] ?? '',
+                            ],
+                            [
+                                'product_id' => $product->id,
+                                'meta_key' => 'listing_type',
+                                'meta_value' => $item['listing_type'] ?? '',
+                            ],
+                            [
+                                'product_id' => $product->id,
+                                'meta_key' => 'listing_status',
+                                'meta_value' => $item['listing_status'] ?? '',
+                            ],
+                            [
+                                'product_id' => $product->id,
+                                'meta_key' => 'weight',
+                                'meta_value' => $item['dimensions']['weight'] ?? '',
+                            ],
+                            [
+                                'product_id' => $product->id,
+                                'meta_key' => 'weight_unit',
+                                'meta_value' => $item['dimensions']['weight_unit'] ?? '',
+                            ],
+                            [
+                                'product_id' => $product->id,
+                                'meta_key' => 'length',
+                                'meta_value' => $item['dimensions']['length'] ?? '',
+                            ],
+                            [
+                                'product_id' => $product->id,
+                                'meta_key' => 'width',
+                                'meta_value' => $item['dimensions']['width'] ?? '',
+                            ],
+                            [
+                                'product_id' => $product->id,
+                                'meta_key' => 'height',
+                                'meta_value' => $item['dimensions']['height'] ?? '',
+                            ],
+                            [
+                                'product_id' => $product->id,
+                                'meta_key' => 'dimension_unit',
+                                'meta_value' => $item['dimensions']['dimension_unit'] ?? '',
+                            ],
+                            [
+                                'product_id' => $product->id,
+                                'meta_key' => 'regular_price',
+                                'meta_value' => empty($item['regular_price']['value']) ? $item['price']['value'] : $item['regular_price']['value'],
+                            ],
+                            [
+                                'product_id' => $product->id,
+                                'meta_key' => 'sale_price',
+                                'meta_value' => (empty($item['sale_price']['value']) || $item['sale_price']['value'] === null) ? '' : $item['sale_price']['value'],
+                            ],
+                            [
+                                'product_id' => $product->id,
+                                'meta_key' => 'shipping_details',
+                                'meta_value' => json_encode($item['shipping_details'] ?? []),
+                            ],
+                            [
+                                'product_id' => $product->id,
+                                'meta_key' => 'return_policy',
+                                'meta_value' => json_encode($item['return_policy'] ?? []),
+                            ]
+                        ],
+                        ['product_id', 'meta_key'],
+                        ['meta_value']
+                    );
+
+                    if ($productExists) {
+                        $updatedCount++;
+                    } else {
+                        $insertedCount++;
+
+                        // Add stock only for new products
+                        $quantity = max(0, ($item['quantity'] - $item['quantity_sold']));
+                        $product->product_stocks()
+                            ->where('product_id', $product->id)
+                            ->where('warehouse_id', $warehouse->id)
+                            ->where('rack_id', $rack->id)
+                            ->update(['quantity' => DB::raw('quantity + ' . $quantity)])
+                            ?: $product->product_stocks()->create([
+                                'product_id' => $product->id,
+                                'warehouse_id' => $warehouse->id,
+                                'rack_id' => $rack->id,
+                                'quantity' => $quantity
+                            ]);
+                    }
+
+                    // Log progress every 10 items
+                    if (($index + 1) % 10 === 0) {
+                        Log::info('eBay Sync Progress', [
+                            'processed' => $index + 1,
+                            'total' => $totalListings,
+                            'inserted' => $insertedCount,
+                            'updated' => $updatedCount,
+                            'errors' => $errorCount,
+                        ]);
+                    }
+
+                } catch (\Exception $e) {
+                    $errorCount++;
+                    $errorDetail = [
+                        'item_id' => $item['item_id'] ?? 'unknown',
+                        'sku' => $item['sku'] ?? '',
+                        'title' => $item['title'] ?? 'unknown',
+                        'error' => $e->getMessage(),
+                        'line' => $e->getLine(),
+                        'file' => $e->getFile(),
+                    ];
+                    $errors[] = $errorDetail;
+
+                    Log::error('eBay Sync Error - Failed to process item', $errorDetail);
                 }
             }
 
-            // Build response with updated items
-            $listings = [
-                'success' => true,
-                'total_items' => count($allItems),
-                'items' => $allItems,
-                // 'sku_updates' => [
-                //     'updated' => $skuUpdateCount,
-                //     'errors' => count($skuUpdateErrors),
-                //     'error_details' => $skuUpdateErrors,
-                // ],
-            ];
-            // $listings = $this->ebayService->getAllActiveListings($salesChannel);
+            // Final summary log
+            Log::info('eBay Sync Completed', [
+                'total_listings' => $totalListings,
+                'inserted' => $insertedCount,
+                'updated' => $updatedCount,
+                'errors' => $errorCount,
+                'error_details' => $errors,
+            ]);
 
-            // dd(json_encode($listings));
-            // return response()->json($listings);
-            return redirect()->back()->with('success', 'Ebay listings synchronized successfully.');
+            // Build response message
+            $message = "eBay sync completed: {$totalListings} total listings, {$insertedCount} inserted, {$updatedCount} updated";
+            if ($errorCount > 0) {
+                $message .= ", {$errorCount} errors (check logs for details)";
+            }
+
+            return redirect()->back()->with('success', $message);
         } catch (\Exception $e) {
             return $this->errorResponse($e->getMessage());
         }
