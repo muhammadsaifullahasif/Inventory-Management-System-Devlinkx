@@ -26,7 +26,7 @@ class ProductController extends Controller
     {
         // $products = Product::with('sales_channels')->orderBy('created_at', 'DESC')->paginate(25);
         $products = Product::with('sales_channels')->orderBy('created_at', 'DESC')->first();
-        return $products->sales_channels;
+        // return $products->sales_channels;
         return view('products.index', compact('products'));
     }
 
