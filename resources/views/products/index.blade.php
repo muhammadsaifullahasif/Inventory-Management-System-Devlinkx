@@ -63,7 +63,7 @@
                         <td>{{ $product->price }}</td>
                         <td>{{ $product->product_stocks->sum('quantity'); }}</td>
                         <td>{{ $product->category->name ?? 'N/A' }}</td>
-                        <td>{{ $product->brand->name ?? 'N/A' }}</td>
+                        <td>{{ $product->sales_channels->name ?? 'N/A' }}</td>
                         <td>{{ \Carbon\Carbon::parse($product->created_at)->format('d M, Y') }}</td>
                         <td>
                             <div class="btn-group">
