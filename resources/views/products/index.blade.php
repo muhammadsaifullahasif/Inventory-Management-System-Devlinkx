@@ -65,7 +65,7 @@
                         <td>{{ $product->category->name ?? 'N/A' }}</td>
                         <td>
                             {{-- {{ $product->sales_channels->name ?? 'N/A' }} --}}
-                            {{ implode(', ', $product->sales_channels['name']) }}
+                            {{ implode(', ', $product->sales_channels->name) }}
                             {{-- @foreach ($product->sales_channels as $sales_channel)
                                 {{ $sales_channel->name }}
                             @endforeach --}}
