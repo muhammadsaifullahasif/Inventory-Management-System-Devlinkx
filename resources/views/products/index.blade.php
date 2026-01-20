@@ -57,7 +57,7 @@
                             </div>
                         </td>
                         <td>
-                            {{ $product->name }}<br>
+                            <a href="{{ $product->product_meta['listing_url'] }}">{{ $product->name }}</a><br>
                             {{ $product->barcode }}
                         </td>
                         <td>{{ $product->price }}</td>
