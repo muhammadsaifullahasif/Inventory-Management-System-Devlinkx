@@ -34,7 +34,7 @@
                     <th>Price</th>
                     <th>Quantity</th>
                     <th>Category</th>
-                    <th>Brand</th>
+                    <th>Sales Channels</th>
                     <th style="width: 150px;">Created at</th>
                     <th style="width: 150px;">Actions</th>
                 </tr>
