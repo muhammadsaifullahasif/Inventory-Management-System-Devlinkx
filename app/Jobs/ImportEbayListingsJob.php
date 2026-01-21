@@ -228,22 +228,38 @@ class ImportEbayListingsJob implements ShouldQueue
                 }
 
                 // Update inventory
-                $product->product_stocks()->updateOrCreate(
-                    [
-                        'product_id' => $product->id,
-                        'warehouse_id' => $warehouse->id,
-                        'rack_id' => $rack->id,
-                    ],
-                    [
-                        'quantity' => $item['quantity_available'] ?? 0,
-                    ]
-                );
+                // $product->product_stocks()->updateOrCreate(
+                //     [
+                //         'product_id' => $product->id,
+                //         'warehouse_id' => $warehouse->id,
+                //         'rack_id' => $rack->id,
+                //     ],
+                //     [
+                //         'quantity' => $item['quantity_available'] ?? 0,
+                //     ]
+                // );
 
                 if ($productExists) {
                     $updatedCount++;
                 } else {
                     $insertedCount++;
+
+                    // Add stock only for new products
+                    $quantity = max(0, ($item['quantity'] - $item['quantity_sold']));
+                    $product->product_stocks()
+                        ->where('product_id', $product->id)
+                        ->where('warehouse_id', $warehouse->id)
+                        ->where('rack_id', $rack->id)
+                        ->update(['quantity' => DB::raw("quantity + {$quantity}")])
+                        ?: $product->product_stocks()->create([
+                            'product_id' => $product->id,
+                            'warehouse_id' => $warehouse->id,
+                            'rack_id' => $rack->id,
+                            'quantity' => $quantity,
+                        ]);
                 }
+
+                $product->sales_channels()->sync([$salesChannel->id], false);
 
                 Log::debug('eBay Product Processed', [
                     'batch' => $this->batchNumber,
