@@ -44,6 +44,19 @@ Route::get('/rollback-migrations', function() {
     ]);
 });
 
+Route::get('/run-queue', function() {
+    if (!app()->environment('local')) {
+        abort(403, 'Queue worker can only be run in the local environment.');
+    }
+
+    Artisan::call('queue:work --stop-when-empty');
+
+    return response()->json([
+        'message' => 'Queue worker ran successfully.',
+        'output' => Artisan::output()
+    ]);
+});
+
 Auth::routes();
 
 // Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
