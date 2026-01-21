@@ -1149,22 +1149,22 @@ class EbayController extends Controller
             $updatedCount = 0;
             $errorCount = 0;
 
-            foreach ($allOrders as $ebayOrder) {
-                try {
-                    $result = $this->processEbayOrder($ebayOrder, $id);
-                    if ($result === 'created') {
-                        $syncedCount++;
-                    } elseif ($result === 'updated') {
-                        $updatedCount++;
-                    }
-                } catch (Exception $e) {
-                    $errorCount++;
-                    Log::error('Failed to process eBay order', [
-                        'order_id' => $ebayOrder['order_id'] ?? 'unknown',
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
+            // foreach ($allOrders as $ebayOrder) {
+            //     try {
+            //         $result = $this->processEbayOrder($ebayOrder, $id);
+            //         if ($result === 'created') {
+            //             $syncedCount++;
+            //         } elseif ($result === 'updated') {
+            //             $updatedCount++;
+            //         }
+            //     } catch (Exception $e) {
+            //         $errorCount++;
+            //         Log::error('Failed to process eBay order', [
+            //             'order_id' => $ebayOrder['order_id'] ?? 'unknown',
+            //             'error' => $e->getMessage(),
+            //         ]);
+            //     }
+            // }
 
             $message = "Order sync complete! New: {$syncedCount}, Updated: {$updatedCount}";
             if ($errorCount > 0) {
@@ -1177,6 +1177,8 @@ class EbayController extends Controller
                 'updated' => $updatedCount,
                 'errors' => $errorCount,
             ]);
+
+            return $totalOrders;
 
             return redirect()->back()->with('success', $message);
 
@@ -1502,15 +1504,16 @@ class EbayController extends Controller
     {
         $salesChannel = $this->getSalesChannelWithValidToken($id);
 
-        $endTimeFrom = gmdate('Y-m-d\TH:i:s\Z');
-        $endTimeTo = gmdate('Y-m-d\TH:i:s\Z', strtotime('-90 days'));
+        $createTimeFrom = gmdate('Y-m-d\TH:i:s\Z', strtotime('-30 days'));
+        $createTimeTo = gmdate('Y-m-d\TH:i:s\Z');
+
         $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
                 <GetOrdersRequest xmlns="urn:ebay:apis:eBLBaseComponents">
                     <ErrorLanguage>en_US</ErrorLanguage>
                     <WarningLevel>High</WarningLevel>
                     <DetailLevel>ReturnAll</DetailLevel>
-                    <CreateTimeFrom>' . $endTimeFrom . '</CreateTimeFrom>
-                    <CreateTimeTo>' . $endTimeTo . '</CreateTimeTo>
+                    <CreateTimeFrom>' . $createTimeFrom . '</CreateTimeFrom>
+                    <CreateTimeTo>' . $createTimeTo . '</CreateTimeTo>
                     <OrderRole>Seller</OrderRole>
                     <OrderStatus>All</OrderStatus>
                     <Pagination>
