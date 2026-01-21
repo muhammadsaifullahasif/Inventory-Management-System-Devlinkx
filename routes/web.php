@@ -15,7 +15,6 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\SalesChannelController;
-use App\Http\Controllers\EbayImportQueueController;
 
 Route::get('/run-migrations', function() {
     if (!app()->environment('local')) {
@@ -40,19 +39,6 @@ Route::get('/rollback-migrations', function() {
 
     return response()->json([
         'message' => 'Migrations rolled back successfully.',
-        'output' => Artisan::output()
-    ]);
-});
-
-Route::get('/run-queue', function() {
-    if (!app()->environment('local')) {
-        abort(403, 'Queue worker can only be run in the local environment.');
-    }
-
-    Artisan::call('queue:work --stop-when-empty');
-
-    return response()->json([
-        'message' => 'Queue worker ran successfully.',
         'output' => Artisan::output()
     ]);
 });
@@ -98,12 +84,6 @@ Route::middleware(['auth'])->group(function () {
 
     // eBay Seller Listings (Trading API - GetSellerList)
     Route::get('/ebay/listings-all/active/{id}', [EbayController::class, 'getAllActiveListings'])->name('ebay.listings-all.active');
-
-    // eBay Queue Jobs for importing listings
-    Route::post('/ebay/import/active/{id}', [EbayImportQueueController::class, 'dispatchActiveListingsJob'])->name('ebay.import.active');
-    Route::post('/ebay/import/unsold/{id}', [EbayImportQueueController::class, 'dispatchUnsoldListingsJob'])->name('ebay.import.unsold');
-    Route::post('/ebay/import/delayed/{id}', [EbayImportQueueController::class, 'dispatchWithDelay'])->name('ebay.import.delayed');
-    Route::get('/ebay/queue-status', [EbayImportQueueController::class, 'queueStatus'])->name('ebay.queue.status');
 
     // eBay Get Single Item Details (Trading API - GetItem)
     Route::get('/ebay/item/{id}/{itemId}', [EbayController::class, 'getItemDetails'])->name('ebay.item.details');
