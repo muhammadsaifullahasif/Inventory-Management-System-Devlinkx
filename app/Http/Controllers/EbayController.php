@@ -1093,7 +1093,7 @@ class EbayController extends Controller
             $salesChannel = $this->getSalesChannelWithValidToken($id);
 
             // Fetch orders from the last 30 days by default
-            $createTimeFrom = gmdate('Y-m-d\TH:i:s\Z', strtotime('-30 days'));
+            $createTimeFrom = gmdate('Y-m-d\TH:i:s\Z', strtotime('-90 days'));
             $createTimeTo = gmdate('Y-m-d\TH:i:s\Z');
 
             Log::info('Starting eBay order sync', [
