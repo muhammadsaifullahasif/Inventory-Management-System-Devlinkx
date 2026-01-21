@@ -84,6 +84,11 @@
                                    id="import-btn-{{ $sales_channel->id }}">
                                     Import Products
                                 </a>
+                                <a href="{{ route('ebay.orders.sync', $sales_channel->id) }}"
+                                   class="btn btn-info btn-sm"
+                                   title="Sync orders from eBay">
+                                    <i class="fas fa-shopping-cart"></i> Sync Orders
+                                </a>
                                 @can('edit sales_channels')
                                     <a href="{{ route('sales-channels.edit', $sales_channel->id) }}" class="btn btn-primary btn-sm"><i class="fas fa-edit"></i></a>
                                 @endcan

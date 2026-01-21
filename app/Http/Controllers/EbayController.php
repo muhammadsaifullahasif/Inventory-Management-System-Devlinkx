@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use Exception;
 use App\Models\Rack;
+use App\Models\Order;
 use App\Models\Product;
 use App\Models\Category;
+use App\Models\OrderItem;
 use App\Models\Warehouse;
 use Illuminate\Support\Str;
+use App\Models\ProductStock;
 use App\Models\SalesChannel;
 use Illuminate\Http\Request;
 use App\Services\EbayService;
@@ -16,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use App\Jobs\ImportEbayListingsJob;
+use App\Jobs\SyncEbayOrdersJob;
 
 class EbayController extends Controller
 {
@@ -1077,6 +1081,410 @@ class EbayController extends Controller
         }
 
         return $result;
+    }
+
+    /**
+     * Sync orders from eBay
+     * Fetches recent orders and creates them in the local database
+     */
+    public function syncOrders(string $id)
+    {
+        try {
+            $salesChannel = $this->getSalesChannelWithValidToken($id);
+
+            // Fetch orders from the last 30 days by default
+            $createTimeFrom = gmdate('Y-m-d\TH:i:s\Z', strtotime('-30 days'));
+            $createTimeTo = gmdate('Y-m-d\TH:i:s\Z');
+
+            Log::info('Starting eBay order sync', [
+                'sales_channel_id' => $id,
+                'from' => $createTimeFrom,
+                'to' => $createTimeTo,
+            ]);
+
+            $allOrders = [];
+            $page = 1;
+            $perPage = 100;
+
+            // Fetch all orders with pagination
+            do {
+                $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
+                    <GetOrdersRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                        <ErrorLanguage>en_US</ErrorLanguage>
+                        <WarningLevel>High</WarningLevel>
+                        <DetailLevel>ReturnAll</DetailLevel>
+                        <CreateTimeFrom>' . $createTimeFrom . '</CreateTimeFrom>
+                        <CreateTimeTo>' . $createTimeTo . '</CreateTimeTo>
+                        <OrderRole>Seller</OrderRole>
+                        <OrderStatus>All</OrderStatus>
+                        <Pagination>
+                            <EntriesPerPage>' . $perPage . '</EntriesPerPage>
+                            <PageNumber>' . $page . '</PageNumber>
+                        </Pagination>
+                    </GetOrdersRequest>';
+
+                $response = $this->callTradingApi($salesChannel, 'GetOrders', $xmlRequest);
+                $result = $this->parseOrdersResponse($response);
+
+                $allOrders = array_merge($allOrders, $result['orders']);
+                $totalPages = $result['pagination']['totalPages'];
+
+                Log::info('Fetched eBay orders page', [
+                    'page' => $page,
+                    'total_pages' => $totalPages,
+                    'orders_on_page' => count($result['orders']),
+                ]);
+
+                $page++;
+            } while ($page <= $totalPages);
+
+            $totalOrders = count($allOrders);
+
+            if ($totalOrders === 0) {
+                return redirect()->back()->with('info', 'No orders found to sync.');
+            }
+
+            // Process orders
+            $syncedCount = 0;
+            $updatedCount = 0;
+            $errorCount = 0;
+
+            foreach ($allOrders as $ebayOrder) {
+                try {
+                    $result = $this->processEbayOrder($ebayOrder, $id);
+                    if ($result === 'created') {
+                        $syncedCount++;
+                    } elseif ($result === 'updated') {
+                        $updatedCount++;
+                    }
+                } catch (Exception $e) {
+                    $errorCount++;
+                    Log::error('Failed to process eBay order', [
+                        'order_id' => $ebayOrder['order_id'] ?? 'unknown',
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            $message = "Order sync complete! New: {$syncedCount}, Updated: {$updatedCount}";
+            if ($errorCount > 0) {
+                $message .= ", Errors: {$errorCount}";
+            }
+
+            Log::info('eBay order sync completed', [
+                'total' => $totalOrders,
+                'synced' => $syncedCount,
+                'updated' => $updatedCount,
+                'errors' => $errorCount,
+            ]);
+
+            return redirect()->back()->with('success', $message);
+
+        } catch (Exception $e) {
+            Log::error('eBay Order Sync Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return redirect()->back()->with('error', 'Failed to sync orders: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Sync orders via queue (background processing)
+     */
+    public function syncOrdersQueue(string $id)
+    {
+        try {
+            $salesChannel = $this->getSalesChannelWithValidToken($id);
+
+            // Dispatch job to sync orders
+            SyncEbayOrdersJob::dispatch($id)
+                ->onQueue('ebay-imports');
+
+            return redirect()->back()->with('success', 'Order sync job dispatched. Orders will be synced in the background.');
+
+        } catch (Exception $e) {
+            Log::error('eBay Order Sync Queue Error', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->back()->with('error', 'Failed to dispatch order sync: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get orders list (API endpoint)
+     */
+    public function getOrders(Request $request, string $id)
+    {
+        try {
+            $salesChannel = $this->getSalesChannelWithValidToken($id);
+
+            $daysBack = $request->input('days', 30);
+            $createTimeFrom = gmdate('Y-m-d\TH:i:s\Z', strtotime("-{$daysBack} days"));
+            $createTimeTo = gmdate('Y-m-d\TH:i:s\Z');
+
+            $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
+                <GetOrdersRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                    <ErrorLanguage>en_US</ErrorLanguage>
+                    <WarningLevel>High</WarningLevel>
+                    <DetailLevel>ReturnAll</DetailLevel>
+                    <CreateTimeFrom>' . $createTimeFrom . '</CreateTimeFrom>
+                    <CreateTimeTo>' . $createTimeTo . '</CreateTimeTo>
+                    <OrderRole>Seller</OrderRole>
+                    <OrderStatus>All</OrderStatus>
+                    <Pagination>
+                        <EntriesPerPage>100</EntriesPerPage>
+                        <PageNumber>1</PageNumber>
+                    </Pagination>
+                </GetOrdersRequest>';
+
+            $response = $this->callTradingApi($salesChannel, 'GetOrders', $xmlRequest);
+            $result = $this->parseOrdersResponse($response);
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+            ]);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Parse GetOrders response
+     */
+    private function parseOrdersResponse(string $xmlResponse): array
+    {
+        $xml = simplexml_load_string($xmlResponse);
+        $this->checkForErrors($xml);
+
+        $result = [
+            'orders' => [],
+            'pagination' => [
+                'totalEntries' => (int) ($xml->PaginationResult->TotalNumberOfEntries ?? 0),
+                'totalPages' => (int) ($xml->PaginationResult->TotalNumberOfPages ?? 0),
+                'pageNumber' => (int) ($xml->PageNumber ?? 1),
+            ],
+        ];
+
+        if (isset($xml->OrderArray->Order)) {
+            foreach ($xml->OrderArray->Order as $order) {
+                $result['orders'][] = $this->parseOrder($order);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Parse single order from XML
+     */
+    private function parseOrder($order): array
+    {
+        // Parse buyer info
+        $buyer = [
+            'username' => (string) ($order->BuyerUserID ?? ''),
+            'email' => (string) ($order->TransactionArray->Transaction[0]->Buyer->Email ?? ''),
+        ];
+
+        // Parse shipping address
+        $shippingAddress = [];
+        if (isset($order->ShippingAddress)) {
+            $addr = $order->ShippingAddress;
+            $shippingAddress = [
+                'name' => (string) ($addr->Name ?? ''),
+                'street1' => (string) ($addr->Street1 ?? ''),
+                'street2' => (string) ($addr->Street2 ?? ''),
+                'city' => (string) ($addr->CityName ?? ''),
+                'state' => (string) ($addr->StateOrProvince ?? ''),
+                'postal_code' => (string) ($addr->PostalCode ?? ''),
+                'country' => (string) ($addr->Country ?? ''),
+                'phone' => (string) ($addr->Phone ?? ''),
+            ];
+        }
+
+        // Parse line items
+        $lineItems = [];
+        if (isset($order->TransactionArray->Transaction)) {
+            foreach ($order->TransactionArray->Transaction as $transaction) {
+                $item = $transaction->Item;
+                $lineItems[] = [
+                    'item_id' => (string) ($item->ItemID ?? ''),
+                    'transaction_id' => (string) ($transaction->TransactionID ?? ''),
+                    'line_item_id' => (string) ($transaction->OrderLineItemID ?? ''),
+                    'sku' => (string) ($item->SKU ?? $transaction->Variation->SKU ?? ''),
+                    'title' => (string) ($item->Title ?? ''),
+                    'quantity' => (int) ($transaction->QuantityPurchased ?? 1),
+                    'unit_price' => (float) ($transaction->TransactionPrice ?? 0),
+                    'variation_attributes' => $this->parseVariationAttributes($transaction),
+                ];
+            }
+        }
+
+        // Parse totals
+        $subtotal = (float) ($order->Subtotal ?? 0);
+        $shippingCost = (float) ($order->ShippingServiceSelected->ShippingServiceCost ?? 0);
+        $total = (float) ($order->Total ?? 0);
+
+        return [
+            'order_id' => (string) ($order->OrderID ?? ''),
+            'order_status' => (string) ($order->OrderStatus ?? ''),
+            'payment_status' => (string) ($order->CheckoutStatus->eBayPaymentStatus ?? ''),
+            'checkout_status' => (string) ($order->CheckoutStatus->Status ?? ''),
+            'buyer' => $buyer,
+            'shipping_address' => $shippingAddress,
+            'line_items' => $lineItems,
+            'subtotal' => $subtotal,
+            'shipping_cost' => $shippingCost,
+            'total' => $total,
+            'currency' => (string) ($order->Total['currencyID'] ?? 'USD'),
+            'created_time' => (string) ($order->CreatedTime ?? ''),
+            'paid_time' => (string) ($order->PaidTime ?? ''),
+            'shipped_time' => (string) ($order->ShippedTime ?? ''),
+            'raw_data' => json_decode(json_encode($order), true),
+        ];
+    }
+
+    /**
+     * Parse variation attributes from transaction
+     */
+    private function parseVariationAttributes($transaction): ?array
+    {
+        if (!isset($transaction->Variation->VariationSpecifics->NameValueList)) {
+            return null;
+        }
+
+        $attributes = [];
+        foreach ($transaction->Variation->VariationSpecifics->NameValueList as $spec) {
+            $attributes[(string) $spec->Name] = (string) ($spec->Value ?? '');
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * Process and save an eBay order
+     */
+    private function processEbayOrder(array $ebayOrder, string $salesChannelId): string
+    {
+        // Check if order already exists
+        $existingOrder = Order::where('ebay_order_id', $ebayOrder['order_id'])->first();
+
+        if ($existingOrder) {
+            // Update existing order status
+            $existingOrder->update([
+                'ebay_order_status' => $ebayOrder['order_status'],
+                'ebay_payment_status' => $ebayOrder['payment_status'],
+                'order_status' => $this->mapEbayOrderStatus($ebayOrder['order_status']),
+                'payment_status' => $this->mapEbayPaymentStatus($ebayOrder['payment_status']),
+            ]);
+
+            return 'updated';
+        }
+
+        // Create new order
+        DB::beginTransaction();
+        try {
+            $order = Order::create([
+                'order_number' => Order::generateOrderNumber(),
+                'sales_channel_id' => $salesChannelId,
+                'ebay_order_id' => $ebayOrder['order_id'],
+                'buyer_username' => $ebayOrder['buyer']['username'],
+                'buyer_email' => $ebayOrder['buyer']['email'],
+                'buyer_name' => $ebayOrder['shipping_address']['name'] ?? null,
+                'buyer_phone' => $ebayOrder['shipping_address']['phone'] ?? null,
+                'shipping_name' => $ebayOrder['shipping_address']['name'] ?? null,
+                'shipping_address_line1' => $ebayOrder['shipping_address']['street1'] ?? null,
+                'shipping_address_line2' => $ebayOrder['shipping_address']['street2'] ?? null,
+                'shipping_city' => $ebayOrder['shipping_address']['city'] ?? null,
+                'shipping_state' => $ebayOrder['shipping_address']['state'] ?? null,
+                'shipping_postal_code' => $ebayOrder['shipping_address']['postal_code'] ?? null,
+                'shipping_country' => $ebayOrder['shipping_address']['country'] ?? null,
+                'subtotal' => $ebayOrder['subtotal'],
+                'shipping_cost' => $ebayOrder['shipping_cost'],
+                'total' => $ebayOrder['total'],
+                'currency' => $ebayOrder['currency'],
+                'order_status' => $this->mapEbayOrderStatus($ebayOrder['order_status']),
+                'payment_status' => $this->mapEbayPaymentStatus($ebayOrder['payment_status']),
+                'ebay_order_status' => $ebayOrder['order_status'],
+                'ebay_payment_status' => $ebayOrder['payment_status'],
+                'ebay_raw_data' => $ebayOrder['raw_data'],
+                'order_date' => !empty($ebayOrder['created_time']) ? new \DateTime($ebayOrder['created_time']) : now(),
+                'paid_at' => !empty($ebayOrder['paid_time']) ? new \DateTime($ebayOrder['paid_time']) : null,
+                'shipped_at' => !empty($ebayOrder['shipped_time']) ? new \DateTime($ebayOrder['shipped_time']) : null,
+            ]);
+
+            // Create order items
+            foreach ($ebayOrder['line_items'] as $lineItem) {
+                // Find matching product by SKU (which is the eBay item_id in our system)
+                $product = Product::where('sku', $lineItem['item_id'])->first();
+
+                $orderItem = OrderItem::create([
+                    'order_id' => $order->id,
+                    'product_id' => $product?->id,
+                    'ebay_item_id' => $lineItem['item_id'],
+                    'ebay_transaction_id' => $lineItem['transaction_id'],
+                    'ebay_line_item_id' => $lineItem['line_item_id'],
+                    'sku' => $lineItem['sku'] ?: $lineItem['item_id'],
+                    'title' => $lineItem['title'],
+                    'quantity' => $lineItem['quantity'],
+                    'unit_price' => $lineItem['unit_price'],
+                    'total_price' => $lineItem['unit_price'] * $lineItem['quantity'],
+                    'currency' => $ebayOrder['currency'],
+                    'variation_attributes' => $lineItem['variation_attributes'],
+                ]);
+
+                // Update inventory if payment is complete
+                if ($this->mapEbayPaymentStatus($ebayOrder['payment_status']) === 'paid') {
+                    $orderItem->updateInventory();
+                }
+            }
+
+            DB::commit();
+
+            Log::info('Created eBay order', [
+                'order_id' => $order->id,
+                'ebay_order_id' => $ebayOrder['order_id'],
+                'items_count' => count($ebayOrder['line_items']),
+            ]);
+
+            return 'created';
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Map eBay order status to local status
+     */
+    private function mapEbayOrderStatus(string $ebayStatus): string
+    {
+        return match (strtolower($ebayStatus)) {
+            'active' => 'processing',
+            'completed' => 'delivered',
+            'cancelled' => 'cancelled',
+            'inactive' => 'cancelled',
+            'shipped' => 'shipped',
+            default => 'pending',
+        };
+    }
+
+    /**
+     * Map eBay payment status to local status
+     */
+    private function mapEbayPaymentStatus(string $ebayStatus): string
+    {
+        return match (strtolower($ebayStatus)) {
+            'nopaymentfailure', 'paymentcomplete' => 'paid',
+            'paymentpending' => 'pending',
+            'refunded' => 'refunded',
+            default => 'pending',
+        };
     }
 
     /**
