@@ -117,7 +117,8 @@ class EbayController extends Controller
                         throw new Exception('No category found or could be created');
                     }
 
-                    $sku = ($item['sku'] === '') ? $item['item_id'] : $item['sku'];
+                    // $sku = ($item['sku'] === '') ? $item['item_id'] : $item['sku'];
+                    $sku = $item['item_id'];
 
                     // Check if product exists
                     $existingProduct = Product::where('sku', $sku)->first();
