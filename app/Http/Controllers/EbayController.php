@@ -241,17 +241,25 @@ class EbayController extends Controller
                     }
 
                     $product->sales_channels()->sync([$salesChannel->id], false);
+                    Log::info('eBay Sync Progress', [
+                        'processed' => $index + 1,
+                        'total' => $totalListings,
+                        'inserted' => $insertedCount,
+                        'updated' => $updatedCount,
+                        'errors' => $errorCount,
+                        'sku' => $sku,
+                    ]);
 
                     // Log progress every 10 items
-                    if (($index + 1) % 10 === 0) {
-                        Log::info('eBay Sync Progress', [
-                            'processed' => $index + 1,
-                            'total' => $totalListings,
-                            'inserted' => $insertedCount,
-                            'updated' => $updatedCount,
-                            'errors' => $errorCount,
-                        ]);
-                    }
+                    // if (($index + 1) % 10 === 0) {
+                    //     Log::info('eBay Sync Progress', [
+                    //         'processed' => $index + 1,
+                    //         'total' => $totalListings,
+                    //         'inserted' => $insertedCount,
+                    //         'updated' => $updatedCount,
+                    //         'errors' => $errorCount,
+                    //     ]);
+                    // }
 
                 } catch (\Exception $e) {
                     $errorCount++;
