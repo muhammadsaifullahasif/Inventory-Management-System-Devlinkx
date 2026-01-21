@@ -228,7 +228,7 @@ class ImportEbayListingsJob implements ShouldQueue
                 }
 
                 // Update inventory
-                $product->inventory()->updateOrCreate(
+                $product->product_stocks()->updateOrCreate(
                     [
                         'product_id' => $product->id,
                         'warehouse_id' => $warehouse->id,
