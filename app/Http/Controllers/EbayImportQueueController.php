@@ -18,7 +18,7 @@ class EbayImportQueueController extends Controller
             $salesChannel = SalesChannel::findOrFail($id);
 
             // Dispatch job to queue
-            ImportEbayListings::dispatch($id, 'active')
+            dispatch(new ImportEbayListings($id, 'active'))
                 ->onQueue('default');
 
             Log::info('eBay active listings import job dispatched', [
@@ -45,7 +45,7 @@ class EbayImportQueueController extends Controller
             $salesChannel = SalesChannel::findOrFail($id);
 
             // Dispatch job to queue
-            ImportEbayListings::dispatch($id, 'unsold')
+            dispatch(new ImportEbayListings($id, 'unsold'))
                 ->onQueue('default');
 
             Log::info('eBay unsold listings import job dispatched', [
@@ -77,7 +77,7 @@ class EbayImportQueueController extends Controller
             $salesChannel = SalesChannel::findOrFail($id);
 
             // Dispatch job with delay
-            ImportEbayListings::dispatch($id, $validated['job_type'])
+            dispatch(new ImportEbayListings($id, $validated['job_type']))
                 ->delay(now()->addMinutes($validated['delay_minutes']))
                 ->onQueue('default');
 

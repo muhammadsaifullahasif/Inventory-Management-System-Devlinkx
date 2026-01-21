@@ -35,7 +35,7 @@ class EbayController extends Controller
             $salesChannel = $this->getSalesChannelWithValidToken($id);
 
             // Dispatch the import job to queue
-            ImportEbayListings::dispatch($id, 'active')
+            dispatch(new ImportEbayListings($id, 'active'))
                 ->onQueue('default');
 
             Log::info('eBay active listings import job dispatched', [
