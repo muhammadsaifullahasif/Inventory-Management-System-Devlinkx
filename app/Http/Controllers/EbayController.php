@@ -1503,7 +1503,7 @@ class EbayController extends Controller
         $salesChannel = $this->getSalesChannelWithValidToken($id);
 
         $endTimeFrom = gmdate('Y-m-d\TH:i:s\Z');
-        $endTimeTo = gmdate('Y-m-d\TH:i:s\Z', strtotime('+120 days'));
+        $endTimeTo = gmdate('Y-m-d\TH:i:s\Z', strtotime('-90 days'));
         $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
                 <GetOrdersRequest xmlns="urn:ebay:apis:eBLBaseComponents">
                     <ErrorLanguage>en_US</ErrorLanguage>
