@@ -1104,7 +1104,7 @@ class EbayController extends Controller
 
             $allOrders = [];
             $page = 1;
-            $perPage = 100;
+            $perPage = 500;
 
             // Fetch all orders with pagination
             do {
