@@ -14,11 +14,12 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Foundation\Bus\Dispatchable;
 use App\Services\EbayService;
 
 class ImportEbayListings implements ShouldQueue, ShouldBeUnique
 {
-    use Queueable, SerializesModels, InteractsWithQueue;
+    use Dispatchable, Queueable, SerializesModels, InteractsWithQueue;
 
     /**
      * The number of seconds the job can run before timing out.
