@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(php artisan migrate:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(php artisan queue:work:*)",
+      "Bash(php artisan tinker:*)",
+      "Bash(php -r:*)",
+      "Bash(php:*)",
+      "Bash(more:*)",
+      "Bash(Get-Content D:LaravelinventoryManagementSystemstoragelogslaravel.log -Tail 100)"
     ]
   }
 }

@@ -168,8 +168,14 @@
                 clearInterval(pollingIntervals[channelId]);
             }
 
+            // Start processing queue jobs
+            processQueueJob();
+
             // Poll every 2 seconds
             pollingIntervals[channelId] = setInterval(function() {
+                // Trigger queue processing on each poll
+                processQueueJob();
+
                 $.ajax({
                     url: '{{ url("/ebay/import-logs/latest") }}/' + channelId,
                     method: 'GET',
@@ -197,6 +203,22 @@
                     }
                 });
             }, 2000);
+        }
+
+        // Process one queue job (called repeatedly during polling)
+        let isProcessingQueue = false;
+        function processQueueJob() {
+            if (isProcessingQueue) return; // Prevent concurrent calls
+            isProcessingQueue = true;
+
+            $.ajax({
+                url: '{{ url("/run-queue") }}',
+                method: 'GET',
+                timeout: 60000, // 60 second timeout
+                complete: function() {
+                    isProcessingQueue = false;
+                }
+            });
         }
 
         function stopPolling(channelId) {

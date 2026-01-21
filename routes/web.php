@@ -48,10 +48,48 @@ Route::get('/run-queue', function() {
         abort(403, 'Queue worker can only be run in the local environment.');
     }
 
-    Artisan::call('queue:work --stop-when-empty');
+    // Get pending job count
+    $pendingJobs = DB::table('jobs')->where('queue', 'ebay-imports')->count();
+
+    if ($pendingJobs === 0) {
+        return response()->json([
+            'message' => 'No pending jobs in ebay-imports queue.',
+            'pending_jobs' => 0,
+        ]);
+    }
+
+    // Process ONE job at a time to avoid timeout
+    Artisan::call('queue:work', [
+        '--queue' => 'ebay-imports',
+        '--once' => true,
+        '--timeout' => 300,
+    ]);
+
+    $remainingJobs = DB::table('jobs')->where('queue', 'ebay-imports')->count();
 
     return response()->json([
-        'message' => 'Queue worker started successfully.',
+        'message' => 'Processed 1 job.',
+        'remaining_jobs' => $remainingJobs,
+        'output' => Artisan::output()
+    ]);
+});
+
+// Process all queue jobs (use with caution - may timeout)
+Route::get('/run-queue-all', function() {
+    if (!app()->environment('local')) {
+        abort(403, 'Queue worker can only be run in the local environment.');
+    }
+
+    set_time_limit(600); // 10 minutes max
+
+    Artisan::call('queue:work', [
+        '--queue' => 'ebay-imports',
+        '--stop-when-empty' => true,
+        '--timeout' => 300,
+    ]);
+
+    return response()->json([
+        'message' => 'All queue jobs processed.',
         'output' => Artisan::output()
     ]);
 });
