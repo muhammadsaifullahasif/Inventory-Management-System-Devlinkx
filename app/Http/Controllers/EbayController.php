@@ -131,7 +131,8 @@ class EbayController extends Controller
                         ],
                         [
                             'name' => $item['title'],
-                            'barcode' => empty($item['sku']) ? $item['item_id'] : $item['sku'],
+                            // 'barcode' => empty($item['sku']) ? $item['item_id'] : $item['sku'],
+                            'barcode' => $sku,
                             'category_id' => $category->id,
                             'short_description' => '',
                             'description' => $item['description'] ?? '',
