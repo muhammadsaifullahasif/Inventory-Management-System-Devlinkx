@@ -260,7 +260,7 @@ class ImportEbayListingsJob implements ShouldQueue
                         ]);
                 }
 
-                $product->sales_channels()->sync([$salesChannel->id], false);
+                $product->sales_channels()->sync([$this->salesChannelId], false);
 
                 Log::debug('eBay Product Processed', [
                     'batch' => $this->batchNumber,
