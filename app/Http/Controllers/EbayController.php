@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use App\Models\SalesChannel;
 use Illuminate\Http\Request;
 use App\Services\EbayService;
+use App\Jobs\ImportEbayListings;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
@@ -25,267 +26,30 @@ class EbayController extends Controller
     public function __construct(protected EbayService $ebayService) {}
 
     /**
-     * Get ALL active listings
+     * Get ALL active listings - dispatches job queue for async processing
      */
     public function getAllActiveListings(string $id)
     {
         try {
+            // Verify sales channel exists and has valid token
             $salesChannel = $this->getSalesChannelWithValidToken($id);
 
-            $allItems = [];
-            $page = 1;
-            $perPage = 100;
+            // Dispatch the import job to queue
+            ImportEbayListings::dispatch($id, 'active')
+                ->onQueue('default');
 
-            do {
-                $endTimeFrom = gmdate('Y-m-d\TH:i:s\Z');
-                $endTimeTo = gmdate('Y-m-d\TH:i:s\Z', strtotime('+120 days'));
-                $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
-                    <GetSellerListRequest xmlns="urn:ebay:apis:eBLBaseComponents">
-                        <ErrorLanguage>en_US</ErrorLanguage>
-                        <WarningLevel>High</WarningLevel>
-                        <DetailLevel>ReturnAll</DetailLevel>
-                        <EndTimeFrom>' . $endTimeFrom . '</EndTimeFrom>
-                        <EndTimeTo>' . $endTimeTo . '</EndTimeTo>
-                        <IncludeWatchCount>true</IncludeWatchCount>
-                        <Pagination>
-                            <EntriesPerPage>' . $perPage . '</EntriesPerPage>
-                            <PageNumber>' . $page . '</PageNumber>
-                        </Pagination>
-                        <GranularityLevel>Fine</GranularityLevel>
-                    </GetSellerListRequest>';
-                $response = $this->callTradingApi($salesChannel, 'GetSellerList', $xmlRequest);
-                $response =  $this->parseActiveListingsResponse($response);
-                
-                $allItems = array_merge($allItems, $response['items']);
-                $totalPages = $response['pagination']['totalPages'];
-                $page++;
-            } while ($page <= $totalPages);
-
-            // Set PHP max execution time to 10 minutes
-            set_time_limit(600);
-
-            // Tracking counters
-            $totalListings = count($allItems);
-            $insertedCount = 0;
-            $updatedCount = 0;
-            $errorCount = 0;
-            $errors = [];
-
-            // Get default warehouse and rack once (outside the loop for efficiency)
-            $warehouse = Warehouse::where('is_default', true)->first();
-            if (!$warehouse) {
-                Log::error('eBay Sync Error: No default warehouse found');
-                return redirect()->back()->with('error', 'No default warehouse found. Please set a default warehouse.');
-            }
-
-            $rack = Rack::where('warehouse_id', $warehouse->id)->where('is_default', true)->first();
-            if (!$rack) {
-                Log::error('eBay Sync Error: No default rack found for warehouse', ['warehouse_id' => $warehouse->id]);
-                return redirect()->back()->with('error', 'No default rack found for the default warehouse.');
-            }
-
-            Log::info('eBay Sync Started', [
-                'total_listings' => $totalListings,
-                'warehouse_id' => $warehouse->id,
-                'rack_id' => $rack->id,
+            Log::info('eBay active listings import job dispatched', [
+                'sales_channel_id' => $id,
+                'sales_channel_name' => $salesChannel->name,
             ]);
 
-            foreach ($allItems as $index => $item) {
-                // if (empty($item['sku'])) {
-                //     // Update the SKU in Ebay
-                //     $updateResult = $this->updateListing(
-                //         ['sku' => $item['item_id']],
-                //         $id,
-                //         $item['item_id'],
-                //         true // Return array instead of JSON response
-                //     );
-                // }
-                try {
-                    // Get or create category
-                    $category = Category::whereLike('name', '%' . $item['category']['name'] . '%')->first();
-                    if ($category == null) {
-                        $category = Category::create([
-                            'name' => $item['category']['name'],
-                            'slug' => Str::slug($item['category']['name']),
-                        ]);
-                        if (!$category) {
-                            $category = Category::first();
-                        }
-                    }
-
-                    if (!$category) {
-                        throw new Exception('No category found or could be created');
-                    }
-
-                    $sku = ($item['sku'] === '') ? $item['item_id'] : $item['sku'];
-
-                    // Check if product exists
-                    $existingProduct = Product::where('sku', $sku)->first();
-                    $productExists = $existingProduct !== null;
-
-                    // Create or update product
-                    $product = Product::updateOrCreate(
-                        [
-                            'sku' => $sku,
-                        ],
-                        [
-                            'name' => $item['title'],
-                            'barcode' => empty($item['sku']) ? $item['item_id'] : $item['sku'],
-                            'category_id' => $category->id,
-                            'short_description' => '',
-                            'description' => $item['description'] ?? '',
-                            'price' => $item['price']['value'],
-                        ]
-                    );
-
-                    if (!$product) {
-                        throw new Exception('Failed to create/update product');
-                    }
-
-                    // Update product meta
-                    $product->product_meta()->upsert(
-                        [
-                            [
-                                'product_id' => $product->id,
-                                'meta_key' => 'item_id',
-                                'meta_value' => $item['item_id'] ?? '',
-                            ],
-                            [
-                                'product_id' => $product->id,
-                                'meta_key' => 'listing_url',
-                                'meta_value' => $item['listing_url'] ?? '',
-                            ],
-                            [
-                                'product_id' => $product->id,
-                                'meta_key' => 'listing_type',
-                                'meta_value' => $item['listing_type'] ?? '',
-                            ],
-                            [
-                                'product_id' => $product->id,
-                                'meta_key' => 'listing_status',
-                                'meta_value' => $item['listing_status'] ?? '',
-                            ],
-                            [
-                                'product_id' => $product->id,
-                                'meta_key' => 'weight',
-                                'meta_value' => $item['dimensions']['weight'] ?? '',
-                            ],
-                            [
-                                'product_id' => $product->id,
-                                'meta_key' => 'weight_unit',
-                                'meta_value' => $item['dimensions']['weight_unit'] ?? '',
-                            ],
-                            [
-                                'product_id' => $product->id,
-                                'meta_key' => 'length',
-                                'meta_value' => $item['dimensions']['length'] ?? '',
-                            ],
-                            [
-                                'product_id' => $product->id,
-                                'meta_key' => 'width',
-                                'meta_value' => $item['dimensions']['width'] ?? '',
-                            ],
-                            [
-                                'product_id' => $product->id,
-                                'meta_key' => 'height',
-                                'meta_value' => $item['dimensions']['height'] ?? '',
-                            ],
-                            [
-                                'product_id' => $product->id,
-                                'meta_key' => 'dimension_unit',
-                                'meta_value' => $item['dimensions']['dimension_unit'] ?? '',
-                            ],
-                            [
-                                'product_id' => $product->id,
-                                'meta_key' => 'regular_price',
-                                'meta_value' => empty($item['regular_price']['value']) ? $item['price']['value'] : $item['regular_price']['value'],
-                            ],
-                            [
-                                'product_id' => $product->id,
-                                'meta_key' => 'sale_price',
-                                'meta_value' => (empty($item['sale_price']['value']) || $item['sale_price']['value'] === null) ? '' : $item['sale_price']['value'],
-                            ],
-                            [
-                                'product_id' => $product->id,
-                                'meta_key' => 'shipping_details',
-                                'meta_value' => json_encode($item['shipping_details'] ?? []),
-                            ],
-                            [
-                                'product_id' => $product->id,
-                                'meta_key' => 'return_policy',
-                                'meta_value' => json_encode($item['return_policy'] ?? []),
-                            ]
-                        ],
-                        ['product_id', 'meta_key'],
-                        ['meta_value']
-                    );
-
-                    if ($productExists) {
-                        $updatedCount++;
-                    } else {
-                        $insertedCount++;
-
-                        // Add stock only for new products
-                        $quantity = max(0, ($item['quantity'] - $item['quantity_sold']));
-                        $product->product_stocks()
-                            ->where('product_id', $product->id)
-                            ->where('warehouse_id', $warehouse->id)
-                            ->where('rack_id', $rack->id)
-                            ->update(['quantity' => DB::raw('quantity + ' . $quantity)])
-                            ?: $product->product_stocks()->create([
-                                'product_id' => $product->id,
-                                'warehouse_id' => $warehouse->id,
-                                'rack_id' => $rack->id,
-                                'quantity' => $quantity
-                            ]);
-                    }
-
-                    $product->sales_channels()->sync([$salesChannel->id], false);
-
-                    // Log progress every 10 items
-                    if (($index + 1) % 10 === 0) {
-                        Log::info('eBay Sync Progress', [
-                            'processed' => $index + 1,
-                            'total' => $totalListings,
-                            'inserted' => $insertedCount,
-                            'updated' => $updatedCount,
-                            'errors' => $errorCount,
-                        ]);
-                    }
-
-                } catch (\Exception $e) {
-                    $errorCount++;
-                    $errorDetail = [
-                        'item_id' => $item['item_id'] ?? 'unknown',
-                        'sku' => $item['sku'] ?? '',
-                        'title' => $item['title'] ?? 'unknown',
-                        'error' => $e->getMessage(),
-                        'line' => $e->getLine(),
-                        'file' => $e->getFile(),
-                    ];
-                    $errors[] = $errorDetail;
-
-                    Log::error('eBay Sync Error - Failed to process item', $errorDetail);
-                }
-            }
-
-            // Final summary log
-            Log::info('eBay Sync Completed', [
-                'total_listings' => $totalListings,
-                'inserted' => $insertedCount,
-                'updated' => $updatedCount,
-                'errors' => $errorCount,
-                'error_details' => $errors,
-            ]);
-
-            // Build response message
-            $message = "eBay sync completed: {$totalListings} total listings, {$insertedCount} inserted, {$updatedCount} updated";
-            if ($errorCount > 0) {
-                $message .= ", {$errorCount} errors (check logs for details)";
-            }
-
-            return redirect()->back()->with('success', $message);
+            return redirect()->back()->with('success', 'eBay listings import has been queued. The import will start processing shortly. Check the queue status or logs for updates.');
         } catch (\Exception $e) {
+            Log::error('Failed to dispatch eBay import job', [
+                'sales_channel_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
             return $this->errorResponse($e->getMessage());
         }
     }
