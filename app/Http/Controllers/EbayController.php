@@ -1497,4 +1497,52 @@ class EbayController extends Controller
             'message' => $message,
         ], $status);
     }
+
+    public function getEbayOrders(string $id)
+    {
+        $salesChannel = $this->getSalesChannelWithValidToken($id);
+
+        $endTimeFrom = gmdate('Y-m-d\TH:i:s\Z');
+        $endTimeTo = gmdate('Y-m-d\TH:i:s\Z', strtotime('+120 days'));
+        $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
+                <GetOrdersRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                    <ErrorLanguage>en_US</ErrorLanguage>
+                    <WarningLevel>High</WarningLevel>
+                    <DetailLevel>ReturnAll</DetailLevel>
+                    <CreateTimeFrom>' . $endTimeFrom . '</CreateTimeFrom>
+                    <CreateTimeTo>' . $endTimeTo . '</CreateTimeTo>
+                    <OrderRole>Seller</OrderRole>
+                    <OrderStatus>All</OrderStatus>
+                    <Pagination>
+                        <EntriesPerPage>100</EntriesPerPage>
+                        <PageNumber>1</PageNumber>
+                    </Pagination>
+                </GetOrdersRequest>';
+
+        // $response = $this->callTradingApi($salesChannel, 'GetOrders', $xmlRequest);
+
+        $response = Http::timeout(300) // Increased to 5 minutes
+            ->connectTimeout(60) // Increased to 60 seconds
+            ->withHeaders([
+                'X-EBAY-API-SITEID' => self::API_SITE_ID,
+                'X-EBAY-API-COMPATIBILITY-LEVEL' => self::API_COMPATIBILITY_LEVEL,
+                'X-EBAY-API-CALL-NAME' => 'GetOrders',
+                'X-EBAY-API-IAF-TOKEN' => $salesChannel->access_token,
+                'Content-Type' => 'text/xml',
+            ])
+            ->withBody($xmlRequest, 'text/xml')
+            ->post(self::EBAY_API_URL);
+
+        if ($response->failed()) {
+            Log::error("eBay {$callName} Failed", [
+                'status' => $response->status(),
+                'sales_channel_id' => $salesChannel->id,
+            ]);
+            throw new Exception("eBay GetOrders failed: " . $response->body());
+        }
+
+        $data = $response->body();
+
+        return $data;
+    }
 }

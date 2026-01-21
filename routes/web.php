@@ -153,4 +153,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ebay/orders/sync/{id}', [EbayController::class, 'syncOrders'])->name('ebay.orders.sync');
     Route::get('/ebay/orders/sync-queue/{id}', [EbayController::class, 'syncOrdersQueue'])->name('ebay.orders.sync.queue');
     Route::get('/ebay/orders/{id}', [EbayController::class, 'getOrders'])->name('ebay.orders.list');
+
+    Route::get('/ebay/orders/import/{id}', [EbayController::class, 'getEbayOrders'])->name('ebay.orders.import');
 });
