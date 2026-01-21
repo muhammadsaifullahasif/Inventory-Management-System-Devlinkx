@@ -92,4 +92,9 @@ Route::middleware(['auth'])->group(function () {
     // Route::put('/ebay/listing/{id}/{itemId}', [EbayController::class, 'updateListing'])->name('ebay.listing.update');
     // Route::patch('/ebay/listing/{id}/{itemId}/quantity', [EbayController::class, 'updateListingQuantity'])->name('ebay.listing.update.quantity');
     // Route::patch('/ebay/listing/{id}/{itemId}/price', [EbayController::class, 'updateListingPrice'])->name('ebay.listing.update.price');
+
+    // eBay Import Status
+    Route::get('/ebay/import-status/{importLogId}', [EbayController::class, 'getImportStatus'])->name('ebay.import.status');
+    Route::get('/ebay/import-logs', [EbayController::class, 'listImportLogs'])->name('ebay.import.logs');
+    Route::get('/ebay/import-logs/latest/{salesChannelId}', [EbayController::class, 'getLatestImportLog'])->name('ebay.import.latest');
 });

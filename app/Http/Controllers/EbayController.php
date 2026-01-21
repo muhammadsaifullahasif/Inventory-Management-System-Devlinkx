@@ -167,6 +167,48 @@ class EbayController extends Controller
     }
 
     /**
+     * Get the latest import log for a sales channel
+     */
+    public function getLatestImportLog(string $salesChannelId)
+    {
+        try {
+            $importLog = EbayImportLog::where('sales_channel_id', $salesChannelId)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if (!$importLog) {
+                return response()->json([
+                    'success' => true,
+                    'data' => null,
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $importLog->id,
+                    'status' => $importLog->status,
+                    'total_listings' => $importLog->total_listings,
+                    'total_batches' => $importLog->total_batches,
+                    'completed_batches' => $importLog->completed_batches,
+                    'progress_percentage' => $importLog->getProgressPercentage(),
+                    'items_inserted' => $importLog->items_inserted,
+                    'items_updated' => $importLog->items_updated,
+                    'items_failed' => $importLog->items_failed,
+                    'started_at' => $importLog->started_at?->format('Y-m-d H:i:s'),
+                    'completed_at' => $importLog->completed_at?->format('Y-m-d H:i:s'),
+                    'is_complete' => $importLog->isComplete(),
+                ],
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch import log',
+            ], 500);
+        }
+    }
+
+    /**
      * List all import logs
      */
     public function listImportLogs(Request $request)
