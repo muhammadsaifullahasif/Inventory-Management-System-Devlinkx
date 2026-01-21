@@ -62,7 +62,7 @@ class EbayController extends Controller
             } while ($page <= $totalPages);
 
             // Set PHP max execution time to 10 minutes
-            set_time_limit(600);
+            set_time_limit(1200);
 
             // Tracking counters
             $totalListings = count($allItems);
