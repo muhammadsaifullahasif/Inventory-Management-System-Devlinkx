@@ -8,7 +8,6 @@ use App\Models\Product;
 use App\Models\Warehouse;
 use App\Models\SalesChannel;
 use Illuminate\Bus\Queueable;
-use Illuminate\Bus\Dispatchable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Queue\SerializesModels;
@@ -19,7 +18,7 @@ use App\Services\EbayService;
 
 class ImportEbayListings implements ShouldQueue, ShouldBeUnique
 {
-    use Queueable, Dispatchable, SerializesModels, InteractsWithQueue;
+    use Queueable, SerializesModels, InteractsWithQueue;
 
     /**
      * The number of seconds the job can run before timing out.
