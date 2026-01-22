@@ -42,7 +42,7 @@
                 {{-- @if ( $_GET['number_of_barcode'] != '' ) --}}
                     @for ($i = 0; $i < ( isset($_GET['number_of_barcode']) ? $_GET['number_of_barcode'] : 21 ); $i++)
                         <div style="margin: 10px; text-align: center; border: 1px solid #000; padding: 10px; max-width: 30%; width: 100%;">
-                            <div style="max-width: 100px;">
+                            <div style="max-width: 100%;">
                                 @php
                                     // Make Barcode object of Code128 encoding.
                                     $barcode = (new Picqer\Barcode\Types\TypeCode128())->getBarcode($product->barcode);
