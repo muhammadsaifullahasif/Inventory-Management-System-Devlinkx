@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Brand;
 use App\Models\Product;
 use App\Models\Category;
+use Barryvdh\DomPDF\PDF;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class ProductController extends Controller
@@ -257,7 +257,7 @@ class ProductController extends Controller
     public function printBarcodeView(string $id)
     {
         $product = Product::findOrFail($id);
-        $pdf = Pdf::loadView('products.barcode', compact('product'));
+        $pdf = PDF::loadView('products.barcode', compact('product'));
         return $pdf->download('barcode_' . $product->barcode . '.pdf');
     }
 }
