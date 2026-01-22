@@ -2,7 +2,7 @@
 
 @section('header')
     <!-- Content Header (Page header) -->
-    <div class="content-header d-print-none">
+    <div class="content-header d-print-none no-print">
         <div class="container-fluid">
             <div class="row mb-2">
                 <div class="col-sm-6">
@@ -24,7 +24,7 @@
 @endsection
 
 @section('content')
-    <div class="card mb-3 d-print-none">
+    <div class="card mb-3 d-print-none no-print">
         <div class="card-body">
             <form method="POST" action="">
                 @csrf
@@ -41,7 +41,7 @@
             @include("products.barcode")
         </div>
         <div class="card-footer">
-            <button onclick="window.print()" class="btn btn-primary d-print-none">Print Barcodes</button>
+            <button onclick="window.print()" class="btn btn-primary d-print-none no-print">Print Barcodes</button>
         </div>
     </div>
 @endsection
