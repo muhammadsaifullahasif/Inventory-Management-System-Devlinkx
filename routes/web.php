@@ -157,4 +157,4 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ebay/orders/import/{id}', [EbayController::class, 'getEbayOrders'])->name('ebay.orders.import');
 });
 
-Route::post('/ebay/orders/webhook/{id}', [EbayController::class, 'handleEbayOrderWebhook'])->name('ebay.orders.webhook');
+
