@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class ProductController extends Controller
@@ -248,5 +249,15 @@ class ProductController extends Controller
     {
         $product = Product::findOrFail($id);
         return view('products.print-barcode', compact('product'));
+    }
+
+    /**
+     * Print barcode view for the specified product.
+     */
+    public function printBarcodeView(string $id)
+    {
+        $product = Product::findOrFail($id);
+        $pdf = Pdf::loadView('products.barcode', compact('product'));
+        return $pdf->download('barcode_' . $product->barcode . '.pdf');
     }
 }

@@ -41,7 +41,8 @@
             @include("products.barcode")
         </div>
         <div class="card-footer">
-            <button onclick="window.print()" class="btn btn-primary d-print-none no-print">Print Barcodes</button>
+            <a href="{{ route('products.barcode.print', $product->id) }}" class="btn btn-primary btn-sm">Print Barcodes</a>
+            {{-- <button onclick="window.print()" class="btn btn-primary d-print-none no-print">Print Barcodes</button> --}}
         </div>
     </div>
 @endsection
