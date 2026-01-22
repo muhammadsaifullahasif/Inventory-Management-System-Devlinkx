@@ -24,7 +24,7 @@
 @endsection
 
 @section('content')
-    <div class="card mb-3">
+    <div class="card mb-3 d-print-none">
         <div class="card-body">
             <form method="POST" action="">
                 @csrf
@@ -41,7 +41,7 @@
             @include("products.barcode")
         </div>
         <div class="card-footer">
-            <button onclick="window.print()" class="btn btn-primary">Print Barcodes</button>
+            <button onclick="window.print()" class="btn btn-primary d-print-none">Print Barcodes</button>
         </div>
     </div>
 @endsection
