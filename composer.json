@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.2",
         "laravel/framework": "*",
+        "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.10.1",
         "laravel/ui": "^4.6",
         "picqer/php-barcode-generator": "^3.2",
