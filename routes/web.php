@@ -124,6 +124,7 @@ Route::middleware(['auth'])->group(function () {
     // Products
     Route::resource('/products', ProductController::class);
     Route::get('/products/search/{query}', [ProductController::class, 'search'])->name('products.search');
+    Route::get('/products/print-barcode/{id}', [ProductController::class, 'printBarcode'])->name('products.print-barcode');
 
     // Purchases
     Route::resource('/purchases', PurchaseController::class);

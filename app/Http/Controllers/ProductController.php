@@ -240,4 +240,13 @@ class ProductController extends Controller
             return redirect()->back()->with('error', 'An error occurred while deleting the product: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Print barcode for the specified product.
+     */
+    public function printBarcode(string $id)
+    {
+        $product = Product::findOrFail($id);
+        return view('products.print-barcode', compact('product'));
+    }
 }

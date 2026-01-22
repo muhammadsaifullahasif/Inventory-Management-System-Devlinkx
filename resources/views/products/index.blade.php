@@ -58,7 +58,8 @@
                         </td>
                         <td>
                             <a href="{{ $product->product_meta['listing_url'] }}" target="_blank">{{ $product->name }}</a><br>
-                            {{ $product->barcode }}
+                            {{ $product->barcode }}<br>
+                            <a href="{{ route('products.print-barcode', $product->id) }}" target="_blank">Print Barcode</a>
                         </td>
                         <td>{{ $product->price }}</td>
                         <td>{{ $product->product_stocks->sum('quantity'); }}</td>
