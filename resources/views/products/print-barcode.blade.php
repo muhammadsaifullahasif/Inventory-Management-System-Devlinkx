@@ -40,5 +40,8 @@
         <div class="card-body">
             @include("products.barcode")
         </div>
+        <div class="card-footer">
+            <button onclick="window.print()" class="btn btn-primary">Print Barcodes</button>
+        </div>
     </div>
 @endsection
