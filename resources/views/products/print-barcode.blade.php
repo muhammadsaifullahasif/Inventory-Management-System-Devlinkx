@@ -37,7 +37,7 @@
     </div>
 
     <div class="card mb-3">
-        <div class="card-body">
+        <div class="card-body p-0">
             @include("products.barcode")
         </div>
         <div class="card-footer">
