@@ -1092,7 +1092,7 @@ class EbayController extends Controller
         try {
             $salesChannel = $this->getSalesChannelWithValidToken($id);
 
-            // Fetch orders from the last 30 days by default
+            // Fetch orders from the last 90 days by default
             $createTimeFrom = gmdate('Y-m-d\TH:i:s\Z', strtotime('-90 days'));
             $createTimeTo = gmdate('Y-m-d\TH:i:s\Z');
 
@@ -1223,9 +1223,12 @@ class EbayController extends Controller
         try {
             $salesChannel = $this->getSalesChannelWithValidToken($id);
 
-            $daysBack = $request->input('days', 30);
-            $createTimeFrom = gmdate('Y-m-d\TH:i:s\Z', strtotime("-{$daysBack} days"));
+            $daysBack = $request->input('days', 90);
+            $createTimeFrom = gmdate('Y-m-d\TH:i:s\Z', strtotime("-90 days"));
             $createTimeTo = gmdate('Y-m-d\TH:i:s\Z');
+
+            $page = 1;
+            $perPage = 500;
 
             $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
                 <GetOrdersRequest xmlns="urn:ebay:apis:eBLBaseComponents">
@@ -1237,8 +1240,8 @@ class EbayController extends Controller
                     <OrderRole>Seller</OrderRole>
                     <OrderStatus>All</OrderStatus>
                     <Pagination>
-                        <EntriesPerPage>100</EntriesPerPage>
-                        <PageNumber>1</PageNumber>
+                        <EntriesPerPage>' . $perPage . '</EntriesPerPage>
+                        <PageNumber>' . $page . '</PageNumber>
                     </Pagination>
                 </GetOrdersRequest>';
 
@@ -1547,5 +1550,17 @@ class EbayController extends Controller
         $data = $response->body();
 
         return $data;
+    }
+
+    public function handleEbayOrderWebhook(Request $request, string $id)
+    {
+        Log::info('Received eBay Order Webhook', [
+            'sales_channel_id' => $id,
+            'payload' => $request->all(),
+        ]);
+
+        // Process the webhook payload as needed
+
+        return response()->json(['success' => true]);
     }
 }
