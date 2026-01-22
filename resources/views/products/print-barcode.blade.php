@@ -41,7 +41,7 @@
             <div style="width: 100%; display: flex; flex-wrap: wrap; justify-content: space-evenly; align-items: center;">
                 {{-- @if ( $_GET['number_of_barcode'] != '' ) --}}
                     @for ($i = 0; $i < ( isset($_GET['number_of_barcode']) ? $_GET['number_of_barcode'] : 21 ); $i++)
-                        <div style="margin: 10px; text-align: center; border: 1px solid #000; padding: 10px; max-width: 33.33%; width: 100%;">
+                        <div style="margin: 10px; text-align: center; border: 1px solid #000; padding: 10px; max-width: 30%; width: 100%;">
                             <div style="max-width: 100px;">
                                 @php
                                     // Make Barcode object of Code128 encoding.
