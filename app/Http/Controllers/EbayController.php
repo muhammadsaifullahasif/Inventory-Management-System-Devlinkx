@@ -853,7 +853,7 @@ class EbayController extends Controller
 
         $salesChannel->save();
 
-        \Log::info('eBay access token refreshed', [
+        Log::info('eBay access token refreshed', [
             'sales_channel_id' => $salesChannel->id,
             'new_expires_at' => $salesChannel->access_token_expires_at,
         ]);
