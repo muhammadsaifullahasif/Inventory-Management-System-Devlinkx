@@ -72,7 +72,7 @@
             <div class="barcode-box">
                 <img src="data:image/png;base64,{{ $allBarcodes[$i]['base64'] }}" style="width: 100%; max-width: 150px;" />
                 <div class="barcode-text">{{ $allBarcodes[$i]['barcode'] }}</div>
-                <div class="product-name">{{ Str::limit($allBarcodes[$i]['name'], 25) }}</div>
+                <div class="product-name">{{ \Illuminate\Support\Str::limit($allBarcodes[$i]['name'], 25) }}</div>
             </div>
         </td>
         @if ($i % 3 == 2 || $i == $totalBarcodes - 1)
