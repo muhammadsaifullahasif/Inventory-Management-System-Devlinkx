@@ -37,7 +37,7 @@
                     </div>
                     <div class="col-md-3">
                         <label for="defaultQuantity">Default Quantity:</label>
-                        <input type="number" id="defaultQuantity" class="form-control" value="21" min="1" max="100">
+                        <input type="number" id="defaultQuantity" class="form-control" value="1" min="1" max="100">
                     </div>
                     <div class="col-md-3">
                         <label for="columns">Columns per Row:</label>
