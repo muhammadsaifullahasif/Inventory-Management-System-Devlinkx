@@ -127,11 +127,12 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
+        // eBay notification and API logs
         'ebay' => [
             'driver' => 'daily',
-            'path' => storage_path('logs/ebay.log'),
+            'path' => storage_path('logs/ebay/ebay.log'),
             'level' => 'debug',
-            'days' => 14,
+            'days' => 30, // Keep logs for 30 days for notification analysis
             'replace_placeholders' => true,
         ],
 

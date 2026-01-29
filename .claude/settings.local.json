@@ -10,7 +10,8 @@
       "Bash(more:*)",
       "Bash(Get-Content D:LaravelinventoryManagementSystemstoragelogslaravel.log -Tail 100)",
       "Bash(composer require:*)",
-      "Bash(composer dump-autoload:*)"
+      "Bash(composer dump-autoload:*)",
+      "WebFetch(domain:developer.ebay.com)"
     ]
   }
 }

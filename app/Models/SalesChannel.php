@@ -21,11 +21,21 @@ class SalesChannel extends Model
         'status',
         'active_status',
         'delete_status',
+        // Notification fields
+        'platform_notifications_enabled',
+        'platform_notification_events',
+        'notification_destination_id',
+        'notification_verification_token',
+        'notification_subscriptions',
+        'webhook_url',
     ];
 
     protected $casts = [
         'access_token_expires_at' => 'datetime',
         'refresh_token_expires_at' => 'datetime',
+        'platform_notifications_enabled' => 'boolean',
+        'platform_notification_events' => 'array',
+        'notification_subscriptions' => 'array',
     ];
 
     public function products()

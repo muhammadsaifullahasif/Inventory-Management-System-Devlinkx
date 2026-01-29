@@ -1591,15 +1591,461 @@ class EbayController extends Controller
         return $data;
     }
 
+    /**
+     * Handle eBay webhook notifications
+     * Supports both Platform Notifications (XML) and Commerce Notification API (JSON)
+     */
     public function handleEbayOrderWebhook(Request $request, string $id)
     {
-        Log::info('Received eBay Order Webhook', [
-            'sales_channel_id' => $id,
-            'payload' => $request->all(),
+        $salesChannel = SalesChannel::find($id);
+
+        if (!$salesChannel) {
+            Log::error('eBay Webhook: Sales channel not found', ['id' => $id]);
+            return response()->json(['error' => 'Sales channel not found'], 404);
+        }
+
+        // Check if this is a challenge request (Commerce Notification API)
+        if ($request->has('challenge_code')) {
+            return $this->handleChallengeRequest($request, $salesChannel);
+        }
+
+        // Determine notification type based on content type
+        $contentType = $request->header('Content-Type', '');
+
+        if (str_contains($contentType, 'application/json')) {
+            return $this->handleCommerceApiNotification($request, $salesChannel);
+        } else {
+            return $this->handlePlatformNotification($request, $salesChannel);
+        }
+    }
+
+    /**
+     * Handle challenge request from Commerce Notification API
+     */
+    protected function handleChallengeRequest(Request $request, SalesChannel $salesChannel)
+    {
+        $challengeCode = $request->input('challenge_code');
+        $verificationToken = $salesChannel->notification_verification_token;
+        $endpoint = $salesChannel->webhook_url ?? route('ebay.orders.webhook', $salesChannel->id);
+
+        // Hash: SHA-256(challengeCode + verificationToken + endpoint)
+        $hashInput = $challengeCode . $verificationToken . $endpoint;
+        $challengeResponse = hash('sha256', $hashInput);
+
+        Log::info('eBay Challenge Request handled', [
+            'sales_channel_id' => $salesChannel->id,
         ]);
 
-        // Process the webhook payload as needed
+        return response()->json(['challengeResponse' => $challengeResponse]);
+    }
+
+    /**
+     * Handle Commerce Notification API notifications (JSON)
+     * Logs ALL notifications to the ebay log channel for analysis
+     */
+    protected function handleCommerceApiNotification(Request $request, SalesChannel $salesChannel)
+    {
+        $payload = $request->all();
+        $timestamp = now()->toIso8601String();
+        $topic = $payload['metadata']['topic'] ?? 'unknown';
+
+        Log::channel('ebay')->info('========== eBay Commerce API Notification Received ==========', [
+            'timestamp' => $timestamp,
+            'sales_channel_id' => $salesChannel->id,
+            'sales_channel_name' => $salesChannel->name,
+            'topic' => $topic,
+        ]);
+
+        // Log the complete payload
+        Log::channel('ebay')->debug('Commerce API Payload', [
+            'timestamp' => $timestamp,
+            'topic' => $topic,
+            'payload' => $payload,
+        ]);
+
+        // Verify signature if present
+        $signature = $request->header('X-EBAY-SIGNATURE');
+        if ($signature) {
+            Log::channel('ebay')->debug('eBay notification signature present', [
+                'timestamp' => $timestamp,
+                'signature' => $signature,
+            ]);
+        }
+
+        // Log notification metadata
+        if (isset($payload['metadata'])) {
+            Log::channel('ebay')->info('Notification Metadata', [
+                'timestamp' => $timestamp,
+                'topic' => $topic,
+                'metadata' => $payload['metadata'],
+            ]);
+        }
+
+        // Log notification data/content
+        if (isset($payload['notification'])) {
+            Log::channel('ebay')->info('Notification Content', [
+                'timestamp' => $timestamp,
+                'topic' => $topic,
+                'notification' => $payload['notification'],
+            ]);
+        }
+
+        Log::channel('ebay')->info('========== End of Commerce API Notification ==========', [
+            'timestamp' => $timestamp,
+            'topic' => $topic,
+        ]);
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Handle Platform Notifications (XML from Trading API)
+     * Logs ALL notification types to the ebay log channel for analysis
+     */
+    protected function handlePlatformNotification(Request $request, SalesChannel $salesChannel)
+    {
+        $rawContent = $request->getContent();
+        $timestamp = now()->toIso8601String();
+
+        // Log the raw content first
+        Log::channel('ebay')->info('========== eBay Platform Notification Received ==========', [
+            'timestamp' => $timestamp,
+            'sales_channel_id' => $salesChannel->id,
+            'sales_channel_name' => $salesChannel->name,
+            'content_length' => strlen($rawContent),
+        ]);
+
+        // Log raw XML for complete reference
+        Log::channel('ebay')->debug('Raw XML Content', [
+            'timestamp' => $timestamp,
+            'raw_xml' => $rawContent,
+        ]);
+
+        try {
+            $xml = simplexml_load_string($rawContent);
+
+            if ($xml === false) {
+                Log::channel('ebay')->error('eBay Platform Notification: Invalid XML', [
+                    'timestamp' => $timestamp,
+                    'sales_channel_id' => $salesChannel->id,
+                    'raw_content' => $rawContent,
+                ]);
+                return response('Invalid XML', 400);
+            }
+
+            // Get the notification type from the root element name or body
+            $notificationType = $xml->getName();
+
+            // For SOAP notifications, check for the body element
+            if (isset($xml->Body)) {
+                $body = $xml->Body->children();
+                if ($body->count() > 0) {
+                    $notificationType = $body[0]->getName();
+                }
+            }
+
+            // Convert XML to array for comprehensive logging
+            $jsonData = json_encode($xml, JSON_PRETTY_PRINT);
+            $arrayData = json_decode($jsonData, true);
+
+            // Log parsed notification details
+            Log::channel('ebay')->info("eBay Notification: {$notificationType}", [
+                'timestamp' => $timestamp,
+                'notification_type' => $notificationType,
+                'sales_channel_id' => $salesChannel->id,
+                'sales_channel_name' => $salesChannel->name,
+            ]);
+
+            // Log the complete parsed data
+            Log::channel('ebay')->debug("Parsed Data for {$notificationType}", [
+                'timestamp' => $timestamp,
+                'notification_type' => $notificationType,
+                'parsed_data' => $arrayData,
+            ]);
+
+            // Extract and log key information based on notification type category
+            $this->logNotificationDetails($notificationType, $xml, $salesChannel, $timestamp);
+
+            Log::channel('ebay')->info('========== End of Notification ==========', [
+                'timestamp' => $timestamp,
+                'notification_type' => $notificationType,
+            ]);
+
+            return response('OK', 200);
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('eBay Platform Notification processing error', [
+                'timestamp' => $timestamp,
+                'sales_channel_id' => $salesChannel->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response('Error', 500);
+        }
+    }
+
+    /**
+     * Log detailed information based on notification type
+     */
+    protected function logNotificationDetails(string $notificationType, $xml, SalesChannel $salesChannel, string $timestamp): void
+    {
+        $details = [];
+
+        // Order & Transaction Events
+        if (in_array($notificationType, ['FixedPriceTransaction', 'AuctionCheckoutComplete', 'ItemSold', 'ItemMarkedShipped', 'ItemMarkedPaid', 'ItemReadyForPickup', 'BuyerCancelRequested', 'CheckoutBuyerRequestsTotal', 'PaymentReminder'])) {
+            $details = $this->extractTransactionData($xml);
+            $details['category'] = 'ORDER_TRANSACTION';
+        }
+        // Auction Events
+        elseif (in_array($notificationType, ['EndOfAuction', 'BidPlaced', 'BidReceived', 'OutBid', 'ItemWon', 'ItemLost', 'BidItemEndingSoon', 'SecondChanceOffer'])) {
+            $details = $this->extractAuctionData($xml);
+            $details['category'] = 'AUCTION';
+        }
+        // Best Offer Events
+        elseif (in_array($notificationType, ['BestOffer', 'BestOfferPlaced', 'BestOfferDeclined', 'CounterOfferReceived'])) {
+            $details = $this->extractBestOfferData($xml);
+            $details['category'] = 'BEST_OFFER';
+        }
+        // Listing Events
+        elseif (in_array($notificationType, ['ItemListed', 'ItemRevised', 'ItemRevisedAddCharity', 'ItemExtended', 'ItemClosed', 'ItemUnsold', 'ItemSuspended', 'ItemOutOfStock'])) {
+            $details = $this->extractListingData($xml);
+            $details['category'] = 'LISTING';
+        }
+        // Feedback Events
+        elseif (in_array($notificationType, ['Feedback', 'FeedbackLeft', 'FeedbackReceived', 'FeedbackStarChanged'])) {
+            $details = $this->extractFeedbackData($xml);
+            $details['category'] = 'FEEDBACK';
+        }
+        // Message Events
+        elseif (in_array($notificationType, ['AskSellerQuestion', 'MyMessageseBayMessage', 'MyMessageseBayMessageHeader', 'MyMessagesM2MMessage', 'MyMessagesM2MMessageHeader', 'MyMessagesHighPriorityMessage', 'MyMessagesHighPriorityMessageHeader', 'M2MMessageStatusChange'])) {
+            $details = $this->extractMessageData($xml);
+            $details['category'] = 'MESSAGE';
+        }
+        // Return Events
+        elseif (in_array($notificationType, ['ReturnCreated', 'ReturnShipped', 'ReturnDelivered', 'ReturnClosed', 'ReturnEscalated', 'ReturnRefundOverdue', 'ReturnSellerInfoOverdue', 'ReturnWaitingForSellerInfo'])) {
+            $details = $this->extractReturnData($xml);
+            $details['category'] = 'RETURN';
+        }
+        // Case/Dispute Events
+        elseif (in_array($notificationType, ['EBPClosedCase', 'EBPEscalatedCase', 'EBPMyResponseDue', 'EBPOtherPartyResponseDue', 'EBPAppealedCase', 'EBPClosedAppeal', 'EBPOnHoldCase', 'EBPMyPaymentDue', 'EBPPaymentDone', 'INRBuyerRespondedToDispute', 'OrderInquiryReminderForEscalation'])) {
+            $details = $this->extractCaseData($xml);
+            $details['category'] = 'CASE_DISPUTE';
+        }
+        // Watch List Events
+        elseif (in_array($notificationType, ['ItemAddedToWatchList', 'ItemRemovedFromWatchList', 'WatchedItemEndingSoon', 'ShoppingCartItemEndingSoon'])) {
+            $details = $this->extractWatchListData($xml);
+            $details['category'] = 'WATCH_LIST';
+        }
+        // Account Events
+        elseif ($notificationType === 'TokenRevocation') {
+            $details = ['category' => 'ACCOUNT', 'event' => 'Token revocation requested'];
+        }
+        else {
+            $details = ['category' => 'UNKNOWN', 'raw_root_element' => $xml->getName()];
+        }
+
+        Log::channel('ebay')->info("Notification Details: {$notificationType}", [
+            'timestamp' => $timestamp,
+            'notification_type' => $notificationType,
+            'sales_channel_id' => $salesChannel->id,
+            'details' => $details,
+        ]);
+    }
+
+    /**
+     * Extract auction-related data from XML
+     */
+    protected function extractAuctionData($xml): array
+    {
+        return [
+            'item_id' => (string) ($xml->Item->ItemID ?? $xml->ItemID ?? ''),
+            'title' => (string) ($xml->Item->Title ?? ''),
+            'current_price' => (float) ($xml->Item->SellingStatus->CurrentPrice ?? 0),
+            'bid_count' => (int) ($xml->Item->SellingStatus->BidCount ?? 0),
+            'high_bidder' => (string) ($xml->Item->SellingStatus->HighBidder->UserID ?? ''),
+            'end_time' => (string) ($xml->Item->ListingDetails->EndTime ?? ''),
+        ];
+    }
+
+    /**
+     * Extract best offer data from XML
+     */
+    protected function extractBestOfferData($xml): array
+    {
+        return [
+            'item_id' => (string) ($xml->Item->ItemID ?? $xml->ItemID ?? ''),
+            'best_offer_id' => (string) ($xml->BestOffer->BestOfferID ?? ''),
+            'offer_price' => (float) ($xml->BestOffer->Price ?? 0),
+            'buyer_user_id' => (string) ($xml->BestOffer->Buyer->UserID ?? ''),
+            'status' => (string) ($xml->BestOffer->Status ?? ''),
+            'quantity' => (int) ($xml->BestOffer->Quantity ?? 1),
+        ];
+    }
+
+    /**
+     * Extract listing data from XML
+     */
+    protected function extractListingData($xml): array
+    {
+        return [
+            'item_id' => (string) ($xml->Item->ItemID ?? $xml->ItemID ?? ''),
+            'title' => (string) ($xml->Item->Title ?? ''),
+            'listing_status' => (string) ($xml->Item->SellingStatus->ListingStatus ?? ''),
+            'current_price' => (float) ($xml->Item->SellingStatus->CurrentPrice ?? 0),
+            'quantity' => (int) ($xml->Item->Quantity ?? 0),
+            'quantity_sold' => (int) ($xml->Item->SellingStatus->QuantitySold ?? 0),
+        ];
+    }
+
+    /**
+     * Extract feedback data from XML
+     */
+    protected function extractFeedbackData($xml): array
+    {
+        return [
+            'item_id' => (string) ($xml->FeedbackDetail->ItemID ?? ''),
+            'feedback_id' => (string) ($xml->FeedbackDetail->FeedbackID ?? ''),
+            'comment_type' => (string) ($xml->FeedbackDetail->CommentType ?? ''),
+            'comment_text' => (string) ($xml->FeedbackDetail->CommentText ?? ''),
+            'user_id' => (string) ($xml->FeedbackDetail->CommentingUser ?? ''),
+            'role' => (string) ($xml->FeedbackDetail->Role ?? ''),
+        ];
+    }
+
+    /**
+     * Extract message data from XML
+     */
+    protected function extractMessageData($xml): array
+    {
+        return [
+            'message_id' => (string) ($xml->Message->MessageID ?? $xml->MessageID ?? ''),
+            'item_id' => (string) ($xml->Message->ItemID ?? $xml->ItemID ?? ''),
+            'sender' => (string) ($xml->Message->Sender ?? ''),
+            'subject' => (string) ($xml->Message->Subject ?? ''),
+            'message_type' => (string) ($xml->Message->MessageType ?? ''),
+            'question_type' => (string) ($xml->Message->QuestionType ?? ''),
+        ];
+    }
+
+    /**
+     * Extract return data from XML
+     */
+    protected function extractReturnData($xml): array
+    {
+        return [
+            'return_id' => (string) ($xml->ReturnId ?? $xml->Return->ReturnId ?? ''),
+            'item_id' => (string) ($xml->ItemId ?? $xml->Return->ItemId ?? ''),
+            'order_id' => (string) ($xml->OrderId ?? $xml->Return->OrderId ?? ''),
+            'return_status' => (string) ($xml->ReturnStatus ?? $xml->Return->ReturnStatus ?? ''),
+            'return_reason' => (string) ($xml->ReturnReason ?? $xml->Return->ReturnReason ?? ''),
+            'buyer_user_id' => (string) ($xml->BuyerUserId ?? $xml->Return->BuyerUserId ?? ''),
+        ];
+    }
+
+    /**
+     * Extract case/dispute data from XML
+     */
+    protected function extractCaseData($xml): array
+    {
+        return [
+            'case_id' => (string) ($xml->CaseId ?? $xml->DisputeID ?? ''),
+            'item_id' => (string) ($xml->ItemID ?? ''),
+            'case_type' => (string) ($xml->CaseType ?? $xml->DisputeReason ?? ''),
+            'case_status' => (string) ($xml->CaseStatus ?? $xml->DisputeState ?? ''),
+            'buyer_user_id' => (string) ($xml->BuyerUserID ?? ''),
+            'response_due_date' => (string) ($xml->ResponseDueDate ?? ''),
+        ];
+    }
+
+    /**
+     * Extract watch list data from XML
+     */
+    protected function extractWatchListData($xml): array
+    {
+        return [
+            'item_id' => (string) ($xml->Item->ItemID ?? $xml->ItemID ?? ''),
+            'title' => (string) ($xml->Item->Title ?? ''),
+            'watch_count' => (int) ($xml->Item->WatchCount ?? 0),
+            'end_time' => (string) ($xml->Item->ListingDetails->EndTime ?? ''),
+        ];
+    }
+
+    /**
+     * Extract transaction data from XML notification
+     */
+    protected function extractTransactionData($xml): array
+    {
+        $data = [
+            'item_id' => null,
+            'transaction_id' => null,
+            'order_id' => null,
+            'buyer_user_id' => null,
+            'buyer_email' => null,
+            'quantity_purchased' => null,
+            'transaction_price' => null,
+            'created_date' => null,
+        ];
+
+        // Try different XML structures (SOAP vs direct)
+        $transaction = $xml->Transaction ?? $xml->Body->GetItemTransactionsResponse->TransactionArray->Transaction ?? null;
+
+        if ($transaction) {
+            $data['item_id'] = (string) ($transaction->Item->ItemID ?? $xml->Item->ItemID ?? '');
+            $data['transaction_id'] = (string) ($transaction->TransactionID ?? '');
+            $data['order_id'] = (string) ($transaction->ContainingOrder->OrderID ?? '');
+            $data['buyer_user_id'] = (string) ($transaction->Buyer->UserID ?? '');
+            $data['buyer_email'] = (string) ($transaction->Buyer->Email ?? '');
+            $data['quantity_purchased'] = (int) ($transaction->QuantityPurchased ?? 1);
+            $data['transaction_price'] = (float) ($transaction->TransactionPrice ?? 0);
+            $data['created_date'] = (string) ($transaction->CreatedDate ?? '');
+        }
+
+        return $data;
+    }
+
+    /**
+     * Extract order data from XML notification
+     */
+    protected function extractOrderData($xml): array
+    {
+        $data = [
+            'order_id' => null,
+            'order_status' => null,
+            'buyer_user_id' => null,
+            'total' => null,
+            'subtotal' => null,
+            'shipping_cost' => null,
+            'created_time' => null,
+            'paid_time' => null,
+            'items' => [],
+        ];
+
+        $order = $xml->Order ?? $xml->Body->Order ?? null;
+
+        if ($order) {
+            $data['order_id'] = (string) ($order->OrderID ?? '');
+            $data['order_status'] = (string) ($order->OrderStatus ?? '');
+            $data['buyer_user_id'] = (string) ($order->BuyerUserID ?? '');
+            $data['total'] = (float) ($order->Total ?? 0);
+            $data['subtotal'] = (float) ($order->Subtotal ?? 0);
+            $data['shipping_cost'] = (float) ($order->ShippingServiceSelected->ShippingServiceCost ?? 0);
+            $data['created_time'] = (string) ($order->CreatedTime ?? '');
+            $data['paid_time'] = (string) ($order->PaidTime ?? '');
+
+            // Extract line items
+            if (isset($order->TransactionArray->Transaction)) {
+                foreach ($order->TransactionArray->Transaction as $transaction) {
+                    $data['items'][] = [
+                        'item_id' => (string) ($transaction->Item->ItemID ?? ''),
+                        'title' => (string) ($transaction->Item->Title ?? ''),
+                        'sku' => (string) ($transaction->Item->SKU ?? ''),
+                        'quantity' => (int) ($transaction->QuantityPurchased ?? 1),
+                        'price' => (float) ($transaction->TransactionPrice ?? 0),
+                    ];
+                }
+            }
+        }
+
+        return $data;
     }
 }

@@ -5,12 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\SalesChannel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use App\Services\EbayNotificationService;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class SalesChannelController extends Controller
 {
-    public function __construct()
+    protected EbayNotificationService $notificationService;
+
+    public function __construct(EbayNotificationService $notificationService)
     {
+        $this->notificationService = $notificationService;
         $this->middleware(PermissionMiddleware::using('view sales_channels'), ['only' => ['index']]);
         $this->middleware(PermissionMiddleware::using('add sales_channels'), ['only' => ['create', 'store']]);
         $this->middleware(PermissionMiddleware::using('edit sales_channels'), ['only' => ['edit', 'update']]);
@@ -74,7 +79,7 @@ class SalesChannelController extends Controller
 
             $sales_channel_id = session('sales_channel_id');
             $sales_channel = SalesChannel::find($sales_channel_id);
-            
+
             $response = Http::asForm()
                 ->withBasicAuth($sales_channel->client_id, $sales_channel->client_secret)
                 ->post(env('EBAY_TOKEN_URL'), [
@@ -82,9 +87,7 @@ class SalesChannelController extends Controller
                     'code'         => $code,
                     'redirect_uri' => $sales_channel->ru_name,
                 ]);
-            
-            // dd($response->status(), $response->json());
-            
+
             $response_data = $response->json();
 
             $sales_channel->authorization_code = $code;
@@ -93,13 +96,51 @@ class SalesChannelController extends Controller
             $sales_channel->refresh_token = $response_data['refresh_token'];
             $sales_channel->refresh_token_expires_at = now()->addSeconds($response_data['refresh_token_expires_in']);
             $sales_channel->save();
-            
 
-            return redirect()->route('sales-channels.index')->with('success', 'Sales Channel created or updated successfully.');
+            // Subscribe to eBay notifications for orders
+            $notificationResult = $this->subscribeToEbayNotifications($sales_channel);
+
+            $message = 'Sales Channel created or updated successfully.';
+            if ($notificationResult['success']) {
+                $message .= ' Order notifications enabled.';
+            } else {
+                $message .= ' Warning: Could not enable notifications - ' . ($notificationResult['error'] ?? 'Unknown error');
+            }
+
+            return redirect()->route('sales-channels.index')->with('success', $message);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return redirect()->route('sales-channels.index')->with('error', 'Authorization code is missing or invalid.');
+        } catch (\Exception $e) {
+            Log::error('eBay callback error', ['error' => $e->getMessage()]);
+            return redirect()->route('sales-channels.index')->with('error', 'Error during authorization: ' . $e->getMessage());
         }
-        
+    }
+
+    /**
+     * Subscribe to eBay notifications for a sales channel
+     * Subscribes to ALL available eBay notification events
+     */
+    protected function subscribeToEbayNotifications(SalesChannel $salesChannel): array
+    {
+        try {
+            // Subscribe to ALL Platform Notifications (Trading API) events
+            $result = $this->notificationService->subscribeToAllEvents($salesChannel);
+
+            Log::info('eBay notifications subscribed successfully', [
+                'sales_channel_id' => $salesChannel->id,
+                'events_count' => count($result['events'] ?? []),
+                'events' => $result['events'] ?? [],
+            ]);
+
+            return ['success' => true, 'result' => $result];
+        } catch (\Exception $e) {
+            Log::error('Failed to subscribe to eBay notifications', [
+                'sales_channel_id' => $salesChannel->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
     }
 
     /**
