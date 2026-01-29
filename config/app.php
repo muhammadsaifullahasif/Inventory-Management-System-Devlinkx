@@ -125,6 +125,7 @@ return [
 
     'aliases' => [
         'Pdf' => Barryvdh\DomPDF\Facade\Pdf::class,
+        'Session' => Illuminate\Support\Facades\Session::class,
     ],
 
 ];
