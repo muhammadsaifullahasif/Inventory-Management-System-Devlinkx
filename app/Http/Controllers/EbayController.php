@@ -63,9 +63,26 @@ class EbayController extends Controller
                         </Pagination>
                         <GranularityLevel>Fine</GranularityLevel>
                     </GetSellerListRequest>';
-                $response = $this->callTradingApi($salesChannel, 'GetSellerList', $xmlRequest);
-                $response =  $this->parseActiveListingsResponse($response);
-                
+                $rawResponse = $this->callTradingApi($salesChannel, 'GetSellerList', $xmlRequest);
+
+                // Log raw XML response for debugging (first page only to avoid huge logs)
+                if ($page === 1) {
+                    Log::channel('ebay')->debug('eBay GetSellerList Raw XML Response (Page 1)', [
+                        'sales_channel_id' => $salesChannel->id,
+                        'raw_response_length' => strlen($rawResponse),
+                        'raw_response_preview' => substr($rawResponse, 0, 5000), // First 5000 chars
+                    ]);
+                }
+
+                $response = $this->parseActiveListingsResponse($rawResponse);
+
+                // Log parsed items for debugging
+                Log::channel('ebay')->debug('eBay Parsed Listings - Page ' . $page, [
+                    'page' => $page,
+                    'items_count' => count($response['items']),
+                    'items' => $response['items'], // Full listing data
+                ]);
+
                 $allItems = array_merge($allItems, $response['items']);
                 $totalPages = $response['pagination']['totalPages'];
 
@@ -79,6 +96,28 @@ class EbayController extends Controller
             } while ($page <= $totalPages);
 
             $totalListings = count($allItems);
+
+            // Log all fetched listings to dedicated eBay log channel for debugging
+            Log::channel('ebay')->info('eBay Import - All Fetched Listings', [
+                'timestamp' => now()->toIso8601String(),
+                'sales_channel_id' => $salesChannel->id,
+                'total_listings' => $totalListings,
+            ]);
+
+            // Log each listing separately for easier reading in the log file
+            foreach ($allItems as $index => $item) {
+                Log::channel('ebay')->debug('Listing #' . ($index + 1), [
+                    'item_id' => $item['item_id'] ?? 'N/A',
+                    'title' => $item['title'] ?? 'N/A',
+                    'sku' => $item['sku'] ?? 'N/A',
+                    'price' => $item['price'] ?? 'N/A',
+                    'quantity' => $item['quantity'] ?? 0,
+                    'quantity_available' => $item['quantity_available'] ?? 0,
+                    'category' => $item['category'] ?? 'N/A',
+                    'listing_status' => $item['listing_status'] ?? 'N/A',
+                    'full_data' => $item,
+                ]);
+            }
 
             if ($totalListings === 0) {
                 return redirect()->back()->with('info', 'No active listings found to import.');
