@@ -33,7 +33,7 @@
     $barcode = (new Picqer\Barcode\Types\TypeCode128())->getBarcode($product->barcode);
     $renderer = new Picqer\Barcode\Renderers\PngRenderer();
     $renderer->setForegroundColor([0, 0, 0]);
-    $pngData = $renderer->render($barcode, 180, 60);
+    $pngData = $renderer->render($barcode, 150, 40);
     $base64 = base64_encode($pngData);
 @endphp
 
