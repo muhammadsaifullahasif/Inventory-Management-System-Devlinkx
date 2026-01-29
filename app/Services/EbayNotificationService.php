@@ -68,14 +68,11 @@ class EbayNotificationService
         'FeedbackReceived',             // When user receives feedback
         'FeedbackStarChanged',          // When feedback star level changes
 
-        // Message Events
+        // Message Events (Note: Header events conflict with full message events, so only using full versions)
         'AskSellerQuestion',            // When buyer asks a question
-        'MyMessageseBayMessage',        // When eBay sends a message
-        'MyMessageseBayMessageHeader',  // Message headers from eBay
-        'MyMessagesM2MMessage',         // Member-to-member messages
-        'MyMessagesM2MMessageHeader',   // M2M message headers
-        'MyMessagesHighPriorityMessage',      // High priority messages
-        'MyMessagesHighPriorityMessageHeader', // High priority headers
+        'MyMessageseBayMessage',        // When eBay sends a message (includes full content)
+        'MyMessagesM2MMessage',         // Member-to-member messages (includes full content)
+        'MyMessagesHighPriorityMessage', // High priority messages (includes full content)
         'M2MMessageStatusChange',       // When message status changes
 
         // Return Events

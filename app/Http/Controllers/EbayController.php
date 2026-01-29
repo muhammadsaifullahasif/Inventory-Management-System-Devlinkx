@@ -1817,7 +1817,7 @@ class EbayController extends Controller
             $details['category'] = 'FEEDBACK';
         }
         // Message Events
-        elseif (in_array($notificationType, ['AskSellerQuestion', 'MyMessageseBayMessage', 'MyMessageseBayMessageHeader', 'MyMessagesM2MMessage', 'MyMessagesM2MMessageHeader', 'MyMessagesHighPriorityMessage', 'MyMessagesHighPriorityMessageHeader', 'M2MMessageStatusChange'])) {
+        elseif (in_array($notificationType, ['AskSellerQuestion', 'MyMessageseBayMessage', 'MyMessagesM2MMessage', 'MyMessagesHighPriorityMessage', 'M2MMessageStatusChange'])) {
             $details = $this->extractMessageData($xml);
             $details['category'] = 'MESSAGE';
         }
