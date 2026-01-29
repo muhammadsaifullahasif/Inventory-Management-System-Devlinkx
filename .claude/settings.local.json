@@ -8,7 +8,9 @@
       "Bash(php -r:*)",
       "Bash(php:*)",
       "Bash(more:*)",
-      "Bash(Get-Content D:LaravelinventoryManagementSystemstoragelogslaravel.log -Tail 100)"
+      "Bash(Get-Content D:LaravelinventoryManagementSystemstoragelogslaravel.log -Tail 100)",
+      "Bash(composer require:*)",
+      "Bash(composer dump-autoload:*)"
     ]
   }
 }
