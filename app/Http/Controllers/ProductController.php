@@ -260,11 +260,11 @@ class ProductController extends Controller
         // $pdf = app('dompdf.wrapper')->loadView('products.barcode', compact('product'));
         // return view('products.barcode', compact('product'));
         $pdf = Pdf::loadView('products.barcode', compact('product'))
-            ->setPaper('a4', 'portrait')
-            ->setOption('margin-top', 0)
-            ->setOption('margin-bottom', 0)
-            ->setOption('margin-left', 0)
-            ->setOption('margin-right', 0);
+            ->setPaper('a4', 'portrait');
+            // ->setOption('margin-top', 0)
+            // ->setOption('margin-bottom', 0)
+            // ->setOption('margin-left', 0)
+            // ->setOption('margin-right', 0);
         return $pdf->download('barcode_' . $product->barcode . '.pdf');
     }
 }
