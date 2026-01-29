@@ -256,7 +256,8 @@ class ProductController extends Controller
     public function printBarcodeView(string $id)
     {
         $product = Product::findOrFail($id);
-        $pdf = app('dompdf.wrapper')->loadView('products.barcode', compact('product'));
+        // $pdf = app('dompdf.wrapper')->loadView('products.barcode', compact('product'));
+        $pdf = Pdf::loadView('products.barcode', compact('product'));
         return $pdf->download('barcode_' . $product->barcode . '.pdf');
     }
 }
