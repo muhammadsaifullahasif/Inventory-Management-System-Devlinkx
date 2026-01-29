@@ -1,11 +1,12 @@
 <style>
     @page {
         size: A4 portrait;
-        margin: 0;
+        margin: 10mm;
     }
     body {
         margin: 0;
         padding: 0;
+        font-family: sans-serif;
     }
     table {
         width: 100%;
@@ -15,25 +16,34 @@
         width: 33.33%;
         text-align: center;
         vertical-align: top;
-        padding: 10px;
+        padding: 5px;
     }
     .barcode-box {
         border: 1px solid #000;
-        padding: 10px;
-        margin: 5px;
+        padding: 8px;
+        margin: 3px;
     }
     .barcode-text {
-        margin-top: 5px;
-        font-size: 12px;
+        margin-top: 3px;
+        font-size: 10px;
+    }
+    .product-name {
+        font-size: 8px;
+        color: #666;
+        margin-top: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
     }
 </style>
 
 @php
-    $numberOfBarcodes = isset($_GET['number_of_barcode']) ? $_GET['number_of_barcode'] : 42;
-    $barcode = (new Picqer\Barcode\Types\TypeCode128())->getBarcode($product->barcode);
+    $numberOfBarcodes = $quantity ?? 21;
+    $barcodeData = (new Picqer\Barcode\Types\TypeCode128())->getBarcode($product->barcode ?? $product->sku);
     $renderer = new Picqer\Barcode\Renderers\PngRenderer();
     $renderer->setForegroundColor([0, 0, 0]);
-    $pngData = $renderer->render($barcode, 150, 40);
+    $pngData = $renderer->render($barcodeData, 150, 40);
     $base64 = base64_encode($pngData);
 @endphp
 
@@ -44,8 +54,9 @@
         @endif
         <td>
             <div class="barcode-box">
-                <img src="data:image/png;base64,{{ $base64 }}" style="width: 100%; max-width: 180px;" />
-                <div class="barcode-text">{{ $product->barcode }}</div>
+                <img src="data:image/png;base64,{{ $base64 }}" style="width: 100%; max-width: 150px;" />
+                <div class="barcode-text">{{ $product->barcode ?? $product->sku }}</div>
+                <div class="product-name">{{ \Illuminate\Support\Str::limit($product->name, 25) }}</div>
             </div>
         </td>
         @if ($i % 3 == 2 || $i == $numberOfBarcodes - 1)

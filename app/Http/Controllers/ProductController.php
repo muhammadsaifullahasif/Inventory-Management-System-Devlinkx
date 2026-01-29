@@ -254,10 +254,13 @@ class ProductController extends Controller
     /**
      * Print barcode view for the specified product.
      */
-    public function printBarcodeView(string $id)
+    public function printBarcodeView(Request $request, string $id)
     {
         $product = Product::findOrFail($id);
-        $pdf = Pdf::loadView('products.barcode', compact('product'))
+        $quantity = (int) $request->get('quantity', 21);
+        $quantity = max(1, min(100, $quantity)); // Clamp between 1 and 100
+
+        $pdf = Pdf::loadView('products.barcode', compact('product', 'quantity'))
             ->setPaper('a4', 'portrait');
         return $pdf->download('barcode_' . $product->barcode . '.pdf');
     }

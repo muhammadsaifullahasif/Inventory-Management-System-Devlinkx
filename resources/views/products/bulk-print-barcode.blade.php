@@ -37,7 +37,7 @@
                     </div>
                     <div class="col-md-4">
                         <label for="defaultQuantity">Default Quantity:</label>
-                        <input type="number" id="defaultQuantity" class="form-control" value="20" min="1" max="100">
+                        <input type="number" id="defaultQuantity" class="form-control" value="21" min="1" max="100">
                     </div>
                 </div>
 
