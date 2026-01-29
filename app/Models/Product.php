@@ -90,6 +90,8 @@ class Product extends Model
     }
 
     public function sales_channels() {
-        return $this->belongsToMany(SalesChannel::class, 'sales_channel_product');
+        return $this->belongsToMany(SalesChannel::class, 'sales_channel_product')
+            ->withPivot('listing_url', 'external_listing_id')
+            ->withTimestamps();
     }
 }

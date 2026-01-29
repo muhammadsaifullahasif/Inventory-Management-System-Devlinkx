@@ -61,7 +61,7 @@
                             </div>
                         </td>
                         <td>
-                            <a href="{{ $product->product_meta['listing_url'] }}" target="_blank">{{ $product->name }}</a><br>
+                            {{ $product->name }}
                         </td>
                         <td>{{ $product->price }}</td>
                         <td>{{ $product->product_stocks->sum('quantity'); }}</td>
@@ -70,7 +70,8 @@
                             {{-- {{ $product->sales_channels->name ?? 'N/A' }} --}}
                             {{-- {{ implode(', ', $product->sales_channels->name) }} --}}
                             @foreach ($product->sales_channels as $sales_channel)
-                                {{ $sales_channel['name'] }}
+                                {{-- {{ $sales_channel['name'] }} --}}
+                                <a href="{{ $product->pivot->listing_url }}" target="_blank">{{ $sales_channel['name'] }}</a>
                             @endforeach
                         </td>
                         <td>{{ \Carbon\Carbon::parse($product->created_at)->format('d M, Y') }}</td>

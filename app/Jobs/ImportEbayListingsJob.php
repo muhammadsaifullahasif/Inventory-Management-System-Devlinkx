@@ -141,26 +141,6 @@ class ImportEbayListingsJob implements ShouldQueue
                 $metaData = [
                     [
                         'product_id' => $product->id,
-                        'meta_key' => 'item_id',
-                        'meta_value' => $item['item_id'] ?? '',
-                    ],
-                    [
-                        'product_id' => $product->id,
-                        'meta_key' => 'listing_url',
-                        'meta_value' => $item['listing_url'] ?? '',
-                    ],
-                    [
-                        'product_id' => $product->id,
-                        'meta_key' => 'listing_type',
-                        'meta_value' => $item['listing_type'] ?? '',
-                    ],
-                    [
-                        'product_id' => $product->id,
-                        'meta_key' => 'listing_status',
-                        'meta_value' => $item['listing_status'] ?? '',
-                    ],
-                    [
-                        'product_id' => $product->id,
                         'meta_key' => 'regular_price',
                         'meta_value' => $item['regular_price']['value'] ?? $item['price']['value'],
                     ],
@@ -208,11 +188,6 @@ class ImportEbayListingsJob implements ShouldQueue
                         'product_id' => $product->id,
                         'meta_key' => 'quantity_available',
                         'meta_value' => $item['quantity_available'] ?? '0',
-                    ],
-                    [
-                        'product_id' => $product->id,
-                        'meta_key' => 'sales_channel_id',
-                        'meta_value' => $this->salesChannelId,
                     ],
                 ];
 
@@ -270,7 +245,13 @@ class ImportEbayListingsJob implements ShouldQueue
                         ]);
                 }
 
-                $product->sales_channels()->sync([$this->salesChannelId], false);
+                // Sync sales channel with pivot data (listing_url and external_listing_id)
+                $product->sales_channels()->syncWithoutDetaching([
+                    $this->salesChannelId => [
+                        'listing_url' => $item['listing_url'] ?? null,
+                        'external_listing_id' => $item['item_id'] ?? null,
+                    ]
+                ]);
 
                 Log::debug('eBay Product Processed', [
                     'batch' => $this->batchNumber,
