@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         searchTimeout = setTimeout(() => {
-            fetch(`{{ route('products.search', '') }}/${encodeURIComponent(query)}`)
+            fetch(`/products/search/${encodeURIComponent(query)}`)
                 .then(response => response.json())
                 .then(products => {
                     searchResults.innerHTML = '';
