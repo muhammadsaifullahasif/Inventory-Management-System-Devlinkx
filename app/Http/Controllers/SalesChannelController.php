@@ -90,6 +90,13 @@ class SalesChannelController extends Controller
 
             $response_data = $response->json();
 
+            Log::info('eBay callback response data', ['response_data' => $response_data]);
+
+            if ($response->failed()) {
+                Log::error('eBay callback error', ['error' => $response->body()]);
+                throw new \Exception('Failed to retrieve eBay access token');
+            }
+
             $sales_channel->authorization_code = $code;
             $sales_channel->access_token = $response_data['access_token'];
             $sales_channel->access_token_expires_at = now()->addSeconds($response_data['expires_in']);
