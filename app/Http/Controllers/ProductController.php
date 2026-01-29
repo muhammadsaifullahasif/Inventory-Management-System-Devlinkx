@@ -258,7 +258,8 @@ class ProductController extends Controller
     {
         $product = Product::findOrFail($id);
         // $pdf = app('dompdf.wrapper')->loadView('products.barcode', compact('product'));
-        $pdf = Pdf::loadView('products.barcode', compact('product'));
-        return $pdf->download('barcode_' . $product->barcode . '.pdf');
+        return view('products.barcode', compact('product'));
+        // $pdf = Pdf::loadView('products.barcode', compact('product'));
+        // return $pdf->download('barcode_' . $product->barcode . '.pdf');
     }
 }
