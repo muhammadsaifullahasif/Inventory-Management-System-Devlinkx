@@ -68,11 +68,11 @@ class EbayNotificationService
         'FeedbackReceived',             // When user receives feedback
         'FeedbackStarChanged',          // When feedback star level changes
 
-        // Message Events (Note: Header events conflict with full message events, so only using full versions)
+        // Message Events
+        // Note: MyMessages* events (eBayMessage, M2MMessage, HighPriorityMessage) all conflict with each other
+        // Only ONE can be used per subscription. Using M2MMessage for buyer-seller communication.
         'AskSellerQuestion',            // When buyer asks a question
-        'MyMessageseBayMessage',        // When eBay sends a message (includes full content)
-        'MyMessagesM2MMessage',         // Member-to-member messages (includes full content)
-        'MyMessagesHighPriorityMessage', // High priority messages (includes full content)
+        'MyMessagesM2MMessage',         // Member-to-member messages (buyer-seller communication)
         'M2MMessageStatusChange',       // When message status changes
 
         // Return Events
