@@ -257,14 +257,49 @@ class ProductController extends Controller
     public function printBarcodeView(string $id)
     {
         $product = Product::findOrFail($id);
-        // $pdf = app('dompdf.wrapper')->loadView('products.barcode', compact('product'));
-        // return view('products.barcode', compact('product'));
         $pdf = Pdf::loadView('products.barcode', compact('product'))
             ->setPaper('a4', 'portrait');
-            // ->setOption('margin-top', 0)
-            // ->setOption('margin-bottom', 0)
-            // ->setOption('margin-left', 0)
-            // ->setOption('margin-right', 0);
         return $pdf->download('barcode_' . $product->barcode . '.pdf');
+    }
+
+    /**
+     * Show bulk barcode printing form.
+     */
+    public function bulkPrintBarcodeForm()
+    {
+        $products = Product::whereNotNull('barcode')->orderBy('name')->get();
+        return view('products.bulk-print-barcode', compact('products'));
+    }
+
+    /**
+     * Generate PDF with barcodes for multiple products.
+     */
+    public function bulkPrintBarcode(Request $request)
+    {
+        $request->validate([
+            'products' => 'required|array|min:1',
+            'products.*.id' => 'required|exists:products,id',
+            'products.*.quantity' => 'required|integer|min:1|max:100',
+        ]);
+
+        $productsData = [];
+        foreach ($request->products as $productInput) {
+            $product = Product::find($productInput['id']);
+            if ($product && $product->barcode) {
+                $productsData[] = [
+                    'product' => $product,
+                    'quantity' => (int) $productInput['quantity'],
+                ];
+            }
+        }
+
+        if (empty($productsData)) {
+            return redirect()->back()->with('error', 'No valid products selected for barcode printing.');
+        }
+
+        $pdf = Pdf::loadView('products.bulk-barcode', compact('productsData'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->download('barcodes_' . date('Y-m-d_H-i-s') . '.pdf');
     }
 }

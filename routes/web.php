@@ -127,6 +127,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/products/search/{query}', [ProductController::class, 'search'])->name('products.search');
     Route::get('/products/print-barcode/{id}', [ProductController::class, 'printBarcode'])->name('products.print-barcode');
     Route::get('/products/barcode/print/{id}', [ProductController::class, 'printBarcodeView'])->name('products.barcode.print');
+    Route::get('/products/barcode/bulk', [ProductController::class, 'bulkPrintBarcodeForm'])->name('products.barcode.bulk-form');
+    Route::post('/products/barcode/bulk', [ProductController::class, 'bulkPrintBarcode'])->name('products.barcode.bulk-print');
 
     // Purchases
     Route::resource('/purchases', PurchaseController::class);
