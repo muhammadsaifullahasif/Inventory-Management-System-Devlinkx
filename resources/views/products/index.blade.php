@@ -55,12 +55,13 @@
                                     // echo $renderer->render($barcode, 80, 40);
                                 @endphp
                                 {!! $renderer->render($barcode, 100, 40) !!}
+                                <br>
+                                {{ $product->barcode }}<br>
+                                <a href="{{ route('products.print-barcode', $product->id) }}" target="_blank">Print Barcode</a>
                             </div>
                         </td>
                         <td>
                             <a href="{{ $product->product_meta['listing_url'] }}" target="_blank">{{ $product->name }}</a><br>
-                            {{ $product->barcode }}<br>
-                            <a href="{{ route('products.print-barcode', $product->id) }}" target="_blank">Print Barcode</a>
                         </td>
                         <td>{{ $product->price }}</td>
                         <td>{{ $product->product_stocks->sum('quantity'); }}</td>
