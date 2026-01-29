@@ -30,14 +30,23 @@
 
                 <!-- Search and Add Products -->
                 <div class="row mb-4">
-                    <div class="col-md-8">
+                    <div class="col-md-6">
                         <label for="productSearch">Search Product:</label>
                         <input type="text" id="productSearch" class="form-control" placeholder="Search by name, SKU, or barcode...">
                         <div id="searchResults" class="list-group position-absolute w-100" style="z-index: 1000; max-height: 300px; overflow-y: auto;"></div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label for="defaultQuantity">Default Quantity:</label>
                         <input type="number" id="defaultQuantity" class="form-control" value="21" min="1" max="100">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="columns">Columns per Row:</label>
+                        <select id="columns" name="columns" class="form-control">
+                            <option value="2">2 Columns</option>
+                            <option value="3" selected>3 Columns</option>
+                            <option value="4">4 Columns</option>
+                            <option value="5">5 Columns</option>
+                        </select>
                     </div>
                 </div>
 

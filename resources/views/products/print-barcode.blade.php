@@ -52,10 +52,25 @@
                 </div>
                 <div class="card-body">
                     <form method="GET" action="{{ route('products.barcode.print', $product->id) }}" id="printForm">
-                        <div class="form-group">
-                            <label for="quantity">Number of Barcodes:</label>
-                            <input type="number" id="quantity" name="quantity" class="form-control" value="21" min="1" max="100">
-                            <small class="text-muted">Enter the number of barcode labels to print (1-100)</small>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="quantity">Number of Barcodes:</label>
+                                    <input type="number" id="quantity" name="quantity" class="form-control" value="21" min="1" max="100">
+                                    <small class="text-muted">1-100 labels</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="columns">Columns per Row:</label>
+                                    <select id="columns" name="columns" class="form-control">
+                                        <option value="2">2 Columns</option>
+                                        <option value="3" selected>3 Columns</option>
+                                        <option value="4">4 Columns</option>
+                                        <option value="5">5 Columns</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                         <div class="mt-3">
                             <button type="submit" class="btn btn-primary">

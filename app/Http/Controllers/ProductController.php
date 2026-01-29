@@ -259,8 +259,10 @@ class ProductController extends Controller
         $product = Product::findOrFail($id);
         $quantity = (int) $request->get('quantity', 21);
         $quantity = max(1, min(100, $quantity)); // Clamp between 1 and 100
+        $columns = (int) $request->get('columns', 3);
+        $columns = max(2, min(5, $columns)); // Clamp between 2 and 5
 
-        $pdf = Pdf::loadView('products.barcode', compact('product', 'quantity'))
+        $pdf = Pdf::loadView('products.barcode', compact('product', 'quantity', 'columns'))
             ->setPaper('a4', 'portrait');
         return $pdf->download('barcode_' . $product->barcode . '.pdf');
     }
@@ -283,7 +285,11 @@ class ProductController extends Controller
             'products' => 'required|array|min:1',
             'products.*.id' => 'required|exists:products,id',
             'products.*.quantity' => 'required|integer|min:1|max:100',
+            'columns' => 'nullable|integer|min:2|max:5',
         ]);
+
+        $columns = (int) $request->get('columns', 3);
+        $columns = max(2, min(5, $columns)); // Clamp between 2 and 5
 
         $productsData = [];
         foreach ($request->products as $productInput) {
@@ -300,7 +306,7 @@ class ProductController extends Controller
             return redirect()->back()->with('error', 'No valid products selected for barcode printing.');
         }
 
-        $pdf = Pdf::loadView('products.bulk-barcode', compact('productsData'))
+        $pdf = Pdf::loadView('products.bulk-barcode', compact('productsData', 'columns'))
             ->setPaper('a4', 'portrait');
 
         return $pdf->download('barcodes_' . date('Y-m-d_H-i-s') . '.pdf');
