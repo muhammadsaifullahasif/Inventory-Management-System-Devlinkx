@@ -161,6 +161,16 @@ class ImportEbayListingsJob implements ShouldQueue
                     ],
                     [
                         'product_id' => $product->id,
+                        'meta_key' => 'regular_price',
+                        'meta_value' => $item['regular_price']['value'] ?? $item['price']['value'],
+                    ],
+                    [
+                        'product_id' => $product->id,
+                        'meta_key' => 'sale_price',
+                        'meta_value' => $item['sale_price']['value'] ?? '',
+                    ],
+                    [
+                        'product_id' => $product->id,
                         'meta_key' => 'weight',
                         'meta_value' => $item['dimensions']['weight'] ?? '',
                     ],
