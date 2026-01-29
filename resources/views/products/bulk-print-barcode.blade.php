@@ -99,9 +99,9 @@
                             <th style="width: 100px;">Action</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="quickAddProducts">
                         @foreach($products as $product)
-                            <tr>
+                            <tr id="quick-add-row-{{ $product->id }}">
                                 <td>{{ $product->name }}</td>
                                 <td>{{ $product->sku }}</td>
                                 <td>{{ $product->barcode }}</td>
@@ -221,6 +221,10 @@ document.addEventListener('DOMContentLoaded', function() {
             removeProduct(this.dataset.id);
         });
 
+        // Hide the product from Quick Add table
+        const quickAddRow = document.getElementById(`quick-add-row-${id}`);
+        if (quickAddRow) quickAddRow.style.display = 'none';
+
         updatePrintButton();
     }
 
@@ -228,6 +232,10 @@ document.addEventListener('DOMContentLoaded', function() {
         delete selectedProducts[id];
         const row = document.getElementById(`product-row-${id}`);
         if (row) row.remove();
+
+        // Show the product back in Quick Add table
+        const quickAddRow = document.getElementById(`quick-add-row-${id}`);
+        if (quickAddRow) quickAddRow.style.display = '';
 
         if (Object.keys(selectedProducts).length === 0) {
             const tbody = document.getElementById('selectedProducts');
@@ -245,6 +253,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Clear all button
     document.getElementById('clearAllBtn').addEventListener('click', function() {
+        // Show all products back in Quick Add table
+        Object.keys(selectedProducts).forEach(id => {
+            const quickAddRow = document.getElementById(`quick-add-row-${id}`);
+            if (quickAddRow) quickAddRow.style.display = '';
+        });
+
         selectedProducts = {};
         productCounter = 0;
         document.getElementById('selectedProducts').innerHTML =
