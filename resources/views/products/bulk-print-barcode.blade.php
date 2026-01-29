@@ -20,26 +20,25 @@
 @endsection
 
 @section('content')
-    <div class="card mb-3">
+    <div class="card">
         <div class="card-header">
-            <h3 class="card-title">Select Products and Quantities</h3>
+            <h3 class="card-title">Select Products to Print Barcodes</h3>
         </div>
         <div class="card-body">
             <form method="POST" action="{{ route('products.barcode.bulk-print') }}" id="bulkBarcodeForm">
                 @csrf
 
-                <!-- Search and Add Products -->
+                <!-- Controls Row -->
                 <div class="row mb-4">
-                    <div class="col-md-6">
-                        <label for="productSearch">Search Product:</label>
-                        <input type="text" id="productSearch" class="form-control" placeholder="Search by name, SKU, or barcode...">
-                        <div id="searchResults" class="list-group position-absolute w-100" style="z-index: 1000; max-height: 300px; overflow-y: auto;"></div>
+                    <div class="col-md-4">
+                        <label for="productSearch">Search/Filter:</label>
+                        <input type="text" id="productSearch" class="form-control" placeholder="Filter by name, SKU, or barcode...">
                     </div>
-                    <div class="col-md-3">
-                        <label for="defaultQuantity">Default Quantity:</label>
-                        <input type="number" id="defaultQuantity" class="form-control" value="1" min="1" max="100">
+                    <div class="col-md-2">
+                        <label for="defaultQuantity">Quantity per Product:</label>
+                        <input type="number" id="defaultQuantity" name="default_quantity" class="form-control" value="1" min="1" max="100">
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label for="columns">Columns per Row:</label>
                         <select id="columns" name="columns" class="form-control">
                             <option value="2">2 Columns</option>
@@ -48,77 +47,86 @@
                             <option value="5">5 Columns</option>
                         </select>
                     </div>
+                    <div class="col-md-2">
+                        <label for="perPage">Products per Page:</label>
+                        <select id="perPage" class="form-control">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <div class="btn-group w-100">
+                            <button type="button" class="btn btn-outline-secondary" id="selectAllBtn">Select All</button>
+                            <button type="button" class="btn btn-outline-secondary" id="deselectAllBtn">Deselect</button>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Selected Products Table -->
+                <!-- Products Table -->
                 <div class="table-responsive">
-                    <table class="table table-bordered" id="selectedProductsTable">
+                    <table class="table table-bordered table-hover" id="productsTable">
                         <thead class="thead-light">
                             <tr>
-                                <th style="width: 50px;">#</th>
+                                <th style="width: 50px;">
+                                    <input type="checkbox" id="selectPageCheckbox" title="Select all on this page">
+                                </th>
                                 <th>Product Name</th>
                                 <th>SKU</th>
                                 <th>Barcode</th>
-                                <th style="width: 150px;">Quantity</th>
-                                <th style="width: 80px;">Action</th>
+                                <th style="width: 120px;">Quantity</th>
                             </tr>
                         </thead>
-                        <tbody id="selectedProducts">
-                            <tr id="noProductsRow">
-                                <td colspan="6" class="text-center text-muted">No products selected. Search and add products above.</td>
-                            </tr>
+                        <tbody id="productsTableBody">
+                            @foreach($products as $product)
+                                <tr class="product-row"
+                                    data-id="{{ $product->id }}"
+                                    data-name="{{ strtolower($product->name) }}"
+                                    data-sku="{{ strtolower($product->sku) }}"
+                                    data-barcode="{{ strtolower($product->barcode) }}">
+                                    <td>
+                                        <input type="checkbox" class="product-checkbox"
+                                            name="products[{{ $product->id }}][id]"
+                                            value="{{ $product->id }}">
+                                    </td>
+                                    <td>{{ $product->name }}</td>
+                                    <td>{{ $product->sku }}</td>
+                                    <td>{{ $product->barcode }}</td>
+                                    <td>
+                                        <input type="number"
+                                            name="products[{{ $product->id }}][quantity]"
+                                            class="form-control form-control-sm quantity-input"
+                                            value="1" min="1" max="100" disabled>
+                                    </td>
+                                </tr>
+                            @endforeach
                         </tbody>
                     </table>
                 </div>
 
+                <!-- Pagination -->
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div id="paginationInfo" class="text-muted"></div>
+                        <div id="selectedCount" class="text-primary font-weight-bold mt-1"></div>
+                    </div>
+                    <div class="col-md-6">
+                        <nav>
+                            <ul class="pagination justify-content-end mb-0" id="pagination"></ul>
+                        </nav>
+                    </div>
+                </div>
+
                 <div class="mt-3">
                     <button type="submit" class="btn btn-primary" id="printBtn" disabled>
-                        <i class="fas fa-print"></i> Print Barcodes
+                        <i class="fas fa-print"></i> Print Selected Barcodes
                     </button>
-                    <button type="button" class="btn btn-secondary" id="clearAllBtn">
-                        <i class="fas fa-trash"></i> Clear All
-                    </button>
+                    <a href="{{ route('products.index') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Products
+                    </a>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <!-- Quick Add: All Products -->
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">Quick Add Products</h3>
-        </div>
-        <div class="card-body">
-            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                <table class="table table-sm table-hover">
-                    <thead class="thead-light" style="position: sticky; top: 0;">
-                        <tr>
-                            <th>Product Name</th>
-                            <th>SKU</th>
-                            <th>Barcode</th>
-                            <th style="width: 100px;">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="quickAddProducts">
-                        @foreach($products as $product)
-                            <tr id="quick-add-row-{{ $product->id }}">
-                                <td>{{ $product->name }}</td>
-                                <td>{{ $product->sku }}</td>
-                                <td>{{ $product->barcode }}</td>
-                                <td>
-                                    <button type="button" class="btn btn-sm btn-outline-primary add-product-btn"
-                                        data-id="{{ $product->id }}"
-                                        data-name="{{ $product->name }}"
-                                        data-sku="{{ $product->sku }}"
-                                        data-barcode="{{ $product->barcode }}">
-                                        <i class="fas fa-plus"></i> Add
-                                    </button>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
         </div>
     </div>
 @endsection
@@ -126,144 +134,218 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    let selectedProducts = {};
-    let productCounter = 0;
+    const allRows = Array.from(document.querySelectorAll('.product-row'));
+    let filteredRows = [...allRows];
+    let currentPage = 1;
+    let perPage = 25;
 
-    // Search functionality
     const searchInput = document.getElementById('productSearch');
-    const searchResults = document.getElementById('searchResults');
-    let searchTimeout;
+    const perPageSelect = document.getElementById('perPage');
+    const defaultQuantityInput = document.getElementById('defaultQuantity');
+    const selectPageCheckbox = document.getElementById('selectPageCheckbox');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const deselectAllBtn = document.getElementById('deselectAllBtn');
+    const printBtn = document.getElementById('printBtn');
 
+    // Initialize
+    updateDisplay();
+
+    // Search/Filter functionality
     searchInput.addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        const query = this.value.trim();
+        const query = this.value.trim().toLowerCase();
 
-        if (query.length < 2) {
-            searchResults.innerHTML = '';
-            return;
+        if (query.length === 0) {
+            filteredRows = [...allRows];
+        } else {
+            filteredRows = allRows.filter(row => {
+                const name = row.dataset.name || '';
+                const sku = row.dataset.sku || '';
+                const barcode = row.dataset.barcode || '';
+                return name.includes(query) || sku.includes(query) || barcode.includes(query);
+            });
         }
 
-        searchTimeout = setTimeout(() => {
-            fetch(`/products/search/${encodeURIComponent(query)}`)
-                .then(response => response.json())
-                .then(products => {
-                    searchResults.innerHTML = '';
-                    products.forEach(product => {
-                        const item = document.createElement('a');
-                        item.href = '#';
-                        item.className = 'list-group-item list-group-item-action';
-                        item.innerHTML = `<strong>${product.name}</strong> - SKU: ${product.sku} - Barcode: ${product.barcode || 'N/A'}`;
-                        item.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            addProduct(product.id, product.name, product.sku, product.barcode);
-                            searchInput.value = '';
-                            searchResults.innerHTML = '';
-                        });
-                        searchResults.appendChild(item);
-                    });
-                });
-        }, 300);
+        currentPage = 1;
+        updateDisplay();
     });
 
-    // Hide search results when clicking outside
-    document.addEventListener('click', function(e) {
-        if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
-            searchResults.innerHTML = '';
-        }
+    // Per page change
+    perPageSelect.addEventListener('change', function() {
+        perPage = parseInt(this.value);
+        currentPage = 1;
+        updateDisplay();
     });
 
-    // Add product buttons
-    document.querySelectorAll('.add-product-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const id = this.dataset.id;
-            const name = this.dataset.name;
-            const sku = this.dataset.sku;
-            const barcode = this.dataset.barcode;
-            addProduct(id, name, sku, barcode);
+    // Default quantity change - update all unchecked quantity inputs
+    defaultQuantityInput.addEventListener('change', function() {
+        const newQty = parseInt(this.value) || 1;
+        document.querySelectorAll('.quantity-input').forEach(input => {
+            const checkbox = input.closest('tr').querySelector('.product-checkbox');
+            if (!checkbox.checked) {
+                input.value = newQty;
+            }
         });
     });
 
-    function addProduct(id, name, sku, barcode) {
-        if (selectedProducts[id]) {
-            alert('Product already added!');
-            return;
+    // Select all on current page
+    selectPageCheckbox.addEventListener('change', function() {
+        const visibleRows = getVisibleRows();
+        visibleRows.forEach(row => {
+            const checkbox = row.querySelector('.product-checkbox');
+            const quantityInput = row.querySelector('.quantity-input');
+            checkbox.checked = this.checked;
+            quantityInput.disabled = !this.checked;
+            if (this.checked) {
+                quantityInput.value = defaultQuantityInput.value;
+            }
+        });
+        updateSelectedCount();
+    });
+
+    // Select all filtered products
+    selectAllBtn.addEventListener('click', function() {
+        filteredRows.forEach(row => {
+            const checkbox = row.querySelector('.product-checkbox');
+            const quantityInput = row.querySelector('.quantity-input');
+            checkbox.checked = true;
+            quantityInput.disabled = false;
+            quantityInput.value = defaultQuantityInput.value;
+        });
+        updateDisplay();
+    });
+
+    // Deselect all
+    deselectAllBtn.addEventListener('click', function() {
+        allRows.forEach(row => {
+            const checkbox = row.querySelector('.product-checkbox');
+            const quantityInput = row.querySelector('.quantity-input');
+            checkbox.checked = false;
+            quantityInput.disabled = true;
+        });
+        updateDisplay();
+    });
+
+    // Individual checkbox change
+    document.getElementById('productsTableBody').addEventListener('change', function(e) {
+        if (e.target.classList.contains('product-checkbox')) {
+            const row = e.target.closest('tr');
+            const quantityInput = row.querySelector('.quantity-input');
+            quantityInput.disabled = !e.target.checked;
+            if (e.target.checked) {
+                quantityInput.value = defaultQuantityInput.value;
+            }
+            updateSelectedCount();
+            updateSelectPageCheckbox();
+        }
+    });
+
+    function getVisibleRows() {
+        const start = (currentPage - 1) * perPage;
+        const end = start + perPage;
+        return filteredRows.slice(start, end);
+    }
+
+    function updateDisplay() {
+        // Hide all rows first
+        allRows.forEach(row => row.style.display = 'none');
+
+        // Show only filtered rows for current page
+        const visibleRows = getVisibleRows();
+        visibleRows.forEach(row => row.style.display = '');
+
+        updatePagination();
+        updatePaginationInfo();
+        updateSelectedCount();
+        updateSelectPageCheckbox();
+    }
+
+    function updatePagination() {
+        const totalPages = Math.ceil(filteredRows.length / perPage);
+        const pagination = document.getElementById('pagination');
+        pagination.innerHTML = '';
+
+        if (totalPages <= 1) return;
+
+        // Previous button
+        const prevLi = document.createElement('li');
+        prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+        prevLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage - 1}">&laquo;</a>`;
+        pagination.appendChild(prevLi);
+
+        // Page numbers
+        let startPage = Math.max(1, currentPage - 2);
+        let endPage = Math.min(totalPages, startPage + 4);
+        if (endPage - startPage < 4) {
+            startPage = Math.max(1, endPage - 4);
         }
 
-        const defaultQty = document.getElementById('defaultQuantity').value || 20;
-        selectedProducts[id] = { name, sku, barcode, quantity: defaultQty };
-        productCounter++;
-
-        const noProductsRow = document.getElementById('noProductsRow');
-        if (noProductsRow) noProductsRow.remove();
-
-        const tbody = document.getElementById('selectedProducts');
-        const row = document.createElement('tr');
-        row.id = `product-row-${id}`;
-        row.innerHTML = `
-            <td>${productCounter}</td>
-            <td>${name}</td>
-            <td>${sku}</td>
-            <td>${barcode || 'N/A'}</td>
-            <td>
-                <input type="hidden" name="products[${id}][id]" value="${id}">
-                <input type="number" name="products[${id}][quantity]" class="form-control form-control-sm" value="${defaultQty}" min="1" max="100">
-            </td>
-            <td>
-                <button type="button" class="btn btn-sm btn-danger remove-product-btn" data-id="${id}">
-                    <i class="fas fa-times"></i>
-                </button>
-            </td>
-        `;
-        tbody.appendChild(row);
-
-        // Add remove event listener
-        row.querySelector('.remove-product-btn').addEventListener('click', function() {
-            removeProduct(this.dataset.id);
-        });
-
-        // Hide the product from Quick Add table
-        const quickAddRow = document.getElementById(`quick-add-row-${id}`);
-        if (quickAddRow) quickAddRow.style.display = 'none';
-
-        updatePrintButton();
-    }
-
-    function removeProduct(id) {
-        delete selectedProducts[id];
-        const row = document.getElementById(`product-row-${id}`);
-        if (row) row.remove();
-
-        // Show the product back in Quick Add table
-        const quickAddRow = document.getElementById(`quick-add-row-${id}`);
-        if (quickAddRow) quickAddRow.style.display = '';
-
-        if (Object.keys(selectedProducts).length === 0) {
-            const tbody = document.getElementById('selectedProducts');
-            tbody.innerHTML = '<tr id="noProductsRow"><td colspan="6" class="text-center text-muted">No products selected. Search and add products above.</td></tr>';
-            productCounter = 0;
+        for (let i = startPage; i <= endPage; i++) {
+            const li = document.createElement('li');
+            li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+            li.innerHTML = `<a class="page-link" href="#" data-page="${i}">${i}</a>`;
+            pagination.appendChild(li);
         }
 
-        updatePrintButton();
-    }
+        // Next button
+        const nextLi = document.createElement('li');
+        nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+        nextLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage + 1}">&raquo;</a>`;
+        pagination.appendChild(nextLi);
 
-    function updatePrintButton() {
-        const printBtn = document.getElementById('printBtn');
-        printBtn.disabled = Object.keys(selectedProducts).length === 0;
-    }
-
-    // Clear all button
-    document.getElementById('clearAllBtn').addEventListener('click', function() {
-        // Show all products back in Quick Add table
-        Object.keys(selectedProducts).forEach(id => {
-            const quickAddRow = document.getElementById(`quick-add-row-${id}`);
-            if (quickAddRow) quickAddRow.style.display = '';
+        // Add click handlers
+        pagination.querySelectorAll('.page-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const page = parseInt(this.dataset.page);
+                if (page >= 1 && page <= totalPages) {
+                    currentPage = page;
+                    updateDisplay();
+                }
+            });
         });
+    }
 
-        selectedProducts = {};
-        productCounter = 0;
-        document.getElementById('selectedProducts').innerHTML =
-            '<tr id="noProductsRow"><td colspan="6" class="text-center text-muted">No products selected. Search and add products above.</td></tr>';
-        updatePrintButton();
+    function updatePaginationInfo() {
+        const start = filteredRows.length > 0 ? (currentPage - 1) * perPage + 1 : 0;
+        const end = Math.min(currentPage * perPage, filteredRows.length);
+        const total = filteredRows.length;
+        const allTotal = allRows.length;
+
+        let info = `Showing ${start} to ${end} of ${total} products`;
+        if (total !== allTotal) {
+            info += ` (filtered from ${allTotal} total)`;
+        }
+        document.getElementById('paginationInfo').textContent = info;
+    }
+
+    function updateSelectedCount() {
+        const selectedCheckboxes = document.querySelectorAll('.product-checkbox:checked');
+        const count = selectedCheckboxes.length;
+
+        document.getElementById('selectedCount').textContent =
+            count > 0 ? `${count} product(s) selected for printing` : 'No products selected';
+
+        printBtn.disabled = count === 0;
+    }
+
+    function updateSelectPageCheckbox() {
+        const visibleRows = getVisibleRows();
+        const visibleCheckboxes = visibleRows.map(row => row.querySelector('.product-checkbox'));
+        const checkedCount = visibleCheckboxes.filter(cb => cb.checked).length;
+
+        selectPageCheckbox.checked = visibleCheckboxes.length > 0 && checkedCount === visibleCheckboxes.length;
+        selectPageCheckbox.indeterminate = checkedCount > 0 && checkedCount < visibleCheckboxes.length;
+    }
+
+    // Form submission - remove unchecked products from form data
+    document.getElementById('bulkBarcodeForm').addEventListener('submit', function(e) {
+        const uncheckedRows = document.querySelectorAll('.product-checkbox:not(:checked)');
+        uncheckedRows.forEach(checkbox => {
+            const row = checkbox.closest('tr');
+            const quantityInput = row.querySelector('.quantity-input');
+            checkbox.removeAttribute('name');
+            quantityInput.removeAttribute('name');
+        });
     });
 });
 </script>
