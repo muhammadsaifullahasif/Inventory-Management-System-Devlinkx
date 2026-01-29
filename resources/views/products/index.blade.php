@@ -71,7 +71,7 @@
                             {{-- {{ implode(', ', $product->sales_channels->name) }} --}}
                             @foreach ($product->sales_channels as $sales_channel)
                                 {{-- {{ $sales_channel['name'] }} --}}
-                                <a href="{{ $product->pivot->listing_url }}" target="_blank">{{ $sales_channel['name'] }}</a>
+                                <a href="{{ $sales_channel->pivot->listing_url }}" target="_blank">{{ $sales_channel['name'] }}</a>
                             @endforeach
                         </td>
                         <td>{{ \Carbon\Carbon::parse($product->created_at)->format('d M, Y') }}</td>
