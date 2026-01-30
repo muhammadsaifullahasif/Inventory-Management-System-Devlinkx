@@ -64,7 +64,8 @@ class SalesChannelController extends Controller
 
             session(['sales_channel_id' => $sales_channel->id]);
 
-            return redirect(env('EBAY_AUTH_URL') . '?client_id=' . $sales_channel->client_id . '&response_type=code' . '&redirect_uri=' . $sales_channel->ru_name . '&scope=' . urlencode($sales_channel->user_scopes));
+            // return redirect(env('EBAY_AUTH_URL') . '?client_id=' . $sales_channel->client_id . '&response_type=code' . '&redirect_uri=' . $sales_channel->ru_name . '&scope=' . urlencode($sales_channel->user_scopes));
+            return redirect(env('EBAY_AUTH_URL') . '?client_id=' . $sales_channel->client_id . '&response_type=code' . '&redirect_uri=' . $sales_channel->ru_name . '&scope=' . $sales_channel->user_scopes);
 
             // return redirect()->route('sales-channels.index')->with('success', 'Sales Channel created successfully.');
         } catch (\Exception $e) {
