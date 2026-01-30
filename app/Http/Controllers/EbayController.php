@@ -1597,10 +1597,24 @@ class EbayController extends Controller
      */
     public function handleEbayOrderWebhook(Request $request, string $id)
     {
+        // Log EVERY incoming webhook request at the very beginning for debugging
+        Log::channel('ebay')->info('>>>>>> WEBHOOK REQUEST RECEIVED <<<<<<', [
+            'timestamp' => now()->toIso8601String(),
+            'sales_channel_id' => $id,
+            'method' => $request->method(),
+            'content_type' => $request->header('Content-Type'),
+            'content_length' => $request->header('Content-Length'),
+            'user_agent' => $request->userAgent(),
+            'ip' => $request->ip(),
+            'all_headers' => $request->headers->all(),
+            'query_params' => $request->query(),
+            'raw_content_preview' => substr($request->getContent(), 0, 1000),
+        ]);
+
         $salesChannel = SalesChannel::find($id);
 
         if (!$salesChannel) {
-            Log::error('eBay Webhook: Sales channel not found', ['id' => $id]);
+            Log::channel('ebay')->error('eBay Webhook: Sales channel not found', ['id' => $id]);
             return response()->json(['error' => 'Sales channel not found'], 404);
         }
 

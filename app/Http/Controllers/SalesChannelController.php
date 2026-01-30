@@ -151,6 +151,102 @@ class SalesChannelController extends Controller
     }
 
     /**
+     * Check current notification preferences from eBay
+     * Shows which events are actually subscribed on eBay
+     */
+    public function checkNotificationStatus(string $id)
+    {
+        try {
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            // Get notification preferences from eBay
+            $result = $this->notificationService->getNotificationPreferences($salesChannel);
+
+            $preferences = $result['preferences'] ?? [];
+            $enabledEvents = $preferences['enabled_events'] ?? [];
+            $applicationPrefs = $preferences['application_delivery_preferences'] ?? [];
+
+            // Get the webhook URL
+            $webhookUrl = $this->notificationService->getWebhookUrl($salesChannel);
+
+            return response()->json([
+                'success' => true,
+                'sales_channel' => [
+                    'id' => $salesChannel->id,
+                    'name' => $salesChannel->name,
+                ],
+                'webhook_url' => $webhookUrl,
+                'application_settings' => $applicationPrefs,
+                'enabled_events_count' => count($enabledEvents),
+                'enabled_events' => $enabledEvents,
+                'all_preferences' => $preferences['user_delivery_preferences'] ?? [],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to check eBay notification status', [
+                'sales_channel_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Manually re-subscribe to eBay notifications
+     */
+    public function resubscribeNotifications(string $id)
+    {
+        try {
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            // Re-subscribe to all events
+            $result = $this->notificationService->subscribeToAllEvents($salesChannel);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Successfully re-subscribed to ' . count($result['events']) . ' notification events',
+                'webhook_url' => $result['webhook_url'],
+                'events' => $result['events'],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to re-subscribe to eBay notifications', [
+                'sales_channel_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Disable eBay notifications
+     */
+    public function disableNotifications(string $id)
+    {
+        try {
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            $result = $this->notificationService->disablePlatformNotifications($salesChannel);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Notifications disabled successfully',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Display the specified resource.
      */
     public function show(string $id)

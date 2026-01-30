@@ -139,6 +139,11 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('/sales-channels', SalesChannelController::class);
     Route::get('/ebay/callback', [SalesChannelController::class, 'ebay_callback'])->name('ebay.callback');
 
+    // eBay Notification Management
+    Route::get('/ebay/notifications/status/{id}', [SalesChannelController::class, 'checkNotificationStatus'])->name('ebay.notifications.status');
+    Route::post('/ebay/notifications/resubscribe/{id}', [SalesChannelController::class, 'resubscribeNotifications'])->name('ebay.notifications.resubscribe');
+    Route::post('/ebay/notifications/disable/{id}', [SalesChannelController::class, 'disableNotifications'])->name('ebay.notifications.disable');
+
     // eBay Seller Listings (Trading API - GetSellerList)
     Route::get('/ebay/listings-all/active/{id}', [EbayController::class, 'getAllActiveListings'])->name('ebay.listings-all.active');
 
