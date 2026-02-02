@@ -1328,29 +1328,28 @@ class EbayController extends Controller
      */
     private function parseOrder($order): array
     {
-        // Parse buyer info
-        $buyer = [
-            'username' => (string) ($order->BuyerUserID ?? ''),
-            'email' => (string) ($order->TransactionArray->Transaction[0]->Buyer->Email ?? ''),
-        ];
+        // Get first transaction to extract buyer details
+        $firstTransaction = $order->TransactionArray->Transaction[0] ?? null;
+        $buyerNode = $firstTransaction->Buyer ?? null;
 
-        // Parse shipping address
+        // Parse buyer shipping address
         $shippingAddress = [];
         if (isset($order->ShippingAddress)) {
             $addr = $order->ShippingAddress;
             $shippingAddress = [
                 'name' => (string) ($addr->Name ?? ''),
-                'street1' => (string) ($addr->Street1 ?? ''),
-                'street2' => (string) ($addr->Street2 ?? ''),
-                'city' => (string) ($addr->CityName ?? ''),
-                'state' => (string) ($addr->StateOrProvince ?? ''),
-                'postal_code' => (string) ($addr->PostalCode ?? ''),
+                'street_1' => (string) ($addr->Street1 ?? ''),
+                'street_2' => (string) ($addr->Street2 ?? ''),
+                'city_name' => (string) ($addr->CityName ?? ''),
+                'state_or_province' => (string) ($addr->StateOrProvince ?? ''),
                 'country' => (string) ($addr->Country ?? ''),
+                'country_name' => (string) ($addr->CountryName ?? ''),
                 'phone' => (string) ($addr->Phone ?? ''),
+                'postal_code' => (string) ($addr->PostalCode ?? ''),
             ];
         }
 
-        // Parse line items
+        // Parse line items with all details
         $lineItems = [];
         if (isset($order->TransactionArray->Transaction)) {
             foreach ($order->TransactionArray->Transaction as $transaction) {
@@ -1358,12 +1357,48 @@ class EbayController extends Controller
                 $lineItems[] = [
                     'item_id' => (string) ($item->ItemID ?? ''),
                     'transaction_id' => (string) ($transaction->TransactionID ?? ''),
-                    'line_item_id' => (string) ($transaction->OrderLineItemID ?? ''),
+                    'order_line_item_id' => (string) ($transaction->OrderLineItemID ?? ''),
                     'sku' => (string) ($item->SKU ?? $transaction->Variation->SKU ?? ''),
                     'title' => (string) ($item->Title ?? ''),
-                    'quantity' => (int) ($transaction->QuantityPurchased ?? 1),
-                    'unit_price' => (float) ($transaction->TransactionPrice ?? 0),
+                    'quantity_purchased' => (int) ($transaction->QuantityPurchased ?? 1),
+                    'transaction_price' => (float) ($transaction->TransactionPrice ?? 0),
+                    'transaction_price_currency' => (string) ($transaction->TransactionPrice['currencyID'] ?? 'USD'),
+                    'amount_paid' => (float) ($transaction->AmountPaid ?? 0),
+                    'actual_shipping_cost' => (float) ($transaction->ActualShippingCost ?? 0),
+                    'actual_handling_cost' => (float) ($transaction->ActualHandlingCost ?? 0),
+                    'final_value_fee' => (float) ($transaction->FinalValueFee ?? 0),
+                    'listing_type' => (string) ($item->ListingType ?? ''),
+                    'condition_id' => (string) ($item->ConditionID ?? ''),
+                    'condition_display_name' => (string) ($item->ConditionDisplayName ?? ''),
+                    'site' => (string) ($item->Site ?? ''),
                     'variation_attributes' => $this->parseVariationAttributes($transaction),
+                    'shipping_service' => (string) ($transaction->ShippingServiceSelected->ShippingService ?? ''),
+                    'shipping_cost' => (float) ($transaction->ShippingServiceSelected->ShippingServiceCost ?? 0),
+                    'created_date' => (string) ($transaction->CreatedDate ?? ''),
+                    'paid_time' => (string) ($transaction->PaidTime ?? ''),
+                    'buyer_checkout_message' => (string) ($transaction->BuyerCheckoutMessage ?? ''),
+                ];
+            }
+        }
+
+        // Parse taxes (eBay collected and remit taxes)
+        $taxes = [];
+        if (isset($firstTransaction->eBayCollectAndRemitTaxes)) {
+            $taxNode = $firstTransaction->eBayCollectAndRemitTaxes;
+            $taxes = [
+                'total_tax_amount' => (float) ($taxNode->TotalTaxAmount ?? 0),
+                'tax_amount_currency' => (string) ($taxNode->TotalTaxAmount['currencyID'] ?? 'USD'),
+            ];
+
+            if (isset($taxNode->TaxDetails)) {
+                $taxes['tax_details'] = [
+                    'imposition' => (string) ($taxNode->TaxDetails->Imposition ?? ''),
+                    'tax_description' => (string) ($taxNode->TaxDetails->TaxDescription ?? ''),
+                    'tax_amount' => (float) ($taxNode->TaxDetails->TaxAmount ?? 0),
+                    'tax_on_subtotal' => (float) ($taxNode->TaxDetails->TaxOnSubtotalAmount ?? 0),
+                    'tax_on_shipping' => (float) ($taxNode->TaxDetails->TaxOnShippingAmount ?? 0),
+                    'tax_on_handling' => (float) ($taxNode->TaxDetails->TaxOnHandlingAmount ?? 0),
+                    'collection_method' => (string) ($taxNode->TaxDetails->CollectionMethod ?? ''),
                 ];
             }
         }
@@ -1372,23 +1407,42 @@ class EbayController extends Controller
         $subtotal = (float) ($order->Subtotal ?? 0);
         $shippingCost = (float) ($order->ShippingServiceSelected->ShippingServiceCost ?? 0);
         $total = (float) ($order->Total ?? 0);
+        $currency = (string) ($order->Total['currencyID'] ?? 'USD');
 
         return [
             'order_id' => (string) ($order->OrderID ?? ''),
+            'extended_order_id' => (string) ($order->ExtendedOrderID ?? $order->OrderID ?? ''),
             'order_status' => (string) ($order->OrderStatus ?? ''),
             'payment_status' => (string) ($order->CheckoutStatus->eBayPaymentStatus ?? ''),
             'checkout_status' => (string) ($order->CheckoutStatus->Status ?? ''),
-            'buyer' => $buyer,
-            'shipping_address' => $shippingAddress,
+            'cancel_status' => (string) ($order->CancelStatus ?? ''),
+
+            // Buyer information
+            'buyer_email' => (string) ($buyerNode->Email ?? ''),
+            'buyer_user_id' => (string) ($buyerNode->UserID ?? $order->BuyerUserID ?? ''),
+            'buyer_first_name' => (string) ($buyerNode->UserFirstName ?? ''),
+            'buyer_last_name' => (string) ($buyerNode->UserLastName ?? ''),
+            'buyer_shipping_address' => $shippingAddress,
+
+            // Order amounts
+            'currency' => $currency,
+            'order_subtotal' => $subtotal,
+            'order_shipping_cost' => $shippingCost,
+            'order_total' => $total,
+            'order_taxes' => $taxes,
+
+            // Line items
             'line_items' => $lineItems,
-            'subtotal' => $subtotal,
-            'shipping_cost' => $shippingCost,
-            'total' => $total,
-            'currency' => (string) ($order->Total['currencyID'] ?? 'USD'),
+            'line_item_count' => count($lineItems),
+
+            // Timestamps
             'created_time' => (string) ($order->CreatedTime ?? ''),
             'paid_time' => (string) ($order->PaidTime ?? ''),
             'shipped_time' => (string) ($order->ShippedTime ?? ''),
-            'raw_data' => json_decode(json_encode($order), true),
+
+            // Shipping details
+            'shipping_service' => (string) ($order->ShippingServiceSelected->ShippingService ?? ''),
+            'is_multi_leg_shipping' => (string) ($order->IsMultiLegShipping ?? 'false') === 'true',
         ];
     }
 
@@ -1542,53 +1596,52 @@ class EbayController extends Controller
         ], $status);
     }
 
-    public function getEbayOrders(string $id)
+    public function getEbayOrders(Request $request, string $id)
     {
-        $salesChannel = $this->getSalesChannelWithValidToken($id);
+        try {
+            $salesChannel = $this->getSalesChannelWithValidToken($id);
 
-        $createTimeFrom = gmdate('Y-m-d\TH:i:s\Z', strtotime('-30 days'));
-        $createTimeTo = gmdate('Y-m-d\TH:i:s\Z');
+            $daysBack = $request->input('days', 30);
+            $createTimeFrom = gmdate('Y-m-d\TH:i:s\Z', strtotime("-{$daysBack} days"));
+            $createTimeTo = gmdate('Y-m-d\TH:i:s\Z');
 
-        $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
-                <GetOrdersRequest xmlns="urn:ebay:apis:eBLBaseComponents">
-                    <ErrorLanguage>en_US</ErrorLanguage>
-                    <WarningLevel>High</WarningLevel>
-                    <DetailLevel>ReturnAll</DetailLevel>
-                    <CreateTimeFrom>' . $createTimeFrom . '</CreateTimeFrom>
-                    <CreateTimeTo>' . $createTimeTo . '</CreateTimeTo>
-                    <OrderRole>Seller</OrderRole>
-                    <OrderStatus>All</OrderStatus>
-                    <Pagination>
-                        <EntriesPerPage>100</EntriesPerPage>
-                        <PageNumber>1</PageNumber>
-                    </Pagination>
-                </GetOrdersRequest>';
+            $page = (int) $request->input('page', 1);
+            $perPage = (int) $request->input('per_page', 100);
 
-        // $response = $this->callTradingApi($salesChannel, 'GetOrders', $xmlRequest);
+            $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
+                    <GetOrdersRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                        <ErrorLanguage>en_US</ErrorLanguage>
+                        <WarningLevel>High</WarningLevel>
+                        <DetailLevel>ReturnAll</DetailLevel>
+                        <CreateTimeFrom>' . $createTimeFrom . '</CreateTimeFrom>
+                        <CreateTimeTo>' . $createTimeTo . '</CreateTimeTo>
+                        <OrderRole>Seller</OrderRole>
+                        <OrderStatus>All</OrderStatus>
+                        <Pagination>
+                            <EntriesPerPage>' . $perPage . '</EntriesPerPage>
+                            <PageNumber>' . $page . '</PageNumber>
+                        </Pagination>
+                    </GetOrdersRequest>';
 
-        $response = Http::timeout(300) // Increased to 5 minutes
-            ->connectTimeout(60) // Increased to 60 seconds
-            ->withHeaders([
-                'X-EBAY-API-SITEID' => self::API_SITE_ID,
-                'X-EBAY-API-COMPATIBILITY-LEVEL' => self::API_COMPATIBILITY_LEVEL,
-                'X-EBAY-API-CALL-NAME' => 'GetOrders',
-                'X-EBAY-API-IAF-TOKEN' => $salesChannel->access_token,
-                'Content-Type' => 'text/xml',
-            ])
-            ->withBody($xmlRequest, 'text/xml')
-            ->post(self::EBAY_API_URL);
+            $response = $this->callTradingApi($salesChannel, 'GetOrders', $xmlRequest);
+            $result = $this->parseOrdersResponse($response);
 
-        if ($response->failed()) {
-            Log::error("eBay {$callName} Failed", [
-                'status' => $response->status(),
+            return response()->json([
+                'success' => true,
                 'sales_channel_id' => $salesChannel->id,
+                'sales_channel_name' => $salesChannel->name,
+                'fetched_at' => now()->toIso8601String(),
+                'date_range' => [
+                    'from' => $createTimeFrom,
+                    'to' => $createTimeTo,
+                    'days_back' => $daysBack,
+                ],
+                'data' => $result,
             ]);
-            throw new Exception("eBay GetOrders failed: " . $response->body());
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
         }
-
-        $data = $response->body();
-
-        return $data;
     }
 
     /**
