@@ -1597,19 +1597,15 @@ class EbayController extends Controller
      */
     public function handleEbayOrderWebhook(Request $request, string $id)
     {
-        // Log EVERY incoming webhook request at the very beginning for debugging
-        Log::channel('ebay')->info('>>>>>> WEBHOOK REQUEST RECEIVED <<<<<<', [
+        // Log incoming webhook request
+        Log::channel('ebay')->info('>>>>>> WEBHOOK REQUEST RECEIVED <<<<<<');
+        Log::channel('ebay')->info(json_encode([
             'timestamp' => now()->toIso8601String(),
             'sales_channel_id' => $id,
             'method' => $request->method(),
             'content_type' => $request->header('Content-Type'),
-            'content_length' => $request->header('Content-Length'),
-            'user_agent' => $request->userAgent(),
             'ip' => $request->ip(),
-            'all_headers' => $request->headers->all(),
-            'query_params' => $request->query(),
-            'raw_content_preview' => substr($request->getContent(), 0, 1000),
-        ]);
+        ], JSON_PRETTY_PRINT));
 
         $salesChannel = SalesChannel::find($id);
 
@@ -1655,58 +1651,31 @@ class EbayController extends Controller
 
     /**
      * Handle Commerce Notification API notifications (JSON)
-     * Logs ALL notifications to the ebay log channel for analysis
+     * Logs ALL notifications to individual JSON files with timestamps
      */
     protected function handleCommerceApiNotification(Request $request, SalesChannel $salesChannel)
     {
         $payload = $request->all();
-        $timestamp = now()->toIso8601String();
+        $timestamp = now();
         $topic = $payload['metadata']['topic'] ?? 'unknown';
 
-        Log::channel('ebay')->info('========== eBay Commerce API Notification Received ==========', [
-            'timestamp' => $timestamp,
+        // Prepare the notification data
+        $notificationData = [
+            'timestamp' => $timestamp->toIso8601String(),
+            'notification_type' => $topic,
             'sales_channel_id' => $salesChannel->id,
             'sales_channel_name' => $salesChannel->name,
-            'topic' => $topic,
-        ]);
+            'data' => $payload,
+        ];
 
-        // Log the complete payload
-        Log::channel('ebay')->debug('Commerce API Payload', [
-            'timestamp' => $timestamp,
-            'topic' => $topic,
-            'payload' => $payload,
-        ]);
+        // Save to individual JSON file with timestamp
+        $this->saveNotificationToFile($topic, $notificationData, $timestamp);
 
-        // Verify signature if present
-        $signature = $request->header('X-EBAY-SIGNATURE');
-        if ($signature) {
-            Log::channel('ebay')->debug('eBay notification signature present', [
-                'timestamp' => $timestamp,
-                'signature' => $signature,
-            ]);
-        }
-
-        // Log notification metadata
-        if (isset($payload['metadata'])) {
-            Log::channel('ebay')->info('Notification Metadata', [
-                'timestamp' => $timestamp,
-                'topic' => $topic,
-                'metadata' => $payload['metadata'],
-            ]);
-        }
-
-        // Log notification data/content
-        if (isset($payload['notification'])) {
-            Log::channel('ebay')->info('Notification Content', [
-                'timestamp' => $timestamp,
-                'topic' => $topic,
-                'notification' => $payload['notification'],
-            ]);
-        }
-
-        Log::channel('ebay')->info('========== End of Commerce API Notification ==========', [
-            'timestamp' => $timestamp,
-            'topic' => $topic,
+        // Also log to the main ebay log channel for quick reference
+        Log::channel('ebay')->info("Commerce API Notification received: {$topic}", [
+            'timestamp' => $timestamp->toIso8601String(),
+            'sales_channel_id' => $salesChannel->id,
+            'file' => $this->getNotificationFileName($topic, $timestamp),
         ]);
 
         return response()->json(['success' => true]);
@@ -1714,33 +1683,19 @@ class EbayController extends Controller
 
     /**
      * Handle Platform Notifications (XML from Trading API)
-     * Logs ALL notification types to the ebay log channel for analysis
+     * Logs ALL notification types to individual JSON files with timestamps
      */
     protected function handlePlatformNotification(Request $request, SalesChannel $salesChannel)
     {
         $rawContent = $request->getContent();
-        $timestamp = now()->toIso8601String();
-
-        // Log the raw content first
-        Log::channel('ebay')->info('========== eBay Platform Notification Received ==========', [
-            'timestamp' => $timestamp,
-            'sales_channel_id' => $salesChannel->id,
-            'sales_channel_name' => $salesChannel->name,
-            'content_length' => strlen($rawContent),
-        ]);
-
-        // Log raw XML for complete reference
-        Log::channel('ebay')->debug('Raw XML Content', [
-            'timestamp' => $timestamp,
-            'raw_xml' => $rawContent,
-        ]);
+        $timestamp = now();
 
         try {
             $xml = simplexml_load_string($rawContent);
 
             if ($xml === false) {
                 Log::channel('ebay')->error('eBay Platform Notification: Invalid XML', [
-                    'timestamp' => $timestamp,
+                    'timestamp' => $timestamp->toIso8601String(),
                     'sales_channel_id' => $salesChannel->id,
                     'raw_content' => $rawContent,
                 ]);
@@ -1758,44 +1713,128 @@ class EbayController extends Controller
                 }
             }
 
-            // Convert XML to array for comprehensive logging
-            $jsonData = json_encode($xml, JSON_PRETTY_PRINT);
-            $arrayData = json_decode($jsonData, true);
+            // Convert XML to JSON/Array for logging
+            $jsonData = $this->xmlToJson($xml);
 
-            // Log parsed notification details
-            Log::channel('ebay')->info("eBay Notification: {$notificationType}", [
-                'timestamp' => $timestamp,
+            // Prepare the notification data
+            $notificationData = [
+                'timestamp' => $timestamp->toIso8601String(),
                 'notification_type' => $notificationType,
                 'sales_channel_id' => $salesChannel->id,
                 'sales_channel_name' => $salesChannel->name,
-            ]);
+                'data' => $jsonData,
+            ];
 
-            // Log the complete parsed data
-            Log::channel('ebay')->debug("Parsed Data for {$notificationType}", [
-                'timestamp' => $timestamp,
-                'notification_type' => $notificationType,
-                'parsed_data' => $arrayData,
-            ]);
+            // Save to individual JSON file with timestamp
+            $this->saveNotificationToFile($notificationType, $notificationData, $timestamp);
 
-            // Extract and log key information based on notification type category
-            $this->logNotificationDetails($notificationType, $xml, $salesChannel, $timestamp);
-
-            Log::channel('ebay')->info('========== End of Notification ==========', [
-                'timestamp' => $timestamp,
-                'notification_type' => $notificationType,
+            // Also log to the main ebay log channel for quick reference
+            Log::channel('ebay')->info("Notification received: {$notificationType}", [
+                'timestamp' => $timestamp->toIso8601String(),
+                'sales_channel_id' => $salesChannel->id,
+                'file' => $this->getNotificationFileName($notificationType, $timestamp),
             ]);
 
             return response('OK', 200);
         } catch (Exception $e) {
             Log::channel('ebay')->error('eBay Platform Notification processing error', [
-                'timestamp' => $timestamp,
+                'timestamp' => $timestamp->toIso8601String(),
                 'sales_channel_id' => $salesChannel->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
 
             return response('Error', 500);
         }
+    }
+
+    /**
+     * Save notification to individual JSON file
+     */
+    protected function saveNotificationToFile(string $notificationType, array $data, $timestamp): void
+    {
+        $directory = storage_path('logs/ebay/notifications/' . $timestamp->format('Y-m-d'));
+
+        // Create directory if it doesn't exist
+        if (!file_exists($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $filename = $this->getNotificationFileName($notificationType, $timestamp);
+        $filepath = $directory . '/' . $filename;
+
+        // Save as formatted JSON
+        file_put_contents($filepath, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * Generate notification filename with timestamp
+     */
+    protected function getNotificationFileName(string $notificationType, $timestamp): string
+    {
+        return $timestamp->format('H-i-s') . '_' . $notificationType . '.json';
+    }
+
+    /**
+     * Convert XML to a clean JSON array
+     * Handles attributes, namespaces, and nested elements properly
+     */
+    protected function xmlToJson($xml): array
+    {
+        // Remove namespaces for cleaner output
+        $xmlString = $xml->asXML();
+        $xmlString = preg_replace('/xmlns[^=]*="[^"]*"/i', '', $xmlString);
+        $xmlString = preg_replace('/\s+/', ' ', $xmlString);
+
+        $cleanXml = simplexml_load_string($xmlString);
+
+        return $this->xmlNodeToArray($cleanXml);
+    }
+
+    /**
+     * Recursively convert XML node to array
+     */
+    protected function xmlNodeToArray($node): array|string
+    {
+        $result = [];
+
+        // Get attributes
+        foreach ($node->attributes() as $attrName => $attrValue) {
+            $result['@' . $attrName] = (string) $attrValue;
+        }
+
+        // Get child elements
+        $children = $node->children();
+
+        if ($children->count() === 0) {
+            // No children - return the text content
+            $text = trim((string) $node);
+            if (!empty($result)) {
+                // Has attributes, add text as @value
+                if (!empty($text)) {
+                    $result['@value'] = $text;
+                }
+                return $result;
+            }
+            return $text;
+        }
+
+        // Process children
+        $childArray = [];
+        foreach ($children as $childName => $childNode) {
+            $childValue = $this->xmlNodeToArray($childNode);
+
+            // Handle multiple elements with same name (convert to array)
+            if (isset($childArray[$childName])) {
+                if (!is_array($childArray[$childName]) || !isset($childArray[$childName][0])) {
+                    $childArray[$childName] = [$childArray[$childName]];
+                }
+                $childArray[$childName][] = $childValue;
+            } else {
+                $childArray[$childName] = $childValue;
+            }
+        }
+
+        return array_merge($result, $childArray);
     }
 
     /**
