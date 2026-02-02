@@ -128,7 +128,7 @@
                                         {{ $order->order_number }}
                                     </a>
                                     @if($order->ebay_order_id)
-                                        <br><small class="text-muted">eBay: {{ Str::limit($order->ebay_order_id, 20) }}</small>
+                                        <br><small class="text-muted">eBay: {{ \Illuminate\Support\Str::limit($order->ebay_order_id, 20) }}</small>
                                     @endif
                                 </td>
                                 <td>
