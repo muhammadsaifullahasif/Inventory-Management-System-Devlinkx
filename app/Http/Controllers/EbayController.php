@@ -1693,38 +1693,53 @@ class EbayController extends Controller
         try {
             // Clean and parse the XML (handle SOAP namespaces)
             $cleanedXml = $this->cleanSoapXml($rawContent);
-            $xml = simplexml_load_string($cleanedXml);
 
-            if ($xml === false) {
-                Log::channel('ebay')->error('eBay Platform Notification: Invalid XML', [
+            // Suppress XML parsing errors and handle them manually
+            libxml_use_internal_errors(true);
+            $xml = simplexml_load_string($cleanedXml);
+            $xmlErrors = libxml_get_errors();
+            libxml_clear_errors();
+            libxml_use_internal_errors(false);
+
+            if ($xml === false || !empty($xmlErrors)) {
+                // XML parsing failed - save raw content as fallback
+                Log::channel('ebay')->warning('eBay Platform Notification: XML parsing issues, saving raw content', [
                     'timestamp' => $timestamp->toIso8601String(),
                     'sales_channel_id' => $salesChannel->id,
-                    'raw_content' => $rawContent,
+                    'errors' => array_map(fn($e) => $e->message, $xmlErrors),
                 ]);
-                return response('Invalid XML', 400);
+
+                // Save raw notification with error info
+                $notificationData = [
+                    'timestamp' => $timestamp->toIso8601String(),
+                    'notification_type' => 'RAW_XML_PARSE_ERROR',
+                    'sales_channel_id' => $salesChannel->id,
+                    'sales_channel_name' => $salesChannel->name,
+                    'parse_errors' => array_map(fn($e) => trim($e->message), $xmlErrors),
+                    'raw_content' => $rawContent,
+                    'cleaned_content' => $cleanedXml,
+                ];
+
+                $this->saveNotificationToFile('RAW_NOTIFICATION', $notificationData, $timestamp);
+
+                return response('OK', 200); // Still return OK to eBay
             }
 
             // Get the notification type from the root element name or body
             $notificationType = $xml->getName();
 
-            // For SOAP notifications, check for the body element
-            if (isset($xml->Body)) {
-                $body = $xml->children();
-                foreach ($body as $child) {
-                    if ($child->getName() === 'Body') {
-                        $bodyChildren = $child->children();
-                        if ($bodyChildren->count() > 0) {
-                            $notificationType = $bodyChildren[0]->getName();
-                            // Use the body content for JSON conversion
-                            $xml = $bodyChildren[0];
-                        }
-                        break;
-                    }
+            // For SOAP notifications, extract the actual notification from Body
+            $notificationXml = $xml;
+            if ($notificationType === 'Envelope') {
+                $body = $xml->Body ?? null;
+                if ($body && $body->children()->count() > 0) {
+                    $notificationXml = $body->children()[0];
+                    $notificationType = $notificationXml->getName();
                 }
             }
 
             // Convert XML to JSON/Array for logging
-            $jsonData = $this->xmlToJson($xml);
+            $jsonData = $this->xmlToJson($notificationXml);
 
             // Prepare the notification data
             $notificationData = [
@@ -1753,7 +1768,22 @@ class EbayController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return response('Error', 500);
+            // Save raw content even on error
+            try {
+                $notificationData = [
+                    'timestamp' => $timestamp->toIso8601String(),
+                    'notification_type' => 'EXCEPTION',
+                    'sales_channel_id' => $salesChannel->id,
+                    'sales_channel_name' => $salesChannel->name,
+                    'error' => $e->getMessage(),
+                    'raw_content' => $rawContent,
+                ];
+                $this->saveNotificationToFile('ERROR_NOTIFICATION', $notificationData, $timestamp);
+            } catch (Exception $saveError) {
+                // Ignore save errors
+            }
+
+            return response('OK', 200); // Still return OK to eBay to prevent retries
         }
     }
 
@@ -1763,14 +1793,29 @@ class EbayController extends Controller
      */
     protected function cleanSoapXml(string $xmlContent): string
     {
-        // Remove namespace prefixes (e.g., soapenv:, ebl:, ns:)
-        $cleanedXml = preg_replace('/(<\/?)\w+:/', '$1', $xmlContent);
+        // Remove XML declaration if present (will be re-added if needed)
+        $cleanedXml = preg_replace('/<\?xml[^>]*\?>/', '', $xmlContent);
 
-        // Remove xmlns declarations
-        $cleanedXml = preg_replace('/\s+xmlns[^=]*="[^"]*"/', '', $cleanedXml);
+        // Remove all namespace declarations (xmlns:prefix="..." and xmlns="...")
+        $cleanedXml = preg_replace('/\s+xmlns(:[a-zA-Z0-9_-]+)?="[^"]*"/', '', $cleanedXml);
 
-        // Remove xsi:type attributes
-        $cleanedXml = preg_replace('/\s+xsi:[^=]*="[^"]*"/', '', $cleanedXml);
+        // Remove namespace prefixes from element names (e.g., <soapenv:Envelope> -> <Envelope>)
+        $cleanedXml = preg_replace('/<(\/?)([a-zA-Z0-9_-]+):([a-zA-Z0-9_-]+)/', '<$1$3', $cleanedXml);
+
+        // Remove namespace prefixes from attribute names (e.g., soapenv:mustUnderstand -> mustUnderstand)
+        $cleanedXml = preg_replace('/\s+[a-zA-Z0-9_-]+:([a-zA-Z0-9_-]+)=/', ' $1=', $cleanedXml);
+
+        // Remove xsi:type and similar namespaced attributes entirely
+        $cleanedXml = preg_replace('/\s+[a-zA-Z0-9_-]+:[a-zA-Z0-9_-]+="[^"]*"/', '', $cleanedXml);
+
+        // Clean up any double spaces
+        $cleanedXml = preg_replace('/\s+/', ' ', $cleanedXml);
+
+        // Clean up spaces before >
+        $cleanedXml = preg_replace('/\s+>/', '>', $cleanedXml);
+
+        // Add XML declaration back
+        $cleanedXml = '<?xml version="1.0" encoding="UTF-8"?>' . trim($cleanedXml);
 
         return $cleanedXml;
     }
