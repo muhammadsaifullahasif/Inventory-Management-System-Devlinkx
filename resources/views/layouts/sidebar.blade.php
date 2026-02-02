@@ -45,6 +45,28 @@
                     </a>
                 </li>
 
+                @canany(['view orders', 'add orders', 'edit orders', 'delete orders'])
+                    <li class="nav-item {{ request()->routeIs(['orders.*']) ? 'menu-open' : '' }}">
+                        <a href="#" class="nav-link {{ request()->routeIs(['orders.*']) ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-th"></i>
+                            <p>
+                                Orders
+                                <i class="right fas fa-angle-left"></i>
+                            </p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            @canany(['view orders', 'edit orders', 'delete orders'])
+                                <li class="nav-item">
+                                    <a href="{{ route('orders.index') }}" class="nav-link {{ request()->routeIs('orders.index') ? 'active' : '' }}">
+                                        <i class="far fa-circle nav-icon"></i>
+                                        <p>All Orders</p>
+                                    </a>
+                                </li>
+                            @endcan
+                        </ul>
+                    </li>
+                @endcan
+
                 @canany(['view products', 'add products', 'edit products', 'delete products', 'view categories', 'add categories', 'edit categories', 'delete categories', 'view brands', 'add brands', 'edit brands', 'delete brands'])
                     <li class="nav-item {{ request()->routeIs(['products.*', 'categories.*', 'brands.*']) ? 'menu-open' : '' }}">
                         <a href="#" class="nav-link {{ request()->routeIs(['products.*', 'categories.*', 'brands.*']) ? 'active' : '' }}">

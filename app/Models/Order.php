@@ -13,9 +13,12 @@ class Order extends Model
         'order_number',
         'sales_channel_id',
         'ebay_order_id',
+        'ebay_extended_order_id',
         'buyer_username',
         'buyer_email',
         'buyer_name',
+        'buyer_first_name',
+        'buyer_last_name',
         'buyer_phone',
         'shipping_name',
         'shipping_address_line1',
@@ -24,6 +27,7 @@ class Order extends Model
         'shipping_state',
         'shipping_postal_code',
         'shipping_country',
+        'shipping_country_name',
         'subtotal',
         'shipping_cost',
         'tax',
@@ -38,7 +42,11 @@ class Order extends Model
         'shipped_at',
         'ebay_order_status',
         'ebay_payment_status',
+        'cancel_status',
+        'buyer_checkout_message',
         'ebay_raw_data',
+        'notification_type',
+        'notification_received_at',
         'order_date',
         'paid_at',
     ];
@@ -48,6 +56,7 @@ class Order extends Model
         'order_date' => 'datetime',
         'paid_at' => 'datetime',
         'shipped_at' => 'datetime',
+        'notification_received_at' => 'datetime',
         'subtotal' => 'decimal:2',
         'shipping_cost' => 'decimal:2',
         'tax' => 'decimal:2',
@@ -69,6 +78,59 @@ class Order extends Model
     public function items()
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    /**
+     * Get the order meta data
+     */
+    public function metas()
+    {
+        return $this->hasMany(OrderMeta::class);
+    }
+
+    /**
+     * Get a specific meta value
+     */
+    public function getMeta(string $key, $default = null)
+    {
+        $meta = $this->metas()->where('meta_key', $key)->first();
+        return $meta ? $meta->meta_value : $default;
+    }
+
+    /**
+     * Get a specific meta value as array (JSON decoded)
+     */
+    public function getMetaArray(string $key, $default = null): ?array
+    {
+        $value = $this->getMeta($key);
+        if ($value === null) {
+            return $default;
+        }
+        $decoded = json_decode($value, true);
+        return json_last_error() === JSON_ERROR_NONE ? $decoded : $default;
+    }
+
+    /**
+     * Set a meta value
+     */
+    public function setMeta(string $key, $value): OrderMeta
+    {
+        if (is_array($value)) {
+            $value = json_encode($value);
+        }
+
+        return $this->metas()->updateOrCreate(
+            ['meta_key' => $key],
+            ['meta_value' => $value]
+        );
+    }
+
+    /**
+     * Delete a meta value
+     */
+    public function deleteMeta(string $key): bool
+    {
+        return $this->metas()->where('meta_key', $key)->delete() > 0;
     }
 
     /**

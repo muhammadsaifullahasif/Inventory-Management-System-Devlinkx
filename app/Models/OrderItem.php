@@ -20,7 +20,17 @@ class OrderItem extends Model
         'quantity',
         'unit_price',
         'total_price',
+        'actual_shipping_cost',
+        'actual_handling_cost',
+        'final_value_fee',
         'currency',
+        'listing_type',
+        'condition_id',
+        'condition_display_name',
+        'site',
+        'shipping_service',
+        'buyer_checkout_message',
+        'item_paid_time',
         'variation_attributes',
         'inventory_updated',
     ];
@@ -29,6 +39,10 @@ class OrderItem extends Model
         'variation_attributes' => 'array',
         'unit_price' => 'decimal:2',
         'total_price' => 'decimal:2',
+        'actual_shipping_cost' => 'decimal:2',
+        'actual_handling_cost' => 'decimal:2',
+        'final_value_fee' => 'decimal:2',
+        'item_paid_time' => 'datetime',
         'inventory_updated' => 'boolean',
     ];
 

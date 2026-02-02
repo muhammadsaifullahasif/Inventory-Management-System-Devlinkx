@@ -15,6 +15,7 @@ use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\WarehouseController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\SalesChannelController;
 
@@ -166,6 +167,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ebay/orders/{id}', [EbayController::class, 'getOrders'])->name('ebay.orders.list');
 
     Route::get('/ebay/orders/import/{id}', [EbayController::class, 'getEbayOrders'])->name('ebay.orders.import');
+
+    // Orders Management
+    Route::resource('/orders', OrderController::class);
+    Route::get('/orders/ebay/{ebayOrderId}', [OrderController::class, 'getByEbayOrderId'])->name('orders.ebay');
+    Route::post('/orders/{id}/ship', [OrderController::class, 'markAsShipped'])->name('orders.ship');
+    Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
+    Route::get('/orders-statistics', [OrderController::class, 'statistics'])->name('orders.statistics');
 });
 
 

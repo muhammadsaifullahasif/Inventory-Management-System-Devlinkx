@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\Category;
 use App\Models\OrderItem;
+use App\Models\OrderMeta;
 use App\Models\Warehouse;
 use Illuminate\Support\Str;
 use App\Models\ProductStock;
@@ -20,6 +21,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 use App\Jobs\ImportEbayListingsJob;
 use App\Jobs\SyncEbayOrdersJob;
+use App\Http\Controllers\OrderController;
 
 class EbayController extends Controller
 {
@@ -1812,6 +1814,24 @@ class EbayController extends Controller
                 'sales_channel_id' => $salesChannel->id,
                 'file' => $this->getNotificationFileName($notificationType, $timestamp),
             ]);
+
+            // Save order to database for order-related notifications
+            if (OrderController::isOrderNotification($notificationType)) {
+                try {
+                    $orderController = new OrderController();
+                    $order = $orderController->saveFromEbayNotification($notificationXml, $salesChannel, $notificationType, $timestamp);
+                    Log::channel('ebay')->info("Order saved from notification: {$notificationType}", [
+                        'order_id' => $order->id ?? null,
+                        'ebay_order_id' => $order->ebay_order_id ?? null,
+                        'sales_channel_id' => $salesChannel->id,
+                    ]);
+                } catch (Exception $orderException) {
+                    Log::channel('ebay')->error("Failed to save order from notification: {$notificationType}", [
+                        'error' => $orderException->getMessage(),
+                        'sales_channel_id' => $salesChannel->id,
+                    ]);
+                }
+            }
 
             return response('OK', 200);
         } catch (Exception $e) {
