@@ -1691,7 +1691,9 @@ class EbayController extends Controller
         $timestamp = now();
 
         try {
-            $xml = simplexml_load_string($rawContent);
+            // Clean and parse the XML (handle SOAP namespaces)
+            $cleanedXml = $this->cleanSoapXml($rawContent);
+            $xml = simplexml_load_string($cleanedXml);
 
             if ($xml === false) {
                 Log::channel('ebay')->error('eBay Platform Notification: Invalid XML', [
@@ -1707,9 +1709,17 @@ class EbayController extends Controller
 
             // For SOAP notifications, check for the body element
             if (isset($xml->Body)) {
-                $body = $xml->Body->children();
-                if ($body->count() > 0) {
-                    $notificationType = $body[0]->getName();
+                $body = $xml->children();
+                foreach ($body as $child) {
+                    if ($child->getName() === 'Body') {
+                        $bodyChildren = $child->children();
+                        if ($bodyChildren->count() > 0) {
+                            $notificationType = $bodyChildren[0]->getName();
+                            // Use the body content for JSON conversion
+                            $xml = $bodyChildren[0];
+                        }
+                        break;
+                    }
                 }
             }
 
@@ -1748,6 +1758,24 @@ class EbayController extends Controller
     }
 
     /**
+     * Clean SOAP XML by removing namespace prefixes and declarations
+     * This makes the XML parseable by simplexml_load_string
+     */
+    protected function cleanSoapXml(string $xmlContent): string
+    {
+        // Remove namespace prefixes (e.g., soapenv:, ebl:, ns:)
+        $cleanedXml = preg_replace('/(<\/?)\w+:/', '$1', $xmlContent);
+
+        // Remove xmlns declarations
+        $cleanedXml = preg_replace('/\s+xmlns[^=]*="[^"]*"/', '', $cleanedXml);
+
+        // Remove xsi:type attributes
+        $cleanedXml = preg_replace('/\s+xsi:[^=]*="[^"]*"/', '', $cleanedXml);
+
+        return $cleanedXml;
+    }
+
+    /**
      * Save notification to individual JSON file
      */
     protected function saveNotificationToFile(string $notificationType, array $data, $timestamp): void
@@ -1780,12 +1808,16 @@ class EbayController extends Controller
      */
     protected function xmlToJson($xml): array
     {
-        // Remove namespaces for cleaner output
+        // Get XML string and clean it
         $xmlString = $xml->asXML();
-        $xmlString = preg_replace('/xmlns[^=]*="[^"]*"/i', '', $xmlString);
-        $xmlString = preg_replace('/\s+/', ' ', $xmlString);
+        $cleanedXml = $this->cleanSoapXml($xmlString);
 
-        $cleanXml = simplexml_load_string($xmlString);
+        $cleanXml = simplexml_load_string($cleanedXml);
+
+        if ($cleanXml === false) {
+            // If cleaning failed, try to convert the original
+            return $this->xmlNodeToArray($xml);
+        }
 
         return $this->xmlNodeToArray($cleanXml);
     }
