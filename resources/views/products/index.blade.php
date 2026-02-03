@@ -48,7 +48,7 @@
                             <div style="max-width: 100px;">
                                 @php
                                     // Make Barcode object of Code128 encoding.
-                                    $barcode = (new Picqer\Barcode\Types\TypeCode128())->getBarcode($product->sku);
+                                    $barcode = (new Picqer\Barcode\Types\TypeCode128())->getBarcode($product->barcode);
                                     $renderer = new Picqer\Barcode\Renderers\SvgRenderer();
                                     // $renderer->setSvgType($renderer::TYPE_SVG_INLINE); // Changes the output to be used inline inside HTML documents, instead of a standalone SVG image (default)
                                     $renderer->setSvgType($renderer::TYPE_SVG_STANDALONE); // If you want to force the default, create a stand alone SVG image
@@ -56,7 +56,7 @@
                                 @endphp
                                 {!! $renderer->render($barcode, 100, 40) !!}
                                 <br>
-                                {{ $product->sku }}<br>
+                                {{ $product->barcode }}<br>
                                 <a href="{{ route('products.print-barcode', $product->id) }}" target="_blank">Print Barcode</a>
                             </div>
                         </td>
