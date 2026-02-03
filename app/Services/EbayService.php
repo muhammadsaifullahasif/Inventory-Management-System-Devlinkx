@@ -914,4 +914,86 @@ XML;
     {
         return now()->addYears($years)->toIso8601String();
     }
+
+    /**
+     * Revise inventory status (quantity and/or price only)
+     * This is more efficient than ReviseFixedPriceItem for inventory updates
+     */
+    public function reviseInventoryStatus(SalesChannel $salesChannel, string $itemId, int $quantity, ?float $price = null): array
+    {
+        $xmlRequest = $this->buildReviseInventoryStatusXml($itemId, $quantity, $price);
+        $xmlResponse = $this->callTradingApi($salesChannel, 'ReviseInventoryStatus', $xmlRequest);
+
+        return $this->parseReviseInventoryStatusResponse($xmlResponse);
+    }
+
+    /**
+     * Build XML for ReviseInventoryStatus
+     */
+    private function buildReviseInventoryStatusXml(string $itemId, int $quantity, ?float $price = null): string
+    {
+        $xml = <<<XML
+<?xml version="1.0" encoding="utf-8"?>
+<ReviseInventoryStatusRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <InventoryStatus>
+        <ItemID>{$itemId}</ItemID>
+        <Quantity>{$quantity}</Quantity>
+XML;
+
+        if ($price !== null) {
+            $formattedPrice = number_format($price, 2, '.', '');
+            $xml .= "\n        <StartPrice>{$formattedPrice}</StartPrice>";
+        }
+
+        $xml .= "\n    </InventoryStatus>\n</ReviseInventoryStatusRequest>";
+
+        return $xml;
+    }
+
+    /**
+     * Parse ReviseInventoryStatus response
+     */
+    private function parseReviseInventoryStatusResponse(string $xmlResponse): array
+    {
+        $xml = simplexml_load_string($xmlResponse);
+
+        $result = [
+            'success' => in_array((string) $xml->Ack, ['Success', 'Warning']),
+            'item_id' => '',
+            'sku' => '',
+            'quantity' => null,
+            'start_price' => null,
+            'warnings' => [],
+            'errors' => [],
+        ];
+
+        // Parse inventory status from response
+        if (isset($xml->InventoryStatus)) {
+            $status = $xml->InventoryStatus;
+            $result['item_id'] = (string) ($status->ItemID ?? '');
+            $result['sku'] = (string) ($status->SKU ?? '');
+            $result['quantity'] = isset($status->Quantity) ? (int) $status->Quantity : null;
+            $result['start_price'] = isset($status->StartPrice) ? (float) $status->StartPrice : null;
+        }
+
+        // Parse errors and warnings
+        if (isset($xml->Errors)) {
+            foreach ($xml->Errors as $error) {
+                $errorData = [
+                    'code' => (string) ($error->ErrorCode ?? ''),
+                    'short_message' => (string) ($error->ShortMessage ?? ''),
+                    'long_message' => (string) ($error->LongMessage ?? ''),
+                    'severity' => (string) ($error->SeverityCode ?? ''),
+                ];
+
+                if ((string) $error->SeverityCode === 'Warning') {
+                    $result['warnings'][] = $errorData;
+                } else {
+                    $result['errors'][] = $errorData;
+                }
+            }
+        }
+
+        return $result;
+    }
 }

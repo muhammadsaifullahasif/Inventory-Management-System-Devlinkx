@@ -2413,6 +2413,55 @@ class EbayController extends Controller
     }
 
     /**
+     * Sync inventory (quantity only) to eBay
+     * This is optimized for inventory-only updates using ReviseInventoryStatus API
+     * This is a wrapper method called by ProductController
+     */
+    public function syncInventory(SalesChannel $channel, string $itemId, Product $product): array
+    {
+        try {
+            $ebayService = new EbayService();
+
+            // Calculate total quantity from product_stocks table (sum across all warehouses/racks)
+            $totalQuantity = $product->product_stocks()
+                ->where('active_status', 1)
+                ->where('delete_status', 0)
+                ->sum('quantity');
+
+            $quantity = (int) $totalQuantity ?: 0;
+
+            Log::info('Syncing inventory to eBay', [
+                'product_id' => $product->id,
+                'item_id' => $itemId,
+                'sku' => $product->sku,
+                'quantity' => $quantity,
+                'channel_id' => $channel->id,
+            ]);
+
+            $result = $ebayService->reviseInventoryStatus($channel, $itemId, $quantity);
+
+            Log::info('eBay inventory sync result', [
+                'product_id' => $product->id,
+                'item_id' => $itemId,
+                'result' => $result,
+            ]);
+
+            return $result;
+        } catch (Exception $e) {
+            Log::error('Failed to sync inventory to eBay', [
+                'product_id' => $product->id,
+                'item_id' => $itemId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Relist an ended eBay item
      * This is a wrapper method called by ProductController
      */

@@ -346,25 +346,25 @@ class ProductController extends Controller
     }
 
     /**
-     * Sync product with sales channels
-     * - Create listings for newly selected channels
-     * - Update listings for existing channels
-     * - End/Draft listings for removed channels
+     * Sync product with sales channels (inventory management only)
+     * - Link products to existing eBay listings by SKU (don't create new listings)
+     * - Update inventory/quantity on eBay when product is updated
+     * - Unlink products from channels when unchecked (don't end listings on eBay)
      */
     protected function syncSalesChannels(Product $product, array $selectedChannelIds, array $currentChannelIds, bool $skuChanged = false): void
     {
         $ebayController = app(EbayController::class);
 
-        // Channels to add (newly selected)
+        // Channels to add (newly selected - link to existing eBay listing)
         $channelsToAdd = array_diff($selectedChannelIds, $currentChannelIds);
 
-        // Channels to remove (unchecked)
+        // Channels to remove (unchecked - just unlink, don't end listing)
         $channelsToRemove = array_diff($currentChannelIds, $selectedChannelIds);
 
-        // Channels to update (still selected)
+        // Channels to update (still selected - sync inventory)
         $channelsToUpdate = array_intersect($selectedChannelIds, $currentChannelIds);
 
-        // Process new channels - Create listings
+        // Process new channels - Find and link existing eBay listings by SKU
         foreach ($channelsToAdd as $channelId) {
             $channel = SalesChannel::find($channelId);
             if (!$channel || !$channel->isEbay()) {
@@ -372,100 +372,54 @@ class ProductController extends Controller
             }
 
             try {
-                // Check if product already exists on eBay (by SKU)
+                // Find existing eBay listing by SKU
                 $existingListing = $ebayController->findEbayListingBySku($channel, $product->sku);
 
                 if ($existingListing) {
-                    // Product exists, revise and activate it
-                    $result = $ebayController->reviseEbayItem($channel, $product, $existingListing['ItemID']);
-                    $listingStatus = $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR;
-                    $listingUrl = $result['listing_url'] ?? null;
-                    $externalId = $result['item_id'] ?? $existingListing['ItemID'];
-                    $listingError = $this->extractListingError($result);
-                } else {
-                    // Create new listing
-                    $result = $ebayController->createEbayListing($channel, $product);
-                    $listingStatus = $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR;
-                    $listingUrl = $result['listing_url'] ?? null;
-                    $externalId = $result['item_id'] ?? null;
-                    $listingError = $this->extractListingError($result);
-                }
+                    // Found listing - link it and sync inventory
+                    $listingUrl = "https://www.ebay.com/itm/{$existingListing['ItemID']}";
 
-                // Attach to pivot table
-                $product->sales_channels()->attach($channelId, [
-                    'listing_url' => $listingUrl,
-                    'external_listing_id' => $externalId,
-                    'listing_status' => $listingStatus,
-                    'listing_error' => $listingError,
-                    'listing_format' => 'FixedPriceItem',
-                    'last_synced_at' => now(),
-                ]);
+                    // Sync inventory to eBay
+                    $result = $ebayController->syncInventory($channel, $existingListing['ItemID'], $product);
 
-                Log::info('Product listing created on sales channel', [
-                    'product_id' => $product->id,
-                    'channel_id' => $channelId,
-                    'status' => $listingStatus,
-                ]);
-
-            } catch (\Exception $e) {
-                // Still attach but mark as error
-                $product->sales_channels()->attach($channelId, [
-                    'listing_status' => SalesChannelProduct::STATUS_ERROR,
-                    'listing_error' => $e->getMessage(),
-                    'last_synced_at' => now(),
-                ]);
-
-                Log::error('Failed to create listing on sales channel', [
-                    'product_id' => $product->id,
-                    'channel_id' => $channelId,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-
-        // Process removed channels - End/Draft listings
-        foreach ($channelsToRemove as $channelId) {
-            $channel = SalesChannel::find($channelId);
-            if (!$channel || !$channel->isEbay()) {
-                $product->sales_channels()->detach($channelId);
-                continue;
-            }
-
-            try {
-                // Get the existing listing
-                $pivot = $product->sales_channels()->where('sales_channel_id', $channelId)->first()?->pivot;
-                $externalId = $pivot?->external_listing_id;
-
-                if ($externalId) {
-                    // End the listing on eBay
-                    $result = $ebayController->endEbayItem($channel, $externalId, 'NotAvailable');
-
-                    // Update pivot with ended status instead of detaching
-                    $product->sales_channels()->updateExistingPivot($channelId, [
-                        'listing_status' => SalesChannelProduct::STATUS_ENDED,
-                        'listing_error' => $result['success'] ? null : ($this->extractListingError($result) ?? 'Failed to end listing'),
+                    $product->sales_channels()->attach($channelId, [
+                        'listing_url' => $listingUrl,
+                        'external_listing_id' => $existingListing['ItemID'],
+                        'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
+                        'listing_error' => $result['success'] ? null : $this->extractListingError($result),
+                        'listing_format' => $existingListing['ListingType'] ?? 'FixedPriceItem',
                         'last_synced_at' => now(),
                     ]);
 
-                    Log::info('Product listing ended on sales channel', [
+                    Log::info('Product linked to eBay listing', [
                         'product_id' => $product->id,
                         'channel_id' => $channelId,
-                        'external_id' => $externalId,
+                        'ebay_item_id' => $existingListing['ItemID'],
+                        'sku' => $product->sku,
                     ]);
                 } else {
-                    // No external ID, just detach
-                    $product->sales_channels()->detach($channelId);
+                    // No listing found on eBay - attach with "not found" status
+                    $product->sales_channels()->attach($channelId, [
+                        'listing_status' => 'not_found',
+                        'listing_error' => "No eBay listing found with SKU: {$product->sku}",
+                        'last_synced_at' => now(),
+                    ]);
+
+                    Log::warning('No eBay listing found for product', [
+                        'product_id' => $product->id,
+                        'channel_id' => $channelId,
+                        'sku' => $product->sku,
+                    ]);
                 }
 
             } catch (\Exception $e) {
-                // Update with error status
-                $product->sales_channels()->updateExistingPivot($channelId, [
+                $product->sales_channels()->attach($channelId, [
                     'listing_status' => SalesChannelProduct::STATUS_ERROR,
                     'listing_error' => $e->getMessage(),
                     'last_synced_at' => now(),
                 ]);
 
-                Log::error('Failed to end listing on sales channel', [
+                Log::error('Failed to link product to sales channel', [
                     'product_id' => $product->id,
                     'channel_id' => $channelId,
                     'error' => $e->getMessage(),
@@ -473,7 +427,18 @@ class ProductController extends Controller
             }
         }
 
-        // Process existing channels - Update listings
+        // Process removed channels - Just unlink (don't end listing on eBay)
+        foreach ($channelsToRemove as $channelId) {
+            // Simply detach - the listing remains on eBay, we just stop managing it
+            $product->sales_channels()->detach($channelId);
+
+            Log::info('Product unlinked from sales channel', [
+                'product_id' => $product->id,
+                'channel_id' => $channelId,
+            ]);
+        }
+
+        // Process existing channels - Sync inventory only
         foreach ($channelsToUpdate as $channelId) {
             $channel = SalesChannel::find($channelId);
             if (!$channel || !$channel->isEbay()) {
@@ -483,39 +448,39 @@ class ProductController extends Controller
             try {
                 $pivot = $product->sales_channels()->where('sales_channel_id', $channelId)->first()?->pivot;
                 $externalId = $pivot?->external_listing_id;
-                $currentStatus = $pivot?->listing_status;
 
-                // Skip if no external ID and status is not pending
-                if (!$externalId && $currentStatus !== SalesChannelProduct::STATUS_PENDING) {
-                    continue;
+                // Skip if no external ID (listing not found)
+                if (!$externalId) {
+                    // Try to find listing again by SKU
+                    $existingListing = $ebayController->findEbayListingBySku($channel, $product->sku);
+                    if ($existingListing) {
+                        $externalId = $existingListing['ItemID'];
+                        $listingUrl = "https://www.ebay.com/itm/{$externalId}";
+
+                        // Update pivot with found listing
+                        $product->sales_channels()->updateExistingPivot($channelId, [
+                            'external_listing_id' => $externalId,
+                            'listing_url' => $listingUrl,
+                            'listing_format' => $existingListing['ListingType'] ?? 'FixedPriceItem',
+                        ]);
+                    } else {
+                        continue; // Still no listing found
+                    }
                 }
 
-                if ($externalId) {
-                    // Revise existing listing
-                    $result = $ebayController->reviseEbayItem($channel, $product, $externalId);
+                // Sync inventory to eBay
+                $result = $ebayController->syncInventory($channel, $externalId, $product);
 
-                    $product->sales_channels()->updateExistingPivot($channelId, [
-                        'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
-                        'listing_error' => $this->extractListingError($result),
-                        'last_synced_at' => now(),
-                    ]);
-                } else {
-                    // No existing ID, create new listing
-                    $result = $ebayController->createEbayListing($channel, $product);
+                $product->sales_channels()->updateExistingPivot($channelId, [
+                    'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
+                    'listing_error' => $result['success'] ? null : $this->extractListingError($result),
+                    'last_synced_at' => now(),
+                ]);
 
-                    $product->sales_channels()->updateExistingPivot($channelId, [
-                        'listing_url' => $result['listing_url'] ?? null,
-                        'external_listing_id' => $result['item_id'] ?? null,
-                        'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
-                        'listing_error' => $this->extractListingError($result),
-                        'listing_format' => 'FixedPriceItem',
-                        'last_synced_at' => now(),
-                    ]);
-                }
-
-                Log::info('Product listing updated on sales channel', [
+                Log::info('Product inventory synced on sales channel', [
                     'product_id' => $product->id,
                     'channel_id' => $channelId,
+                    'ebay_item_id' => $externalId,
                 ]);
 
             } catch (\Exception $e) {
@@ -525,7 +490,7 @@ class ProductController extends Controller
                     'last_synced_at' => now(),
                 ]);
 
-                Log::error('Failed to update listing on sales channel', [
+                Log::error('Failed to sync inventory on sales channel', [
                     'product_id' => $product->id,
                     'channel_id' => $channelId,
                     'error' => $e->getMessage(),
