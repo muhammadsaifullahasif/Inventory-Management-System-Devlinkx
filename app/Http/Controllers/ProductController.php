@@ -381,14 +381,14 @@ class ProductController extends Controller
                     $listingStatus = $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR;
                     $listingUrl = $result['listing_url'] ?? null;
                     $externalId = $result['item_id'] ?? $existingListing['ItemID'];
-                    $listingError = $result['error'] ?? null;
+                    $listingError = $this->extractListingError($result);
                 } else {
                     // Create new listing
                     $result = $ebayController->createEbayListing($channel, $product);
                     $listingStatus = $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR;
                     $listingUrl = $result['listing_url'] ?? null;
                     $externalId = $result['item_id'] ?? null;
-                    $listingError = $result['error'] ?? null;
+                    $listingError = $this->extractListingError($result);
                 }
 
                 // Attach to pivot table
@@ -443,7 +443,7 @@ class ProductController extends Controller
                     // Update pivot with ended status instead of detaching
                     $product->sales_channels()->updateExistingPivot($channelId, [
                         'listing_status' => SalesChannelProduct::STATUS_ENDED,
-                        'listing_error' => $result['success'] ? null : ($result['error'] ?? 'Failed to end listing'),
+                        'listing_error' => $result['success'] ? null : ($this->extractListingError($result) ?? 'Failed to end listing'),
                         'last_synced_at' => now(),
                     ]);
 
@@ -496,7 +496,7 @@ class ProductController extends Controller
 
                     $product->sales_channels()->updateExistingPivot($channelId, [
                         'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
-                        'listing_error' => $result['error'] ?? null,
+                        'listing_error' => $this->extractListingError($result),
                         'last_synced_at' => now(),
                     ]);
                 } else {
@@ -507,7 +507,7 @@ class ProductController extends Controller
                         'listing_url' => $result['listing_url'] ?? null,
                         'external_listing_id' => $result['item_id'] ?? null,
                         'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
-                        'listing_error' => $result['error'] ?? null,
+                        'listing_error' => $this->extractListingError($result),
                         'listing_format' => 'FixedPriceItem',
                         'last_synced_at' => now(),
                     ]);
@@ -532,5 +532,32 @@ class ProductController extends Controller
                 ]);
             }
         }
+    }
+
+    /**
+     * Extract error message from eBay API result
+     */
+    private function extractListingError(array $result): ?string
+    {
+        // Check for 'message' key (from exception handling in EbayController)
+        if (!empty($result['message'])) {
+            return $result['message'];
+        }
+
+        // Check for 'errors' array (from eBay API response)
+        if (!empty($result['errors']) && is_array($result['errors'])) {
+            $errorMessages = [];
+            foreach ($result['errors'] as $error) {
+                if (isset($error['long_message'])) {
+                    $errorMessages[] = $error['long_message'];
+                } elseif (isset($error['short_message'])) {
+                    $errorMessages[] = $error['short_message'];
+                }
+            }
+            return !empty($errorMessages) ? implode('; ', $errorMessages) : null;
+        }
+
+        // Fallback to 'error' key
+        return $result['error'] ?? null;
     }
 }

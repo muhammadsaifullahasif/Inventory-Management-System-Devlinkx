@@ -2463,10 +2463,19 @@ class EbayController extends Controller
         // Determine price - use sale_price if available, otherwise regular_price
         $price = $productMeta['sale_price'] ?? $productMeta['regular_price'] ?? $product->price ?? 0;
 
+        // Determine description - check for empty strings, not just null
+        $description = $product->description;
+        if (empty($description)) {
+            $description = $product->short_description;
+        }
+        if (empty($description)) {
+            $description = $product->name;
+        }
+
         // Build item data array
         $itemData = [
             'title' => $product->name,
-            'description' => $product->description ?? $product->short_description ?? $product->name,
+            'description' => $description,
             'sku' => $product->sku,
             'price' => $price,
             'quantity' => $product->stock_quantity ?? 1,
