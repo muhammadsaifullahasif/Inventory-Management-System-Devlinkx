@@ -140,6 +140,98 @@
                     @enderror
                 </div>
             </div>
+
+            <!-- Sales Channels Section -->
+            @if(isset($salesChannels) && $salesChannels->count() > 0)
+            @php
+                $productChannelIds = $product->sales_channels->pluck('id')->toArray();
+                $productChannels = $product->sales_channels->keyBy('id');
+            @endphp
+            <div class="card card-outline card-info mt-3">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-store mr-2"></i>Sales Channels</h3>
+                    <div class="card-tools">
+                        <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        <strong>Check</strong> to list/activate | <strong>Uncheck</strong> to end/draft listing
+                    </p>
+                    <div class="row">
+                        @foreach($salesChannels as $channel)
+                            @php
+                                $isListed = in_array($channel->id, $productChannelIds);
+                                $channelData = $isListed ? $productChannels->get($channel->id) : null;
+                                $listingStatus = $channelData?->pivot?->listing_status ?? 'not_listed';
+                                $listingUrl = $channelData?->pivot?->listing_url ?? null;
+                                $externalId = $channelData?->pivot?->external_listing_id ?? null;
+                                $lastSynced = $channelData?->pivot?->last_synced_at ?? null;
+
+                                $statusBadge = match($listingStatus) {
+                                    'active' => '<span class="badge badge-success">Active</span>',
+                                    'draft' => '<span class="badge badge-warning">Draft</span>',
+                                    'ended' => '<span class="badge badge-secondary">Ended</span>',
+                                    'pending' => '<span class="badge badge-info">Pending</span>',
+                                    'error' => '<span class="badge badge-danger">Error</span>',
+                                    default => '<span class="badge badge-light">Not Listed</span>',
+                                };
+                            @endphp
+                            <div class="col-md-6 mb-3">
+                                <div class="card {{ $isListed ? 'border-success' : 'border-secondary' }}">
+                                    <div class="card-body p-2">
+                                        <div class="custom-control custom-checkbox">
+                                            <input type="checkbox"
+                                                   class="custom-control-input"
+                                                   id="sales_channel_{{ $channel->id }}"
+                                                   name="sales_channels[]"
+                                                   value="{{ $channel->id }}"
+                                                   {{ in_array($channel->id, old('sales_channels', $productChannelIds)) ? 'checked' : '' }}>
+                                            <label class="custom-control-label" for="sales_channel_{{ $channel->id }}">
+                                                <strong>{{ $channel->name }}</strong>
+                                            </label>
+                                        </div>
+                                        <div class="mt-2">
+                                            <small>
+                                                Status: {!! $statusBadge !!}
+                                                @if($channel->hasValidToken())
+                                                    <span class="badge badge-success ml-1">Connected</span>
+                                                @else
+                                                    <span class="badge badge-warning ml-1">Not Connected</span>
+                                                @endif
+                                            </small>
+                                        </div>
+                                        @if($externalId)
+                                            <div class="mt-1">
+                                                <small class="text-muted">Listing ID: {{ $externalId }}</small>
+                                            </div>
+                                        @endif
+                                        @if($listingUrl)
+                                            <div class="mt-1">
+                                                <a href="{{ $listingUrl }}" target="_blank" class="btn btn-xs btn-outline-primary">
+                                                    <i class="fas fa-external-link-alt"></i> View Listing
+                                                </a>
+                                            </div>
+                                        @endif
+                                        @if($lastSynced)
+                                            <div class="mt-1">
+                                                <small class="text-muted">Last synced: {{ \Carbon\Carbon::parse($lastSynced)->diffForHumans() }}</small>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                    @error('sales_channels')
+                        <span class="text-danger">{{ $message }}</span>
+                    @enderror
+                </div>
+            </div>
+            @endif
+
             <button type="submit" class="btn btn-primary">Save</button>
         </form>
     </div>

@@ -6,7 +6,11 @@ use App\Models\Brand;
 use App\Models\Product;
 use App\Models\Category;
 use App\Models\Warehouse;
+use App\Models\SalesChannel;
+use App\Models\SalesChannelProduct;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
@@ -38,7 +42,8 @@ class ProductController extends Controller
     {
         $categories = Category::all();
         $brands = Brand::all();
-        return view('products.new', compact('categories', 'brands'));
+        $salesChannels = SalesChannel::where('active_status', 1)->get();
+        return view('products.new', compact('categories', 'brands', 'salesChannels'));
     }
 
     /**
@@ -46,8 +51,6 @@ class ProductController extends Controller
      */
     public function store(Request $request)
     {
-        // dd($request->all());
-
         $request->validate([
             'name' => 'required|string|max:255',
             'sku' => 'required|string|max:100|unique:products,sku',
@@ -62,9 +65,13 @@ class ProductController extends Controller
             'product_image' => 'nullable|image|max:2048',
             'is_featured' => 'sometimes|boolean',
             'active_status' => 'sometimes|boolean',
+            'sales_channels' => 'nullable|array',
+            'sales_channels.*' => 'exists:sales_channels,id',
         ]);
 
         try {
+            DB::beginTransaction();
+
             // Product creation logic here
             $product = new Product();
             $product->name = $request->name;
@@ -120,8 +127,18 @@ class ProductController extends Controller
                 ]
             ]);
 
+            // Handle Sales Channels - Create listings
+            $selectedChannels = $request->input('sales_channels', []);
+            if (!empty($selectedChannels)) {
+                $this->syncSalesChannels($product, $selectedChannels, []);
+            }
+
+            DB::commit();
+
             return redirect()->route('products.index')->with('success', 'Product created successfully.');
         } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Product creation failed', ['error' => $e->getMessage()]);
             return redirect()->back()->with('error', 'An error occurred while creating the product: ' . $e->getMessage())->withInput();
         }
     }
@@ -161,10 +178,11 @@ class ProductController extends Controller
      */
     public function edit(string $id)
     {
-        $product = Product::findOrFail($id);
+        $product = Product::with('sales_channels')->findOrFail($id);
         $categories = Category::all();
         $brands = Brand::all();
-        return view('products.edit', compact('product', 'categories', 'brands'));
+        $salesChannels = SalesChannel::where('active_status', 1)->get();
+        return view('products.edit', compact('product', 'categories', 'brands', 'salesChannels'));
     }
 
     /**
@@ -186,10 +204,17 @@ class ProductController extends Controller
             'product_image' => 'nullable|image|max:2048',
             'is_featured' => 'sometimes|boolean',
             'active_status' => 'sometimes|boolean',
+            'sales_channels' => 'nullable|array',
+            'sales_channels.*' => 'exists:sales_channels,id',
         ]);
 
         try {
-            $product = Product::findOrFail($id);
+            DB::beginTransaction();
+
+            $product = Product::with('sales_channels')->findOrFail($id);
+            $oldSku = $product->sku;
+            $currentChannelIds = $product->sales_channels->pluck('id')->toArray();
+
             $product->name = $request->name;
             $product->sku = $request->sku;
             $product->barcode = $request->barcode;
@@ -221,8 +246,16 @@ class ProductController extends Controller
                 );
             }
 
+            // Handle Sales Channels sync
+            $selectedChannels = $request->input('sales_channels', []);
+            $this->syncSalesChannels($product, $selectedChannels, $currentChannelIds, $oldSku !== $request->sku);
+
+            DB::commit();
+
             return redirect()->route('products.index')->with('success', 'Product updated successfully.');
         } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Product update failed', ['error' => $e->getMessage(), 'product_id' => $id]);
             return redirect()->back()->with('error', 'An error occurred while updating the product: ' . $e->getMessage())->withInput();
         }
     }
@@ -310,5 +343,194 @@ class ProductController extends Controller
             ->setPaper('a4', 'portrait');
 
         return $pdf->download('barcodes_' . date('Y-m-d_H-i-s') . '.pdf');
+    }
+
+    /**
+     * Sync product with sales channels
+     * - Create listings for newly selected channels
+     * - Update listings for existing channels
+     * - End/Draft listings for removed channels
+     */
+    protected function syncSalesChannels(Product $product, array $selectedChannelIds, array $currentChannelIds, bool $skuChanged = false): void
+    {
+        $ebayController = new EbayController();
+
+        // Channels to add (newly selected)
+        $channelsToAdd = array_diff($selectedChannelIds, $currentChannelIds);
+
+        // Channels to remove (unchecked)
+        $channelsToRemove = array_diff($currentChannelIds, $selectedChannelIds);
+
+        // Channels to update (still selected)
+        $channelsToUpdate = array_intersect($selectedChannelIds, $currentChannelIds);
+
+        // Process new channels - Create listings
+        foreach ($channelsToAdd as $channelId) {
+            $channel = SalesChannel::find($channelId);
+            if (!$channel || !$channel->isEbay()) {
+                continue;
+            }
+
+            try {
+                // Check if product already exists on eBay (by SKU)
+                $existingListing = $ebayController->findEbayListingBySku($channel, $product->sku);
+
+                if ($existingListing) {
+                    // Product exists, revise and activate it
+                    $result = $ebayController->reviseEbayItem($channel, $product, $existingListing['ItemID']);
+                    $listingStatus = $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR;
+                    $listingUrl = $result['listing_url'] ?? null;
+                    $externalId = $result['item_id'] ?? $existingListing['ItemID'];
+                    $listingError = $result['error'] ?? null;
+                } else {
+                    // Create new listing
+                    $result = $ebayController->createEbayListing($channel, $product);
+                    $listingStatus = $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR;
+                    $listingUrl = $result['listing_url'] ?? null;
+                    $externalId = $result['item_id'] ?? null;
+                    $listingError = $result['error'] ?? null;
+                }
+
+                // Attach to pivot table
+                $product->sales_channels()->attach($channelId, [
+                    'listing_url' => $listingUrl,
+                    'external_listing_id' => $externalId,
+                    'listing_status' => $listingStatus,
+                    'listing_error' => $listingError,
+                    'listing_format' => 'FixedPriceItem',
+                    'last_synced_at' => now(),
+                ]);
+
+                Log::info('Product listing created on sales channel', [
+                    'product_id' => $product->id,
+                    'channel_id' => $channelId,
+                    'status' => $listingStatus,
+                ]);
+
+            } catch (\Exception $e) {
+                // Still attach but mark as error
+                $product->sales_channels()->attach($channelId, [
+                    'listing_status' => SalesChannelProduct::STATUS_ERROR,
+                    'listing_error' => $e->getMessage(),
+                    'last_synced_at' => now(),
+                ]);
+
+                Log::error('Failed to create listing on sales channel', [
+                    'product_id' => $product->id,
+                    'channel_id' => $channelId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Process removed channels - End/Draft listings
+        foreach ($channelsToRemove as $channelId) {
+            $channel = SalesChannel::find($channelId);
+            if (!$channel || !$channel->isEbay()) {
+                $product->sales_channels()->detach($channelId);
+                continue;
+            }
+
+            try {
+                // Get the existing listing
+                $pivot = $product->sales_channels()->where('sales_channel_id', $channelId)->first()?->pivot;
+                $externalId = $pivot?->external_listing_id;
+
+                if ($externalId) {
+                    // End the listing on eBay
+                    $result = $ebayController->endEbayItem($channel, $externalId, 'NotAvailable');
+
+                    // Update pivot with ended status instead of detaching
+                    $product->sales_channels()->updateExistingPivot($channelId, [
+                        'listing_status' => SalesChannelProduct::STATUS_ENDED,
+                        'listing_error' => $result['success'] ? null : ($result['error'] ?? 'Failed to end listing'),
+                        'last_synced_at' => now(),
+                    ]);
+
+                    Log::info('Product listing ended on sales channel', [
+                        'product_id' => $product->id,
+                        'channel_id' => $channelId,
+                        'external_id' => $externalId,
+                    ]);
+                } else {
+                    // No external ID, just detach
+                    $product->sales_channels()->detach($channelId);
+                }
+
+            } catch (\Exception $e) {
+                // Update with error status
+                $product->sales_channels()->updateExistingPivot($channelId, [
+                    'listing_status' => SalesChannelProduct::STATUS_ERROR,
+                    'listing_error' => $e->getMessage(),
+                    'last_synced_at' => now(),
+                ]);
+
+                Log::error('Failed to end listing on sales channel', [
+                    'product_id' => $product->id,
+                    'channel_id' => $channelId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Process existing channels - Update listings
+        foreach ($channelsToUpdate as $channelId) {
+            $channel = SalesChannel::find($channelId);
+            if (!$channel || !$channel->isEbay()) {
+                continue;
+            }
+
+            try {
+                $pivot = $product->sales_channels()->where('sales_channel_id', $channelId)->first()?->pivot;
+                $externalId = $pivot?->external_listing_id;
+                $currentStatus = $pivot?->listing_status;
+
+                // Skip if no external ID and status is not pending
+                if (!$externalId && $currentStatus !== SalesChannelProduct::STATUS_PENDING) {
+                    continue;
+                }
+
+                if ($externalId) {
+                    // Revise existing listing
+                    $result = $ebayController->reviseEbayItem($channel, $product, $externalId);
+
+                    $product->sales_channels()->updateExistingPivot($channelId, [
+                        'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
+                        'listing_error' => $result['error'] ?? null,
+                        'last_synced_at' => now(),
+                    ]);
+                } else {
+                    // No existing ID, create new listing
+                    $result = $ebayController->createEbayListing($channel, $product);
+
+                    $product->sales_channels()->updateExistingPivot($channelId, [
+                        'listing_url' => $result['listing_url'] ?? null,
+                        'external_listing_id' => $result['item_id'] ?? null,
+                        'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
+                        'listing_error' => $result['error'] ?? null,
+                        'listing_format' => 'FixedPriceItem',
+                        'last_synced_at' => now(),
+                    ]);
+                }
+
+                Log::info('Product listing updated on sales channel', [
+                    'product_id' => $product->id,
+                    'channel_id' => $channelId,
+                ]);
+
+            } catch (\Exception $e) {
+                $product->sales_channels()->updateExistingPivot($channelId, [
+                    'listing_status' => SalesChannelProduct::STATUS_ERROR,
+                    'listing_error' => $e->getMessage(),
+                    'last_synced_at' => now(),
+                ]);
+
+                Log::error('Failed to update listing on sales channel', [
+                    'product_id' => $product->id,
+                    'channel_id' => $channelId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 }

@@ -2261,4 +2261,268 @@ class EbayController extends Controller
 
         return $data;
     }
+
+    /**
+     * Create an eBay listing for a product
+     * This is a wrapper method called by ProductController
+     */
+    public function createEbayListing(SalesChannel $channel, Product $product): array
+    {
+        try {
+            $ebayService = new EbayService();
+
+            // Prepare item data from product
+            $itemData = $this->prepareItemDataFromProduct($product, $channel);
+
+            Log::info('Creating eBay listing', [
+                'product_id' => $product->id,
+                'sku' => $product->sku,
+                'channel_id' => $channel->id,
+            ]);
+
+            $result = $ebayService->addFixedPriceItem($channel, $itemData);
+
+            Log::info('eBay listing created', [
+                'product_id' => $product->id,
+                'result' => $result,
+            ]);
+
+            return $result;
+        } catch (Exception $e) {
+            Log::error('Failed to create eBay listing', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Revise/update an eBay listing for a product
+     * This is a wrapper method called by ProductController
+     */
+    public function reviseEbayItem(SalesChannel $channel, Product $product, string $itemId): array
+    {
+        try {
+            $ebayService = new EbayService();
+
+            // Prepare item data from product
+            $itemData = $this->prepareItemDataFromProduct($product, $channel);
+
+            Log::info('Revising eBay listing', [
+                'product_id' => $product->id,
+                'item_id' => $itemId,
+                'sku' => $product->sku,
+                'channel_id' => $channel->id,
+            ]);
+
+            $result = $ebayService->reviseFixedPriceItem($channel, $itemId, $itemData);
+
+            Log::info('eBay listing revised', [
+                'product_id' => $product->id,
+                'item_id' => $itemId,
+                'result' => $result,
+            ]);
+
+            return $result;
+        } catch (Exception $e) {
+            Log::error('Failed to revise eBay listing', [
+                'product_id' => $product->id,
+                'item_id' => $itemId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * End an eBay listing
+     * This is a wrapper method called by ProductController
+     */
+    public function endEbayItem(SalesChannel $channel, string $itemId, string $reason = 'NotAvailable'): array
+    {
+        try {
+            $ebayService = new EbayService();
+
+            Log::info('Ending eBay listing', [
+                'item_id' => $itemId,
+                'reason' => $reason,
+                'channel_id' => $channel->id,
+            ]);
+
+            $result = $ebayService->endFixedPriceItem($channel, $itemId, $reason);
+
+            Log::info('eBay listing ended', [
+                'item_id' => $itemId,
+                'result' => $result,
+            ]);
+
+            return $result;
+        } catch (Exception $e) {
+            Log::error('Failed to end eBay listing', [
+                'item_id' => $itemId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Find an eBay listing by SKU
+     * This is a wrapper method called by ProductController
+     */
+    public function findEbayListingBySku(SalesChannel $channel, string $sku): ?array
+    {
+        try {
+            $ebayService = new EbayService();
+
+            Log::info('Finding eBay listing by SKU', [
+                'sku' => $sku,
+                'channel_id' => $channel->id,
+            ]);
+
+            $result = $ebayService->findListingBySku($channel, $sku);
+
+            Log::info('eBay listing search result', [
+                'sku' => $sku,
+                'found' => $result !== null,
+                'result' => $result,
+            ]);
+
+            return $result;
+        } catch (Exception $e) {
+            Log::error('Failed to find eBay listing by SKU', [
+                'sku' => $sku,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Relist an ended eBay item
+     * This is a wrapper method called by ProductController
+     */
+    public function relistEbayItem(SalesChannel $channel, Product $product, string $itemId): array
+    {
+        try {
+            $ebayService = new EbayService();
+
+            // Prepare item data from product for any updates
+            $itemData = $this->prepareItemDataFromProduct($product, $channel);
+
+            Log::info('Relisting eBay item', [
+                'product_id' => $product->id,
+                'item_id' => $itemId,
+                'channel_id' => $channel->id,
+            ]);
+
+            $result = $ebayService->relistFixedPriceItem($channel, $itemId, $itemData);
+
+            Log::info('eBay item relisted', [
+                'product_id' => $product->id,
+                'item_id' => $itemId,
+                'result' => $result,
+            ]);
+
+            return $result;
+        } catch (Exception $e) {
+            Log::error('Failed to relist eBay item', [
+                'product_id' => $product->id,
+                'item_id' => $itemId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Prepare item data array from a Product model for eBay API
+     */
+    private function prepareItemDataFromProduct(Product $product, SalesChannel $channel): array
+    {
+        $productMeta = $product->product_meta;
+
+        // Determine price - use sale_price if available, otherwise regular_price
+        $price = $productMeta['sale_price'] ?? $productMeta['regular_price'] ?? $product->price ?? 0;
+
+        // Build item data array
+        $itemData = [
+            'title' => $product->name,
+            'description' => $product->description ?? $product->short_description ?? $product->name,
+            'sku' => $product->sku,
+            'price' => $price,
+            'quantity' => $product->stock_quantity ?? 1,
+            'condition_id' => 1000, // New
+            'listing_duration' => 'GTC', // Good Till Cancelled
+            'currency' => 'USD',
+            'country' => 'US',
+            'location' => 'United States',
+        ];
+
+        // Add weight and dimensions if available
+        if (!empty($productMeta['weight'])) {
+            $itemData['weight'] = $productMeta['weight'];
+        }
+        if (!empty($productMeta['length'])) {
+            $itemData['length'] = $productMeta['length'];
+        }
+        if (!empty($productMeta['width'])) {
+            $itemData['width'] = $productMeta['width'];
+        }
+        if (!empty($productMeta['height'])) {
+            $itemData['height'] = $productMeta['height'];
+        }
+
+        // Add category ID if we have a mapping
+        // For now, use a default category - this should be mapped from the product category
+        if ($product->category_id) {
+            // You may want to create a category mapping table for eBay categories
+            // For now, we'll use a default eBay category if not mapped
+            $itemData['category_id'] = $this->getEbayCategoryId($product->category_id);
+        }
+
+        // Add product image if available
+        if (!empty($product->product_image)) {
+            $itemData['image_url'] = asset('storage/' . $product->product_image);
+        }
+
+        return $itemData;
+    }
+
+    /**
+     * Get eBay category ID from local category ID
+     * This can be expanded to use a category mapping table
+     */
+    private function getEbayCategoryId(int $localCategoryId): string
+    {
+        // TODO: Implement proper category mapping
+        // For now, return a default eBay category (e.g., "Other" category)
+        // Category 99 is the general "Everything Else" category
+        // You should create a mapping table to properly map local categories to eBay categories
+
+        // Example mapping - extend this as needed
+        $categoryMapping = [
+            // localCategoryId => ebayCategoryId
+        ];
+
+        return $categoryMapping[$localCategoryId] ?? '99'; // Default to "Other"
+    }
 }

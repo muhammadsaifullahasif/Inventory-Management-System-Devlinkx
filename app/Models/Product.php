@@ -91,7 +91,37 @@ class Product extends Model
 
     public function sales_channels() {
         return $this->belongsToMany(SalesChannel::class, 'sales_channel_product')
-            ->withPivot('listing_url', 'external_listing_id')
-            ->withTimestamps();
+            ->withPivot('listing_url', 'external_listing_id', 'listing_status', 'listing_error', 'listing_format', 'last_synced_at')
+            ->withTimestamps()
+            ->using(SalesChannelProduct::class);
+    }
+
+    /**
+     * Get active sales channels (where listing is active)
+     */
+    public function activeSalesChannels()
+    {
+        return $this->belongsToMany(SalesChannel::class, 'sales_channel_product')
+            ->withPivot('listing_url', 'external_listing_id', 'listing_status', 'listing_error', 'listing_format', 'last_synced_at')
+            ->withTimestamps()
+            ->wherePivot('listing_status', SalesChannelProduct::STATUS_ACTIVE)
+            ->using(SalesChannelProduct::class);
+    }
+
+    /**
+     * Check if product is listed on a specific sales channel
+     */
+    public function isListedOn(int $salesChannelId): bool
+    {
+        return $this->sales_channels()->where('sales_channel_id', $salesChannelId)->exists();
+    }
+
+    /**
+     * Get listing status for a specific sales channel
+     */
+    public function getListingStatus(int $salesChannelId): ?string
+    {
+        $channel = $this->sales_channels()->where('sales_channel_id', $salesChannelId)->first();
+        return $channel?->pivot?->listing_status;
     }
 }

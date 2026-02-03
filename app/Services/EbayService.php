@@ -472,4 +472,446 @@ class EbayService
             throw new Exception("eBay API Error: {$short} - {$long}");
         }
     }
+
+    /**
+     * Add a fixed price item (create new listing)
+     */
+    public function addFixedPriceItem(SalesChannel $salesChannel, array $itemData): array
+    {
+        $xmlRequest = $this->buildAddFixedPriceItemXml($itemData);
+        $xmlResponse = $this->callTradingApi($salesChannel, 'AddFixedPriceItem', $xmlRequest);
+
+        return $this->parseAddItemResponse($xmlResponse);
+    }
+
+    /**
+     * Revise a fixed price item (update existing listing)
+     */
+    public function reviseFixedPriceItem(SalesChannel $salesChannel, string $itemId, array $itemData): array
+    {
+        $xmlRequest = $this->buildReviseFixedPriceItemXml($itemId, $itemData);
+        $xmlResponse = $this->callTradingApi($salesChannel, 'ReviseFixedPriceItem', $xmlRequest);
+
+        return $this->parseReviseItemResponse($xmlResponse);
+    }
+
+    /**
+     * End a fixed price item (end/deactivate listing)
+     */
+    public function endFixedPriceItem(SalesChannel $salesChannel, string $itemId, string $endingReason = 'NotAvailable'): array
+    {
+        $xmlRequest = $this->buildEndFixedPriceItemXml($itemId, $endingReason);
+        $xmlResponse = $this->callTradingApi($salesChannel, 'EndFixedPriceItem', $xmlRequest);
+
+        return $this->parseEndItemResponse($xmlResponse);
+    }
+
+    /**
+     * Relist a fixed price item (reactivate ended listing)
+     */
+    public function relistFixedPriceItem(SalesChannel $salesChannel, string $itemId, array $itemData = []): array
+    {
+        $xmlRequest = $this->buildRelistFixedPriceItemXml($itemId, $itemData);
+        $xmlResponse = $this->callTradingApi($salesChannel, 'RelistFixedPriceItem', $xmlRequest);
+
+        return $this->parseRelistItemResponse($xmlResponse);
+    }
+
+    /**
+     * Find listing by SKU
+     */
+    public function findListingBySku(SalesChannel $salesChannel, string $sku): ?array
+    {
+        $xmlRequest = <<<XML
+<?xml version="1.0" encoding="utf-8"?>
+<GetSellerListRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <RequesterCredentials>
+        <eBayAuthToken>{$salesChannel->access_token}</eBayAuthToken>
+    </RequesterCredentials>
+    <SKUArray>
+        <SKU>{$this->escapeXml($sku)}</SKU>
+    </SKUArray>
+    <EndTimeFrom>{$this->getDateYearsAgo(1)}</EndTimeFrom>
+    <EndTimeTo>{$this->getDateYearsAhead(1)}</EndTimeTo>
+    <IncludeVariations>true</IncludeVariations>
+    <Pagination>
+        <EntriesPerPage>10</EntriesPerPage>
+        <PageNumber>1</PageNumber>
+    </Pagination>
+    <DetailLevel>ReturnAll</DetailLevel>
+</GetSellerListRequest>
+XML;
+
+        try {
+            $xmlResponse = $this->callTradingApi($salesChannel, 'GetSellerList', $xmlRequest);
+            $xml = simplexml_load_string($xmlResponse);
+
+            if ((string) $xml->Ack === 'Failure') {
+                return null;
+            }
+
+            if (isset($xml->ItemArray->Item)) {
+                foreach ($xml->ItemArray->Item as $item) {
+                    $itemSku = (string) ($item->SKU ?? '');
+                    if (strtoupper($itemSku) === strtoupper($sku)) {
+                        return [
+                            'ItemID' => (string) $item->ItemID,
+                            'Title' => (string) $item->Title,
+                            'SKU' => $itemSku,
+                            'ListingStatus' => (string) ($item->SellingStatus->ListingStatus ?? ''),
+                            'CurrentPrice' => (float) ($item->SellingStatus->CurrentPrice ?? 0),
+                            'Quantity' => (int) ($item->Quantity ?? 0),
+                            'QuantityAvailable' => (int) ($item->QuantityAvailable ?? 0),
+                        ];
+                    }
+                }
+            }
+
+            return null;
+        } catch (Exception $e) {
+            Log::error('Failed to find listing by SKU', ['sku' => $sku, 'error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * Build XML for AddFixedPriceItem
+     */
+    private function buildAddFixedPriceItemXml(array $data): string
+    {
+        $title = $this->escapeXml($data['title'] ?? '');
+        $description = $this->escapeXml($data['description'] ?? $data['title'] ?? '');
+        $sku = $this->escapeXml($data['sku'] ?? '');
+        $price = number_format((float) ($data['price'] ?? 0), 2, '.', '');
+        $quantity = (int) ($data['quantity'] ?? 1);
+        $categoryId = $this->escapeXml($data['category_id'] ?? '');
+        $conditionId = (int) ($data['condition_id'] ?? 1000); // 1000 = New
+        $listingDuration = $data['listing_duration'] ?? 'GTC';
+        $currency = $data['currency'] ?? 'USD';
+        $country = $data['country'] ?? 'US';
+        $location = $this->escapeXml($data['location'] ?? 'United States');
+        $postalCode = $this->escapeXml($data['postal_code'] ?? '');
+
+        // Return policy defaults
+        $returnsAccepted = $data['returns_accepted'] ?? 'ReturnsAccepted';
+        $returnWithin = $data['return_within'] ?? 'Days_30';
+        $refundOption = $data['refund_option'] ?? 'MoneyBackOrReplacement';
+        $shippingCostPaidBy = $data['shipping_cost_paid_by'] ?? 'Buyer';
+
+        $xml = <<<XML
+<?xml version="1.0" encoding="utf-8"?>
+<AddFixedPriceItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <Item>
+        <Title>{$title}</Title>
+        <Description><![CDATA[{$description}]]></Description>
+        <SKU>{$sku}</SKU>
+        <PrimaryCategory>
+            <CategoryID>{$categoryId}</CategoryID>
+        </PrimaryCategory>
+        <StartPrice currencyID="{$currency}">{$price}</StartPrice>
+        <ConditionID>{$conditionId}</ConditionID>
+        <Country>{$country}</Country>
+        <Currency>{$currency}</Currency>
+        <DispatchTimeMax>3</DispatchTimeMax>
+        <ListingDuration>{$listingDuration}</ListingDuration>
+        <ListingType>FixedPriceItem</ListingType>
+        <Location>{$location}</Location>
+        <PostalCode>{$postalCode}</PostalCode>
+        <Quantity>{$quantity}</Quantity>
+        <ReturnPolicy>
+            <ReturnsAcceptedOption>{$returnsAccepted}</ReturnsAcceptedOption>
+            <ReturnsWithinOption>{$returnWithin}</ReturnsWithinOption>
+            <RefundOption>{$refundOption}</RefundOption>
+            <ShippingCostPaidByOption>{$shippingCostPaidBy}</ShippingCostPaidByOption>
+        </ReturnPolicy>
+        <ShippingDetails>
+            <ShippingType>Flat</ShippingType>
+            <ShippingServiceOptions>
+                <FreeShipping>true</FreeShipping>
+                <ShippingService>USPSParcel</ShippingService>
+                <ShippingServicePriority>1</ShippingServicePriority>
+            </ShippingServiceOptions>
+        </ShippingDetails>
+XML;
+
+        // Add picture URLs if provided
+        if (!empty($data['picture_urls'])) {
+            $xml .= "\n        <PictureDetails>";
+            foreach ((array) $data['picture_urls'] as $url) {
+                $xml .= "\n            <PictureURL>" . $this->escapeXml($url) . "</PictureURL>";
+            }
+            $xml .= "\n        </PictureDetails>";
+        }
+
+        // Add item specifics if provided
+        if (!empty($data['item_specifics'])) {
+            $xml .= "\n        <ItemSpecifics>";
+            foreach ($data['item_specifics'] as $name => $value) {
+                $xml .= <<<SPEC
+
+            <NameValueList>
+                <Name>{$this->escapeXml($name)}</Name>
+                <Value>{$this->escapeXml($value)}</Value>
+            </NameValueList>
+SPEC;
+            }
+            $xml .= "\n        </ItemSpecifics>";
+        }
+
+        $xml .= "\n    </Item>\n</AddFixedPriceItemRequest>";
+
+        return $xml;
+    }
+
+    /**
+     * Build XML for ReviseFixedPriceItem
+     */
+    private function buildReviseFixedPriceItemXml(string $itemId, array $data): string
+    {
+        $xml = <<<XML
+<?xml version="1.0" encoding="utf-8"?>
+<ReviseFixedPriceItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <Item>
+        <ItemID>{$itemId}</ItemID>
+XML;
+
+        if (isset($data['title'])) {
+            $xml .= "\n        <Title>{$this->escapeXml($data['title'])}</Title>";
+        }
+
+        if (isset($data['description'])) {
+            $xml .= "\n        <Description><![CDATA[{$data['description']}]]></Description>";
+        }
+
+        if (isset($data['price'])) {
+            $currency = $data['currency'] ?? 'USD';
+            $price = number_format((float) $data['price'], 2, '.', '');
+            $xml .= "\n        <StartPrice currencyID=\"{$currency}\">{$price}</StartPrice>";
+        }
+
+        if (isset($data['quantity'])) {
+            $xml .= "\n        <Quantity>{$data['quantity']}</Quantity>";
+        }
+
+        if (isset($data['sku'])) {
+            $xml .= "\n        <SKU>{$this->escapeXml($data['sku'])}</SKU>";
+        }
+
+        // Add picture URLs if provided
+        if (!empty($data['picture_urls'])) {
+            $xml .= "\n        <PictureDetails>";
+            foreach ((array) $data['picture_urls'] as $url) {
+                $xml .= "\n            <PictureURL>" . $this->escapeXml($url) . "</PictureURL>";
+            }
+            $xml .= "\n        </PictureDetails>";
+        }
+
+        $xml .= "\n    </Item>\n</ReviseFixedPriceItemRequest>";
+
+        return $xml;
+    }
+
+    /**
+     * Build XML for EndFixedPriceItem
+     */
+    private function buildEndFixedPriceItemXml(string $itemId, string $endingReason): string
+    {
+        return <<<XML
+<?xml version="1.0" encoding="utf-8"?>
+<EndFixedPriceItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <ItemID>{$itemId}</ItemID>
+    <EndingReason>{$endingReason}</EndingReason>
+</EndFixedPriceItemRequest>
+XML;
+    }
+
+    /**
+     * Build XML for RelistFixedPriceItem
+     */
+    private function buildRelistFixedPriceItemXml(string $itemId, array $data): string
+    {
+        $xml = <<<XML
+<?xml version="1.0" encoding="utf-8"?>
+<RelistFixedPriceItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <Item>
+        <ItemID>{$itemId}</ItemID>
+XML;
+
+        if (isset($data['title'])) {
+            $xml .= "\n        <Title>{$this->escapeXml($data['title'])}</Title>";
+        }
+
+        if (isset($data['price'])) {
+            $currency = $data['currency'] ?? 'USD';
+            $price = number_format((float) $data['price'], 2, '.', '');
+            $xml .= "\n        <StartPrice currencyID=\"{$currency}\">{$price}</StartPrice>";
+        }
+
+        if (isset($data['quantity'])) {
+            $xml .= "\n        <Quantity>{$data['quantity']}</Quantity>";
+        }
+
+        $xml .= "\n    </Item>\n</RelistFixedPriceItemRequest>";
+
+        return $xml;
+    }
+
+    /**
+     * Parse AddFixedPriceItem response
+     */
+    private function parseAddItemResponse(string $xmlResponse): array
+    {
+        $xml = simplexml_load_string($xmlResponse);
+
+        $result = [
+            'success' => in_array((string) $xml->Ack, ['Success', 'Warning']),
+            'item_id' => (string) ($xml->ItemID ?? ''),
+            'start_time' => (string) ($xml->StartTime ?? ''),
+            'end_time' => (string) ($xml->EndTime ?? ''),
+            'fees' => [],
+            'warnings' => [],
+            'errors' => [],
+        ];
+
+        if (isset($xml->Fees->Fee)) {
+            foreach ($xml->Fees->Fee as $fee) {
+                $result['fees'][(string) $fee->Name] = (float) $fee->Fee;
+            }
+        }
+
+        if (isset($xml->Errors)) {
+            foreach ($xml->Errors as $error) {
+                $errorData = [
+                    'code' => (string) ($error->ErrorCode ?? ''),
+                    'short_message' => (string) ($error->ShortMessage ?? ''),
+                    'long_message' => (string) ($error->LongMessage ?? ''),
+                    'severity' => (string) ($error->SeverityCode ?? ''),
+                ];
+
+                if ((string) $error->SeverityCode === 'Warning') {
+                    $result['warnings'][] = $errorData;
+                } else {
+                    $result['errors'][] = $errorData;
+                }
+            }
+        }
+
+        if ($result['success'] && !empty($result['item_id'])) {
+            $result['listing_url'] = "https://www.ebay.com/itm/{$result['item_id']}";
+        }
+
+        return $result;
+    }
+
+    /**
+     * Parse ReviseFixedPriceItem response
+     */
+    private function parseReviseItemResponse(string $xmlResponse): array
+    {
+        $xml = simplexml_load_string($xmlResponse);
+
+        $result = [
+            'success' => in_array((string) $xml->Ack, ['Success', 'Warning']),
+            'item_id' => (string) ($xml->ItemID ?? ''),
+            'start_time' => (string) ($xml->StartTime ?? ''),
+            'end_time' => (string) ($xml->EndTime ?? ''),
+            'fees' => [],
+            'warnings' => [],
+            'errors' => [],
+        ];
+
+        if (isset($xml->Fees->Fee)) {
+            foreach ($xml->Fees->Fee as $fee) {
+                $result['fees'][(string) $fee->Name] = (float) $fee->Fee;
+            }
+        }
+
+        if (isset($xml->Errors)) {
+            foreach ($xml->Errors as $error) {
+                $errorData = [
+                    'code' => (string) ($error->ErrorCode ?? ''),
+                    'short_message' => (string) ($error->ShortMessage ?? ''),
+                    'long_message' => (string) ($error->LongMessage ?? ''),
+                    'severity' => (string) ($error->SeverityCode ?? ''),
+                ];
+
+                if ((string) $error->SeverityCode === 'Warning') {
+                    $result['warnings'][] = $errorData;
+                } else {
+                    $result['errors'][] = $errorData;
+                }
+            }
+        }
+
+        if ($result['success'] && !empty($result['item_id'])) {
+            $result['listing_url'] = "https://www.ebay.com/itm/{$result['item_id']}";
+        }
+
+        return $result;
+    }
+
+    /**
+     * Parse EndFixedPriceItem response
+     */
+    private function parseEndItemResponse(string $xmlResponse): array
+    {
+        $xml = simplexml_load_string($xmlResponse);
+
+        return [
+            'success' => in_array((string) $xml->Ack, ['Success', 'Warning']),
+            'end_time' => (string) ($xml->EndTime ?? ''),
+            'errors' => $this->extractErrors($xml),
+        ];
+    }
+
+    /**
+     * Parse RelistFixedPriceItem response
+     */
+    private function parseRelistItemResponse(string $xmlResponse): array
+    {
+        return $this->parseAddItemResponse($xmlResponse);
+    }
+
+    /**
+     * Extract errors from XML response
+     */
+    private function extractErrors($xml): array
+    {
+        $errors = [];
+        if (isset($xml->Errors)) {
+            foreach ($xml->Errors as $error) {
+                $errors[] = [
+                    'code' => (string) ($error->ErrorCode ?? ''),
+                    'short_message' => (string) ($error->ShortMessage ?? ''),
+                    'long_message' => (string) ($error->LongMessage ?? ''),
+                    'severity' => (string) ($error->SeverityCode ?? ''),
+                ];
+            }
+        }
+        return $errors;
+    }
+
+    /**
+     * Escape XML special characters
+     */
+    private function escapeXml(string $string): string
+    {
+        return htmlspecialchars($string, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    }
+
+    /**
+     * Get date years ago in ISO format
+     */
+    private function getDateYearsAgo(int $years): string
+    {
+        return now()->subYears($years)->toIso8601String();
+    }
+
+    /**
+     * Get date years ahead in ISO format
+     */
+    private function getDateYearsAhead(int $years): string
+    {
+        return now()->addYears($years)->toIso8601String();
+    }
 }

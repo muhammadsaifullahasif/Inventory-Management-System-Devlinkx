@@ -139,6 +139,49 @@
                     @enderror
                 </div>
             </div>
+
+            <!-- Sales Channels Section -->
+            @if(isset($salesChannels) && $salesChannels->count() > 0)
+            <div class="card card-outline card-info mt-3">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-store mr-2"></i>List on Sales Channels</h3>
+                    <div class="card-tools">
+                        <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">Select the sales channels where you want to list this product. The product will be created on the selected channels after saving.</p>
+                    <div class="row">
+                        @foreach($salesChannels as $channel)
+                            <div class="col-md-4 mb-2">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox"
+                                           class="custom-control-input"
+                                           id="sales_channel_{{ $channel->id }}"
+                                           name="sales_channels[]"
+                                           value="{{ $channel->id }}"
+                                           {{ in_array($channel->id, old('sales_channels', [])) ? 'checked' : '' }}>
+                                    <label class="custom-control-label" for="sales_channel_{{ $channel->id }}">
+                                        {{ $channel->name }}
+                                        @if($channel->hasValidToken())
+                                            <span class="badge badge-success badge-sm">Connected</span>
+                                        @else
+                                            <span class="badge badge-warning badge-sm">Not Connected</span>
+                                        @endif
+                                    </label>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                    @error('sales_channels')
+                        <span class="text-danger">{{ $message }}</span>
+                    @enderror
+                </div>
+            </div>
+            @endif
+
             <button type="submit" class="btn btn-primary">Save</button>
         </form>
     </div>
