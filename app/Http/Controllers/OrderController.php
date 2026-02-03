@@ -247,9 +247,9 @@ class OrderController extends Controller
         }
 
         $validated = $request->validate([
-            'order_status' => 'nullable|in:pending,processing,shipped,delivered,cancelled,refunded',
-            'payment_status' => 'nullable|in:pending,paid,refunded,failed',
-            'fulfillment_status' => 'nullable|in:unfulfilled,partially_fulfilled,fulfilled',
+            'order_status' => 'nullable|in:pending,processing,shipped,delivered,cancelled,refunded,ready_for_pickup,cancellation_requested',
+            'payment_status' => 'nullable|in:pending,paid,refunded,failed,awaiting_payment',
+            'fulfillment_status' => 'nullable|in:unfulfilled,partially_fulfilled,fulfilled,ready_for_pickup',
             'shipping_carrier' => 'nullable|string|max:255',
             'tracking_number' => 'nullable|string|max:255',
         ]);
@@ -911,12 +911,478 @@ class OrderController extends Controller
     public static function isOrderNotification(string $notificationType): bool
     {
         $orderNotificationTypes = [
+            // New order notifications
             'FixedPriceTransaction',
             'AuctionCheckoutComplete',
             'ItemSold',
             'GetItemTransactionsResponse',
+            // Order status update notifications
+            'ItemMarkedShipped',
+            'ItemMarkedPaid',
+            'ItemReadyForPickup',
+            // Cancellation and checkout notifications
+            'BuyerCancelRequested',
+            'CheckoutBuyerRequestsTotal',
+            'PaymentReminder',
         ];
 
         return in_array($notificationType, $orderNotificationTypes);
+    }
+
+    /**
+     * Check if notification is for a new order
+     */
+    public static function isNewOrderNotification(string $notificationType): bool
+    {
+        return in_array($notificationType, [
+            'FixedPriceTransaction',
+            'AuctionCheckoutComplete',
+            'ItemSold',
+            'GetItemTransactionsResponse',
+        ]);
+    }
+
+    /**
+     * Process eBay order notification based on event type
+     */
+    public function processEbayNotification($xml, SalesChannel $salesChannel, string $notificationType, $timestamp): ?Order
+    {
+        // Route to appropriate handler based on notification type
+        return match ($notificationType) {
+            'FixedPriceTransaction',
+            'AuctionCheckoutComplete',
+            'ItemSold',
+            'GetItemTransactionsResponse' => $this->saveFromEbayNotification($xml, $salesChannel, $notificationType, $timestamp),
+
+            'ItemMarkedShipped' => $this->handleItemMarkedShipped($xml, $salesChannel, $notificationType, $timestamp),
+            'ItemMarkedPaid' => $this->handleItemMarkedPaid($xml, $salesChannel, $notificationType, $timestamp),
+            'ItemReadyForPickup' => $this->handleItemReadyForPickup($xml, $salesChannel, $notificationType, $timestamp),
+            'BuyerCancelRequested' => $this->handleBuyerCancelRequested($xml, $salesChannel, $notificationType, $timestamp),
+            'CheckoutBuyerRequestsTotal' => $this->handleCheckoutBuyerRequestsTotal($xml, $salesChannel, $notificationType, $timestamp),
+            'PaymentReminder' => $this->handlePaymentReminder($xml, $salesChannel, $notificationType, $timestamp),
+
+            default => null,
+        };
+    }
+
+    /**
+     * Handle ItemMarkedShipped notification - Mark order as shipped with tracking
+     */
+    protected function handleItemMarkedShipped($xml, SalesChannel $salesChannel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($xml);
+        $transaction = $this->extractTransaction($response);
+
+        if (!$transaction) {
+            Log::channel('ebay')->warning('No transaction found in ItemMarkedShipped notification', [
+                'notification_type' => $notificationType,
+                'sales_channel_id' => $salesChannel->id,
+            ]);
+            return null;
+        }
+
+        $ebayOrderId = $this->extractOrderId($transaction);
+        if (empty($ebayOrderId)) {
+            Log::channel('ebay')->warning('No order ID found in ItemMarkedShipped notification');
+            return null;
+        }
+
+        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        if (!$order) {
+            Log::channel('ebay')->warning('Order not found for ItemMarkedShipped', ['ebay_order_id' => $ebayOrderId]);
+            return null;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Extract shipping/tracking info
+            $shippingDetails = $transaction->ShippingDetails ?? null;
+            $shipmentTrackingDetails = $shippingDetails->ShipmentTrackingDetails ?? null;
+
+            $trackingNumber = (string) ($shipmentTrackingDetails->ShipmentTrackingNumber ?? '');
+            $shippingCarrier = (string) ($shipmentTrackingDetails->ShippingCarrierUsed ?? '');
+            $shippedTime = $this->parseEbayDate((string) ($transaction->ShippedTime ?? ''));
+
+            // Update order
+            $order->update([
+                'order_status' => 'shipped',
+                'fulfillment_status' => 'fulfilled',
+                'tracking_number' => $trackingNumber ?: $order->tracking_number,
+                'shipping_carrier' => $shippingCarrier ?: $order->shipping_carrier,
+                'shipped_at' => $shippedTime ?? now(),
+                'ebay_order_status' => (string) ($transaction->ContainingOrder->OrderStatus ?? $order->ebay_order_status),
+            ]);
+
+            // Save shipment tracking details to meta
+            if ($shipmentTrackingDetails) {
+                $order->setMeta('shipment_tracking', [
+                    'tracking_number' => $trackingNumber,
+                    'shipping_carrier' => $shippingCarrier,
+                    'shipped_time' => (string) ($transaction->ShippedTime ?? ''),
+                ]);
+            }
+
+            // Update inventory for all items if not already done
+            foreach ($order->items as $item) {
+                if (!$item->inventory_updated) {
+                    $item->updateInventory();
+                }
+            }
+
+            // Log the event
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'ItemMarkedShipped',
+                'timestamp' => $timestamp,
+                'tracking_number' => $trackingNumber,
+                'shipping_carrier' => $shippingCarrier,
+            ]);
+
+            DB::commit();
+
+            Log::channel('ebay')->info('Order marked as shipped', [
+                'order_id' => $order->id,
+                'ebay_order_id' => $ebayOrderId,
+                'tracking_number' => $trackingNumber,
+            ]);
+
+            return $order;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::channel('ebay')->error('Failed to process ItemMarkedShipped', [
+                'ebay_order_id' => $ebayOrderId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle ItemMarkedPaid notification - Mark order as paid
+     */
+    protected function handleItemMarkedPaid($xml, SalesChannel $salesChannel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($xml);
+        $transaction = $this->extractTransaction($response);
+
+        if (!$transaction) {
+            Log::channel('ebay')->warning('No transaction found in ItemMarkedPaid notification');
+            return null;
+        }
+
+        $ebayOrderId = $this->extractOrderId($transaction);
+        if (empty($ebayOrderId)) {
+            return null;
+        }
+
+        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        if (!$order) {
+            // Order doesn't exist yet, create it
+            return $this->saveFromEbayNotification($xml, $salesChannel, $notificationType, $timestamp);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $paidTime = $this->parseEbayDate((string) ($transaction->PaidTime ?? ''));
+
+            $order->update([
+                'payment_status' => 'paid',
+                'paid_at' => $paidTime ?? now(),
+                'ebay_payment_status' => (string) ($transaction->Status->eBayPaymentStatus ?? 'NoPaymentFailure'),
+            ]);
+
+            // Log the event
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'ItemMarkedPaid',
+                'timestamp' => $timestamp,
+                'paid_time' => $paidTime?->toIso8601String(),
+            ]);
+
+            DB::commit();
+
+            Log::channel('ebay')->info('Order marked as paid', [
+                'order_id' => $order->id,
+                'ebay_order_id' => $ebayOrderId,
+            ]);
+
+            return $order;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::channel('ebay')->error('Failed to process ItemMarkedPaid', [
+                'ebay_order_id' => $ebayOrderId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle ItemReadyForPickup notification - Mark order ready for pickup
+     */
+    protected function handleItemReadyForPickup($xml, SalesChannel $salesChannel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($xml);
+        $transaction = $this->extractTransaction($response);
+
+        if (!$transaction) {
+            Log::channel('ebay')->warning('No transaction found in ItemReadyForPickup notification');
+            return null;
+        }
+
+        $ebayOrderId = $this->extractOrderId($transaction);
+        if (empty($ebayOrderId)) {
+            return null;
+        }
+
+        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        if (!$order) {
+            Log::channel('ebay')->warning('Order not found for ItemReadyForPickup', ['ebay_order_id' => $ebayOrderId]);
+            return null;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $order->update([
+                'order_status' => 'ready_for_pickup',
+                'fulfillment_status' => 'ready_for_pickup',
+                'ebay_order_status' => (string) ($transaction->ContainingOrder->OrderStatus ?? $order->ebay_order_status),
+            ]);
+
+            // Save pickup details to meta
+            $pickupDetails = $transaction->PickupDetails ?? null;
+            if ($pickupDetails) {
+                $order->setMeta('pickup_details', $this->xmlToArray($pickupDetails));
+            }
+
+            // Log the event
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'ItemReadyForPickup',
+                'timestamp' => $timestamp,
+            ]);
+
+            DB::commit();
+
+            Log::channel('ebay')->info('Order marked as ready for pickup', [
+                'order_id' => $order->id,
+                'ebay_order_id' => $ebayOrderId,
+            ]);
+
+            return $order;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::channel('ebay')->error('Failed to process ItemReadyForPickup', [
+                'ebay_order_id' => $ebayOrderId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle BuyerCancelRequested notification - Process cancellation request
+     */
+    protected function handleBuyerCancelRequested($xml, SalesChannel $salesChannel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($xml);
+        $transaction = $this->extractTransaction($response);
+
+        if (!$transaction) {
+            Log::channel('ebay')->warning('No transaction found in BuyerCancelRequested notification');
+            return null;
+        }
+
+        $ebayOrderId = $this->extractOrderId($transaction);
+        if (empty($ebayOrderId)) {
+            return null;
+        }
+
+        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        if (!$order) {
+            Log::channel('ebay')->warning('Order not found for BuyerCancelRequested', ['ebay_order_id' => $ebayOrderId]);
+            return null;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $cancelReason = (string) ($transaction->ContainingOrder->CancelReason ??
+                            $transaction->CancelReason ?? 'Buyer requested cancellation');
+            $cancelStatus = (string) ($transaction->ContainingOrder->CancelStatus ?? 'CancelRequested');
+
+            $order->update([
+                'order_status' => 'cancellation_requested',
+                'cancel_status' => $cancelStatus,
+            ]);
+
+            // Save cancellation details to meta
+            $order->setMeta('cancellation_request', [
+                'requested_at' => $timestamp,
+                'reason' => $cancelReason,
+                'cancel_status' => $cancelStatus,
+                'requested_by' => 'buyer',
+            ]);
+
+            // Log the event
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'BuyerCancelRequested',
+                'timestamp' => $timestamp,
+                'reason' => $cancelReason,
+            ]);
+
+            DB::commit();
+
+            Log::channel('ebay')->info('Order cancellation requested by buyer', [
+                'order_id' => $order->id,
+                'ebay_order_id' => $ebayOrderId,
+                'reason' => $cancelReason,
+            ]);
+
+            return $order;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::channel('ebay')->error('Failed to process BuyerCancelRequested', [
+                'ebay_order_id' => $ebayOrderId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle CheckoutBuyerRequestsTotal notification
+     */
+    protected function handleCheckoutBuyerRequestsTotal($xml, SalesChannel $salesChannel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($xml);
+        $transaction = $this->extractTransaction($response);
+
+        if (!$transaction) {
+            Log::channel('ebay')->warning('No transaction found in CheckoutBuyerRequestsTotal notification');
+            return null;
+        }
+
+        $ebayOrderId = $this->extractOrderId($transaction);
+
+        // This is typically a pre-checkout event, the order might not exist yet
+        // Just log it and save to meta if order exists
+        if (!empty($ebayOrderId)) {
+            $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+            if ($order) {
+                $order->setMeta('event_log_' . time(), [
+                    'event' => 'CheckoutBuyerRequestsTotal',
+                    'timestamp' => $timestamp,
+                ]);
+
+                Log::channel('ebay')->info('Checkout total requested', [
+                    'order_id' => $order->id,
+                    'ebay_order_id' => $ebayOrderId,
+                ]);
+
+                return $order;
+            }
+        }
+
+        Log::channel('ebay')->info('CheckoutBuyerRequestsTotal received (no existing order)', [
+            'notification_type' => $notificationType,
+        ]);
+
+        return null;
+    }
+
+    /**
+     * Handle PaymentReminder notification
+     */
+    protected function handlePaymentReminder($xml, SalesChannel $salesChannel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($xml);
+        $transaction = $this->extractTransaction($response);
+
+        if (!$transaction) {
+            Log::channel('ebay')->warning('No transaction found in PaymentReminder notification');
+            return null;
+        }
+
+        $ebayOrderId = $this->extractOrderId($transaction);
+        if (empty($ebayOrderId)) {
+            return null;
+        }
+
+        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        if (!$order) {
+            // Create order if it doesn't exist
+            return $this->saveFromEbayNotification($xml, $salesChannel, $notificationType, $timestamp);
+        }
+
+        try {
+            // Update payment status if still pending
+            if ($order->payment_status === 'pending') {
+                $order->update([
+                    'payment_status' => 'awaiting_payment',
+                ]);
+            }
+
+            // Log the reminder
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'PaymentReminder',
+                'timestamp' => $timestamp,
+            ]);
+
+            Log::channel('ebay')->info('Payment reminder received', [
+                'order_id' => $order->id,
+                'ebay_order_id' => $ebayOrderId,
+            ]);
+
+            return $order;
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Failed to process PaymentReminder', [
+                'ebay_order_id' => $ebayOrderId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Extract response from SOAP envelope
+     */
+    protected function extractResponseFromEnvelope($xml)
+    {
+        if ($xml->getName() === 'Envelope') {
+            return $xml->Body->children()[0] ?? $xml;
+        }
+        return $xml;
+    }
+
+    /**
+     * Extract transaction from response
+     */
+    protected function extractTransaction($response)
+    {
+        if (isset($response->TransactionArray->Transaction)) {
+            $transaction = $response->TransactionArray->Transaction;
+            // If it's an array of transactions, get the first one
+            if (is_iterable($transaction) && !isset($transaction->TransactionID)) {
+                return $response->TransactionArray->Transaction[0];
+            }
+            return $transaction;
+        }
+        return null;
+    }
+
+    /**
+     * Extract order ID from transaction
+     */
+    protected function extractOrderId($transaction): string
+    {
+        return (string) ($transaction->ContainingOrder->OrderID ??
+                        $transaction->ContainingOrder->ExtendedOrderID ??
+                        $transaction->ExtendedOrderID ?? '');
     }
 }

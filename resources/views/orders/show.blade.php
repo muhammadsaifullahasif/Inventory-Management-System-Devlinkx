@@ -80,10 +80,12 @@
                                                 'delivered' => 'success',
                                                 'cancelled' => 'danger',
                                                 'refunded' => 'secondary',
+                                                'ready_for_pickup' => 'info',
+                                                'cancellation_requested' => 'warning',
                                             ];
                                             $statusColor = $statusColors[$order->order_status] ?? 'secondary';
                                         @endphp
-                                        <span class="badge badge-{{ $statusColor }}">{{ ucfirst($order->order_status ?? 'N/A') }}</span>
+                                        <span class="badge badge-{{ $statusColor }}">{{ ucfirst(str_replace('_', ' ', $order->order_status ?? 'N/A')) }}</span>
                                     </td>
                                 </tr>
                                 <tr>
@@ -95,10 +97,11 @@
                                                 'paid' => 'success',
                                                 'refunded' => 'info',
                                                 'failed' => 'danger',
+                                                'awaiting_payment' => 'warning',
                                             ];
                                             $paymentColor = $paymentColors[$order->payment_status] ?? 'secondary';
                                         @endphp
-                                        <span class="badge badge-{{ $paymentColor }}">{{ ucfirst($order->payment_status ?? 'N/A') }}</span>
+                                        <span class="badge badge-{{ $paymentColor }}">{{ ucfirst(str_replace('_', ' ', $order->payment_status ?? 'N/A')) }}</span>
                                     </td>
                                 </tr>
                                 <tr>
@@ -109,6 +112,7 @@
                                                 'unfulfilled' => 'danger',
                                                 'partially_fulfilled' => 'warning',
                                                 'fulfilled' => 'success',
+                                                'ready_for_pickup' => 'info',
                                             ];
                                             $fulfillmentColor = $fulfillmentColors[$order->fulfillment_status] ?? 'secondary';
                                         @endphp

@@ -1815,19 +1815,29 @@ class EbayController extends Controller
                 'file' => $this->getNotificationFileName($notificationType, $timestamp),
             ]);
 
-            // Save order to database for order-related notifications
+            // Process order-related notifications
             if (OrderController::isOrderNotification($notificationType)) {
                 try {
                     $orderController = new OrderController();
-                    $order = $orderController->saveFromEbayNotification($notificationXml, $salesChannel, $notificationType, $timestamp);
-                    Log::channel('ebay')->info("Order saved from notification: {$notificationType}", [
-                        'order_id' => $order->id ?? null,
-                        'ebay_order_id' => $order->ebay_order_id ?? null,
-                        'sales_channel_id' => $salesChannel->id,
-                    ]);
+                    $order = $orderController->processEbayNotification($notificationXml, $salesChannel, $notificationType, $timestamp);
+
+                    if ($order) {
+                        Log::channel('ebay')->info("Order processed from notification: {$notificationType}", [
+                            'order_id' => $order->id,
+                            'ebay_order_id' => $order->ebay_order_id,
+                            'order_status' => $order->order_status,
+                            'fulfillment_status' => $order->fulfillment_status,
+                            'sales_channel_id' => $salesChannel->id,
+                        ]);
+                    } else {
+                        Log::channel('ebay')->info("Order notification processed (no order returned): {$notificationType}", [
+                            'sales_channel_id' => $salesChannel->id,
+                        ]);
+                    }
                 } catch (Exception $orderException) {
-                    Log::channel('ebay')->error("Failed to save order from notification: {$notificationType}", [
+                    Log::channel('ebay')->error("Failed to process order notification: {$notificationType}", [
                         'error' => $orderException->getMessage(),
+                        'trace' => $orderException->getTraceAsString(),
                         'sales_channel_id' => $salesChannel->id,
                     ]);
                 }
