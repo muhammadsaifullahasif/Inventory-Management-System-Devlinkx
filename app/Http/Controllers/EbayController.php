@@ -2474,10 +2474,10 @@ class EbayController extends Controller
 
         // Build item data array
         $itemData = [
-            'title' => $product->name,
+            // 'title' => $product->name,
             'description' => $description,
             'sku' => $product->sku,
-            'price' => $price,
+            // 'price' => $price,
             'quantity' => $product->stock_quantity ?? 1,
             'condition_id' => 1000, // New
             'listing_duration' => 'GTC', // Good Till Cancelled

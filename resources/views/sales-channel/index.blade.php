@@ -31,7 +31,7 @@
                     <th style="width: 50px;">#</th>
                     <th>Name</th>
                     <th style="width: 150px;">Created at</th>
-                    <th style="width: 150px;">Actions</th>
+                    <th style="min-width: 150px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
