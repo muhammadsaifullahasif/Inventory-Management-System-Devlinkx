@@ -563,26 +563,24 @@ class ProductController extends Controller
 
         foreach ($linkedChannels as $channel) {
             $isEbay = $channel->isEbay();
-            $hasValidToken = $channel->hasValidToken();
 
             Log::info('Checking channel for sync', [
                 'product_id' => $product->id,
                 'channel_id' => $channel->id,
                 'channel_name' => $channel->name,
                 'is_ebay' => $isEbay,
-                'has_valid_token' => $hasValidToken,
                 'token_expires_at' => $channel->access_token_expires_at,
             ]);
 
-            if (!$isEbay || !$hasValidToken) {
-                Log::warning('Skipping channel - not eBay or invalid token', [
+            if (!$isEbay) {
+                Log::warning('Skipping channel - not eBay', [
                     'product_id' => $product->id,
                     'channel_id' => $channel->id,
-                    'is_ebay' => $isEbay,
-                    'has_valid_token' => $hasValidToken,
                 ]);
                 continue;
             }
+
+            // Note: Token refresh is handled automatically by EbayController::syncInventory()
 
             $externalId = $channel->pivot->external_listing_id;
 

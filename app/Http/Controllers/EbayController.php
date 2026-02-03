@@ -2308,6 +2308,11 @@ class EbayController extends Controller
     public function reviseEbayItem(SalesChannel $channel, Product $product, string $itemId): array
     {
         try {
+            // Refresh token if expired
+            if ($this->isAccessTokenExpired($channel)) {
+                $channel = $this->refreshAccessToken($channel);
+            }
+
             $ebayService = new EbayService();
 
             // Prepare item data from product
@@ -2350,6 +2355,11 @@ class EbayController extends Controller
     public function endEbayItem(SalesChannel $channel, string $itemId, string $reason = 'NotAvailable'): array
     {
         try {
+            // Refresh token if expired
+            if ($this->isAccessTokenExpired($channel)) {
+                $channel = $this->refreshAccessToken($channel);
+            }
+
             $ebayService = new EbayService();
 
             Log::info('Ending eBay listing', [
@@ -2386,6 +2396,11 @@ class EbayController extends Controller
     public function findEbayListingBySku(SalesChannel $channel, string $sku): ?array
     {
         try {
+            // Refresh token if expired
+            if ($this->isAccessTokenExpired($channel)) {
+                $channel = $this->refreshAccessToken($channel);
+            }
+
             $ebayService = new EbayService();
 
             Log::info('Finding eBay listing by SKU', [
@@ -2420,6 +2435,12 @@ class EbayController extends Controller
     public function syncInventory(SalesChannel $channel, string $itemId, Product $product): array
     {
         try {
+            // Refresh token if expired
+            if ($this->isAccessTokenExpired($channel)) {
+                Log::info('Access token expired, refreshing...', ['channel_id' => $channel->id]);
+                $channel = $this->refreshAccessToken($channel);
+            }
+
             $ebayService = new EbayService();
 
             // Calculate total quantity from product_stocks table (sum across all warehouses/racks)
@@ -2468,6 +2489,11 @@ class EbayController extends Controller
     public function relistEbayItem(SalesChannel $channel, Product $product, string $itemId): array
     {
         try {
+            // Refresh token if expired
+            if ($this->isAccessTokenExpired($channel)) {
+                $channel = $this->refreshAccessToken($channel);
+            }
+
             $ebayService = new EbayService();
 
             // Prepare item data from product for any updates
