@@ -532,19 +532,55 @@ class ProductController extends Controller
      */
     public static function syncProductInventoryToChannels(Product $product): void
     {
+        Log::info('syncProductInventoryToChannels called', [
+            'product_id' => $product->id,
+            'product_sku' => $product->sku,
+        ]);
+
         // Get all linked sales channels with external listing IDs
         $linkedChannels = $product->sales_channels()
             ->whereNotNull('sales_channel_product.external_listing_id')
             ->get();
 
+        Log::info('Linked channels found', [
+            'product_id' => $product->id,
+            'channel_count' => $linkedChannels->count(),
+            'channels' => $linkedChannels->map(fn($c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'external_listing_id' => $c->pivot->external_listing_id ?? null,
+            ])->toArray(),
+        ]);
+
         if ($linkedChannels->isEmpty()) {
+            Log::info('No linked channels with external_listing_id, skipping sync', [
+                'product_id' => $product->id,
+            ]);
             return;
         }
 
         $ebayController = app(EbayController::class);
 
         foreach ($linkedChannels as $channel) {
-            if (!$channel->isEbay() || !$channel->hasValidToken()) {
+            $isEbay = $channel->isEbay();
+            $hasValidToken = $channel->hasValidToken();
+
+            Log::info('Checking channel for sync', [
+                'product_id' => $product->id,
+                'channel_id' => $channel->id,
+                'channel_name' => $channel->name,
+                'is_ebay' => $isEbay,
+                'has_valid_token' => $hasValidToken,
+                'token_expires_at' => $channel->access_token_expires_at,
+            ]);
+
+            if (!$isEbay || !$hasValidToken) {
+                Log::warning('Skipping channel - not eBay or invalid token', [
+                    'product_id' => $product->id,
+                    'channel_id' => $channel->id,
+                    'is_ebay' => $isEbay,
+                    'has_valid_token' => $hasValidToken,
+                ]);
                 continue;
             }
 
@@ -632,6 +668,10 @@ class ProductController extends Controller
             }
 
             // Sync inventory to all linked sales channels
+            Log::info('Triggering inventory sync after stock update', [
+                'product_id' => $product->id,
+                'product_sku' => $product->sku,
+            ]);
             self::syncProductInventoryToChannels($product);
 
             DB::commit();

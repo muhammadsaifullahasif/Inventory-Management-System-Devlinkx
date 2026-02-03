@@ -101,6 +101,11 @@ class PurchaseController extends Controller
                     ]);
 
                 // Sync inventory to all linked sales channels
+                Log::info('Triggering inventory sync after purchase creation', [
+                    'product_id' => $product->id,
+                    'product_sku' => $product->sku,
+                    'quantity_added' => $request->quantity[$index],
+                ]);
                 ProductController::syncProductInventoryToChannels($product);
             }
 
