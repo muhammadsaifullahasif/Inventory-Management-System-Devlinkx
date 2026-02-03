@@ -8,6 +8,7 @@ use App\Models\Supplier;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class PurchaseController extends Controller
@@ -98,6 +99,9 @@ class PurchaseController extends Controller
                         'rack_id' => $request->rack[$index],
                         'quantity' => $request->quantity[$index]
                     ]);
+
+                // Sync inventory to all linked sales channels
+                ProductController::syncProductInventoryToChannels($product);
             }
 
             return redirect()->route('purchases.index')->with('success', 'Purchase created successfully.');
@@ -166,6 +170,7 @@ class PurchaseController extends Controller
             if ($request->has('product_id') && is_array($request->product_id)) {
                 $itemIds = $request->purchase_item_id ?? [];
                 $existingItemIds = [];
+                $productsToSync = []; // Track products that need inventory sync
 
                 foreach ($request->product_id as $index => $product_id) {
                     $product = Product::find($product_id);
@@ -224,6 +229,9 @@ class PurchaseController extends Controller
                                     'quantity' => $newQuantity
                                 ]);
 
+                            // Track product for inventory sync
+                            $productsToSync[$product->id] = $product;
+
                             $existingItemIds[] = $itemId;
                         }
                     } else {
@@ -251,13 +259,21 @@ class PurchaseController extends Controller
                                 'rack_id' => $request->rack[$index],
                                 'quantity' => $request->quantity[$index]
                             ]);
-                        
+
+                        // Track product for inventory sync
+                        $productsToSync[$product->id] = $product;
+
                         $existingItemIds[] = $newItem->id;
                     }
                 }
 
                 // Delete purchase items that were not removed
                 $purchase->purchase_items()->whereNotIn('id', $existingItemIds)->delete();
+
+                // Sync inventory to all linked sales channels for affected products
+                foreach ($productsToSync as $productToSync) {
+                    ProductController::syncProductInventoryToChannels($productToSync);
+                }
             }
 
             DB::commit();
@@ -297,6 +313,8 @@ class PurchaseController extends Controller
         try {
             $purchase = Purchase::findOrFail($id);
 
+            $productsToSync = [];
+
             foreach ($request->product_id as $index => $product_id) {
                 $product = Product::find($product_id);
                 $rack_id = $request->rack_id[$index];
@@ -308,6 +326,13 @@ class PurchaseController extends Controller
                     ['product_id', 'warehouse_id', 'rack_id'],
                     ['quantity' => DB::raw("product_stocks.quantity + VALUES(quantity)")]
                 );
+
+                $productsToSync[$product->id] = $product;
+            }
+
+            // Sync inventory to all linked sales channels
+            foreach ($productsToSync as $productToSync) {
+                ProductController::syncProductInventoryToChannels($productToSync);
             }
 
             return redirect()->route('purchases.index')->with('success', 'Stock received successfully.');

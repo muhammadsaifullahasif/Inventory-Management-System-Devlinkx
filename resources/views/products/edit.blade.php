@@ -235,6 +235,74 @@
             <button type="submit" class="btn btn-primary">Save</button>
         </form>
     </div>
+
+    <!-- Product Stock Section -->
+    @if($product->product_stocks && $product->product_stocks->count() > 0)
+    <div class="card card-outline card-success mt-3">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-boxes mr-2"></i>Product Stock</h3>
+            <div class="card-tools">
+                <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <form action="{{ route('products.update-stock', $product->id) }}" method="post" id="stockUpdateForm">
+                @csrf
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th>Warehouse</th>
+                                <th>Rack</th>
+                                <th>SKU</th>
+                                <th>Barcode</th>
+                                <th width="150">Quantity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($product->product_stocks as $stock)
+                                <tr>
+                                    <td>{{ $stock->warehouse->name ?? 'N/A' }}</td>
+                                    <td>{{ $stock->rack->name ?? 'N/A' }}</td>
+                                    <td>{{ $product->sku }}</td>
+                                    <td>{{ $product->barcode }}</td>
+                                    <td>
+                                        <input type="hidden" name="stock_id[]" value="{{ $stock->id }}">
+                                        <input type="number" name="quantity[]" value="{{ $stock->quantity }}"
+                                               class="form-control form-control-sm" min="0" style="width: 100px;">
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                        <tfoot>
+                            <tr class="bg-light">
+                                <td colspan="4" class="text-right"><strong>Total Stock:</strong></td>
+                                <td><strong>{{ $product->product_stocks->sum('quantity') }}</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <div class="mt-2">
+                    <button type="submit" class="btn btn-success btn-sm">
+                        <i class="fas fa-sync-alt mr-1"></i> Update Stock & Sync to Sales Channels
+                    </button>
+                    <small class="text-muted ml-2">This will update stock quantities and sync to all linked sales channels (eBay, etc.)</small>
+                </div>
+            </form>
+        </div>
+    </div>
+    @else
+    <div class="card card-outline card-secondary mt-3">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-boxes mr-2"></i>Product Stock</h3>
+        </div>
+        <div class="card-body">
+            <p class="text-muted mb-0">No stock records found for this product. Add stock through purchases.</p>
+        </div>
+    </div>
+    @endif
 @endsection
 
 @push('scripts')

@@ -178,7 +178,7 @@ class ProductController extends Controller
      */
     public function edit(string $id)
     {
-        $product = Product::with('sales_channels')->findOrFail($id);
+        $product = Product::with(['sales_channels', 'product_stocks.warehouse', 'product_stocks.rack'])->findOrFail($id);
         $categories = Category::all();
         $brands = Brand::all();
         $salesChannels = SalesChannel::where('active_status', 1)->get();
@@ -524,5 +524,123 @@ class ProductController extends Controller
 
         // Fallback to 'error' key
         return $result['error'] ?? null;
+    }
+
+    /**
+     * Sync a product's inventory to all linked sales channels
+     * This is a public static method that can be called from other controllers (e.g., PurchaseController)
+     */
+    public static function syncProductInventoryToChannels(Product $product): void
+    {
+        // Get all linked sales channels with external listing IDs
+        $linkedChannels = $product->sales_channels()
+            ->whereNotNull('sales_channel_product.external_listing_id')
+            ->get();
+
+        if ($linkedChannels->isEmpty()) {
+            return;
+        }
+
+        $ebayController = app(EbayController::class);
+
+        foreach ($linkedChannels as $channel) {
+            if (!$channel->isEbay() || !$channel->hasValidToken()) {
+                continue;
+            }
+
+            $externalId = $channel->pivot->external_listing_id;
+
+            try {
+                $result = $ebayController->syncInventory($channel, $externalId, $product);
+
+                $product->sales_channels()->updateExistingPivot($channel->id, [
+                    'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
+                    'listing_error' => $result['success'] ? null : self::extractListingErrorStatic($result),
+                    'last_synced_at' => now(),
+                ]);
+
+                Log::info('Product inventory synced to channel after stock change', [
+                    'product_id' => $product->id,
+                    'channel_id' => $channel->id,
+                    'ebay_item_id' => $externalId,
+                    'success' => $result['success'],
+                ]);
+
+            } catch (\Exception $e) {
+                $product->sales_channels()->updateExistingPivot($channel->id, [
+                    'listing_status' => SalesChannelProduct::STATUS_ERROR,
+                    'listing_error' => $e->getMessage(),
+                    'last_synced_at' => now(),
+                ]);
+
+                Log::error('Failed to sync inventory after stock change', [
+                    'product_id' => $product->id,
+                    'channel_id' => $channel->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Static version of extractListingError for use in static context
+     */
+    private static function extractListingErrorStatic(array $result): ?string
+    {
+        if (!empty($result['message'])) {
+            return $result['message'];
+        }
+
+        if (!empty($result['errors']) && is_array($result['errors'])) {
+            $errorMessages = [];
+            foreach ($result['errors'] as $error) {
+                if (isset($error['long_message'])) {
+                    $errorMessages[] = $error['long_message'];
+                } elseif (isset($error['short_message'])) {
+                    $errorMessages[] = $error['short_message'];
+                }
+            }
+            return !empty($errorMessages) ? implode('; ', $errorMessages) : null;
+        }
+
+        return $result['error'] ?? null;
+    }
+
+    /**
+     * Update product stock quantities
+     */
+    public function updateStock(Request $request, string $id)
+    {
+        $request->validate([
+            'stock_id' => 'required|array',
+            'stock_id.*' => 'required|exists:product_stocks,id',
+            'quantity' => 'required|array',
+            'quantity.*' => 'required|numeric|min:0',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $product = Product::findOrFail($id);
+
+            foreach ($request->stock_id as $index => $stockId) {
+                $stock = $product->product_stocks()->find($stockId);
+                if ($stock) {
+                    $stock->quantity = $request->quantity[$index];
+                    $stock->save();
+                }
+            }
+
+            // Sync inventory to all linked sales channels
+            self::syncProductInventoryToChannels($product);
+
+            DB::commit();
+
+            return redirect()->back()->with('success', 'Stock quantities updated successfully and synced to sales channels.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Stock update failed', ['error' => $e->getMessage(), 'product_id' => $id]);
+            return redirect()->back()->with('error', 'An error occurred while updating stock: ' . $e->getMessage());
+        }
     }
 }
