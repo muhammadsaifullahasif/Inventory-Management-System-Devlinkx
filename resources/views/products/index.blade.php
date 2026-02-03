@@ -56,7 +56,7 @@
                                 @endphp
                                 {!! $renderer->render($barcode, 100, 40) !!}
                                 <br>
-                                {{ $product->barcode }}<br>
+                                {{ $product->sku }}<br>
                                 <a href="{{ route('products.print-barcode', $product->id) }}" target="_blank">Print Barcode</a>
                             </div>
                         </td>
