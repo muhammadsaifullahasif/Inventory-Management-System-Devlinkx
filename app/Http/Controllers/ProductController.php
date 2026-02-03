@@ -353,7 +353,7 @@ class ProductController extends Controller
      */
     protected function syncSalesChannels(Product $product, array $selectedChannelIds, array $currentChannelIds, bool $skuChanged = false): void
     {
-        $ebayController = new EbayController();
+        $ebayController = app(EbayController::class);
 
         // Channels to add (newly selected)
         $channelsToAdd = array_diff($selectedChannelIds, $currentChannelIds);
