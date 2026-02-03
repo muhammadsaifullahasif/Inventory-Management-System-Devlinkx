@@ -2472,13 +2472,19 @@ class EbayController extends Controller
             $description = $product->name;
         }
 
+        // Calculate total quantity from product_stocks table (sum across all warehouses/racks)
+        $totalQuantity = $product->product_stocks()
+            ->where('active_status', 1)
+            ->where('delete_status', 0)
+            ->sum('quantity');
+
         // Build item data array
         $itemData = [
             // 'title' => $product->name,
             'description' => $description,
             'sku' => $product->sku,
             // 'price' => $price,
-            'quantity' => $product->stock_quantity ?? 1,
+            'quantity' => (int) $totalQuantity ?: 0,
             'condition_id' => 1000, // New
             'listing_duration' => 'GTC', // Good Till Cancelled
             'currency' => 'USD',
