@@ -168,6 +168,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ebay/import-logs', [EbayController::class, 'listImportLogs'])->name('ebay.import.logs');
     Route::get('/ebay/import-logs/latest/{salesChannelId}', [EbayController::class, 'getLatestImportLog'])->name('ebay.import.latest');
 
+    // eBay Sync Listings (import new products only)
+    Route::get('/ebay/listings/sync/{id}', [EbayController::class, 'syncListings'])->name('ebay.listings.sync');
+
     // eBay Orders
     Route::get('/ebay/orders/sync/{id}', [EbayController::class, 'syncOrders'])->name('ebay.orders.sync');
     Route::get('/ebay/orders/sync-queue/{id}', [EbayController::class, 'syncOrdersQueue'])->name('ebay.orders.sync.queue');

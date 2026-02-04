@@ -121,6 +121,13 @@
                                    id="import-btn-{{ $sales_channel->id }}">
                                     Import Products
                                 </a>
+                                <a href="{{ route('ebay.listings.sync', $sales_channel->id) }}"
+                                   class="btn btn-warning btn-sm sync-listings-btn"
+                                   data-channel-id="{{ $sales_channel->id }}"
+                                   id="sync-btn-{{ $sales_channel->id }}"
+                                   title="Sync new listings only - imports products from eBay that are not already in your system">
+                                    <i class="fas fa-sync-alt"></i> Sync Listings
+                                </a>
                                 <a href="{{ route('ebay.orders.sync', $sales_channel->id) }}"
                                    class="btn btn-info btn-sm"
                                    title="Sync orders from eBay">
@@ -272,10 +279,12 @@
 
         function showProgress(channelId, data) {
             const container = $('#import-progress-' + channelId);
-            const btn = $('#import-btn-' + channelId);
+            const importBtn = $('#import-btn-' + channelId);
+            const syncBtn = $('#sync-btn-' + channelId);
 
             container.show();
-            btn.addClass('disabled').text('Importing...');
+            importBtn.addClass('disabled').text('Importing...');
+            syncBtn.addClass('disabled').html('<i class="fas fa-spinner fa-spin"></i> Syncing...');
 
             updateProgress(channelId, data);
         }
@@ -353,6 +362,19 @@
         function enableImportButton(channelId) {
             const btn = $('#import-btn-' + channelId);
             btn.removeClass('disabled').text('Import Products');
+
+            const syncBtn = $('#sync-btn-' + channelId);
+            syncBtn.removeClass('disabled').html('<i class="fas fa-sync-alt"></i> Sync Listings');
         }
+
+        // Handle sync listings button click
+        $(document).on('click', '.sync-listings-btn', function(e) {
+            const channelId = $(this).data('channel-id');
+            const btn = $(this);
+
+            // Show loading state
+            btn.addClass('disabled').html('<i class="fas fa-spinner fa-spin"></i> Syncing...');
+            $('#import-btn-' + channelId).addClass('disabled');
+        });
     </script>
 @endpush

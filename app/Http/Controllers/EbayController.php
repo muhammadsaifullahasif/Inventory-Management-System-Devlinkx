@@ -179,6 +179,140 @@ class EbayController extends Controller
     }
 
     /**
+     * Sync listings - Import only NEW products from eBay that don't exist in system
+     * Skips products that are already imported (checking by item_id/SKU)
+     */
+    public function syncListings(string $id)
+    {
+        try {
+            $salesChannel = $this->getSalesChannelWithValidToken($id);
+
+            $allItems = [];
+            $page = 1;
+            $perPage = 100;
+
+            Log::info('Starting eBay sync listings (new products only)', ['sales_channel_id' => $salesChannel->id]);
+
+            // Fetch all items from eBay
+            do {
+                $endTimeFrom = gmdate('Y-m-d\TH:i:s\Z');
+                $endTimeTo = gmdate('Y-m-d\TH:i:s\Z', strtotime('+120 days'));
+                $xmlRequest = '<?xml version="1.0" encoding="utf-8"?>
+                    <GetSellerListRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                        <ErrorLanguage>en_US</ErrorLanguage>
+                        <WarningLevel>High</WarningLevel>
+                        <DetailLevel>ReturnAll</DetailLevel>
+                        <EndTimeFrom>' . $endTimeFrom . '</EndTimeFrom>
+                        <EndTimeTo>' . $endTimeTo . '</EndTimeTo>
+                        <IncludeWatchCount>true</IncludeWatchCount>
+                        <Pagination>
+                            <EntriesPerPage>' . $perPage . '</EntriesPerPage>
+                            <PageNumber>' . $page . '</PageNumber>
+                        </Pagination>
+                        <GranularityLevel>Fine</GranularityLevel>
+                    </GetSellerListRequest>';
+                $rawResponse = $this->callTradingApi($salesChannel, 'GetSellerList', $xmlRequest);
+                $response = $this->parseActiveListingsResponse($rawResponse);
+
+                $allItems = array_merge($allItems, $response['items']);
+                $totalPages = $response['pagination']['totalPages'];
+
+                Log::info('Fetched eBay page for sync', [
+                    'page' => $page,
+                    'total_pages' => $totalPages,
+                    'items_on_page' => count($response['items']),
+                ]);
+
+                $page++;
+            } while ($page <= $totalPages);
+
+            $totalFetched = count($allItems);
+
+            if ($totalFetched === 0) {
+                return redirect()->back()->with('info', 'No active listings found on eBay.');
+            }
+
+            // Get all existing SKUs (item_ids) from products
+            $existingSkus = Product::whereIn('sku', array_column($allItems, 'item_id'))
+                ->pluck('sku')
+                ->toArray();
+
+            // Filter out existing products - only keep new ones
+            $newItems = array_filter($allItems, function ($item) use ($existingSkus) {
+                return !in_array($item['item_id'], $existingSkus);
+            });
+
+            $newItems = array_values($newItems); // Re-index array
+            $newListingsCount = count($newItems);
+            $skippedCount = $totalFetched - $newListingsCount;
+
+            Log::info('eBay Sync - Filtered Results', [
+                'total_fetched' => $totalFetched,
+                'new_listings' => $newListingsCount,
+                'skipped_existing' => $skippedCount,
+            ]);
+
+            if ($newListingsCount === 0) {
+                return redirect()->back()->with('info',
+                    "All {$totalFetched} eBay listings are already in your system. No new products to import."
+                );
+            }
+
+            // Create import log
+            $importLog = EbayImportLog::create([
+                'sales_channel_id' => $id,
+                'total_listings' => $newListingsCount,
+                'total_batcheds' => 0,
+                'status' => 'pending',
+                'started_at' => now(),
+            ]);
+
+            Log::info('eBay Sync Listings - Dispatching to Queue', [
+                'total_new_listings' => $newListingsCount,
+                'skipped_existing' => $skippedCount,
+                'sales_channel_id' => $id,
+                'import_log_id' => $importLog->id,
+            ]);
+
+            // Split items into batches and dispatch jobs
+            $batches = array_chunk($newItems, self::BATCH_SIZE);
+            $totalBatches = count($batches);
+
+            // Update import log with total batches
+            $importLog->update([
+                'total_batches' => $totalBatches,
+                'status' => 'processing',
+            ]);
+
+            foreach ($batches as $batchNumber => $batch) {
+                ImportEbayListingsJob::dispatch(
+                    $batch,
+                    $id,
+                    $batchNumber + 1,
+                    $totalBatches,
+                    $importLog->id
+                )
+                ->onQueue('ebay-imports')
+                ->delay(now()->addSeconds($batchNumber * 2));
+            }
+
+            return redirect()->back()->with('success',
+                "Found {$totalFetched} eBay listings. {$skippedCount} already in system (skipped). " .
+                "Importing {$newListingsCount} new products in {$totalBatches} batch(es). " .
+                "Import ID: {$importLog->id}"
+            );
+
+        } catch (\Exception $e) {
+            Log::error('eBay Sync Listings Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return redirect()->back()->with('error', 'Failed to sync eBay listings: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Get import log status
      */
     public function getImportStatus(string $importLogId)
