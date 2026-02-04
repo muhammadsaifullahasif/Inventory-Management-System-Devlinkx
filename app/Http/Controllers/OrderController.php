@@ -350,7 +350,7 @@ class OrderController extends Controller
      */
     public function markAsShipped(Request $request, string $id): JsonResponse
     {
-        $order = Order::find($id);
+        $order = Order::with('salesChannel')->find($id);
 
         if (!$order) {
             return response()->json([
@@ -365,6 +365,8 @@ class OrderController extends Controller
         ]);
 
         try {
+            DB::beginTransaction();
+
             $order->update([
                 'shipping_carrier' => $validated['shipping_carrier'],
                 'tracking_number' => $validated['tracking_number'],
@@ -380,19 +382,105 @@ class OrderController extends Controller
                 }
             }
 
+            DB::commit();
+
+            // Sync shipment to eBay if this is an eBay order
+            $ebayResult = null;
+            if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+                $ebayResult = $this->syncShipmentToEbay($order, $validated['shipping_carrier'], $validated['tracking_number']);
+            }
+
+            $message = 'Order marked as shipped';
+            if ($ebayResult) {
+                if ($ebayResult['success']) {
+                    $message .= ' and synced to eBay';
+                } else {
+                    $message .= '. eBay sync failed: ' . ($ebayResult['message'] ?? 'Unknown error');
+                }
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'Order marked as shipped',
+                'message' => $message,
                 'data' => $order->fresh(['items']),
+                'ebay_sync' => $ebayResult,
             ]);
 
         } catch (Exception $e) {
+            DB::rollBack();
             Log::error('Failed to mark order as shipped', ['order_id' => $id, 'error' => $e->getMessage()]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to mark order as shipped: ' . $e->getMessage(),
             ], 500);
+        }
+    }
+
+    /**
+     * Sync shipment tracking to eBay
+     */
+    protected function syncShipmentToEbay(Order $order, string $shippingCarrier, string $trackingNumber): array
+    {
+        try {
+            $salesChannel = $order->salesChannel;
+            if (!$salesChannel || !$salesChannel->isEbay()) {
+                return [
+                    'success' => false,
+                    'message' => 'Not an eBay sales channel',
+                ];
+            }
+
+            $ebayController = app(EbayController::class);
+
+            // Get item ID and transaction ID from order items for fallback
+            $firstItem = $order->items->first();
+            $itemId = $firstItem?->ebay_item_id;
+            $transactionId = $firstItem?->ebay_transaction_id;
+
+            $result = $ebayController->markOrderAsShipped(
+                $salesChannel,
+                $order->ebay_order_id,
+                $shippingCarrier,
+                $trackingNumber,
+                $itemId,
+                $transactionId
+            );
+
+            // Log the sync attempt
+            $order->setMeta('ebay_shipment_sync_' . time(), [
+                'shipping_carrier' => $shippingCarrier,
+                'tracking_number' => $trackingNumber,
+                'result' => $result,
+                'synced_at' => now()->toIso8601String(),
+            ]);
+
+            if ($result['success']) {
+                Log::info('Order shipment synced to eBay', [
+                    'order_id' => $order->id,
+                    'ebay_order_id' => $order->ebay_order_id,
+                    'tracking_number' => $trackingNumber,
+                ]);
+            } else {
+                Log::warning('Failed to sync shipment to eBay', [
+                    'order_id' => $order->id,
+                    'ebay_order_id' => $order->ebay_order_id,
+                    'result' => $result,
+                ]);
+            }
+
+            return $result;
+
+        } catch (Exception $e) {
+            Log::error('Exception syncing shipment to eBay', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
         }
     }
 

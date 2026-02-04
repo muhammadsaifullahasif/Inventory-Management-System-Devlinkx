@@ -996,4 +996,127 @@ XML;
 
         return $result;
     }
+
+    /**
+     * Complete a sale with shipment tracking information
+     * Uses the CompleteSale Trading API call
+     */
+    public function completeSale(
+        SalesChannel $salesChannel,
+        string $itemId,
+        string $transactionId,
+        string $shippingCarrier,
+        string $trackingNumber,
+        bool $shipped = true
+    ): array {
+        $xmlRequest = $this->buildCompleteSaleXml($itemId, $transactionId, $shippingCarrier, $trackingNumber, $shipped);
+        $xmlResponse = $this->callTradingApi($salesChannel, 'CompleteSale', $xmlRequest);
+
+        return $this->parseCompleteSaleResponse($xmlResponse);
+    }
+
+    /**
+     * Build XML for CompleteSale request
+     */
+    private function buildCompleteSaleXml(
+        string $itemId,
+        string $transactionId,
+        string $shippingCarrier,
+        string $trackingNumber,
+        bool $shipped
+    ): string {
+        $shippedValue = $shipped ? 'true' : 'false';
+
+        return <<<XML
+<?xml version="1.0" encoding="utf-8"?>
+<CompleteSaleRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <ItemID>{$itemId}</ItemID>
+    <TransactionID>{$transactionId}</TransactionID>
+    <Shipped>{$shippedValue}</Shipped>
+    <Shipment>
+        <ShipmentTrackingDetails>
+            <ShipmentTrackingNumber>{$trackingNumber}</ShipmentTrackingNumber>
+            <ShippingCarrierUsed>{$shippingCarrier}</ShippingCarrierUsed>
+        </ShipmentTrackingDetails>
+    </Shipment>
+</CompleteSaleRequest>
+XML;
+    }
+
+    /**
+     * Parse CompleteSale response
+     */
+    private function parseCompleteSaleResponse(string $xmlResponse): array
+    {
+        $xml = simplexml_load_string($xmlResponse);
+
+        $result = [
+            'success' => in_array((string) $xml->Ack, ['Success', 'Warning']),
+            'warnings' => [],
+            'errors' => [],
+        ];
+
+        // Parse errors and warnings
+        if (isset($xml->Errors)) {
+            foreach ($xml->Errors as $error) {
+                $errorData = [
+                    'code' => (string) ($error->ErrorCode ?? ''),
+                    'short_message' => (string) ($error->ShortMessage ?? ''),
+                    'long_message' => (string) ($error->LongMessage ?? ''),
+                    'severity' => (string) ($error->SeverityCode ?? ''),
+                ];
+
+                if ((string) $error->SeverityCode === 'Warning') {
+                    $result['warnings'][] = $errorData;
+                } else {
+                    $result['errors'][] = $errorData;
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Complete a sale using Order ID (for multi-item orders)
+     * Uses the CompleteSale Trading API call with OrderID instead of ItemID/TransactionID
+     */
+    public function completeSaleByOrderId(
+        SalesChannel $salesChannel,
+        string $orderId,
+        string $shippingCarrier,
+        string $trackingNumber,
+        bool $shipped = true
+    ): array {
+        $xmlRequest = $this->buildCompleteSaleByOrderIdXml($orderId, $shippingCarrier, $trackingNumber, $shipped);
+        $xmlResponse = $this->callTradingApi($salesChannel, 'CompleteSale', $xmlRequest);
+
+        return $this->parseCompleteSaleResponse($xmlResponse);
+    }
+
+    /**
+     * Build XML for CompleteSale request using OrderID
+     */
+    private function buildCompleteSaleByOrderIdXml(
+        string $orderId,
+        string $shippingCarrier,
+        string $trackingNumber,
+        bool $shipped
+    ): string {
+        $shippedValue = $shipped ? 'true' : 'false';
+
+        return <<<XML
+<?xml version="1.0" encoding="utf-8"?>
+<CompleteSaleRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+    <OrderID>{$orderId}</OrderID>
+    <Shipped>{$shippedValue}</Shipped>
+    <Shipment>
+        <ShipmentTrackingDetails>
+            <ShipmentTrackingNumber>{$trackingNumber}</ShipmentTrackingNumber>
+            <ShippingCarrierUsed>{$shippingCarrier}</ShippingCarrierUsed>
+        </ShipmentTrackingDetails>
+    </Shipment>
+</CompleteSaleRequest>
+XML;
+    }
 }

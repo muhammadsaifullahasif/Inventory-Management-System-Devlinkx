@@ -2508,6 +2508,79 @@ class EbayController extends Controller
     }
 
     /**
+     * Mark an eBay order as shipped with tracking information
+     * This is a wrapper method with automatic token refresh
+     */
+    public function markOrderAsShipped(
+        SalesChannel $channel,
+        string $ebayOrderId,
+        string $shippingCarrier,
+        string $trackingNumber,
+        ?string $itemId = null,
+        ?string $transactionId = null
+    ): array {
+        try {
+            // Refresh token if expired
+            if ($this->isAccessTokenExpired($channel)) {
+                Log::info('Access token expired, refreshing...', ['channel_id' => $channel->id]);
+                $channel = $this->refreshAccessToken($channel);
+            }
+
+            $ebayService = new EbayService();
+
+            Log::info('Marking order as shipped on eBay', [
+                'ebay_order_id' => $ebayOrderId,
+                'shipping_carrier' => $shippingCarrier,
+                'tracking_number' => $trackingNumber,
+                'channel_id' => $channel->id,
+            ]);
+
+            // Use OrderID if available (preferred for multi-item orders)
+            if (!empty($ebayOrderId)) {
+                $result = $ebayService->completeSaleByOrderId(
+                    $channel,
+                    $ebayOrderId,
+                    $shippingCarrier,
+                    $trackingNumber,
+                    true
+                );
+            } elseif (!empty($itemId) && !empty($transactionId)) {
+                // Fallback to ItemID + TransactionID for single item orders
+                $result = $ebayService->completeSale(
+                    $channel,
+                    $itemId,
+                    $transactionId,
+                    $shippingCarrier,
+                    $trackingNumber,
+                    true
+                );
+            } else {
+                return [
+                    'success' => false,
+                    'message' => 'Either ebay_order_id or itemId+transactionId is required',
+                ];
+            }
+
+            Log::info('eBay mark as shipped result', [
+                'ebay_order_id' => $ebayOrderId,
+                'result' => $result,
+            ]);
+
+            return $result;
+        } catch (Exception $e) {
+            Log::error('Failed to mark order as shipped on eBay', [
+                'ebay_order_id' => $ebayOrderId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Relist an ended eBay item
      * This is a wrapper method called by ProductController
      */
