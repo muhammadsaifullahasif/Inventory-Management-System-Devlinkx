@@ -251,7 +251,7 @@
                                 <tr>
                                     <td>
                                         <a href="{{ route('products.edit', $product->id) }}">
-                                            {{ Str::limit($product->name, 30) }}
+                                            {{ Illuminate\Support\Str::limit($product->name, 30) }}
                                         </a>
                                     </td>
                                     <td><small class="text-muted">{{ $product->sku }}</small></td>
@@ -290,7 +290,7 @@
                                 <tr>
                                     <td>
                                         <a href="{{ route('products.edit', $product->id) }}">
-                                            {{ Str::limit($product->name, 30) }}
+                                            {{ Illuminate\Support\Str::limit($product->name, 30) }}
                                         </a>
                                     </td>
                                     <td><small class="text-muted">{{ $product->sku }}</small></td>
@@ -351,7 +351,7 @@
                                             {{ $order->order_number }}
                                         </a>
                                     </td>
-                                    <td>{{ Str::limit($order->buyer_name ?? $order->buyer_email ?? 'N/A', 20) }}</td>
+                                    <td>{{ Illuminate\Support\Str::limit($order->buyer_name ?? $order->buyer_email ?? 'N/A', 20) }}</td>
                                     <td><small>{{ $order->salesChannel->name ?? 'N/A' }}</small></td>
                                     <td class="text-center">{{ $order->items->count() }}</td>
                                     <td class="text-right">${{ number_format($order->total, 2) }}</td>
