@@ -24,10 +24,45 @@ class PurchaseController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $purchases = Purchase::orderBy('created_at', 'desc')->paginate(25);
-        return view('purchases.index', compact('purchases'));
+        $query = Purchase::with(['supplier', 'warehouse', 'purchase_items']);
+
+        // Filter by search term (purchase number)
+        if ($request->filled('search')) {
+            $query->where('purchase_number', 'like', "%{$request->search}%");
+        }
+
+        // Filter by supplier
+        if ($request->filled('supplier_id')) {
+            $query->where('supplier_id', $request->supplier_id);
+        }
+
+        // Filter by warehouse
+        if ($request->filled('warehouse_id')) {
+            $query->where('warehouse_id', $request->warehouse_id);
+        }
+
+        // Filter by status
+        if ($request->filled('purchase_status')) {
+            $query->where('purchase_status', $request->purchase_status);
+        }
+
+        // Filter by date range
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        $purchases = $query->orderBy('created_at', 'desc')->paginate(25)->withQueryString();
+
+        // Get filter options
+        $suppliers = Supplier::orderBy('first_name')->get();
+        $warehouses = Warehouse::orderBy('name')->get();
+
+        return view('purchases.index', compact('purchases', 'suppliers', 'warehouses'));
     }
 
     /**

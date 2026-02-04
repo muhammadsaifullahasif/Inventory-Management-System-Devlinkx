@@ -20,10 +20,29 @@ class RackController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $racks = Rack::orderBy('created_at', 'DESC')->paginate(25);
-        return view('racks.index', compact('racks'));
+        $query = Rack::with('warehouse');
+
+        // Filter by search term (name)
+        if ($request->filled('search')) {
+            $query->where('name', 'like', "%{$request->search}%");
+        }
+
+        // Filter by warehouse
+        if ($request->filled('warehouse_id')) {
+            $query->where('warehouse_id', $request->warehouse_id);
+        }
+
+        // Filter by default status
+        if ($request->filled('is_default')) {
+            $query->where('is_default', $request->is_default);
+        }
+
+        $racks = $query->orderBy('created_at', 'DESC')->paginate(25)->withQueryString();
+        $warehouses = Warehouse::orderBy('name')->get();
+
+        return view('racks.index', compact('racks', 'warehouses'));
     }
 
     /**

@@ -19,9 +19,21 @@ class WarehouseController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $warehouses = Warehouse::orderBy('created_at', 'DESC')->paginate(25);
+        $query = Warehouse::with('racks');
+
+        // Filter by search term (name)
+        if ($request->filled('search')) {
+            $query->where('name', 'like', "%{$request->search}%");
+        }
+
+        // Filter by default status
+        if ($request->filled('is_default')) {
+            $query->where('is_default', $request->is_default);
+        }
+
+        $warehouses = $query->orderBy('created_at', 'DESC')->paginate(25)->withQueryString();
         return view('warehouses.index', compact('warehouses'));
     }
 

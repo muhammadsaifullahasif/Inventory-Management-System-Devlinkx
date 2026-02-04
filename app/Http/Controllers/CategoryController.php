@@ -20,10 +20,28 @@ class CategoryController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $categories = Category::orderBy('created_at', 'DESC')->paginate(25);
-        return view('categories.index', compact('categories'));
+        $query = Category::with('parent');
+
+        // Filter by search term
+        if ($request->filled('search')) {
+            $query->where('name', 'like', "%{$request->search}%");
+        }
+
+        // Filter by parent category
+        if ($request->filled('parent_id')) {
+            if ($request->parent_id === 'none') {
+                $query->whereNull('parent_id');
+            } else {
+                $query->where('parent_id', $request->parent_id);
+            }
+        }
+
+        $categories = $query->orderBy('created_at', 'DESC')->paginate(25)->withQueryString();
+        $parentCategories = Category::whereNull('parent_id')->orderBy('name')->get();
+
+        return view('categories.index', compact('categories', 'parentCategories'));
     }
 
     /**

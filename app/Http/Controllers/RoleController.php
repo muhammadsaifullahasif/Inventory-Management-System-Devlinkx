@@ -20,9 +20,16 @@ class RoleController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $roles = Role::orderBy('id', 'DESC')->paginate(25);
+        $query = Role::with('permissions');
+
+        // Filter by search term (name)
+        if ($request->filled('search')) {
+            $query->where('name', 'like', "%{$request->search}%");
+        }
+
+        $roles = $query->orderBy('id', 'DESC')->paginate(25)->withQueryString();
         return view('roles.index', compact('roles'));
     }
 

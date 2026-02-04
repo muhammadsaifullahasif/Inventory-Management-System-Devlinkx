@@ -25,9 +25,29 @@ class SalesChannelController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $sales_channels = SalesChannel::orderBy('id', 'DESC')->paginate(25);
+        $query = SalesChannel::query();
+
+        // Filter by search term (name)
+        if ($request->filled('search')) {
+            $query->where('name', 'like', "%{$request->search}%");
+        }
+
+        // Filter by connection status (has valid tokens)
+        if ($request->filled('status')) {
+            if ($request->status === 'connected') {
+                $query->whereNotNull('access_token')
+                      ->where('access_token_expires_at', '>', now());
+            } elseif ($request->status === 'disconnected') {
+                $query->where(function ($q) {
+                    $q->whereNull('access_token')
+                      ->orWhere('access_token_expires_at', '<=', now());
+                });
+            }
+        }
+
+        $sales_channels = $query->orderBy('id', 'DESC')->paginate(25)->withQueryString();
         return view('sales-channel.index', compact('sales_channels'));
     }
 

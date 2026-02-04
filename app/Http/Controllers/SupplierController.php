@@ -20,9 +20,32 @@ class SupplierController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $suppliers = Supplier::orderBy('created_at', 'DESC')->paginate(25);
+        $query = Supplier::query();
+
+        // Filter by search term (name, email, company)
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                  ->orWhere('last_name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('company', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter by status
+        if ($request->filled('active_status')) {
+            $query->where('active_status', $request->active_status);
+        }
+
+        // Filter by city
+        if ($request->filled('city')) {
+            $query->where('city', 'like', "%{$request->city}%");
+        }
+
+        $suppliers = $query->orderBy('created_at', 'DESC')->paginate(25)->withQueryString();
         return view('suppliers.index', compact('suppliers'));
     }
 

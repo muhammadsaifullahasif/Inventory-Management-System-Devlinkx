@@ -27,12 +27,66 @@ class ProductController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $products = Product::with('sales_channels')->orderBy('created_at', 'DESC')->paginate(25);
-        // $products = Product::with('sales_channels')->orderBy('created_at', 'DESC')->first();
-        // return $products->sales_channels;
-        return view('products.index', compact('products'));
+        $query = Product::with(['sales_channels', 'category', 'brand', 'product_stocks']);
+
+        // Filter by search term (name, sku, barcode)
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('sku', 'like', "%{$search}%")
+                  ->orWhere('barcode', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter by category
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        // Filter by brand
+        if ($request->filled('brand_id')) {
+            $query->where('brand_id', $request->brand_id);
+        }
+
+        // Filter by stock status
+        if ($request->filled('stock_status')) {
+            if ($request->stock_status === 'in_stock') {
+                $query->whereHas('product_stocks', function ($q) {
+                    $q->where('quantity', '>', 0);
+                });
+            } elseif ($request->stock_status === 'out_of_stock') {
+                $query->whereDoesntHave('product_stocks', function ($q) {
+                    $q->where('quantity', '>', 0);
+                });
+            }
+        }
+
+        // Filter by sales channel
+        if ($request->filled('sales_channel_id')) {
+            $query->whereHas('sales_channels', function ($q) use ($request) {
+                $q->where('sales_channels.id', $request->sales_channel_id);
+            });
+        }
+
+        // Filter by date range
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        $products = $query->orderBy('created_at', 'DESC')->paginate(25)->withQueryString();
+
+        // Get filter options
+        $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
+        $salesChannels = SalesChannel::where('active_status', 1)->orderBy('name')->get();
+
+        return view('products.index', compact('products', 'categories', 'brands', 'salesChannels'));
     }
 
     /**

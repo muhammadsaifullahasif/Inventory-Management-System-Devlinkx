@@ -19,9 +19,16 @@ class PermissionController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $permissions = Permission::orderBy('id', 'DESC')->paginate(25);
+        $query = Permission::query();
+
+        // Filter by search term (name)
+        if ($request->filled('search')) {
+            $query->where('name', 'like', "%{$request->search}%");
+        }
+
+        $permissions = $query->orderBy('id', 'DESC')->paginate(25)->withQueryString();
         return view('permissions.index', compact('permissions'));
     }
 
