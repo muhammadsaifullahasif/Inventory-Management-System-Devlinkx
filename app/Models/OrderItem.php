@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\ProductController;
 
 class OrderItem extends Model
 {
@@ -64,7 +66,7 @@ class OrderItem extends Model
 
     /**
      * Update inventory for this order item
-     * Decrements the product stock quantity
+     * Decrements the product stock quantity and syncs to all sales channels
      */
     public function updateInventory(): bool
     {
@@ -81,21 +83,45 @@ class OrderItem extends Model
             return false;
         }
 
-        // Update product_stocks table
-        $stock = ProductStock::where('product_id', $this->product_id)->first();
-        if ($stock) {
-            $newQuantity = max(0, $stock->quantity - $this->quantity);
-            $stock->update(['quantity' => $newQuantity]);
+        // Update product_stocks table - deduct from all stock locations for this product
+        $stocks = ProductStock::where('product_id', $this->product_id)->get();
+        $remainingQuantity = $this->quantity;
+
+        foreach ($stocks as $stock) {
+            if ($remainingQuantity <= 0) {
+                break;
+            }
+
+            $deductAmount = min($stock->quantity, $remainingQuantity);
+            $newQuantity = max(0, $stock->quantity - $deductAmount);
+
+            if ($newQuantity <= 0) {
+                $stock->delete(); // Remove stock record if zero
+            } else {
+                $stock->update(['quantity' => $newQuantity]);
+            }
+
+            $remainingQuantity -= $deductAmount;
         }
 
         // Mark as updated
         $this->update(['inventory_updated' => true]);
+
+        // Sync inventory to all linked sales channels
+        Log::info('Syncing inventory after order shipment', [
+            'order_item_id' => $this->id,
+            'product_id' => $product->id,
+            'product_sku' => $product->sku,
+            'quantity_deducted' => $this->quantity,
+        ]);
+        ProductController::syncProductInventoryToChannels($product);
 
         return true;
     }
 
     /**
      * Restore inventory (for cancelled/refunded orders)
+     * Restores the product stock quantity and syncs to all sales channels
      */
     public function restoreInventory(): bool
     {
@@ -112,14 +138,37 @@ class OrderItem extends Model
             return false;
         }
 
-        // Restore product_stocks
+        // Restore product_stocks - add to first available stock location or create new
         $stock = ProductStock::where('product_id', $this->product_id)->first();
         if ($stock) {
             $stock->increment('quantity', $this->quantity);
+        } else {
+            // Create a new stock entry at the default warehouse/rack if none exists
+            $defaultWarehouse = \App\Models\Warehouse::where('is_default', '1')->first();
+            $defaultRack = $defaultWarehouse ?
+                \App\Models\Rack::where('warehouse_id', $defaultWarehouse->id)->where('is_default', '1')->first() : null;
+
+            if ($defaultWarehouse && $defaultRack) {
+                ProductStock::create([
+                    'product_id' => $this->product_id,
+                    'warehouse_id' => $defaultWarehouse->id,
+                    'rack_id' => $defaultRack->id,
+                    'quantity' => $this->quantity,
+                ]);
+            }
         }
 
         // Mark as not updated
         $this->update(['inventory_updated' => false]);
+
+        // Sync inventory to all linked sales channels
+        Log::info('Syncing inventory after order cancellation/refund', [
+            'order_item_id' => $this->id,
+            'product_id' => $product->id,
+            'product_sku' => $product->sku,
+            'quantity_restored' => $this->quantity,
+        ]);
+        ProductController::syncProductInventoryToChannels($product);
 
         return true;
     }
