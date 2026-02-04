@@ -272,7 +272,40 @@ class PurchaseController extends Controller
                     }
                 }
 
-                // Delete purchase items that were not removed
+                // Handle removed purchase items - decrease stock before deleting
+                $removedItems = $purchase->purchase_items()->whereNotIn('id', $existingItemIds)->get();
+                foreach ($removedItems as $removedItem) {
+                    $removedProduct = Product::find($removedItem->product_id);
+                    if ($removedProduct) {
+                        // Decrease stock from the old location
+                        $stock = $removedProduct->product_stocks()
+                            ->where('warehouse_id', $oldPurchaseWarehouseId)
+                            ->where('rack_id', $removedItem->rack_id)
+                            ->first();
+
+                        if ($stock) {
+                            $stock->quantity -= $removedItem->quantity;
+                            if ($stock->quantity <= 0) {
+                                $stock->delete();
+                            } else {
+                                $stock->save();
+                            }
+                        }
+
+                        // Track for eBay sync
+                        $productsToSync[$removedProduct->id] = $removedProduct;
+
+                        Log::info('Stock decreased for removed purchase item', [
+                            'product_id' => $removedProduct->id,
+                            'product_sku' => $removedProduct->sku,
+                            'quantity_removed' => $removedItem->quantity,
+                            'warehouse_id' => $oldPurchaseWarehouseId,
+                            'rack_id' => $removedItem->rack_id,
+                        ]);
+                    }
+                }
+
+                // Delete the removed purchase items
                 $purchase->purchase_items()->whereNotIn('id', $existingItemIds)->delete();
 
                 // Sync inventory to all linked sales channels for affected products
@@ -295,11 +328,57 @@ class PurchaseController extends Controller
     public function destroy(string $id)
     {
         try {
-            $purchase = Purchase::findOrFail($id);
+            DB::beginTransaction();
+
+            $purchase = Purchase::with('purchase_items')->findOrFail($id);
+            $productsToSync = [];
+
+            // Decrease stock for all purchase items before deleting
+            foreach ($purchase->purchase_items as $purchaseItem) {
+                $product = Product::find($purchaseItem->product_id);
+                if ($product) {
+                    // Decrease stock from the corresponding warehouse and rack
+                    $stock = $product->product_stocks()
+                        ->where('warehouse_id', $purchase->warehouse_id)
+                        ->where('rack_id', $purchaseItem->rack_id)
+                        ->first();
+
+                    if ($stock) {
+                        $stock->quantity -= $purchaseItem->quantity;
+                        if ($stock->quantity <= 0) {
+                            $stock->delete();
+                        } else {
+                            $stock->save();
+                        }
+                    }
+
+                    // Track for eBay sync
+                    $productsToSync[$product->id] = $product;
+
+                    Log::info('Stock decreased for deleted purchase', [
+                        'purchase_id' => $purchase->id,
+                        'product_id' => $product->id,
+                        'product_sku' => $product->sku,
+                        'quantity_removed' => $purchaseItem->quantity,
+                        'warehouse_id' => $purchase->warehouse_id,
+                        'rack_id' => $purchaseItem->rack_id,
+                    ]);
+                }
+            }
+
+            // Delete the purchase (this will cascade delete purchase_items if configured)
             $purchase->delete();
 
-            return redirect()->route('purchases.index')->with('success', 'Purchase deleted successfully.');
+            DB::commit();
+
+            // Sync inventory to all linked sales channels for affected products
+            foreach ($productsToSync as $productToSync) {
+                ProductController::syncProductInventoryToChannels($productToSync);
+            }
+
+            return redirect()->route('purchases.index')->with('success', 'Purchase deleted successfully and stock updated.');
         } catch (\Exception $e) {
+            DB::rollBack();
             return redirect()->back()->with('error', 'An error occurred while deleting the purchase: ' . $e->getMessage());
         }
     }
