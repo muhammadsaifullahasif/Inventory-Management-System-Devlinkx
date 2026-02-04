@@ -61,7 +61,6 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'regular_price' => 'required|numeric|min:0',
             'sale_price' => 'nullable|numeric|min:0',
-            'stock_quantity' => 'required|integer|min:0',
             'product_image' => 'nullable|image|max:2048',
             'is_featured' => 'sometimes|boolean',
             'active_status' => 'sometimes|boolean',
@@ -84,7 +83,6 @@ class ProductController extends Controller
             } else {
                 $product->price = $request->sale_price;
             }
-            $product->stock_quantity = $request->stock_quantity;
 
             if($request->has('product_image') != '') {
                 $image = $request->product_image;
@@ -200,7 +198,6 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'regular_price' => 'required|numeric|min:0',
             'sale_price' => 'nullable|numeric|min:0',
-            'stock_quantity' => 'required|integer|min:0',
             'product_image' => 'nullable|image|max:2048',
             'is_featured' => 'sometimes|boolean',
             'active_status' => 'sometimes|boolean',
@@ -225,7 +222,6 @@ class ProductController extends Controller
             } else {
                 $product->price = $request->sale_price;
             }
-            $product->stock_quantity = $request->stock_quantity;
 
             if($request->has('product_image') != '') {
                 $image = $request->product_image;

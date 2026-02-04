@@ -125,13 +125,6 @@
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label for="stock_quantity">Stock Quantity:</label>
-                    <input type="text" id="stock_quantity" name="stock_quantity" value="{{ old('stock_quantity', '0') }}" class="form-control @error('stock_quantity') is-invalid @enderror" placeholder="Stock Quantity">
-                    @error('stock_quantity')
-                        <span class="invalid-feedback">{{ $message }}</span>
-                    @enderror
-                </div>
-                <div class="col-md-6 mb-3">
                     <label for="product_image" class="d-block">Product Image:</label>
                     <input type="file" id="product_image" name="product_image" class="@error('product_image') is-invalid @enderror">
                     @error('product_image')

@@ -88,12 +88,6 @@ class OrderItem extends Model
             $stock->update(['quantity' => $newQuantity]);
         }
 
-        // Also update the product's stock_quantity if it exists
-        if (isset($product->stock_quantity)) {
-            $newQuantity = max(0, $product->stock_quantity - $this->quantity);
-            $product->update(['stock_quantity' => $newQuantity]);
-        }
-
         // Mark as updated
         $this->update(['inventory_updated' => true]);
 
@@ -122,11 +116,6 @@ class OrderItem extends Model
         $stock = ProductStock::where('product_id', $this->product_id)->first();
         if ($stock) {
             $stock->increment('quantity', $this->quantity);
-        }
-
-        // Restore product's stock_quantity
-        if (isset($product->stock_quantity)) {
-            $product->increment('stock_quantity', $this->quantity);
         }
 
         // Mark as not updated

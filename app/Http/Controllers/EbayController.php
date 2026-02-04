@@ -2444,12 +2444,28 @@ class EbayController extends Controller
             $ebayService = new EbayService();
 
             // Calculate total quantity from product_stocks table (sum across all warehouses/racks)
-            $totalQuantity = $product->product_stocks()
-                ->where('active_status', 1)
-                ->where('delete_status', 0)
-                ->sum('quantity');
+            // Use fresh query directly to database to ensure we get latest stock data
+            // Compare ENUM values as strings and cast quantity to integer for proper SUM
+            $totalQuantity = ProductStock::where('product_id', $product->id)
+                ->where('active_status', '1')
+                ->where('delete_status', '0')
+                ->sum(DB::raw('CAST(quantity AS UNSIGNED)'));
 
-            $quantity = (int) $totalQuantity ?: 0;
+            $quantity = (int) $totalQuantity;
+
+            // Debug: Log stock details
+            $stockRecords = ProductStock::where('product_id', $product->id)->get();
+            Log::info('Product stock records for sync', [
+                'product_id' => $product->id,
+                'stock_count' => $stockRecords->count(),
+                'stocks' => $stockRecords->map(fn($s) => [
+                    'id' => $s->id,
+                    'quantity' => $s->quantity,
+                    'active_status' => $s->active_status,
+                    'delete_status' => $s->delete_status,
+                ])->toArray(),
+                'calculated_total' => $quantity,
+            ]);
 
             Log::info('Syncing inventory to eBay', [
                 'product_id' => $product->id,
