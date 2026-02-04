@@ -303,12 +303,28 @@ class SyncEbayOrdersJob implements ShouldQueue
         $existingOrder = Order::where('ebay_order_id', $ebayOrder['order_id'])->first();
 
         if ($existingOrder) {
-            $existingOrder->update([
+            $updateData = [
                 'ebay_order_status' => $ebayOrder['order_status'],
                 'ebay_payment_status' => $ebayOrder['payment_status'],
-                'order_status' => $this->mapEbayOrderStatus($ebayOrder['order_status']),
+                'order_status' => $this->mapEbayOrderStatus($ebayOrder['order_status'], $ebayOrder),
                 'payment_status' => $this->mapEbayPaymentStatus($ebayOrder['payment_status']),
-            ]);
+                'fulfillment_status' => $this->mapEbayFulfillmentStatus($ebayOrder),
+            ];
+
+            // Update shipped_at if the order has been shipped
+            if (!empty($ebayOrder['shipped_time']) && empty($existingOrder->shipped_at)) {
+                $updateData['shipped_at'] = new \DateTime($ebayOrder['shipped_time']);
+            }
+
+            // Update tracking info if available
+            if (!empty($ebayOrder['tracking_number']) && empty($existingOrder->tracking_number)) {
+                $updateData['tracking_number'] = $ebayOrder['tracking_number'];
+            }
+            if (!empty($ebayOrder['shipping_carrier']) && empty($existingOrder->shipping_carrier)) {
+                $updateData['shipping_carrier'] = $ebayOrder['shipping_carrier'];
+            }
+
+            $existingOrder->update($updateData);
 
             // Update inventory for items that weren't updated yet
             if ($this->mapEbayPaymentStatus($ebayOrder['payment_status']) === 'paid') {
@@ -343,14 +359,17 @@ class SyncEbayOrdersJob implements ShouldQueue
                 'shipping_cost' => $ebayOrder['shipping_cost'],
                 'total' => $ebayOrder['total'],
                 'currency' => $ebayOrder['currency'],
-                'order_status' => $this->mapEbayOrderStatus($ebayOrder['order_status']),
+                'order_status' => $this->mapEbayOrderStatus($ebayOrder['order_status'], $ebayOrder),
                 'payment_status' => $this->mapEbayPaymentStatus($ebayOrder['payment_status']),
+                'fulfillment_status' => $this->mapEbayFulfillmentStatus($ebayOrder),
                 'ebay_order_status' => $ebayOrder['order_status'],
                 'ebay_payment_status' => $ebayOrder['payment_status'],
                 'ebay_raw_data' => $ebayOrder['raw_data'],
                 'order_date' => !empty($ebayOrder['created_time']) ? new \DateTime($ebayOrder['created_time']) : now(),
                 'paid_at' => !empty($ebayOrder['paid_time']) ? new \DateTime($ebayOrder['paid_time']) : null,
                 'shipped_at' => !empty($ebayOrder['shipped_time']) ? new \DateTime($ebayOrder['shipped_time']) : null,
+                'tracking_number' => $ebayOrder['tracking_number'] ?? null,
+                'shipping_carrier' => $ebayOrder['shipping_carrier'] ?? null,
             ]);
 
             foreach ($ebayOrder['line_items'] as $lineItem) {
@@ -385,8 +404,28 @@ class SyncEbayOrdersJob implements ShouldQueue
         }
     }
 
-    private function mapEbayOrderStatus(string $ebayStatus): string
+    private function mapEbayOrderStatus(string $ebayStatus, array $ebayOrder = []): string
     {
+        // Check for cancellation status first
+        $cancelStatus = strtolower($ebayOrder['cancel_status'] ?? '');
+        if (!empty($cancelStatus) && $cancelStatus !== 'none') {
+            if (in_array($cancelStatus, ['cancelled', 'cancelcomplete', 'cancelcompleted'])) {
+                return 'cancelled';
+            }
+            if (in_array($cancelStatus, ['cancelrequested', 'cancelrequest', 'cancelpending'])) {
+                return 'cancellation_requested';
+            }
+        }
+
+        // Check if shipped_time is set - this indicates shipped/delivered status
+        if (!empty($ebayOrder['shipped_time'])) {
+            // If status is completed and shipped, it's delivered
+            if (strtolower($ebayStatus) === 'completed') {
+                return 'delivered';
+            }
+            return 'shipped';
+        }
+
         return match (strtolower($ebayStatus)) {
             'active' => 'processing',
             'completed' => 'delivered',
@@ -400,11 +439,31 @@ class SyncEbayOrdersJob implements ShouldQueue
     private function mapEbayPaymentStatus(string $ebayStatus): string
     {
         return match (strtolower($ebayStatus)) {
-            'nopaymentfailure', 'paymentcomplete' => 'paid',
-            'paymentpending' => 'pending',
+            'nopaymentfailure', 'paymentcomplete', 'paid' => 'paid',
+            'paymentpending', 'pending' => 'pending',
             'refunded' => 'refunded',
+            'paymentfailed', 'failed' => 'failed',
             default => 'pending',
         };
+    }
+
+    private function mapEbayFulfillmentStatus(array $ebayOrder): string
+    {
+        // Check if shipped
+        if (!empty($ebayOrder['shipped_time'])) {
+            return 'fulfilled';
+        }
+
+        // Check for pickup status
+        $pickupStatus = strtolower($ebayOrder['pickup_status'] ?? '');
+        if ($pickupStatus === 'readyforpickup') {
+            return 'ready_for_pickup';
+        }
+        if ($pickupStatus === 'pickedup') {
+            return 'fulfilled';
+        }
+
+        return 'unfulfilled';
     }
 
     public function failed(Exception $exception): void

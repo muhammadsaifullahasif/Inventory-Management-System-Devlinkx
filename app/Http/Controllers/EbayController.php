@@ -1445,6 +1445,15 @@ class EbayController extends Controller
             // Shipping details
             'shipping_service' => (string) ($order->ShippingServiceSelected->ShippingService ?? ''),
             'is_multi_leg_shipping' => (string) ($order->IsMultiLegShipping ?? 'false') === 'true',
+
+            // Tracking info (may be in ShippingDetails or ShippingServiceSelected)
+            'tracking_number' => (string) ($order->ShippingDetails->ShipmentTrackingDetails->ShipmentTrackingNumber
+                ?? $order->ShippingServiceSelected->ShippingPackageInfo->ShipmentTrackingNumber ?? ''),
+            'shipping_carrier' => (string) ($order->ShippingDetails->ShipmentTrackingDetails->ShippingCarrierUsed
+                ?? $order->ShippingServiceSelected->ShippingPackageInfo->ShippingCarrierUsed ?? ''),
+
+            // Pickup status (for local pickup orders)
+            'pickup_status' => (string) ($order->PickupDetails->PickupStatus ?? ''),
         ];
     }
 
