@@ -11,14 +11,21 @@ use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Models\SalesChannel;
 use App\Models\ProductStock;
+use App\Models\DashboardSetting;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class DashboardController extends Controller
 {
     public function index()
     {
+        $userId = Auth::id();
+
+        // Get widget settings for current user
+        $widgetSettings = DashboardSetting::getForUser($userId);
+
         // Date ranges
         $today = Carbon::today();
         $startOfMonth = Carbon::now()->startOfMonth();
@@ -62,8 +69,82 @@ class DashboardController extends Controller
             'recentOrders',
             'recentPurchases',
             'salesByChannel',
-            'monthlyComparison'
+            'monthlyComparison',
+            'widgetSettings'
         ));
+    }
+
+    /**
+     * Get widget settings page
+     */
+    public function widgetSettings()
+    {
+        $userId = Auth::id();
+        $widgetSettings = DashboardSetting::getForUser($userId);
+
+        return view('dashboard.widget-settings', compact('widgetSettings'));
+    }
+
+    /**
+     * Update widget settings
+     */
+    public function updateWidgetSettings(Request $request)
+    {
+        $userId = Auth::id();
+        $widgets = $request->input('widgets', []);
+
+        // Get current settings and update enabled status
+        $currentSettings = DashboardSetting::getForUser($userId);
+
+        foreach ($currentSettings as $key => &$widget) {
+            $widget['enabled'] = isset($widgets[$key]) && $widgets[$key] === 'on';
+        }
+
+        DashboardSetting::updateForUser($userId, $currentSettings);
+
+        return redirect()->route('dashboard')->with('success', 'Dashboard widgets updated successfully.');
+    }
+
+    /**
+     * Toggle a single widget via AJAX
+     */
+    public function toggleWidget(Request $request)
+    {
+        $userId = Auth::id();
+        $widgetKey = $request->input('widget');
+        $enabled = $request->boolean('enabled');
+
+        $currentSettings = DashboardSetting::getForUser($userId);
+
+        if (isset($currentSettings[$widgetKey])) {
+            $currentSettings[$widgetKey]['enabled'] = $enabled;
+            DashboardSetting::updateForUser($userId, $currentSettings);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Widget updated successfully',
+                'widget' => $widgetKey,
+                'enabled' => $enabled,
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Widget not found',
+        ], 404);
+    }
+
+    /**
+     * Reset widgets to default
+     */
+    public function resetWidgets()
+    {
+        $userId = Auth::id();
+        $defaultWidgets = DashboardSetting::getDefaultWidgets();
+
+        DashboardSetting::updateForUser($userId, $defaultWidgets);
+
+        return redirect()->route('dashboard')->with('success', 'Dashboard widgets reset to default.');
     }
 
     protected function getSummaryStats($today, $startOfMonth, $endOfMonth, $startOfLastMonth, $endOfLastMonth)

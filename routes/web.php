@@ -104,6 +104,12 @@ Auth::routes();
 Route::middleware(['auth'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
+    // Dashboard Widget Settings
+    Route::get('/dashboard/widgets', [DashboardController::class, 'widgetSettings'])->name('dashboard.widgets');
+    Route::post('/dashboard/widgets', [DashboardController::class, 'updateWidgetSettings'])->name('dashboard.widgets.update');
+    Route::post('/dashboard/widgets/toggle', [DashboardController::class, 'toggleWidget'])->name('dashboard.widgets.toggle');
+    Route::post('/dashboard/widgets/reset', [DashboardController::class, 'resetWidgets'])->name('dashboard.widgets.reset');
+
     Route::resource('/users', UserController::class);
     Route::resource('/roles', RoleController::class);
     Route::resource('/permissions', PermissionController::class);
