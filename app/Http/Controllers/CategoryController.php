@@ -22,7 +22,7 @@ class CategoryController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Category::with('parent');
+        $query = Category::with('parent_category');
 
         // Filter by search term
         if ($request->filled('search')) {
