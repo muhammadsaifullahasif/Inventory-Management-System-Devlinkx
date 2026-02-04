@@ -404,6 +404,18 @@ class SyncEbayOrdersJob implements ShouldQueue
         }
     }
 
+    /**
+     * Map eBay order status to local status
+     *
+     * eBay Status meanings:
+     * - Active: Order is awaiting payment or fulfillment
+     * - Completed: Order has been fulfilled (shipped), NOT delivered
+     * - Cancelled/Inactive: Order was cancelled
+     *
+     * Note: eBay does not provide a "Delivered" status in the Trading API.
+     * When eBay marks an order as "Completed" it means it has been shipped/fulfilled.
+     * Delivery status would need to be determined through tracking info.
+     */
     private function mapEbayOrderStatus(string $ebayStatus, array $ebayOrder = []): string
     {
         // Check for cancellation status first
@@ -417,18 +429,16 @@ class SyncEbayOrdersJob implements ShouldQueue
             }
         }
 
-        // Check if shipped_time is set - this indicates shipped/delivered status
+        // Check if shipped_time is set - this indicates the order has been shipped
         if (!empty($ebayOrder['shipped_time'])) {
-            // If status is completed and shipped, it's delivered
-            if (strtolower($ebayStatus) === 'completed') {
-                return 'delivered';
-            }
             return 'shipped';
         }
 
+        // Map based on eBay order status
+        // Note: "Completed" in eBay means shipped/fulfilled, NOT delivered
         return match (strtolower($ebayStatus)) {
             'active' => 'processing',
-            'completed' => 'delivered',
+            'completed' => 'shipped',  // Completed = shipped/fulfilled, not delivered
             'cancelled' => 'cancelled',
             'inactive' => 'cancelled',
             'shipped' => 'shipped',

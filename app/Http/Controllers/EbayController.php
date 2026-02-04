@@ -1704,12 +1704,21 @@ class EbayController extends Controller
 
     /**
      * Map eBay order status to local status
+     *
+     * eBay Status meanings:
+     * - Active: Order is awaiting payment or fulfillment
+     * - Completed: Order has been fulfilled (shipped), NOT delivered
+     * - Cancelled/Inactive: Order was cancelled
+     * - Shipped: Items have been shipped
+     *
+     * Note: eBay does not provide a "Delivered" status in the Trading API.
+     * Delivery status would need to be determined through tracking info.
      */
     private function mapEbayOrderStatus(string $ebayStatus): string
     {
         return match (strtolower($ebayStatus)) {
             'active' => 'processing',
-            'completed' => 'delivered',
+            'completed' => 'shipped',  // Completed means shipped/fulfilled, not delivered
             'cancelled' => 'cancelled',
             'inactive' => 'cancelled',
             'shipped' => 'shipped',
