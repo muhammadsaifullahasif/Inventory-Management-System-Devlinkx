@@ -169,7 +169,7 @@ class ChartOfAccountsSeeder extends Seeder
 
             // Create child accounts
             foreach ($children as $child) {
-                ChartOfAccount::firstOrCreates(
+                ChartOfAccount::firstOrCreate(
                     ['code' => $child['code']], // Search by code
                     [
                         'parent_id' => $parent->id,
