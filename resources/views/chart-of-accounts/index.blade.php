@@ -46,11 +46,11 @@
                     </select>
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
-                    <button type="submit" class="btn btn-secondary me-2">
-                        <i class="bi bi-search"></i> Search
+                    <button type="submit" class="btn btn-secondary mr-2">
+                        <i class="fas fa-search mr-1"></i>Search
                     </button>
                     <a href="{{ route('chart-of-accounts.index') }}" class="btn btn-outline-secondary">
-                        <i class="bi bi-x-lg"></i> Clear
+                        <i class="fas fa-times mr-1"></i> Clear
                     </a>
                 </div>
             </form>
@@ -135,7 +135,7 @@
                                     <td><code>{{ $group->code }}</code></td>
                                     <td>
                                         <span class="toggle-icon" style="cursor: pointer;">
-                                            <i class="bi bi-chevron-down"></i>
+                                            <i class="fas fa-chevron-down"></i>
                                         </span>
                                         {{ $group->name }}
                                         @if ($group->is_system)
@@ -158,7 +158,7 @@
                                     <td>
                                         @can('chart-of-accounts-add')
                                             <a href="{{ route('chart-of-accounts.create', ['group_id' => $group->id]) }}" class="btn btn-outline-primary btn-sm" title="Add Account">
-                                                <i class="bi bi-plus"></i>
+                                                <i class="fas fa-plus"></i>
                                             </a>
                                         @endcan
                                         @include('chart-of-accounts._actions',['account' => $group])
@@ -170,7 +170,7 @@
                                     <tr class="child-row" data-parent-id="{{ $group->id }}">
                                         <td class="ps-4"><code>{{ $account->code }}</code></td>
                                         <td class="ps-5">
-                                            <i class="bi bi-arrow-return-right text-muted me-2"></i>
+                                            <i class="fas fa-greater-than text-muted me-2"></i>
                                             {{ $account->name }}
                                             @if ($account->is_bank_cash)
                                                 <span class="badge bg-info">Bank/Cash</span>
@@ -224,8 +224,8 @@
                         childRow.classList.toggle('d-none');
                     });
 
-                    icon.classList.toggle('bi-chevron-down');
-                    icon.classList.toggle('bi-chevron-right');
+                    icon.classList.toggle('fas-chevron-down');
+                    icon.classList.toggle('fas-chevron-right');
                 });
             });
         });

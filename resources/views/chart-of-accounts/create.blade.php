@@ -137,10 +137,10 @@
 
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-check-lg"></i> Save Account
+                                <i class="fas fa-check"></i> Save Account
                             </button>
                             <a href="{{ route('chart-of-accounts.index') }}" class="btn btn-secondary">
-                                <i class="bi bi-x-lg"></i> Cancel
+                                <i class="fas fa-times"></i> Cancel
                             </a>
                         </div>
                     </form>

@@ -194,7 +194,7 @@
                         </div>
                     @else
                         <div class="text-center py-4">
-                            <i class="bi bi-journal-text text-muted" style="font-size: 3rem;"></i>
+                            <i class="fas fa-book text-muted" style="font-size: 3rem;"></i>
                             <p class="text-muted mt-2">No transactions found for this account.</p>
                         </div>
                     @endif
@@ -244,7 +244,7 @@
                                             </td>
                                             <td>
                                                 <a href="{{ route('chart-of-accounts.show', $child) }}" class="btn btn-outline-info btn-sm">
-                                                    <i class="bi bi-eye"></i>
+                                                    <i class="fas fa-eye"></i>
                                                 </a>
                                             </td>
                                         </tr>

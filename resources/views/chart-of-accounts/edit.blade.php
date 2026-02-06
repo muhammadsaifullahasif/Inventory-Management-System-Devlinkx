@@ -37,7 +37,7 @@
                 <div class="card-body">
                     @if($chartOfAccount->is_system)
                     <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i>
+                        <i class="fas fa-exclamation-circle"></i>
                         This is a system account. Only description and status can be modified.
                     </div>
                     @endif
@@ -189,10 +189,10 @@
 
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-check-lg"></i> Update Account
+                                <i class="fas fa-check"></i> Update Account
                             </button>
                             <a href="{{ route('chart-of-accounts.index') }}" class="btn btn-secondary">
-                                <i class="bi bi-x-lg"></i> Cancel
+                                <i class="fas fa-times"></i> Cancel
                             </a>
                         </div>
                     </form>
@@ -244,7 +244,7 @@
             <div class="card mt-3">
                 <div class="card-header">
                     <h5 class="card-title mb-0 text-warning">
-                        <i class="bi bi-exclamation-triangle"></i> Warning
+                        <i class="fas fa-exclamation-triangle"></i> Warning
                     </h5>
                 </div>
                 <div class="card-body">
