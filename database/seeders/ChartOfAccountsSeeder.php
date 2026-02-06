@@ -162,23 +162,29 @@ class ChartOfAccountsSeeder extends Seeder
             unset($group['children']);
 
             // Create parent group
-            $parent = ChartOfAccount::create($group);
+            $parent = ChartOfAccount::firstOrCreate(
+                ['code' => $group['code']], // Search by code
+                $group // Create with these values if not found
+            );
 
             // Create child accounts
             foreach ($children as $child) {
-                ChartOfAccount::create([
-                    'parent_id' => $parent->id,
-                    'code' => $child['code'],
-                    'name' => $child['name'],
-                    'nature' => $parent->nature,
-                    'type' => 'account',
-                    'is_system' => $child['is_system'] ?? false,
-                    'is_active' => true,
-                    'is_bank_cash' => $child['is_bank_cash'] ?? false,
-                    'bank_name' => $child['bank_name'] ?? null,
-                    'opening_balance' => 0,
-                    'current_balance' => 0,
-                ]);
+                ChartOfAccount::firstOrCreates(
+                    ['code' => $child['codes']], // Search by code
+                    [
+                        'parent_id' => $parent->id,
+                        'code' => $child['code'],
+                        'name' => $child['name'],
+                        'nature' => $parent->nature,
+                        'type' => 'account',
+                        'is_system' => $child['is_system'] ?? false,
+                        'is_active' => true,
+                        'is_bank_cash' => $child['is_bank_cash'] ?? false,
+                        'bank_name' => $child['bank_name'] ?? null,
+                        'opening_balance' => 0,
+                        'current_balance' => 0,
+                    ]
+                );
             }
         }
     }
