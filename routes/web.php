@@ -98,6 +98,28 @@ Route::get('/run-queue-all', function() {
     ]);
 });
 
+Route::get('/run-chart-of-accounts-seeder', function() {
+    Artisan::call('db:seed', [
+        '--class' => 'ChartOfAccountsSeeder'
+    ]);
+
+    return response()->json([
+        'message' => 'ChartOfAccountsSeeder executed',
+        'output' => Artisan::output()
+    ]);
+});
+
+Route::get('/run-accounting-permissions-seeder', function() {
+    Artisan::class('db:seed', [
+        '--class' => 'AccountingPermissionsSeeder'
+    ]);
+
+    return response()->json([
+        'message' => 'AccountingPermissionsSeeder executed',
+        'output' => Artisan::output()
+    ]);
+});
+
 Auth::routes();
 
 // Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
