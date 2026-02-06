@@ -9,15 +9,16 @@ use App\Http\Controllers\RackController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\WarehouseController;
-use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\SalesChannelController;
+use App\Http\Controllers\ChartOfAccountController;
 
 Route::get('/run-migrations', function() {
     if (!app()->environment('local')) {
@@ -184,6 +185,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/orders/{id}/ship', [OrderController::class, 'markAsShipped'])->name('orders.ship');
     Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
     Route::get('/orders-statistics', [OrderController::class, 'statistics'])->name('orders.statistics');
+
+
+    // Chart of Accounts
+    Route::resource('chart-of-accounts', ChartOfAccountController::class);
+    Route::get('chart-of-accounts-by-group/{group}', [ChartOfAccountController::class, 'getByGroup'])->name('chart-of-accounts.by-group');
+    Route::get('chart-of-accounts-expense', [ChartOfAccountController::class, 'getExpenseAccounts'])->name('chart-of-accounts.expense');
+    Route::get('chart-of-accounts-bank-cash', [ChartOfAccountController::class, 'getBankCashAccounts'])->name('chart-of-accounts.bank-cash');
+    Route::post('chart-of-accounts-quick-store', [ChartOfAccountController::class, 'quickStore'])->name('chart-of-accounts.quick-store');
 });
 
 

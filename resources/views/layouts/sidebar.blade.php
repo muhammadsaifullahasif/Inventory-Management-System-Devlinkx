@@ -241,6 +241,68 @@
                     </li>
                 @endcan
 
+                <!-- Accounting Section -->
+                {{-- @canany(['']) --}}
+                {{-- @endcan --}}
+                <li class="nav-item">
+                    <a class="nav-link {{ request()->routeIs('chart-of-accounts.*') || request()->routeIs('bills.*') || request()->routeIs('payments.*') ? '' : 'collapsed' }}" 
+                    data-bs-toggle="collapse" 
+                    href="#accountingMenu" 
+                    role="button">
+                        <i class="bi bi-calculator"></i>
+                        <span>Accounting</span>
+                        <i class="bi bi-chevron-down ms-auto"></i>
+                    </a>
+                    <div class="collapse {{ request()->routeIs('chart-of-accounts.*') || request()->routeIs('bills.*') || request()->routeIs('payments.*') ? 'show' : '' }}" id="accountingMenu">
+                        <ul class="nav flex-column ms-3">
+                            @can('chart-of-accounts-view')
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('chart-of-accounts.*') ? 'active' : '' }}" 
+                                href="{{ route('chart-of-accounts.index') }}">
+                                    <i class="bi bi-diagram-3"></i> Chart of Accounts
+                                </a>
+                            </li>
+                            @endcan
+
+                            @can('bills-view')
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('bills.*') ? 'active' : '' }}" 
+                                href="#">
+                                    <i class="bi bi-receipt"></i> Bills
+                                </a>
+                            </li>
+                            @endcan
+
+                            @can('payments-view')
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('payments.*') ? 'active' : '' }}" 
+                                href="#">
+                                    <i class="bi bi-cash-stack"></i> Payments
+                                </a>
+                            </li>
+                            @endcan
+
+                            @can('journal-entries-view')
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('journal-entries.*') ? 'active' : '' }}" 
+                                href="#">
+                                    <i class="bi bi-journal-text"></i> Journal Entries
+                                </a>
+                            </li>
+                            @endcan
+
+                            @can('accounting-reports-view')
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('reports.*') ? 'active' : '' }}" 
+                                href="#">
+                                    <i class="bi bi-bar-chart"></i> Reports
+                                </a>
+                            </li>
+                            @endcan
+                        </ul>
+                    </div>
+                </li>
+
                 @canany(['view users', 'add users', 'edit users', 'delete users'])
                     <li class="nav-item {{ request()->routeIs('users.*') ? 'menu-open' : '' }}">
                         <a href="#" class="nav-link {{ request()->routeIs('users.*') ? 'active' : '' }}">
