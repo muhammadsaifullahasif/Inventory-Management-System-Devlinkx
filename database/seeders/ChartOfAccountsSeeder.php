@@ -65,7 +65,7 @@ class ChartOfAccountsSeeder extends Seeder
                 'code' => '1200',
                 'name' => 'Inventory',
                 'nature' => 'asset',
-                'type' => 'asset',
+                'type' => 'group',
                 'is_system' => true,
                 'children' => [
                     ['code' => '1201', 'name' => 'Stock in Hand'],
