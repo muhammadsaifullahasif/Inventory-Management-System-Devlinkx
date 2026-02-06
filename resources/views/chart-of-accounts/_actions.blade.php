@@ -7,7 +7,7 @@
 
     @can('chart-of-accounts-edit')
         <a href="{{ route('chart-of-accounts.edit', $account) }}" class="btn btn-outline-primary" title="Edit">
-            <i class="fas fa-pencil"></i>
+            <i class="fas fa-edit"></i>
         </a>
     @endcan
 
