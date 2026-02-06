@@ -36,7 +36,7 @@
                 </div>
                 <div class="col-md-3">
                     <label for="" class="form-label">Nature</label>
-                    <select name="nature" class="form-select">
+                    <select name="nature" class="form-control">
                         <option value="">All Types</option>
                         <option value="asset" {{ request('nature') == 'asset' ? 'selected' : '' }}>Asset</option>
                         <option value="liability" {{ request('nature') == 'liability' ? 'selected' : '' }}>Liability</option>

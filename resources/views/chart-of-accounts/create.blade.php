@@ -38,7 +38,7 @@
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="parent_id" class="form-label">Parent Group <span class="text-danger">*</span></label>
-                                <select name="parent_id" id="parent_id" class="form-select @error('parent_id') is-invalid @enderror" required>
+                                <select name="parent_id" id="parent_id" class="form-control @error('parent_id') is-invalid @enderror" required>
                                     <option value="">Select Group</option>
                                     @foreach ($groups as $group)
                                         <option value="{{ $group->id }}" data-nature="{{ $group->nature }}" {{ (old('parent_id') ?? $selectedGroup) == $group->id ? 'selected' : '' }}>
