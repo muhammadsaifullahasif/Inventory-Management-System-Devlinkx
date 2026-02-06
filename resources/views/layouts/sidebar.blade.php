@@ -261,7 +261,7 @@
                                 </a>
                             </li>
                         @endcan
-                        @can('bills-view')
+                        {{-- @can('bills-view')
                             <li class="nav-item">
                                 <a href="{{ route('bills.index') }}" class="nav-link {{ request()->routeIs('bills.*') ? 'active' : '' }}">
                                     <i class="fas fa-plus-circle nav-icon"></i>
@@ -292,7 +292,7 @@
                                     <p>Reports</p>
                                 </a>
                             </li>
-                        @endcan
+                        @endcan --}}
                     </ul>
                 </li>
 
