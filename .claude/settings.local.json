@@ -11,7 +11,8 @@
       "Bash(Get-Content D:LaravelinventoryManagementSystemstoragelogslaravel.log -Tail 100)",
       "Bash(composer require:*)",
       "Bash(composer dump-autoload:*)",
-      "WebFetch(domain:developer.ebay.com)"
+      "WebFetch(domain:developer.ebay.com)",
+      "Bash(powershell -Command:*)"
     ]
   }
 }
