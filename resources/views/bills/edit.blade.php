@@ -34,13 +34,15 @@
             <div class="col-lg-8">
                 <!-- Bill Details Card -->
                 <div class="card mb-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">Bill Details</h5>
-                        @if ($bill->status === 'draft')
-                            <span class="badge bg-secondary">Draft</span>
-                        @else
-                            <span class="badge bg-warning">Unpaid</span>
-                        @endif
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">Bill Details</h5>
+                            @if ($bill->status === 'draft')
+                                <span class="badge bg-secondary">Draft</span>
+                            @else
+                                <span class="badge bg-warning">Unpaid</span>
+                            @endif
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="row mb-3">
@@ -78,11 +80,13 @@
 
                 <!-- Expense Items Card -->
                 <div class="card mb-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">Expense Items</h5>
-                        <button type="button" class="btn btn-sm btn-outline-primary" id="addItemBtn">
-                            <i class="fas fa-plus mr-1"></i>Add Item
-                        </button>
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">Expense Items</h5>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="addItemBtn">
+                                <i class="fas fa-plus mr-1"></i>Add Item
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
@@ -101,7 +105,7 @@
                                 </tbody>
                                 <tfoot>
                                     <tr class="table-light">
-                                        <td colspan="3" class="text-end fw-bold">Total:</td>
+                                        <td colspan="3" class="text-right fw-bold">Total:</td>
                                         <td class="fw-bold"><span id="totalAmount">0.00</span></td>
                                         <td></td>
                                     </tr>
@@ -133,15 +137,15 @@
                         <table class="table table-sm">
                             <tr>
                                 <th>Bill Number:</th>
-                                <td class="text-end">{{ $bill->bill_number }}</td>
+                                <td class="text-right">{{ $bill->bill_number }}</td>
                             </tr>
                             <tr>
                                 <th>Items:</th>
-                                <td class="text-end"><span id="itemCount">0</span></td>
+                                <td class="text-right"><span id="itemCount">0</span></td>
                             </tr>
                             <tr class="table-light">
                                 <th>Total Amount:</th>
-                                <td class="text-end fs-5 fw-bold"><span id="summaryTotal">0.00</span></td>
+                                <td class="text-right fs-5 fw-bold"><span id="summaryTotal">0.00</span></td>
                             </tr>
                         </table>
                     </div>

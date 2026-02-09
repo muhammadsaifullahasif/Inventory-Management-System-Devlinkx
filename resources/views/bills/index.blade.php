@@ -30,7 +30,7 @@
             <div class="card bg-warning text-dark">
                 <div class="card-body">
                     <h6 class="card-title">Unpaid Bills</h6>
-                    <h3 class="mb-0">{{ $statistics['unpaid_bills'] + $statistics['partially_paid_bills'] }}</h3>
+                    <h3 class="mb-0 text-right">{{ $statistics['unpaid_bills'] + $statistics['partially_paid_bills'] }}</h3>
                     <small>Total: {{ number_format($statistics['total_payable'], 2) }}</small>
                 </div>
             </div>
@@ -39,7 +39,7 @@
             <div class="card bg-danger text-white">
                 <div class="card-body">
                     <h6 class="card-title">Overdue</h6>
-                    <h3 class="mb-0">{{ $statistics['overdue_bills'] }}</h3>
+                    <h3 class="mb-0 text-right">{{ $statistics['overdue_bills'] }}</h3>
                     <small>Amount: {{ number_format($statistics['overdue_amount'], 2) }}</small>
                 </div>
             </div>
@@ -48,7 +48,7 @@
             <div class="card bg-secondary text-white">
                 <div class="card-body">
                     <h6 class="card-title">Draft</h6>
-                    <h3 class="mb-0">{{ $statistics['draft_bills'] }}</h3>
+                    <h3 class="mb-0 text-right">{{ $statistics['draft_bills'] }}</h3>
                     <small>Pending posting</small>
                 </div>
             </div>
@@ -57,7 +57,7 @@
             <div class="card bg-success text-white">
                 <div class="card-body">
                     <h6 class="card-title">Paid</h6>
-                    <h3 class="mb-0">{{ $statistics['paid_bills'] }}</h3>
+                    <h3 class="mb-0 text-right">{{ $statistics['paid_bills'] }}</h3>
                     <small>Completed</small>
                 </div>
             </div>
@@ -124,9 +124,9 @@
                             <th>Date</th>
                             <th>Supplier</th>
                             <th>Due Date</th>
-                            <th class="text-end">Amount</th>
-                            <th class="text-end">Paid</th>
-                            <th class="text-end">Balance</th>
+                            <th class="text-right">Amount</th>
+                            <th class="text-right">Paid</th>
+                            <th class="text-right">Balance</th>
                             <th>Status</th>
                             <th width="150">Actions</th>
                         </tr>
@@ -153,9 +153,9 @@
                                         -
                                     @endif
                                 </td>
-                                <td class="text-end">{{ number_format($bill->total_amount, 2) }}</td>
-                                <td class="text-end">{{ number_format($bill->paid_amount, 2) }}</td>
-                                <td class="text-end fw-bold">{{ number_format($bill->remaining_amount, 2) }}</td>
+                                <td class="text-right">{{ number_format($bill->total_amount, 2) }}</td>
+                                <td class="text-right">{{ number_format($bill->paid_amount, 2) }}</td>
+                                <td class="text-right fw-bold">{{ number_format($bill->remaining_amount, 2) }}</td>
                                 <td>
                                     @if ($bill->status === 'draft')
                                         <span class="badge bg-secondary">Draft</span>
@@ -169,13 +169,13 @@
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a href="{{ route('bills.show', $bill) }}" class="btn btn-info" title="View"><i class="fas fa-eye"></i></a>
+                                        <a href="{{ route('bills.show', $bill) }}" class="btn btn-info btn-sm" title="View"><i class="fas fa-eye"></i></a>
 
                                         @if ($bill->status === 'draft')
                                             @can('bills-post')
-                                                <form action="{{ route('bills.post', $bill) }}" method="POST" class="d-inline">
+                                                <form action="{{ route('bills.post', $bill) }}" method="POST" class="d-inline btn btn-success btn-sm">
                                                     @csrf
-                                                    <button class="btn btn-success" title="Post Bill" onclick="return confirm('Post this bill?')">
+                                                    <button class="btn" title="Post Bill" onclick="return confirm('Post this bill?')">
                                                         <i class="fas fa-check"></i>
                                                     </button>
                                                 </form>
@@ -184,7 +184,7 @@
 
                                         @if ($bill->canEdit())
                                             @can('bills-edit')
-                                                <a href="{{ route('bills.edit', $bill) }}" class="btn btn-primary" title="Edit">
+                                                <a href="{{ route('bills.edit', $bill) }}" class="btn btn-primary btn-sm" title="Edit">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
                                             @endcan
@@ -200,10 +200,10 @@
 
                                         @if ($bill->canDelete())
                                             @can('bills-delete')
-                                                <form action="{{ route('bills.destroy', $bill) }}" method="POST" class="d-inline">
+                                                <form action="{{ route('bills.destroy', $bill) }}" method="POST" class="d-inline btn btn-danger btn-sm">
                                                     @csrf
                                                     @method('DELETE')
-                                                    <button type="submit" class="btn btn-danger" title="Delete" onclick="return confirm('Are you sure you want to delete this bill?')">
+                                                    <button type="submit" class="btn" title="Delete" onclick="return confirm('Are you sure you want to delete this bill?')">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
                                                 </form>

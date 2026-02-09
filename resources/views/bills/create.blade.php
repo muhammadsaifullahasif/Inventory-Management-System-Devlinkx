@@ -72,11 +72,13 @@
 
                 <!-- Expense Items Card -->
                 <div class="card mb-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">Expense Items</h5>
-                        <button type="button" class="btn btn-primary btn-sm" id="addItemBtn">
-                            <i class="fas fa-plus"></i>
-                        </button>
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">Expense Items</h5>
+                            <button type="button" class="btn btn-primary btn-sm" id="addItemBtn">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
@@ -95,7 +97,7 @@
                                 </tbody>
                                 <tfoot>
                                     <tr class="table-light">
-                                        <td colspan="3" class="text-end fw-bold">Total:</td>
+                                        <td colspan="3" class="text-right fw-bold">Total:</td>
                                         <td class="fw-bold">
                                             <span id="totalAmount">0.00</span>
                                         </td>
@@ -129,11 +131,11 @@
                         <table class="table table-sm">
                             <tr>
                                 <th>Items:</th>
-                                <td class="text-end"><span id="itemCount">0</span></td>
+                                <td class="text-right"><span id="itemCount">0</span></td>
                             </tr>
                             <tr class="table-light">
                                 <th>Total Amount:</th>
-                                <td class="text-end fw-bold"><span id="summaryTotal">0.00</span></td>
+                                <td class="text-right fw-bold"><span id="summaryTotal">0.00</span></td>
                             </tr>
                         </table>
                     </div>
@@ -191,7 +193,7 @@
                 <input type="number" name="items[INDEX][amount]" class="form-control form-control-sm item-amount" placeholder="0.00" step="0.01" min="0.01" required>
             </td>
             <td>
-                <button type="button" class="btn btn-outline-danger remove-item">
+                <button type="button" class="btn btn-outline-danger btn-sm remove-item">
                     <i class="fas fa-times"></i>
                 </button>
             </td>

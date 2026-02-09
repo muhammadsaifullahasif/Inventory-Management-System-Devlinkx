@@ -27,7 +27,7 @@
 @section('content')
     <div class="row mb-4">
         <div class="col-md-6"></div>
-        <div class="col-md-6 text-end">
+        <div class="col-md-6 text-right">
             @if ($bill->status === 'draft')
                 @can('bills-post')
                     <form action="{{ route('bills.post', $bill) }}" method="POST" class="d-inline">
@@ -110,7 +110,7 @@
                                     <th>#</th>
                                     <th>Account</th>
                                     <th>Description</th>
-                                    <th class="text-end">Amount</th>
+                                    <th class="text-right">Amount</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -122,23 +122,23 @@
                                             {{ $item->expenseAccount->name }}
                                         </td>
                                         <td>{{ $item->description }}</td>
-                                        <td class="text-end">{{ number_format($item->amount, 2) }}</td>
+                                        <td class="text-right">{{ number_format($item->amount, 2) }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>
                             <tfoot>
                                 <tr class="table-light">
-                                    <td colspan="3" class="text-end fw-bold">Total:</td>
-                                    <td class="text-end fw-bold fs-5">{{ number_format($bill->total_amount, 2) }}</td>
+                                    <td colspan="3" class="text-right fw-bold">Total:</td>
+                                    <td class="text-right fw-bold fs-5">{{ number_format($bill->total_amount, 2) }}</td>
                                 </tr>
                                 @if ($bill->paid_amount > 0)
                                     <tr>
-                                        <td colspan="3" class="text-end">Paid:</td>
-                                        <td class="text-end text-success">-{{ number_format($bill->paid_amount, 2) }}</td>
+                                        <td colspan="3" class="text-right">Paid:</td>
+                                        <td class="text-right text-success">-{{ number_format($bill->paid_amount, 2) }}</td>
                                     </tr>
                                     <tr class="table-warning">
-                                        <td colspan="3" class="text-end fw-bold">Balance Due:</td>
-                                        <td class="text-end fw-bold fs-5">{{ number_format($bill->remaining_amount, 2) }}</td>
+                                        <td colspan="3" class="text-right fw-bold">Balance Due:</td>
+                                        <td class="text-right fw-bold fs-5">{{ number_format($bill->remaining_amount, 2) }}</td>
                                     </tr>
                                 @endif
                             </tfoot>
@@ -174,7 +174,7 @@
                                         <th>Date</th>
                                         <th>Account</th>
                                         <th>Reference</th>
-                                        <th class="text-end">Amount</th>
+                                        <th class="text-right">Amount</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -188,14 +188,14 @@
                                             <td>{{ $payment->payment_date->format('M d, Y') }}</td>
                                             <td>{{ $payment->paymentAccount->name }}</td>
                                             <td>{{ $payment->reference ?? '-' }}</td>
-                                            <td class="text-end">{{ number_format($payment->amount, 2) }}</td>
+                                            <td class="text-right">{{ number_format($payment->amount, 2) }}</td>
                                         </tr>
                                     @endforeach
                                 </tbody>
                                 <tfoot>
                                     <tr class="table-light">
-                                        <td colspan="4" class="text-end fw-bold">Total Paid:</td>
-                                        <td class="text-end fw-bold">{{ number_format($bill->paid_amount, 2) }}</td>
+                                        <td colspan="4" class="text-right fw-bold">Total Paid:</td>
+                                        <td class="text-right fw-bold">{{ number_format($bill->paid_amount, 2) }}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -221,8 +221,8 @@
                                     <tr>
                                         <th>Account</th>
                                         <th>Description</th>
-                                        <td class="text-end">Debit</td>
-                                        <td class="text-end">Credit</td>
+                                        <td class="text-right">Debit</td>
+                                        <td class="text-right">Credit</td>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -230,10 +230,10 @@
                                         <tr>
                                             <td>{{ $line->account->code }} - {{ $line->account->name }}</td>
                                             <td>{{ $line->description }}</td>
-                                            <td class="text-end">
+                                            <td class="text-right">
                                                 {{ $line->debit > 0 ? number_format($line->debit) : '-' }}
                                             </td>
-                                            <td class="text-end">
+                                            <td class="text-right">
                                                 {{ $line->credit > 0 ? number_format($line->credit) : '-' }}
                                             </td>
                                         </tr>
@@ -241,9 +241,9 @@
                                 </tbody>
                                 <tfoot>
                                     <tr class="table-light">
-                                        <td colspan="2" class="text-end fw-bold">Totals:</td>
-                                        <td class="text-end fw-bold">{{ number_format($bill->journalEntry->total_debit, 2) }}</td>
-                                        <td class="text-end fw-bold">{{ number_format($bill->journalEntry->total_credit, 2) }}</td>
+                                        <td colspan="2" class="text-right fw-bold">Totals:</td>
+                                        <td class="text-right fw-bold">{{ number_format($bill->journalEntry->total_debit, 2) }}</td>
+                                        <td class="text-right fw-bold">{{ number_format($bill->journalEntry->total_credit, 2) }}</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -286,15 +286,15 @@
                     <table class="table table-sm">
                         <tr>
                             <th>Total Amount:</th>
-                            <td class="text-end">{{ number_format($bill->total_amount, 2) }}</td>
+                            <td class="text-right">{{ number_format($bill->total_amount, 2) }}</td>
                         </tr>
                         <tr>
                             <td>Paid Amount:</td>
-                            <td class="text-end text-success">{{ number_format($bill->paid_amount, 2) }}</td>
+                            <td class="text-right text-success">{{ number_format($bill->paid_amount, 2) }}</td>
                         </tr>
                         <tr class="table-light">
                             <th>Balance Due:</th>
-                            <td class="text-end fw-bold fs-5 {{ $bill->remaining_amount > 0 ? 'text-danger' : 'text-success' }}">
+                            <td class="text-right fw-bold fs-5 {{ $bill->remaining_amount > 0 ? 'text-danger' : 'text-success' }}">
                                 {{ number_format($bill->remaining_amount, 2) }}
                             </td>
                         </tr>
