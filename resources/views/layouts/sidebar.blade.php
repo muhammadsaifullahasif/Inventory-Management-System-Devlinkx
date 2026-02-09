@@ -255,7 +255,7 @@
                     <ul class="nav nav-treeview">
                         @can('chart-of-accounts-view')
                             <li class="nav-item">
-                                <a href="{{ route('chart-of-accounts.index') }}" class="nav-link {{ request()->routeIs('chart-of-accounts.index') ? 'active' : '' }}">
+                                <a href="{{ route('chart-of-accounts.index') }}" class="nav-link {{ request()->routeIs('chart-of-accounts.*') ? 'active' : '' }}">
                                     <i class="far fa-circle nav-icon"></i>
                                     <p>Chart of Accounts</p>
                                 </a>
