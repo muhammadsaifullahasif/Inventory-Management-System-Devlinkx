@@ -261,7 +261,7 @@
                                 </a>
                             </li>
                         @endcan
-                        {{-- @can('bills-view')
+                        @can('bills-view')
                             <li class="nav-item">
                                 <a href="{{ route('bills.index') }}" class="nav-link {{ request()->routeIs('bills.*') ? 'active' : '' }}">
                                     <i class="fas fa-plus-circle nav-icon"></i>
@@ -269,7 +269,7 @@
                                 </a>
                             </li>
                         @endcan
-                        @can('payments-view')
+                        {{-- @can('payments-view')
                             <li class="nav-item">
                                 <a href="{{ route('payments.index') }}" class="nav-link {{ request()->routeIs('payments.*') ? 'active' : '' }}">
                                     <i class="fas fa-plus-circle nav-icon"></i>

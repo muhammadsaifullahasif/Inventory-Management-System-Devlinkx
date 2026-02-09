@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
+use App\Http\Controllers\BillController;
 use App\Http\Controllers\EbayController;
 use App\Http\Controllers\RackController;
 use App\Http\Controllers\RoleController;
@@ -215,6 +216,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('chart-of-accounts-expense', [ChartOfAccountController::class, 'getExpenseAccounts'])->name('chart-of-accounts.expense');
     Route::get('chart-of-accounts-bank-cash', [ChartOfAccountController::class, 'getBankCashAccounts'])->name('chart-of-accounts.bank-cash');
     Route::post('chart-of-accounts-quick-store', [ChartOfAccountController::class, 'quickStore'])->name('chart-of-accounts.quick-store');
+
+    // Bills
+    Route::resource('bills', BillController::class);
+    Route::post('bills/{bill}/post', [BillController::class, 'post'])->name('bills.post');
+    Route::get('bills-expense-accounts/{group}', [BillController::class, 'getExpenseAccountsByGroup'])
+        ->name('bills.expense-accounts');
 });
 
 
