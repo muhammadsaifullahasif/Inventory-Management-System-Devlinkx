@@ -199,14 +199,18 @@
     </template>
 @endsection
 
+@php
+    $expenseAccountsJson = $expenseGroups->mapWithKeys(function($group) {
+        return [$group->id => $group->children->map(function($child) {
+            return ['id' => $child->id, 'code' => $child->code, 'name' => $child->name];
+        })];
+    });
+@endphp
+
 @push('scripts')
     <script>
         // Expense accounts data for each group
-        const expenseAccountsByGroup = @json($expenseGroups->mapWithKeys(function($group) {
-            return [$group->id => $group->children->map(function($child) {
-                return ['id' => $child->id, 'code' => $child->code, 'name' => $child->name];
-            })];
-        }));
+        const expenseAccountsByGroup = @json($expenseAccountsJson);
 
         let itemIndex = 0;
 

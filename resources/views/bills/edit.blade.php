@@ -209,24 +209,30 @@
     </template>
 @endsection
 
+@php
+    $expenseAccountsJson = $expenseGroups->mapWithKeys(function($group) {
+        return [$group->id => $group->children->map(function($child) {
+            return ['id' => $child->id, 'code' => $child->code, 'name' => $child->name];
+        })];
+    });
+
+    $existingItemsJson = $bill->items->map(function($item) {
+        return [
+            'expense_group_id' => $item->expenseAccount->parent_id,
+            'expense_account_id' => $item->expense_account_id,
+            'description' => $item->description,
+            'amount' => $item->amount,
+        ];
+    });
+@endphp
+
 @push('scripts')
     <script>
         //Expense accounts data
-        const expenseAccountsByGroup = @json($expenseGroups->mapWithKeys(function($group) {
-            return [$group->id => $group->children->map(function($child) {
-                return ['id' => $child->id, 'code' => $child->code, 'name' => $child->name];
-            })];
-        }));
+        const expenseAccountsByGroup = @json($expenseAccountsJson);
 
         // Existing items
-        const existingItems = @json($bill->items->map(function($item) {
-            return [
-                'expense_group_id' => $item->expenseAccount->parent_id,
-                'expense_account_id' => $item->expense_account_id,
-                'description' => $item->description,
-                'amount' => $item->amount,
-            ];
-        }));
+        const existingItems = @json($existingItemsJson);
 
         let itemIndex = 0;
 
