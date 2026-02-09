@@ -50,7 +50,7 @@ class Bill extends Model
 
     public function journalEntry(): HasOne
     {
-        return $this->hasOne(journalEntry::class, 'reference_id')->where('reference_type', 'bill');
+        return $this->hasOne(JournalEntry::class, 'reference_id')->where('reference_type', 'bill');
     }
 
     public function createdBy(): BelongsTo
