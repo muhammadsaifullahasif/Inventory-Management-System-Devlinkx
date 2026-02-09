@@ -264,7 +264,7 @@
                         @can('bills-view')
                             <li class="nav-item">
                                 <a href="{{ route('bills.index') }}" class="nav-link {{ request()->routeIs('bills.*') ? 'active' : '' }}">
-                                    <i class="fas fa-circle nav-icon"></i>
+                                    <i class="far fa-circle nav-icon"></i>
                                     <p>Bills</p>
                                 </a>
                             </li>
