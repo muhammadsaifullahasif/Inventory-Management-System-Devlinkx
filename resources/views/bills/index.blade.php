@@ -155,7 +155,7 @@
                                 </td>
                                 <td class="text-end">{{ number_format($bill->total_amount, 2) }}</td>
                                 <td class="text-end">{{ number_format($bill->paid_amount, 2) }}</td>
-                                <td class="text-end fw-bold">{{ number_format($ill->remaining_amount, 2) }}</td>
+                                <td class="text-end fw-bold">{{ number_format($bill->remaining_amount, 2) }}</td>
                                 <td>
                                     @if ($bill->status === 'draft')
                                         <span class="badge bg-secondary">Draft</span>
