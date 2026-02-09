@@ -47,13 +47,13 @@
                 @endcan
             @endif
 
-            @if ($bill->isPayable())
+            {{-- @if ($bill->isPayable())
                 @can('payments-add')
                     <a href="{{ route('payments.create', ['bill_id' => $bill->id]) }}" class="btn btn-success">
                         <i class="fas fa-money-bill mr-1"></i>Make Payment
                     </a>
                 @endcan
-            @endif
+            @endif --}}
 
             <a href="{{ route('bills.index') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left mr-1"></i>Back
