@@ -219,7 +219,7 @@
         }));
 
         // Existing items
-        const existingItems = @json($bills->items->map(function($item) {
+        const existingItems = @json($bill->items->map(function($item) {
             return [
                 'expense_group_id' => $item->expenseAccount->parent_id,
                 'expense_account_id' => $item->expense_account_id,
