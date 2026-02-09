@@ -175,7 +175,7 @@
                                             @can('bills-post')
                                                 <form action="{{ route('bills.post', $bill) }}" method="POST" class="d-inline btn btn-success btn-sm">
                                                     @csrf
-                                                    <button class="btn" title="Post Bill" onclick="return confirm('Post this bill?')">
+                                                    <button class="bg-transparent border-0 text-white p-0" title="Post Bill" onclick="return confirm('Post this bill?')">
                                                         <i class="fas fa-check"></i>
                                                     </button>
                                                 </form>
@@ -203,7 +203,7 @@
                                                 <form action="{{ route('bills.destroy', $bill) }}" method="POST" class="d-inline btn btn-danger btn-sm">
                                                     @csrf
                                                     @method('DELETE')
-                                                    <button type="submit" class="btn" title="Delete" onclick="return confirm('Are you sure you want to delete this bill?')">
+                                                    <button type="submit" class="bg-transparent border-0 text-white p-0" title="Delete" onclick="return confirm('Are you sure you want to delete this bill?')">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
                                                 </form>
