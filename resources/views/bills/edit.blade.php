@@ -26,7 +26,7 @@
 
 @section('content')
     <!-- Form -->
-    <form action="{{ route('bills.update', $bills) }}" method="POST" id="billForm">
+    <form action="{{ route('bills.update', $bill) }}" method="POST" id="billForm">
         @csrf
         @method('PUT')
 
@@ -316,7 +316,7 @@
                 expenseAccountsByGroup[groupId].forEach(account => {
                     const option = document.createElement('option');
                     option.value = account.id;
-                    option.textContent `${account.code} - ${account.name}`;
+                    option.textContent = `${account.code} - ${account.name}`;
                     if (selectedAccountId && account.id == selectedAccountId) {
                         option.selected = true;
                     }
