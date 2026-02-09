@@ -28,11 +28,13 @@
     <div class="row">
         <div class="col-lg-8">
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">{{ $chartOfAccount->code }} - {{ $chartOfAccount->name }}</h5>
-                    @if($chartOfAccount->is_system)
-                    <span class="badge bg-secondary">System Account</span>
-                    @endif
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">{{ $chartOfAccount->code }} - {{ $chartOfAccount->name }}</h5>
+                        @if($chartOfAccount->is_system)
+                            <span class="badge bg-secondary">System Account</span>
+                        @endif
+                    </div>
                 </div>
                 <div class="card-body">
                     @if($chartOfAccount->is_system)
@@ -187,7 +189,7 @@
                         </div>
                         @endif
 
-                        <div class="d-flex gap-2">
+                        <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-check"></i> Update Account
                             </button>

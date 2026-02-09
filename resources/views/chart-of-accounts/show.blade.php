@@ -159,8 +159,8 @@
                                         <th>Date</th>
                                         <th>Entry #</th>
                                         <th>Description</th>
-                                        <th class="text-end">Debit</th>
-                                        <th class="text-end">Credit</th>
+                                        <th class="text-right">Debit</th>
+                                        <th class="text-right">Credit</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -173,14 +173,14 @@
                                                 </a>
                                             </td>
                                             <td>{{ $line->description ?? $line->journalEntry->narration }}</td>
-                                            <td class="text-end">
+                                            <td class="text-right">
                                                 @if ($line->debit > 0)
                                                     {{ number_format($line->debit, 2) }}
                                                 @else
                                                     -
                                                 @endif
                                             </td>
-                                            <td class="text-end">
+                                            <td class="text-right">
                                                 @if ($line->credit > 0)
                                                     {{ number_format($line->credit, 2) }}
                                                 @else
