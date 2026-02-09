@@ -76,7 +76,7 @@ class BillController extends Controller
      */
     public function create()
     {
-        $suppliers = Supplier::where('delete_status', '1')
+        $suppliers = Supplier::where('delete_status', '0')
                             ->orderBy('first_name')
                             ->get();
         
@@ -144,7 +144,7 @@ class BillController extends Controller
 
         $bill->load(['items.expenseAccount']);
 
-        $suppliers = Supplier::where('delete_status', '1')
+        $suppliers = Supplier::where('delete_status', '0')
                             ->orderBy('first_name')
                             ->get();
 
