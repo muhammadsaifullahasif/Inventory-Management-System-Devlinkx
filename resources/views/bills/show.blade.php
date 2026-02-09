@@ -70,7 +70,7 @@
                     <div class="row">
                         <div class="col-md-6">
                             <h6 class="text-muted">Supplier</h6>
-                            <h5>{{ $bill->supplier->name }}</h5>
+                            <h5>{{ $bill->supplier->full_name }}</h5>
                             @if ($bill->supplier->email)
                                 <p class="mb-0 text-muted">{{ $bill->supplier->email }}</p>
                             @endif

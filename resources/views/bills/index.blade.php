@@ -88,7 +88,7 @@
                         <option value="">All Suppliers</option>
                         @foreach ($suppliers as $supplier)
                             <option value="{{ $supplier->id }}" {{ request('supplier_id') == $supplier->id ? 'selected' : '' }}>
-                                {{ $supplier->name }}
+                                {{ $supplier->full_name }}
                             </option>
                         @endforeach
                     </select>
@@ -140,7 +140,7 @@
                                     </a>
                                 </td>
                                 <td>{{ $bill->bill_date->format('M d, Y') }}</td>
-                                <td>{{ $bill->supplier->name }}</td>
+                                <td>{{ $bill->supplier->full_name }}</td>
                                 <td>
                                     @if ($bill->due_date)
                                         <span class="{{ $bill->isOverdue() ? 'text-danger fw-bold' : '' }}">

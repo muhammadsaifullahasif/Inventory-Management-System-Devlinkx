@@ -164,7 +164,7 @@ class BillService
             'entry_date' => $bill->bill_date,
             'reference_type' => 'bill',
             'reference_id' => $bill->id,
-            'narration' => "Bill #{$bill->bill_number} - {$bill->supplier->name}",
+            'narration' => "Bill #{$bill->bill_number} - {$bill->supplier->full_name}",
             'is_posted' => true,
             'created_by' => Auth::id(),
         ]);
@@ -184,7 +184,7 @@ class BillService
         JournalEntryLine::create([
             'journal_entry_id' => $journalEntry->id,
             'account_id' => $payableAccountId,
-            'description' => "Payable to {$bill->supplier->name}",
+            'description' => "Payable to {$bill->supplier->full_name}",
             'debit' => 0,
             'credit' => $bill->total_amount,
         ]);

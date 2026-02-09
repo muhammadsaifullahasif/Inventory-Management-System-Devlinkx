@@ -54,7 +54,8 @@ class BillController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('bill_number', 'like', "%{$search}%")
                     ->orWhereHas('supplier', function ($sq) use ($search) {
-                        $sq->where('name', 'like', "%{$search}%");
+                        $sq->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%");
                     });
             });
         }
@@ -64,7 +65,7 @@ class BillController extends Controller
                         ->paginate(15)
                         ->withQueryString();
 
-        $suppliers = Supplier::orderBy('name')->get();
+        $suppliers = Supplier::orderBy('first_name')->get();
         $statistics = $this->billService->getStatistics();
 
         return view('bills.index', compact('bills', 'suppliers', 'statistics'));
@@ -76,7 +77,7 @@ class BillController extends Controller
     public function create()
     {
         $suppliers = Supplier::where('delete_status', '1')
-                            ->orderBy('name')
+                            ->orderBy('first_name')
                             ->get();
         
         $expenseGroups = ChartOfAccount::where('type', 'group')
@@ -144,7 +145,7 @@ class BillController extends Controller
         $bill->load(['items.expenseAccount']);
 
         $suppliers = Supplier::where('delete_status', '1')
-                            ->orderBy('name')
+                            ->orderBy('first_name')
                             ->get();
 
         $expenseGroups = ChartOfAccount::where('type', 'group')
