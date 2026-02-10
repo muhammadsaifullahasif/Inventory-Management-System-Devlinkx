@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\ChartOfAccount;
+use App\Models\JournalEntryLine;
 use App\Services\JournalService;
 
 class GeneralLedgerController extends Controller
