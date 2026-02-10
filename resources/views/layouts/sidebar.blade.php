@@ -277,15 +277,23 @@
                                 </a>
                             </li>
                         @endcan
-                        {{-- @can('journal-entries-view')
+                        @can('journal-entries-view')
                             <li class="nav-item">
                                 <a href="{{ route('journal-entries.index') }}" class="nav-link {{ request()->routeIs('journal-entries.*') ? 'active' : '' }}">
-                                    <i class="fas fa-plus-circle nav-icon"></i>
+                                    <i class="far fa-circle nav-icon"></i>
                                     <p>Journal Entries</p>
                                 </a>
                             </li>
                         @endcan
-                        @can('accounting-reports-view')
+                        @can('general-ledger-view')
+                            <li class="nav-item">
+                                <a href="{{ route('general-ledger.index') }}" class="nav-link {{ request()->routeIs('general-ledger.*') ? 'active' : '' }}">
+                                    <i class="far fa-circle nav-icon"></i>
+                                    <p>General Ledger</p>
+                                </a>
+                            </li>
+                        @endcan
+                        {{-- @can('accounting-reports-view')
                             <li class="nav-item">
                                 <a href="{{ route('reports.index') }}" class="nav-link {{ request()->routeIs('reports.*') ? 'active' : '' }}">
                                     <i class="fas fa-plus-circle nav-icon"></i>

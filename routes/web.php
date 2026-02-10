@@ -19,7 +19,9 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\SalesChannelController;
+use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\ChartOfAccountController;
 
 Route::get('/run-migrations', function() {
@@ -228,6 +230,12 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('payments', PaymentController::class)->except(['edit', 'update']);
     Route::get('payments-bill-details/{bill}', [PaymentController::class, 'getBillDetails'])
         ->name('payments.bill-details');
+
+    // Journal Entries
+    Route::resource('journal-entries', JournalEntryController::class)->only(['index', 'show']);
+
+    // General Ledger
+    Route::get('general-ledger', [GeneralLedgerController::class, 'index'])->name('general-ledger.index');
 });
 
 
