@@ -152,7 +152,7 @@
                                     </td>
                                     <td class="text-right">
                                         @if ($line->credit > 0)
-                                            {{ number_format($line->credit, 2s) }}
+                                            {{ number_format($line->credit, 2) }}
                                         @else
                                             -
                                         @endif
