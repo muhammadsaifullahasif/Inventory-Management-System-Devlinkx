@@ -194,9 +194,14 @@
                 </select>
             </td>
             <td>
-                <select name="items[INDEX][expense_account_id]" class="form-control form-control-sm expense-account" required>
+                <div class="account-input-wrapper">
+                    <input type="hidden" name="items[INDEX][expense_account_id]" class="expense-account-id">
+                    <input type="text" name="items[INDEX][expense_account_name]" class="form-control form-control-sm account-search" placeholder="Search or type new..." autocomplete="off" required>
+                    <div class="account-dropdown"></div>
+                </div>
+                {{-- <select name="items[INDEX][expense_account_id]" class="form-control form-control-sm expense-account" required>
                     <option value="">Select Account</option>
-                </select>
+                </select> --}}
             </td>
             <td>
                 <input type="text" name="items[INDEX][description]" class="form-control form-control-sm" placeholder="Description" required>
@@ -232,40 +237,59 @@
 
 @push('scripts')
     <script>
-        //Expense accounts data
         const expenseAccountsByGroup = @json($expenseAccountsJson);
-
-        // Existing items
         const existingItems = @json($existingItemsJson);
 
         let itemIndex = 0;
 
         document.addEventListener('DOMContentLoaded', function() {
-            // Load existing items
             if (existingItems.length > 0) {
-                existingItems.forEach(item => {
-                    addItemRow(item);
-                });
+                existingItems.forEach(item => addItemRow(item));
             } else {
                 addItemRow();
             }
 
-            // Add item button
             document.getElementById('addItemBtn').addEventListener('click', () => addItemRow());
 
-            // Delegate events
-            document.getElementById('itemsBody').addEventListener('click', function(e) {
+            const itemsBody = document.getElementById('itemsBody');
+
+            itemsBody.addEventListener('click', function(e) {
                 if (e.target.closest('.remove-item')) {
                     removeItemRow(e.target.closest('.item-row'));
                 }
             });
 
-            document.getElementById('itemsBody').addEventListener('change', function(e) {
+            itemsBody.addEventListener('change', function(e) {
                 if (e.target.classList.contains('expense-group')) {
-                    updateExpenseAccounts(e.target);
+                    const row = e.target.closest('.item-row');
+                    row.querySelector('.expense-account-id').value = '';
+                    const search = row.querySelector('.account-search');
+                    search.value = '';
+                    search.classList.remove('has-account');
                 }
                 if (e.target.classList.contains('item-amount')) {
                     updateTotals();
+                }
+            });
+
+            itemsBody.addEventListener('input', function(e) {
+                if (e.target.classList.contains('item-amount')) {
+                    updateTotals();
+                }
+                if (e.target.classList.contains('account-search')) {
+                    onAccountInput(e.target);
+                }
+            });
+
+            itemsBody.addEventListener('focusin', function(e) {
+                if (e.target.classList.contains('account-search')) {
+                    showAccountDropdown(e.target);
+                }
+            });
+
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.account-input-wrapper')) {
+                    document.querySelectorAll('.account-dropdown').forEach(d => d.style.display = 'none');
                 }
             });
         });
@@ -274,29 +298,30 @@
             const template = document.getElementById('itemRowTemplate');
             const clone = template.content.cloneNode(true);
 
-            // Update index
             clone.querySelectorAll('[name*="INDEX"]').forEach(el => {
                 el.name = el.name.replace('INDEX', itemIndex);
             });
 
-            const row = clone.querySelector('.item-row');
             document.getElementById('itemsBody').appendChild(clone);
 
-            // If data provided, populate the row
             if (data) {
                 const addedRow = document.getElementById('itemsBody').lastElementChild;
                 const groupSelect = addedRow.querySelector('.expense-group');
-                const accountSelect = addedRow.querySelector('.expense-account');
+                const accountIdInput = addedRow.querySelector('.expense-account-id');
+                const accountSearch = addedRow.querySelector('.account-search');
                 const descInput = addedRow.querySelector('[name*="description"]');
                 const amountInput = addedRow.querySelector('[name*="amount"]');
 
-                // Set group
                 groupSelect.value = data.expense_group_id;
+                accountIdInput.value = data.expense_account_id;
 
-                // Populate accounts dropdown
-                updateExpenseAccounts(groupSelect, data.expense_account_id);
+                const groupAccounts = expenseAccountsByGroup[data.expense_group_id] || [];
+                const account = groupAccounts.find(a => a.id == data.expense_account_id);
+                if (account) {
+                    accountSearch.value = account.code + ' - ' + account.name;
+                    accountSearch.classList.add('has-account');
+                }
 
-                // Set other values
                 descInput.value = data.description;
                 amountInput.value = data.amount;
             }
@@ -311,33 +336,114 @@
                 row.remove();
                 updateTotals();
             } else {
-                alert('At leaset one item is required.');
+                alert('At least one item is required.');
             }
         }
 
-        function updateExpenseAccounts(groupSelect, selectedAccountId = null) {
-            const row = groupSelect.closest('.item-row');
-            const accountSelect = row.querySelector('.expense-account');
-            const groupId = groupSelect.value;
+        function showAccountDropdown(input) {
+            const row = input.closest('.item-row');
+            const groupId = row.querySelector('.expense-group').value;
+            const dropdown = row.querySelector('.account-dropdown');
 
-            accountSelect.innerHTML = '<option value="">Select Account</option>';
-
-            if (groupId && expenseAccountsByGroup[groupId]) {
-                expenseAccountsByGroup[groupId].forEach(account => {
-                    const option = document.createElement('option');
-                    option.value = account.id;
-                    option.textContent = `${account.code} - ${account.name}`;
-                    if (selectedAccountId && account.id == selectedAccountId) {
-                        option.selected = true;
-                    }
-                    accountSelect.appendChild(option);
-                });
+            if (!groupId) {
+                dropdown.innerHTML = '<div class="dd-empty">Please select an Expense Group first</div>';
+                dropdown.style.display = 'block';
+                return;
             }
+
+            renderDropdown(input, groupId, input.value.trim());
+            dropdown.style.display = 'block';
+        }
+
+        function onAccountInput(input) {
+            const row = input.closest('.item-row');
+            const groupId = row.querySelector('.expense-group').value;
+            const accountIdInput = row.querySelector('.expense-account-id');
+            const dropdown = row.querySelector('.account-dropdown');
+
+            accountIdInput.value = '';
+            input.classList.remove('has-account');
+
+            if (!groupId) {
+                dropdown.innerHTML = '<div class="dd-empty">Please select an Expense Group first</div>';
+                dropdown.style.display = 'block';
+                return;
+            }
+
+            renderDropdown(input, groupId, input.value.trim());
+            dropdown.style.display = 'block';
+        }
+
+        function renderDropdown(input, groupId, searchText) {
+            const row = input.closest('.item-row');
+            const dropdown = row.querySelector('.account-dropdown');
+            const accounts = expenseAccountsByGroup[groupId] || [];
+
+            let filtered = accounts;
+            if (searchText) {
+                const lower = searchText.toLowerCase();
+                filtered = accounts.filter(a =>
+                    a.name.toLowerCase().includes(lower) ||
+                    a.code.toLowerCase().includes(lower)
+                );
+            }
+
+            let html = '';
+
+            filtered.forEach(account => {
+                html += `<div class="dd-item" data-id="${account.id}" data-code="${account.code}" data-name="${account.name}">
+                    <code>${account.code}</code> - ${account.name}
+                </div>`;
+            });
+
+            if (searchText && searchText.length >= 2) {
+                const exactMatch = accounts.find(a => a.name.toLowerCase() === searchText.toLowerCase());
+                if (!exactMatch) {
+                    html += `<div class="dd-new" data-new-name="${searchText}">
+                        <i class="fas fa-plus mr-1"></i> Create "<strong>${searchText}</strong>" as new account
+                    </div>`;
+                }
+            }
+
+            if (!html) {
+                html = '<div class="dd-empty">No accounts found. Type a name to create new.</div>';
+            }
+
+            dropdown.innerHTML = html;
+
+            dropdown.querySelectorAll('.dd-item').forEach(item => {
+                item.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    selectExistingAccount(input, this.dataset.id, this.dataset.code, this.dataset.name);
+                });
+            });
+
+            dropdown.querySelectorAll('.dd-new').forEach(item => {
+                item.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    selectNewAccount(input, this.dataset.newName);
+                });
+            });
+        }
+
+        function selectExistingAccount(input, id, code, name) {
+            const row = input.closest('.item-row');
+            row.querySelector('.expense-account-id').value = id;
+            input.value = code + ' - ' + name;
+            input.classList.add('has-account');
+            row.querySelector('.account-dropdown').style.display = 'none';
+        }
+
+        function selectNewAccount(input, name) {
+            const row = input.closest('.item-row');
+            row.querySelector('.expense-account-id').value = '';
+            input.value = name;
+            input.classList.remove('has-account');
+            row.querySelector('.account-dropdown').style.display = 'none';
         }
 
         function updateTotals() {
             let total = 0;
-
             document.querySelectorAll('.item-amount').forEach(input => {
                 total += parseFloat(input.value) || 0;
             });
@@ -351,4 +457,58 @@
             document.getElementById('statusField').value = status;
         }
     </script>
+@endpush
+
+@push('styles')
+    <style>
+        .account-input-wrapper {
+            position: relative;
+        }
+
+        .account-dropdown {
+            display: none;
+            position: absolute;
+            z-index: 1050;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #fff;
+            border: 1px solid #ced4da;
+            border-top: none;
+            border-radius: 0 0 0.25rem 0.25rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .account-dropdown .dd-item {
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 0.82rem;
+        }
+
+        .account-dropdown .dd-item:hover {
+            background-color: #e9ecef;
+        }
+
+        .account-dropdown .dd-new {
+            padding: 5px 10px;
+            color: #28a745;
+            font-size: 0.82rem;
+            cursor: pointer;
+            border-top: 1px solid #eee;
+        }
+
+        .account-dropdown .dd-new:hover {
+            background-color: #e8f5e9;
+        }
+
+        .account-dropdown .dd-empty {
+            padding: 5px 10px;
+            color: #999;
+            font-size: 0.82rem;
+        }
+
+        .account-search.has-account {
+            background-color: #f0fdf4;
+        }
+    </style>
 @endpush

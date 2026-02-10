@@ -38,7 +38,8 @@ class BillService
             $totalAmount = 0;
             foreach ($data['items'] as $item) {
                 $bill->items()->create([
-                    'expense_account_id' => $item['expense_account_id'],
+                    'expense_account_id' => $this->resolveAccountId($item),
+                    // 'expense_account_id' => $item['expense_account_id'],
                     'description' => $item['description'],
                     'amount' => $item['amount'],
                 ]);
@@ -50,7 +51,7 @@ class BillService
 
             // If status is not draft, create journal entry
             if ($bill->status !== 'draft') {
-                $this->pstJournalEntry($bill);
+                $this->postJournalEntry($bill);
             }
 
             return $bill->fresh(['items', 'supplier']);
@@ -87,7 +88,8 @@ class BillService
             $totalAmount = 0;
             foreach ($data['items'] as $item) {
                 $bill->items()->create([
-                    'expense_account_id' => $item['expense_account_id'],
+                    'expense_account_id' => $this->resolveAccountId($item),
+                    // 'expense_account_id' => $item['expense_account_id'],
                     'description' => $item['description'],
                     'amount' => $item['amount'],
                 ]);
@@ -238,5 +240,54 @@ class BillService
             'overdue_bills' => Bill::overdue()->count(),
             'overdue_amount' => Bill::overdue()->sum(DB::raw('total_amount - paid_amount')),
         ];
+    }
+
+    /**
+     * Resolve account ID - use existing or create new
+     */
+    protected function resolveAccountId(array $item): int
+    {
+        // If existing account ID is provided, use it
+        if (!empty($item['expense_account_id'])) {
+            return (int) $item['expense_account_id'];
+        }
+
+        // Create new account under the selected group
+        $groupId = $item['expense_group_id'];
+        $accountName = trim($item['expense_account_name']);
+
+        $parent = ChartOfAccount::findOrFail($groupId);
+
+        // Check if account with same name already exists under this group
+        $existing = ChartOfAccount::where('parent_id', $groupId)
+            ->whereRaw('LOWER(name) = ?', [strtolower($accountName)])
+            ->first();
+
+        if ($existing) {
+            return $existing->id;
+        }
+
+        // Generate next code
+        $lastChild = ChartOfAccount::where('parent_id', $parent->id)
+            ->orderBy('code', 'desc')
+            ->first();
+
+        if ($lastChild) {
+            $newCode = str_pad((int) $lastChild->code + 1, 4, '0', STR_PAD_LEFT);
+        } else {
+            $newCode = $parent->code . '01';
+        }
+
+        $account = ChartOfAccount::create([
+            'parent_id' => $parent->id,
+            'code' => $newCode,
+            'name' => $accountName,
+            'nature' => $parent->nature,
+            'type' => 'account',
+            'is_system' => false,
+            'is_active' => true,
+        ]);
+
+        return $account->id;
     }
 }

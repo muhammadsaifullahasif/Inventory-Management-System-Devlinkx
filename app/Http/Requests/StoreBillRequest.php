@@ -30,7 +30,9 @@ class StoreBillRequest extends FormRequest
 
             // Items validation
             'items' => 'required|array|min:1',
-            'items.*.expense_account_id' => 'required|exists:chart_of_accounts,id',
+            'items.*.expense_group_id' => 'required|exists:chart_of_accounts,id',
+            'items.*.expense_account_id' => 'nullable|exists:chart_of_accounts,id',
+            'items.*.expense_account_name' => 'required|string|max:100',
             'items.*.description' => 'required|string|max:255',
             'items.*.amount' => 'required|numeric|min:0.01',
         ];
@@ -41,7 +43,8 @@ class StoreBillRequest extends FormRequest
         return [
             'items.required' => 'At least one expense item is required.',
             'items.min' => 'At least one expense item is required.',
-            'items.*.expense_account_id.required' => 'Please select an expense account for each item.',
+            'item.*.expense_group_id.required' => 'Please select an expense group for each item.',
+            'items.*.expense_account_name.required' => 'Please select or enter an account head for each item.',
             'items.*.description.required' => 'Please enter a description for each item.',
             'items.*.amount.required' => 'Please enter an amount for each item.',
             'items.*.amount.min' => 'Amount must be greater than zero.',

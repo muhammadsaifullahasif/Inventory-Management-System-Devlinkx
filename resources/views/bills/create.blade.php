@@ -182,9 +182,11 @@
                 </select>
             </td>
             <td>
-                <select name="items[INDEX][expense_account_id]" class="form-control form-control-sm expense-account" required>
-                    <option value="">Select Account</option>
-                </select>
+                <div class="account-input-wrapper">
+                    <input type="hidden" name="items[INDEX][expense_account_id]" class="expense-account-id">
+                    <input type="text" name="items[INDEX][expense_account_name]" class="form-control form-control-sm account-search" placeholder="Search or type new..." autocomplete="off" required>
+                    <div class="account-dropdown"></div>
+                </div>
             </td>
             <td>
                 <input type="text" name="items[INDEX][description]" class="form-control form-control-sm" placeholder="Description" required>
@@ -211,101 +213,291 @@
 
 @push('scripts')
     <script>
-        // Expense accounts data for each group
         const expenseAccountsByGroup = @json($expenseAccountsJson);
 
         let itemIndex = 0;
 
         document.addEventListener('DOMContentLoaded', function() {
-            // Add first item row
             addItemRow();
 
-            // Add item button
-            document.getElementById('addItemBtn').addEventListener('click', addItemRow);
+            document.getElementById('addItemBtn').addEventListener('click', () => addItemRow());
 
-            // Delegate events for dynamic elements
-            document.getElementById('itemsBody').addEventListener('click', function(e){
+            // Delegate events on itemsBody
+            const itemsBody = document.getElementById('itemsBody');
+
+            itemsBody.addEventListener('click', function(e) {
                 if (e.target.closest('.remove-item')) {
                     removeItemRow(e.target.closest('.item-row'));
                 }
             });
 
-            document.getElementById('itemsBody').addEventListener('change', function(e) {
+            itemsBody.addEventListener('change', function(e) {
                 if (e.target.classList.contains('expense-group')) {
-                    updateExpenseAccounts(e.target);
+                    // Group changed — clear the account input
+                    const row = e.target.closest('.item-row');
+                    const accountIdInput = row.querySelector('.expense-account-id');
+                    const accountSearch = row.querySelector('.account-search');
+                    accountIdInput.value = '';
+                    accountSearch.value = '';
+                    accountSearch.classList.remove('has-account');
                 }
                 if (e.target.classList.contains('item-amount')) {
                     updateTotals();
                 }
             });
 
-            document.getElementById('itemsBody').addEventListener('input', function(e) {
+            itemsBody.addEventListener('input', function(e) {
                 if (e.target.classList.contains('item-amount')) {
                     updateTotals();
                 }
+                if (e.target.classList.contains('account-search')) {
+                    onAccountInput(e.target);
+                }
             });
 
-            function addItemRow() {
-                const template = document.getElementById('itemRowTemplate');
-                const clone = template.content.cloneNode(true);
-
-                // Update index in names
-                clone.querySelectorAll('[name*="INDEX"]').forEach(el => {
-                    el.name = el.name.replace('INDEX', itemIndex);
-                });
-
-                document.getElementById('itemsBody').appendChild(clone);
-                itemIndex++;
-                updateTotals();
-            }
-
-            function removeItemRow(row) {
-                const tbody = document.getElementById('itemsBody');
-                if (tbody.querySelectorAll('.item-row').length > 1) {
-                    row.remove();
-                    updateTotals();
-                } else {
-                    alert('At least one item is required.');
+            // Focus — show dropdown
+            itemsBody.addEventListener('focusin', function(e) {
+                if (e.target.classList.contains('account-search')) {
+                    showAccountDropdown(e.target);
                 }
-            }
+            });
 
-            function updateExpenseAccounts(groupSelect) {
-                const row = groupSelect.closest('.item-row');
-                const accountSelect = row.querySelector('.expense-account');
-                const groupId = groupSelect.value;
-
-                // Clear current options
-                accountSelect.innerHTML = '<option value="">Select Account</option>';
-
-                if (groupId && expenseAccountsByGroup[groupId]) {
-                    expenseAccountsByGroup[groupId].forEach(account => {
-                        const option = document.createElement('option');
-                        option.value = account.id;
-                        option.textContent = `${account.code} - ${account.name}`;
-                        accountSelect.appendChild(option);
-                    });
+            // Close dropdown on click outside
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.account-input-wrapper')) {
+                    document.querySelectorAll('.account-dropdown').forEach(d => d.style.display = 'none');
                 }
-            }
-
-            function updateTotals() {
-                let total = 0;
-                let count = 0;
-
-                document.querySelectorAll('.item-amount').forEach(input => {
-                    const value = parseFloat(input.value) || 0;
-                    total += value;
-                    if (value > 0) count++;
-                });
-
-                document.getElementById('totalAmount').textContent = total.toFixed(2);
-                document.getElementById('summaryTotal').textContent = total.toFixed(2);
-                document.getElementById('itemCount').textContent = document.querySelectorAll('.item-row').length;
-            }
-
-            function setAction(status, action) {
-                document.getElementById('statusField').value = status;
-                document.getElementById('actionField').value = action;
-            }
+            });
         });
+
+        function addItemRow(data = null) {
+            const template = document.getElementById('itemRowTemplate');
+            const clone = template.content.cloneNode(true);
+
+            clone.querySelectorAll('[name*="INDEX"]').forEach(el => {
+                el.name = el.name.replace('INDEX', itemIndex);
+            });
+
+            document.getElementById('itemsBody').appendChild(clone);
+
+            // If data provided, populate
+            if (data) {
+                const addedRow = document.getElementById('itemsBody').lastElementChild;
+                const groupSelect = addedRow.querySelector('.expense-group');
+                const accountIdInput = addedRow.querySelector('.expense-account-id');
+                const accountSearch = addedRow.querySelector('.account-search');
+                const descInput = addedRow.querySelector('[name*="description"]');
+                const amountInput = addedRow.querySelector('[name*="amount"]');
+
+                groupSelect.value = data.expense_group_id;
+                accountIdInput.value = data.expense_account_id;
+
+                // Find account name from local data
+                const groupAccounts = expenseAccountsByGroup[data.expense_group_id] || [];
+                const account = groupAccounts.find(a => a.id == data.expense_account_id);
+                if (account) {
+                    accountSearch.value = account.code + ' - ' + account.name;
+                    accountSearch.classList.add('has-account');
+                }
+
+                descInput.value = data.description;
+                amountInput.value = data.amount;
+            }
+
+            itemIndex++;
+            updateTotals();
+        }
+
+        function removeItemRow(row) {
+            const tbody = document.getElementById('itemsBody');
+            if (tbody.querySelectorAll('.item-row').length > 1) {
+                row.remove();
+                updateTotals();
+            } else {
+                alert('At least one item is required.');
+            }
+        }
+
+        function showAccountDropdown(input) {
+            const row = input.closest('.item-row');
+            const groupId = row.querySelector('.expense-group').value;
+            const dropdown = row.querySelector('.account-dropdown');
+
+            if (!groupId) {
+                dropdown.innerHTML = '<div class="dd-empty">Please select an Expense Group first</div>';
+                dropdown.style.display = 'block';
+                return;
+            }
+
+            renderDropdown(input, groupId, input.value.trim());
+            dropdown.style.display = 'block';
+        }
+
+        function onAccountInput(input) {
+            const row = input.closest('.item-row');
+            const groupId = row.querySelector('.expense-group').value;
+            const accountIdInput = row.querySelector('.expense-account-id');
+            const dropdown = row.querySelector('.account-dropdown');
+
+            // Clear the hidden ID (user is typing / changing)
+            accountIdInput.value = '';
+            input.classList.remove('has-account');
+
+            if (!groupId) {
+                dropdown.innerHTML = '<div class="dd-empty">Please select an Expense Group first</div>';
+                dropdown.style.display = 'block';
+                return;
+            }
+
+            renderDropdown(input, groupId, input.value.trim());
+            dropdown.style.display = 'block';
+        }
+
+        function renderDropdown(input, groupId, searchText) {
+            const row = input.closest('.item-row');
+            const dropdown = row.querySelector('.account-dropdown');
+            const accounts = expenseAccountsByGroup[groupId] || [];
+
+            let filtered = accounts;
+            if (searchText) {
+                const lower = searchText.toLowerCase();
+                filtered = accounts.filter(a =>
+                    a.name.toLowerCase().includes(lower) ||
+                    a.code.toLowerCase().includes(lower)
+                );
+            }
+
+            let html = '';
+
+            // Show matching accounts
+            filtered.forEach(account => {
+                html += `<div class="dd-item" data-id="${account.id}" data-code="${account.code}" data-name="${account.name}">
+                    <code>${account.code}</code> - ${account.name}
+                </div>`;
+            });
+
+            // If search text exists and no exact name match, show "create new" option
+            if (searchText && searchText.length >= 2) {
+                const exactMatch = accounts.find(a => a.name.toLowerCase() === searchText.toLowerCase());
+                if (!exactMatch) {
+                    html += `<div class="dd-new" data-new-name="${searchText}">
+                        <i class="fas fa-plus mr-1"></i> Create "<strong>${searchText}</strong>" as new account
+                    </div>`;
+                }
+            }
+
+            if (!html) {
+                html = '<div class="dd-empty">No accounts found. Type a name to create new.</div>';
+            }
+
+            dropdown.innerHTML = html;
+
+            // Click handlers for dropdown items
+            dropdown.querySelectorAll('.dd-item').forEach(item => {
+                item.addEventListener('mousedown', function(e) {
+                    e.preventDefault(); // Prevent blur
+                    selectExistingAccount(input, this.dataset.id, this.dataset.code, this.dataset.name);
+                });
+            });
+
+            dropdown.querySelectorAll('.dd-new').forEach(item => {
+                item.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    selectNewAccount(input, this.dataset.newName);
+                });
+            });
+        }
+
+        function selectExistingAccount(input, id, code, name) {
+            const row = input.closest('.item-row');
+            const accountIdInput = row.querySelector('.expense-account-id');
+            const dropdown = row.querySelector('.account-dropdown');
+
+            accountIdInput.value = id;
+            input.value = code + ' - ' + name;
+            input.classList.add('has-account');
+            dropdown.style.display = 'none';
+        }
+
+        function selectNewAccount(input, name) {
+            const row = input.closest('.item-row');
+            const accountIdInput = row.querySelector('.expense-account-id');
+            const dropdown = row.querySelector('.account-dropdown');
+
+            accountIdInput.value = ''; // Empty = create new on save
+            input.value = name;
+            input.classList.remove('has-account');
+            dropdown.style.display = 'none';
+        }
+
+        function updateTotals() {
+            let total = 0;
+            document.querySelectorAll('.item-amount').forEach(input => {
+                total += parseFloat(input.value) || 0;
+            });
+
+            document.getElementById('totalAmount').textContent = total.toFixed(2);
+            document.getElementById('summaryTotal').textContent = total.toFixed(2);
+            document.getElementById('itemCount').textContent = document.querySelectorAll('.item-row').length;
+        }
+
+        function setAction(status, action) {
+            document.getElementById('statusField').value = status;
+            document.getElementById('actionField').value = action;
+        }
     </script>
+@endpush
+
+@push('styles')
+    <style>
+        .account-input-wrapper {
+            position: relative;
+        }
+
+        .account-dropdown {
+            display: none;
+            position: absolute;
+            z-index: 1050;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #fff;
+            border: 1px solid #ced4da;
+            border-top: none;
+            border-radius: 0 0 0.25rem 0.25rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .account-dropdown .dd-item {
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 0.82rem;
+        }
+
+        .account-dropdown .dd-item:hover {
+            background-color: #e9ecef;
+        }
+
+        .account-dropdown .dd-new {
+            padding: 5px 10px;
+            color: #28a745;
+            font-size: 0.82rem;
+            cursor: pointer;
+            border-top: 1px solid #eee;
+        }
+
+        .account-dropdown .dd-new:hover {
+            background-color: #e8f5e9;
+        }
+
+        .account-dropdown .dd-empty {
+            padding: 5px 10px;
+            color: #999;
+            font-size: 0.82rem;
+        }
+
+        .account-search.has-account {
+            background-color: #f0fdf4;
+        }
+    </style>
 @endpush
