@@ -72,7 +72,7 @@ class JournalService
     /**
      * Get trail balance data
      */
-    public function getTrailBalance(?string $asOfDate = null): Collection
+    public function getTrialBalance(?string $asOfDate = null): Collection
     {
         $accounts = ChartOfAccount::where('type', 'account')
             ->where('is_active', true)
