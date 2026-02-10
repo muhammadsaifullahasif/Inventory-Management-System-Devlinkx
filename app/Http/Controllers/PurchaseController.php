@@ -72,7 +72,8 @@ class PurchaseController extends Controller
     {
         $suppliers = Supplier::all();
         $warehouses = Warehouse::all();
-        return view('purchases.new', compact('suppliers', 'warehouses'));
+        $products = Product::withSum('product_stocks', 'quantity')->orderBy('name')->get();
+        return view('purchases.new', compact('suppliers', 'warehouses', 'products'));
     }
 
     /**
@@ -84,16 +85,12 @@ class PurchaseController extends Controller
             'purchase_number' => 'required|string|unique:purchases,purchase_number',
             'supplier_id' => 'required|exists:suppliers,id',
             'warehouse_id' => 'required|exists:warehouses,id',
-            'product_id' => 'required|array|min:1',
-            'product_id.*' => 'required|exists:products,id',
-            'rack' => 'required|array',
-            'rack.*' => 'required|exists:racks,id',
-            'quantity' => 'required|array|min:1',
-            'quantity.*' => 'required|numeric|min:1',
-            'price' => 'required|array|min:1',
-            'price.*' => 'required|numeric|min:0',
-            'note' => 'nullable|array',
-            'note.*' => 'nullable|string',
+            'products' => 'required|array|min:1',
+            'products.*.id' => 'required|exists:products,id',
+            'products.*.rack' => 'required|exists:racks,id',
+            'products.*.quantity' => 'required|numeric|min:1',
+            'products.*.price' => 'required|numeric|min:0',
+            'products.*.note' => 'nullable|string',
         ]);
 
         try {
@@ -107,39 +104,38 @@ class PurchaseController extends Controller
             ]);
 
             // Create purchase items
-            foreach ($request->product_id as $index => $product_id) {
-                // Get product details
-                $product = Product::find($product_id);
+            foreach ($request->products as $productInput) {
+                $product = Product::find($productInput['id']);
 
                 $purchase->purchase_items()->create([
-                    'product_id' => $product_id,
+                    'product_id' => $product->id,
                     'barcode' => $product->barcode,
                     'sku' => $product->sku,
                     'name' => $product->name,
-                    'quantity' => $request->quantity[$index],
-                    'price' => $request->price[$index],
-                    'note' => $request->note[$index] ?? null,
-                    'rack_id' => $request->rack[$index],
+                    'quantity' => $productInput['quantity'],
+                    'price' => $productInput['price'],
+                    'note' => $productInput['note'] ?? null,
+                    'rack_id' => $productInput['rack'],
                 ]);
 
                 // Add stock using update with DB::raw or create
                 $product->product_stocks()
                     ->where('product_id', $product->id)
                     ->where('warehouse_id', $request->warehouse_id)
-                    ->where('rack_id', $request->rack[$index])
-                    ->update(['quantity' => DB::raw('quantity + ' . $request->quantity[$index])])
+                    ->where('rack_id', $productInput['rack'])
+                    ->update(['quantity' => DB::raw('quantity + ' . $productInput['quantity'])])
                     ?: $product->product_stocks()->create([
                         'product_id' => $product->id,
                         'warehouse_id' => $request->warehouse_id,
-                        'rack_id' => $request->rack[$index],
-                        'quantity' => $request->quantity[$index]
+                        'rack_id' => $productInput['rack'],
+                        'quantity' => $productInput['quantity']
                     ]);
 
                 // Sync inventory to all linked sales channels
                 Log::info('Triggering inventory sync after purchase creation', [
                     'product_id' => $product->id,
                     'product_sku' => $product->sku,
-                    'quantity_added' => $request->quantity[$index],
+                    'quantity_added' => $productInput['quantity'],
                 ]);
                 ProductController::syncProductInventoryToChannels($product);
             }
@@ -167,7 +163,8 @@ class PurchaseController extends Controller
         $purchase = Purchase::findOrFail($id);
         $suppliers = Supplier::all();
         $warehouses = Warehouse::all();
-        return view('purchases.edit', compact('purchase', 'suppliers', 'warehouses'));
+        $products = Product::withSum('product_stocks', 'quantity')->orderBy('name')->get();
+        return view('purchases.edit', compact('purchase', 'suppliers', 'warehouses', 'products'));
     }
 
     /**
@@ -179,16 +176,13 @@ class PurchaseController extends Controller
             'purchase_number' => 'required|string|unique:purchases,purchase_number,' . $id,
             'supplier_id' => 'required|exists:suppliers,id',
             'warehouse_id' => 'required|exists:warehouses,id',
-            'product_id' => 'required|array|min:1',
-            'product_id.*' => 'required|exists:products,id',
-            'rack' => 'required|array',
-            'rack.*' => 'required|exists:racks,id',
-            'quantity' => 'required|array|min:1',
-            'quantity.*' => 'required|numeric|min:1',
-            'price' => 'required|array|min:1',
-            'price.*' => 'required|numeric|min:0',
-            'note' => 'nullable|array',
-            'note.*' => 'nullable|string',
+            'products' => 'required|array|min:1',
+            'products.*.id' => 'required|exists:products,id',
+            'products.*.rack' => 'required|exists:racks,id',
+            'products.*.quantity' => 'required|numeric|min:1',
+            'products.*.price' => 'required|numeric|min:0',
+            'products.*.note' => 'nullable|string',
+            'products.*.purchase_item_id' => 'nullable|integer',
         ]);
 
         try {
@@ -206,147 +200,134 @@ class PurchaseController extends Controller
             $purchase->purchase_note = $request->purchase_note ?? null;
             $purchase->save();
 
-            // Handle purchase items update
-            if ($request->has('product_id') && is_array($request->product_id)) {
-                $itemIds = $request->purchase_item_id ?? [];
-                $existingItemIds = [];
-                $productsToSync = []; // Track products that need inventory sync
+            $existingItemIds = [];
+            $productsToSync = [];
 
-                foreach ($request->product_id as $index => $product_id) {
-                    $product = Product::find($product_id);
-                    $itemId = $itemIds[$index] ?? null;
+            foreach ($request->products as $productInput) {
+                $product = Product::find($productInput['id']);
+                $itemId = $productInput['purchase_item_id'] ?? null;
 
-                    if ($itemId && $itemId != '') {
-                        // Update existing purchase item
-                        $purchaseItem = $purchase->purchase_items()->find($itemId);
-                        if ($purchaseItem) {
-                            // Store old values BEFORE updating
-                            $oldQuantity = $purchaseItem->quantity;
-                            $oldRackId = $purchaseItem->rack_id;
-                            $oldWarehouseId = $oldPurchaseWarehouseId;
+                if ($itemId && $itemId != '') {
+                    // Update existing purchase item
+                    $purchaseItem = $purchase->purchase_items()->find($itemId);
+                    if ($purchaseItem) {
+                        $oldQuantity = $purchaseItem->quantity;
+                        $oldRackId = $purchaseItem->rack_id;
+                        $oldWarehouseId = $oldPurchaseWarehouseId;
 
-                            $newQuantity = $request->quantity[$index];
-                            $newRackId = $request->rack[$index];
-                            $newWarehouseId = $request->warehouse_id;
+                        $newQuantity = $productInput['quantity'];
+                        $newRackId = $productInput['rack'];
+                        $newWarehouseId = $request->warehouse_id;
 
-                            // Update the purchase item
-                            $purchaseItem->update([
-                                'product_id' => $product_id,
-                                'barcode' => $product->barcode,
-                                'sku' => $product->sku,
-                                'name' => $product->name,
-                                'quantity' => $newQuantity,
-                                'price' => $request->price[$index],
-                                'note' => $request->note[$index] ?? null,
-                                'rack_id' => $newRackId
-                            ]);
-
-                            // Step 1: Subtract old quantity from old location
-                            $oldStock = $product->product_stocks()
-                                ->where('warehouse_id', $oldWarehouseId)
-                                ->where('rack_id', $oldRackId)
-                                ->first();
-
-                            if ($oldStock) {
-                                $oldStock->quantity -= $oldQuantity;
-                                if ($oldStock->quantity <= 0) {
-                                    $oldStock->delete();
-                                } else {
-                                    $oldStock->save();
-                                }
-                            }
-
-                            // Step 2: Add new quantity to new location using upsert
-                            $product->product_stocks()
-                                ->where('product_id', $product->id)
-                                ->where('warehouse_id', $newWarehouseId)
-                                ->where('rack_id', $newRackId)
-                                ->update(['quantity' => DB::raw("quantity + $newQuantity")])
-                                ?: $product->product_stocks()->create([
-                                    'product_id' => $product->id,
-                                    'warehouse_id' => $newWarehouseId,
-                                    'rack_id' => $newRackId,
-                                    'quantity' => $newQuantity
-                                ]);
-
-                            // Track product for inventory sync
-                            $productsToSync[$product->id] = $product;
-
-                            $existingItemIds[] = $itemId;
-                        }
-                    } else {
-                        // Create new purchase item
-                        $newItem = $purchase->purchase_items()->create([
-                            'product_id' => $product_id,
+                        $purchaseItem->update([
+                            'product_id' => $product->id,
                             'barcode' => $product->barcode,
                             'sku' => $product->sku,
                             'name' => $product->name,
-                            'quantity' => $request->quantity[$index],
-                            'price' => $request->price[$index],
-                            'note' => $request->note[$index] ?? null,
-                            'rack_id' => $request->rack[$index]
+                            'quantity' => $newQuantity,
+                            'price' => $productInput['price'],
+                            'note' => $productInput['note'] ?? null,
+                            'rack_id' => $newRackId
                         ]);
 
-                        // Add stock using update with DB::raw or create
-                        $product->product_stocks()
-                            ->where('product_id', $product->id)
-                            ->where('warehouse_id', $request->warehouse_id)
-                            ->where('rack_id', $request->rack[$index])
-                            ->update(['quantity' => DB::raw('quantity + ' . $request->quantity[$index])])
-                            ?: $product->product_stocks()->create([
-                                'product_id' => $product->id,
-                                'warehouse_id' => $request->warehouse_id,
-                                'rack_id' => $request->rack[$index],
-                                'quantity' => $request->quantity[$index]
-                            ]);
-
-                        // Track product for inventory sync
-                        $productsToSync[$product->id] = $product;
-
-                        $existingItemIds[] = $newItem->id;
-                    }
-                }
-
-                // Handle removed purchase items - decrease stock before deleting
-                $removedItems = $purchase->purchase_items()->whereNotIn('id', $existingItemIds)->get();
-                foreach ($removedItems as $removedItem) {
-                    $removedProduct = Product::find($removedItem->product_id);
-                    if ($removedProduct) {
-                        // Decrease stock from the old location
-                        $stock = $removedProduct->product_stocks()
-                            ->where('warehouse_id', $oldPurchaseWarehouseId)
-                            ->where('rack_id', $removedItem->rack_id)
+                        // Step 1: Subtract old quantity from old location
+                        $oldStock = $product->product_stocks()
+                            ->where('warehouse_id', $oldWarehouseId)
+                            ->where('rack_id', $oldRackId)
                             ->first();
 
-                        if ($stock) {
-                            $stock->quantity -= $removedItem->quantity;
-                            if ($stock->quantity <= 0) {
-                                $stock->delete();
+                        if ($oldStock) {
+                            $oldStock->quantity -= $oldQuantity;
+                            if ($oldStock->quantity <= 0) {
+                                $oldStock->delete();
                             } else {
-                                $stock->save();
+                                $oldStock->save();
                             }
                         }
 
-                        // Track for eBay sync
-                        $productsToSync[$removedProduct->id] = $removedProduct;
+                        // Step 2: Add new quantity to new location
+                        $product->product_stocks()
+                            ->where('product_id', $product->id)
+                            ->where('warehouse_id', $newWarehouseId)
+                            ->where('rack_id', $newRackId)
+                            ->update(['quantity' => DB::raw("quantity + $newQuantity")])
+                            ?: $product->product_stocks()->create([
+                                'product_id' => $product->id,
+                                'warehouse_id' => $newWarehouseId,
+                                'rack_id' => $newRackId,
+                                'quantity' => $newQuantity
+                            ]);
 
-                        Log::info('Stock decreased for removed purchase item', [
-                            'product_id' => $removedProduct->id,
-                            'product_sku' => $removedProduct->sku,
-                            'quantity_removed' => $removedItem->quantity,
-                            'warehouse_id' => $oldPurchaseWarehouseId,
-                            'rack_id' => $removedItem->rack_id,
-                        ]);
+                        $productsToSync[$product->id] = $product;
+                        $existingItemIds[] = $itemId;
                     }
-                }
+                } else {
+                    // Create new purchase item
+                    $newItem = $purchase->purchase_items()->create([
+                        'product_id' => $product->id,
+                        'barcode' => $product->barcode,
+                        'sku' => $product->sku,
+                        'name' => $product->name,
+                        'quantity' => $productInput['quantity'],
+                        'price' => $productInput['price'],
+                        'note' => $productInput['note'] ?? null,
+                        'rack_id' => $productInput['rack']
+                    ]);
 
-                // Delete the removed purchase items
-                $purchase->purchase_items()->whereNotIn('id', $existingItemIds)->delete();
+                    $product->product_stocks()
+                        ->where('product_id', $product->id)
+                        ->where('warehouse_id', $request->warehouse_id)
+                        ->where('rack_id', $productInput['rack'])
+                        ->update(['quantity' => DB::raw('quantity + ' . $productInput['quantity'])])
+                        ?: $product->product_stocks()->create([
+                            'product_id' => $product->id,
+                            'warehouse_id' => $request->warehouse_id,
+                            'rack_id' => $productInput['rack'],
+                            'quantity' => $productInput['quantity']
+                        ]);
 
-                // Sync inventory to all linked sales channels for affected products
-                foreach ($productsToSync as $productToSync) {
-                    ProductController::syncProductInventoryToChannels($productToSync);
+                    $productsToSync[$product->id] = $product;
+                    $existingItemIds[] = $newItem->id;
                 }
+            }
+
+            // Handle removed purchase items - decrease stock before deleting
+            $removedItems = $purchase->purchase_items()->whereNotIn('id', $existingItemIds)->get();
+            foreach ($removedItems as $removedItem) {
+                $removedProduct = Product::find($removedItem->product_id);
+                if ($removedProduct) {
+                    $stock = $removedProduct->product_stocks()
+                        ->where('warehouse_id', $oldPurchaseWarehouseId)
+                        ->where('rack_id', $removedItem->rack_id)
+                        ->first();
+
+                    if ($stock) {
+                        $stock->quantity -= $removedItem->quantity;
+                        if ($stock->quantity <= 0) {
+                            $stock->delete();
+                        } else {
+                            $stock->save();
+                        }
+                    }
+
+                    $productsToSync[$removedProduct->id] = $removedProduct;
+
+                    Log::info('Stock decreased for removed purchase item', [
+                        'product_id' => $removedProduct->id,
+                        'product_sku' => $removedProduct->sku,
+                        'quantity_removed' => $removedItem->quantity,
+                        'warehouse_id' => $oldPurchaseWarehouseId,
+                        'rack_id' => $removedItem->rack_id,
+                    ]);
+                }
+            }
+
+            // Delete the removed purchase items
+            $purchase->purchase_items()->whereNotIn('id', $existingItemIds)->delete();
+
+            // Sync inventory to all linked sales channels for affected products
+            foreach ($productsToSync as $productToSync) {
+                ProductController::syncProductInventoryToChannels($productToSync);
             }
 
             DB::commit();

@@ -1,32 +1,27 @@
 @extends('layouts.app')
 
 @section('header')
-    <!-- Content Header (Page header) -->
     <div class="content-header">
         <div class="container-fluid">
             <div class="row mb-2">
                 <div class="col-sm-6">
                     <h1 class="m-0 d-inline mr-2">Purchase New</h1>
-                    @can('add purchases')
-                        <a href="{{ route('purchases.create') }}" class="btn btn-outline-primary btn-sm mb-3">Add Purchase</a>
-                    @endcan
-                </div><!-- /.col -->
+                </div>
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
                         <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
                         <li class="breadcrumb-item"><a href="{{ route('purchases.index') }}">Purchases</a></li>
                         <li class="breadcrumb-item active">Purchase New</li>
                     </ol>
-                </div><!-- /.col -->
-            </div><!-- /.row -->
-        </div><!-- /.container-fluid -->
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- /.content-header -->
 @endsection
 
 @section('content')
     <div class="card card-body">
-        <form action="{{ route('purchases.store') }}" method="post">
+        <form action="{{ route('purchases.store') }}" method="post" id="purchaseForm">
             @csrf
             <div class="mb-3">
                 <label for="purchase_number">Purchase Number: <span class="text-danger">*</span></label>
@@ -68,217 +63,367 @@
                     <span class="invalid-feedback">{{ $message }}</span>
                 @enderror
             </div>
-            <div class="mb-3">
-                <label for="search_products">Search Products</label>
-                <input type="search" id="search_products" name="search_products" class="form-control" placeholder="Search products by Name, SKU, Barcode">
-                <div id="search_products_result">
-                    <ul id="search_products_list" class="list-group"></ul>
+
+            <hr>
+            <h5>Select Products</h5>
+
+            <!-- Controls Row -->
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="productSearch">Search/Filter:</label>
+                    <input type="text" id="productSearch" class="form-control" placeholder="Filter by name, SKU, or barcode...">
+                </div>
+                <div class="col-md-2">
+                    <label for="perPage">Per Page:</label>
+                    <select id="perPage" class="form-control">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-outline-secondary" id="selectAllBtn">Select All</button>
+                        <button type="button" class="btn btn-outline-secondary" id="deselectAllBtn">Deselect All</button>
+                    </div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end justify-content-end">
+                    <div>
+                        <span id="selectedCount" class="text-primary font-weight-bold"></span>
+                        <span class="ml-3"><strong>Total: <span id="grandTotal">0.00</span></strong></span>
+                    </div>
                 </div>
             </div>
+
+            <!-- Products Table -->
             <div class="table-responsive mb-3">
-                <table class="table table-striped table-hover table-sm">
-                    <thead>
+                <table class="table table-bordered table-hover table-sm" id="productsTable">
+                    <thead class="thead-light">
                         <tr>
-                            <th>#</th>
+                            <th style="width: 40px;">
+                                <input type="checkbox" id="selectPageCheckbox" title="Select all on this page">
+                            </th>
                             <th>SKU</th>
                             <th>Name</th>
-                            <th>Rack</th>
-                            <th>Quantity</th>
-                            <th>Price</th>
-                            <th>Note</th>
-                            <th>Sub Total</th>
-                            <th></th>
+                            <th>Barcode</th>
+                            <th style="width: 80px;">Stock</th>
+                            <th style="width: 140px;">Rack</th>
+                            <th style="width: 80px;">Qty</th>
+                            <th style="width: 100px;">Price</th>
+                            <th style="width: 130px;">Note</th>
+                            <th style="width: 90px;">SubTotal</th>
                         </tr>
                     </thead>
-                    <tbody id="purchaseProductsTable"></tbody>
-                    <tfoot>
-                        <tr>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td><strong>Total:</strong></td>
-                            <td><strong id="total"></strong></td>
-                            <td></td>
-                        </tr>
-                    </tfoot>
+                    <tbody id="productsTableBody">
+                        @foreach($products as $product)
+                            <tr class="product-row"
+                                data-id="{{ $product->id }}"
+                                data-name="{{ strtolower($product->name) }}"
+                                data-sku="{{ strtolower($product->sku) }}"
+                                data-barcode="{{ strtolower($product->barcode ?? '') }}">
+                                <td>
+                                    <input type="checkbox" class="product-checkbox"
+                                        data-product-id="{{ $product->id }}">
+                                    <input type="hidden" class="product-id-input"
+                                        value="{{ $product->id }}" disabled>
+                                </td>
+                                <td>{{ $product->sku }}</td>
+                                <td>{{ $product->name }}</td>
+                                <td>{{ $product->barcode ?? 'N/A' }}</td>
+                                <td class="text-center">
+                                    <span class="badge badge-secondary">{{ (int)($product->product_stocks_sum_quantity ?? 0) }}</span>
+                                </td>
+                                <td>
+                                    <select class="form-control form-control-sm rack-select" disabled>
+                                        <option value="">Select Rack</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <input type="number" class="form-control form-control-sm quantity-input"
+                                        value="1" min="1" disabled>
+                                </td>
+                                <td>
+                                    <input type="number" class="form-control form-control-sm price-input"
+                                        value="0" min="0" step="0.01" disabled>
+                                </td>
+                                <td>
+                                    <input type="text" class="form-control form-control-sm note-input"
+                                        value="" disabled>
+                                </td>
+                                <td>
+                                    <input type="text" class="form-control form-control-sm subtotal-input"
+                                        value="0.00" readonly>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
                 </table>
             </div>
-            <button type="submit" class="btn btn-primary">Save</button>
+
+            <!-- Pagination -->
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div id="paginationInfo" class="text-muted"></div>
+                </div>
+                <div class="col-md-6">
+                    <nav>
+                        <ul class="pagination justify-content-end mb-0" id="pagination"></ul>
+                    </nav>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+                <i class="fas fa-save mr-1"></i>Save Purchase
+            </button>
+            <a href="{{ route('purchases.index') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left mr-1"></i>Back
+            </a>
         </form>
     </div>
 @endsection
 
 @push('scripts')
-    <script>
-        $(document).ready(function(){
-            // Empty array to store racks
-            let racks = [];
+<script>
+$(document).ready(function(){
+    const allRows = Array.from(document.querySelectorAll('.product-row'));
+    let filteredRows = [...allRows];
+    let currentPage = 1;
+    let perPage = 25;
+    let racks = [];
 
-            // Function to calculate subtotal for a row
-            function calculateSubtotal(row) {
-                var quantity = parseFloat(row.find('.quantity').val()) || 0;
-                var price = parseFloat(row.find('.price').val()) || 0;
-                var subtotal = quantity * price;
-                row.find('.subtotal').val(subtotal.toFixed(2));
-                calculateTotal();
-            }
+    const searchInput = document.getElementById('productSearch');
+    const perPageSelect = document.getElementById('perPage');
+    const selectPageCheckbox = document.getElementById('selectPageCheckbox');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const deselectAllBtn = document.getElementById('deselectAllBtn');
+    const submitBtn = document.getElementById('submitBtn');
 
-            // Function to calculate grand total
-            function calculateTotal() {
-                var total = 0;
-                $('#purchaseProductsTable tr').each(function(){
-                    var subtotal = parseFloat($(this).find('.subtotal').val()) || 0;
-                    total += subtotal;
-                });
-                $('#total').text(total.toFixed(2));
-            }
+    updateDisplay();
 
-            // Function to populate rack select options
-            function populateRackOptions(selectElement, selectedRackId = null) {
-                selectElement.empty();
-                selectElement.append('<option value="">Select Rack</option>');
-
-                var defaultRackId = null;
-
-                $.each(racks, function(key, rack){
-                    selectElement.append(`<option value="${rack.id}">${rack.name}</option>`);
-
-                    // Find default rack
-                    if (rack.is_default == 1 || rack.is_default == '1') {
-                        defaultRackId = rack.id;
-                    }
-                });
-
-                // Set selected value
-                if (selectedRackId) {
-                    selectElement.val(selectedRackId);
-                } else if (defaultRackId) {
-                    selectElement.val(defaultRackId);
-                }
-            }
-
-            // Function to update all rack selects in the table
-            function updateAllRackSelects() {
-                $('#purchaseProductsTable tr').each(function(){
-                    var rackSelect = $(this).find('.rack');
-                    var selectedValue = rackSelect.val(); // Store current selection
-                    populateRackOptions(rackSelect, selectedValue);
-                    // rackSelect.val(selectedValue); // Restore selection if it exists
-                });
-            }
-
-            // Event listener for warehouse change
-            $('#warehouse_id').on('change', function(){
-                var warehouse_id = $(this).val();
-
-                if (warehouse_id != '') {
-                    $.ajax({
-                        url: `{{ route('warehouses.racks', ['warehouse' => ':id']) }}`.replace(':id', warehouse_id),
-                        type: 'GET',
-                        dataType: 'json',
-                        headers: {
-                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                        },
-                        success: function(data) {
-                            racks = data; // Update racks array with new data
-                            updateAllRackSelects(); // Update all existing rack selects
-                        }
-                    });
-                } else {
-                    racks = []; // Clear racks if no warehouse selected
+    // Warehouse change - fetch racks
+    $('#warehouse_id').on('change', function(){
+        var warehouseId = $(this).val();
+        if (warehouseId) {
+            $.ajax({
+                url: `{{ route('warehouses.racks', ['warehouse' => ':id']) }}`.replace(':id', warehouseId),
+                type: 'GET',
+                dataType: 'json',
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                success: function(data) {
+                    racks = data;
                     updateAllRackSelects();
                 }
             });
+        } else {
+            racks = [];
+            updateAllRackSelects();
+        }
+    });
 
-            // Event listener for quantity and price changes
-            $(document).on('input', '.quantity, .price', function(){
-                var row = $(this).closest('tr');
-                calculateSubtotal(row);
+    function updateAllRackSelects() {
+        $('.rack-select').each(function(){
+            var select = $(this);
+            var currentVal = select.val();
+            select.empty().append('<option value="">Select Rack</option>');
+            var defaultRackId = null;
+            $.each(racks, function(i, rack){
+                select.append(`<option value="${rack.id}">${rack.name}</option>`);
+                if (rack.is_default == 1 || rack.is_default == '1') defaultRackId = rack.id;
             });
+            if (currentVal && select.find(`option[value="${currentVal}"]`).length) {
+                select.val(currentVal);
+            } else if (defaultRackId) {
+                select.val(defaultRackId);
+            }
+        });
+    }
 
-            $('#search_products').on('change, blur, input', function(){
-                var search_products = $('#search_products').val();
+    // Search/Filter
+    searchInput.addEventListener('input', function() {
+        const query = this.value.trim().toLowerCase();
+        filteredRows = query.length === 0 ? [...allRows] : allRows.filter(row => {
+            return (row.dataset.name || '').includes(query) ||
+                   (row.dataset.sku || '').includes(query) ||
+                   (row.dataset.barcode || '').includes(query);
+        });
+        currentPage = 1;
+        updateDisplay();
+    });
 
-                if (search_products != '') {
-                    setTimeout(function() {
-                        $.ajax({
-                            url: `{{ route('products.search', ['query' => ':query']) }}`.replace(':query', search_products),
-                            type: 'GET',
-                            dataType: 'json',
-                            headers: {
-                                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                            },
-                            success: function(data) {
-                                $('#search_products_list').empty('');
-                                $.each(data, function(key, product){
-                                    $('#search_products_list').append(`
-                                        <li class="list-group-item search_product_item" data-id="${product.id}" data-sku="${product.sku}" data-barcode="${product.barcode}" data-name="${product.name}">${product.name} - ${product.barcode} - ${product.sku}</li>
-                                    `);
-                                });
-                            }
-                        });
-                    }, 1000);
-                }
-            });
+    perPageSelect.addEventListener('change', function() {
+        perPage = parseInt(this.value);
+        currentPage = 1;
+        updateDisplay();
+    });
 
-            $(document).on('click', '.search_product_item', function(){
-                var product_id = $(this).data('id');
-                var product_sku = $(this).data('sku');
-                var product_barcode = $(this).data('barcode');
-                var product_name = $(this).data('name');
+    // Checkbox handling
+    selectPageCheckbox.addEventListener('change', function() {
+        getVisibleRows().forEach(row => {
+            const cb = row.querySelector('.product-checkbox');
+            cb.checked = this.checked;
+            toggleRowInputs(row, this.checked);
+        });
+        updateSelectedCount();
+        calculateGrandTotal();
+    });
 
-                if (product_id != '' && product_sku != '' && product_barcode != '') {
-                    length = $('#purchaseProductsTable tr').length;
-                    
-                    var newRow = $(`
-                        <tr>
-                            <td>${ (length + 1) }</td>
-                            <td>
-                                ${ product_sku }
-                                <input type="hidden" name="product_id[]" value="${ product_id }">
-                            </td>
-                            <td>${ product_name } - ${ product_barcode }</td>
-                            <td>
-                                <select class="form-control rack" name="rack[]">
-                                    <option value="">Select Rack</option>
-                                </select>
-                            </td>
-                            <td><input type="text" name="quantity[]" value="1" class="form-control quantity"></td>
-                            <td><input type="text" name="price[]" value="1" class="form-control price"></td>
-                            <td><input type="text" name="note[]" value="" class="form-control note"></td>
-                            <td><input type="text" name="subtotal[]" value="1" class="form-control subtotal"></td>
-                            <td><button type="button" class="btn btn-danger btn-sm delete_product"><i class="fas fa-times"></i></button></td>
-                        </tr>
-                    `);
+    selectAllBtn.addEventListener('click', function() {
+        filteredRows.forEach(row => {
+            row.querySelector('.product-checkbox').checked = true;
+            toggleRowInputs(row, true);
+        });
+        updateDisplay();
+        calculateGrandTotal();
+    });
 
-                    $('#purchaseProductsTable').append(newRow);
+    deselectAllBtn.addEventListener('click', function() {
+        allRows.forEach(row => {
+            row.querySelector('.product-checkbox').checked = false;
+            toggleRowInputs(row, false);
+        });
+        updateDisplay();
+        calculateGrandTotal();
+    });
 
-                    // Populate rack options for the new row (will auto-select default)
-                    populateRackOptions(newRow.find('.rack'));
+    document.getElementById('productsTableBody').addEventListener('change', function(e) {
+        if (e.target.classList.contains('product-checkbox')) {
+            toggleRowInputs(e.target.closest('tr'), e.target.checked);
+            updateSelectedCount();
+            updateSelectPageCheckbox();
+            calculateGrandTotal();
+        }
+    });
 
-                    $('#search_products').val('');
-                    $('#search_products_list').empty('');
-                    calculateTotal();
-                }
-            });
+    // Calculate subtotal on quantity/price change
+    $(document).on('input', '.quantity-input, .price-input', function(){
+        var row = $(this).closest('tr');
+        var qty = parseFloat(row.find('.quantity-input').val()) || 0;
+        var price = parseFloat(row.find('.price-input').val()) || 0;
+        row.find('.subtotal-input').val((qty * price).toFixed(2));
+        calculateGrandTotal();
+    });
 
-            $(document).on('click', '.delete_product', function(e){
+    function toggleRowInputs(row, enabled) {
+        const inputs = row.querySelectorAll('.rack-select, .quantity-input, .price-input, .note-input');
+        inputs.forEach(input => input.disabled = !enabled);
+        if (enabled) {
+            var qty = parseFloat(row.querySelector('.quantity-input').value) || 0;
+            var price = parseFloat(row.querySelector('.price-input').value) || 0;
+            row.querySelector('.subtotal-input').value = (qty * price).toFixed(2);
+        } else {
+            row.querySelector('.subtotal-input').value = '0.00';
+        }
+    }
+
+    function calculateGrandTotal() {
+        var total = 0;
+        document.querySelectorAll('.product-checkbox:checked').forEach(cb => {
+            var row = cb.closest('tr');
+            total += parseFloat(row.querySelector('.subtotal-input').value) || 0;
+        });
+        document.getElementById('grandTotal').textContent = total.toFixed(2);
+    }
+
+    function getVisibleRows() {
+        const start = (currentPage - 1) * perPage;
+        return filteredRows.slice(start, start + perPage);
+    }
+
+    function updateDisplay() {
+        allRows.forEach(row => row.style.display = 'none');
+        getVisibleRows().forEach(row => row.style.display = '');
+        updatePagination();
+        updatePaginationInfo();
+        updateSelectedCount();
+        updateSelectPageCheckbox();
+    }
+
+    function updatePagination() {
+        const totalPages = Math.ceil(filteredRows.length / perPage);
+        const pagination = document.getElementById('pagination');
+        pagination.innerHTML = '';
+        if (totalPages <= 1) return;
+
+        const prevLi = document.createElement('li');
+        prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+        prevLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage - 1}">&laquo;</a>`;
+        pagination.appendChild(prevLi);
+
+        let startPage = Math.max(1, currentPage - 2);
+        let endPage = Math.min(totalPages, startPage + 4);
+        if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+
+        for (let i = startPage; i <= endPage; i++) {
+            const li = document.createElement('li');
+            li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+            li.innerHTML = `<a class="page-link" href="#" data-page="${i}">${i}</a>`;
+            pagination.appendChild(li);
+        }
+
+        const nextLi = document.createElement('li');
+        nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+        nextLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage + 1}">&raquo;</a>`;
+        pagination.appendChild(nextLi);
+
+        pagination.querySelectorAll('.page-link').forEach(link => {
+            link.addEventListener('click', function(e) {
                 e.preventDefault();
-                var row = $(this).closest('tr');
-                row.remove();
-                calculateSubtotal(row);
+                const page = parseInt(this.dataset.page);
+                if (page >= 1 && page <= totalPages) { currentPage = page; updateDisplay(); }
             });
         });
-    </script>
-@endpush
+    }
 
-@push('styles')
-    <style>
-        .list-group-item {
-            cursor: pointer;
+    function updatePaginationInfo() {
+        const start = filteredRows.length > 0 ? (currentPage - 1) * perPage + 1 : 0;
+        const end = Math.min(currentPage * perPage, filteredRows.length);
+        let info = `Showing ${start} to ${end} of ${filteredRows.length} products`;
+        if (filteredRows.length !== allRows.length) info += ` (filtered from ${allRows.length} total)`;
+        document.getElementById('paginationInfo').textContent = info;
+    }
+
+    function updateSelectedCount() {
+        const count = document.querySelectorAll('.product-checkbox:checked').length;
+        document.getElementById('selectedCount').textContent =
+            count > 0 ? `${count} product(s) selected` : 'No products selected';
+        submitBtn.disabled = count === 0;
+    }
+
+    function updateSelectPageCheckbox() {
+        const visible = getVisibleRows();
+        const cbs = visible.map(r => r.querySelector('.product-checkbox'));
+        const checked = cbs.filter(cb => cb.checked).length;
+        selectPageCheckbox.checked = cbs.length > 0 && checked === cbs.length;
+        selectPageCheckbox.indeterminate = checked > 0 && checked < cbs.length;
+    }
+
+    // Form submission - set proper name attributes for checked products only
+    document.getElementById('purchaseForm').addEventListener('submit', function(e) {
+        // Remove all existing dynamic name attributes
+        document.querySelectorAll('.product-id-input').forEach(el => el.removeAttribute('name'));
+        document.querySelectorAll('.rack-select').forEach(el => el.removeAttribute('name'));
+        document.querySelectorAll('.quantity-input').forEach(el => el.removeAttribute('name'));
+        document.querySelectorAll('.price-input').forEach(el => el.removeAttribute('name'));
+        document.querySelectorAll('.note-input').forEach(el => el.removeAttribute('name'));
+
+        let index = 0;
+        document.querySelectorAll('.product-checkbox:checked').forEach(cb => {
+            const row = cb.closest('tr');
+            row.querySelector('.product-id-input').disabled = false;
+            row.querySelector('.product-id-input').name = `products[${index}][id]`;
+            row.querySelector('.rack-select').name = `products[${index}][rack]`;
+            row.querySelector('.quantity-input').name = `products[${index}][quantity]`;
+            row.querySelector('.price-input').name = `products[${index}][price]`;
+            row.querySelector('.note-input').name = `products[${index}][note]`;
+            index++;
+        });
+
+        if (index === 0) {
+            e.preventDefault();
+            alert('Please select at least one product.');
         }
-    </style>
+    });
+});
+</script>
 @endpush
