@@ -101,7 +101,7 @@
                                     @else
                                         <span class="badge bg-secondary">Draft</span>
                                     @endif
-                                    @if (!$entry->isBalances())
+                                    @if (!$entry->isBalanced())
                                         <span class="badge bg-danger">Unbalanced</span>
                                     @endif
                                 </td>
