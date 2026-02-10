@@ -42,7 +42,7 @@ class ReportController extends Controller
         $totalDebit = $accounts->sum('debit');
         $totalCredit = $accounts->sum('credit');
 
-        return view('reports.trail-balance', compact(
+        return view('reports.trial-balance', compact(
             'accounts',
             'totalDebit',
             'totalCredit',
