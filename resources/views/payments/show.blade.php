@@ -27,9 +27,9 @@
 @section('content')
     <!-- Action Buttons -->
     <div class="row mb-3">
-        <div class="col-12 text-right">
+        <div class="col-12 text-right d-grid gap-2">
             @can('payments-delete')
-                <form action="{{ route('payments.destroy', $payment) }}" method="POST" class="d-inline btn btn-danger">
+                <form action="{{ route('payments.destroy', $payment) }}" method="POST" class="btn btn-danger">
                     @csrf
                     @method('DELETE')
                     <button type="submit" class="bg-transparent border-0 text-white p-0" onclick="return confirm('Delete this payment? This will reverse the payment and update the bill balance.')">
