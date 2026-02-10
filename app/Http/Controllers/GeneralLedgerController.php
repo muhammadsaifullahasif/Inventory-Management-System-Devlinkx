@@ -23,7 +23,7 @@ class GeneralLedgerController extends Controller
     {
         $groups = ChartOfAccount::where('type', 'group')
             ->where('is_active', true)
-            ->with(['children', function ($q) {
+            ->with(['children' => function ($q) {
                 $q->where('is_active', true)->orderBy('code');
             }])
             ->orderBy('code')

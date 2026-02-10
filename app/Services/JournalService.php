@@ -34,12 +34,10 @@ class JournalService
                     $q->where('entry_date', '<=', $dateTo);
                 }
             })
-            ->orderBy(
-                JournalEntry::select('entry_date')
-                    ->whereColumn('journal_entries.id', 'journal_entry_lines.journal_entry_id')
-                    ->limit(1)
-            )
-            ->orderBy('id');
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
+            ->orderBy('journal_entries.entry_date')
+            ->orderBy('journal_entry_lines.id')
+            ->select('journal_entry_lines.*');
 
         return $query->get();
     }
