@@ -11,6 +11,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\PurchaseController;
@@ -222,6 +223,11 @@ Route::middleware(['auth'])->group(function () {
     Route::post('bills/{bill}/post', [BillController::class, 'post'])->name('bills.post');
     Route::get('bills-expense-accounts/{group}', [BillController::class, 'getExpenseAccountsByGroup'])
         ->name('bills.expense-accounts');
+
+    // Payments
+    Route::resource('payments', PaymentController::class)->except(['edit', 'update']);
+    Route::get('payments-bill-details/{bill}', [PaymentController::class, 'getBillDetails'])
+        ->name('payments.bill-details');
 });
 
 
