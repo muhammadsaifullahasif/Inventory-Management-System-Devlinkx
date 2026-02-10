@@ -309,7 +309,6 @@
             const paid = parseFloat(option.dataset.paid);
             const remaining = parseFloat(option.dataset.remaining);
             const date = option.dataset.date;
-            const date = option.dataset.date;
             const dueDate = option.dataset.due;
             const isOverdue = option.dataset.overdue === '1';
 
