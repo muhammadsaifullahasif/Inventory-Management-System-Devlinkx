@@ -272,7 +272,7 @@
                         @can('payments-view')
                             <li class="nav-item">
                                 <a href="{{ route('payments.index') }}" class="nav-link {{ request()->routeIs('payments.*') ? 'active' : '' }}">
-                                    <i class="fas fa-plus-circle nav-icon"></i>
+                                    <i class="far fa-circle nav-icon"></i>
                                     <p>Payments</p>
                                 </a>
                             </li>
