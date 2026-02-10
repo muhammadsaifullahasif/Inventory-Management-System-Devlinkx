@@ -244,8 +244,8 @@
                 <!-- Accounting Section -->
                 {{-- @canany(['']) --}}
                 {{-- @endcan --}}
-                <li class="nav-item {{ request()->routeIs('chart-of-accounts.*') || request()->routeIs('bills.*') || request()->routeIs('payments.*') ? 'menu-open' : '' }}">
-                    <a href="#" class="nav-link {{ request()->routeIs('chart-of-accounts.*') || request()->routeIs('bills.*') || request()->routeIs('payments.*') ? 'active' : '' }}">
+                <li class="nav-item {{ request()->routeIs('chart-of-accounts.*') || request()->routeIs('bills.*') || request()->routeIs('payments.*') || request()->routeIs('journal-entries.*') || request()->routeIs('general-ledger.*') ? 'menu-open' : '' }}">
+                    <a href="#" class="nav-link {{ request()->routeIs('chart-of-accounts.*') || request()->routeIs('bills.*') || request()->routeIs('payments.*') || request()->routeIs('journal-entries.*') || request()->routeIs('general-ledger.*') ? 'active' : '' }}">
                         <i class="nav-icon fas fa-cash-register"></i>
                         <p>
                             Accounting
