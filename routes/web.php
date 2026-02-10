@@ -11,6 +11,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CategoryController;
@@ -236,6 +237,13 @@ Route::middleware(['auth'])->group(function () {
 
     // General Ledger
     Route::get('general-ledger', [GeneralLedgerController::class, 'index'])->name('general-ledger.index');
+
+    // Reports
+    Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
+    Route::get('reports/trial-balance', [ReportController::class, 'trialBalance'])->name('reports.trial-balance');
+    Route::get('reports/expense', [ReportController::class, 'expenseReport'])->name('reports.expense');
+    Route::get('reports/supplier-ledger', [ReportController::class, 'supplierLedger'])->name('reports.supplier-ledger');
+    Route::get('reports/bank-summary', [ReportController::class, 'bankSummary'])->name('reports.bank-summary');
 });
 
 

@@ -244,8 +244,8 @@
                 <!-- Accounting Section -->
                 {{-- @canany(['']) --}}
                 {{-- @endcan --}}
-                <li class="nav-item {{ request()->routeIs('chart-of-accounts.*') || request()->routeIs('bills.*') || request()->routeIs('payments.*') || request()->routeIs('journal-entries.*') || request()->routeIs('general-ledger.*') ? 'menu-open' : '' }}">
-                    <a href="#" class="nav-link {{ request()->routeIs('chart-of-accounts.*') || request()->routeIs('bills.*') || request()->routeIs('payments.*') || request()->routeIs('journal-entries.*') || request()->routeIs('general-ledger.*') ? 'active' : '' }}">
+                <li class="nav-item {{ request()->routeIs('chart-of-accounts.*') || request()->routeIs('bills.*') || request()->routeIs('payments.*') || request()->routeIs('journal-entries.*') || request()->routeIs('general-ledger.*') || request()->routeIs('reports.*') ? 'menu-open' : '' }}">
+                    <a href="#" class="nav-link {{ request()->routeIs('chart-of-accounts.*') || request()->routeIs('bills.*') || request()->routeIs('payments.*') || request()->routeIs('journal-entries.*') || request()->routeIs('general-ledger.*') || request()->routeIs('reports.*') ? 'active' : '' }}">
                         <i class="nav-icon fas fa-cash-register"></i>
                         <p>
                             Accounting
@@ -293,14 +293,14 @@
                                 </a>
                             </li>
                         @endcan
-                        {{-- @can('accounting-reports-view')
+                        @can('accounting-reports-view')
                             <li class="nav-item">
                                 <a href="{{ route('reports.index') }}" class="nav-link {{ request()->routeIs('reports.*') ? 'active' : '' }}">
-                                    <i class="fas fa-plus-circle nav-icon"></i>
+                                    <i class="fas fa-chart-bar nav-icon"></i>
                                     <p>Reports</p>
                                 </a>
                             </li>
-                        @endcan --}}
+                        @endcan
                     </ul>
                 </li>
 
