@@ -127,7 +127,7 @@
                             <div class="col-md-6">
                                 <label for="" class="form-label">Payment Method <span class="text-danger">*</span></label>
                                 <div class="mt-2">
-                                    <div class="form-check form-check-input">
+                                    <div class="form-check form-check-inline">
                                         <input type="radio" name="payment_method" id="method_bank" value="bank" class="form-check-input" {{ old('payment_method', 'bank') === 'bank' ? 'checked' : '' }}>
                                         <label for="method_bank" class="form-check-label">Bank</label>
                                     </div>
