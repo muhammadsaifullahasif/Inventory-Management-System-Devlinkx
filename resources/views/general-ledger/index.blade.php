@@ -127,7 +127,7 @@
 
                             @forelse ($transactions as $line)
                                 <tr>
-                                    <td>{{ $line->journalEntry->entry->date->format('M d, Y') }}</td>
+                                    <td>{{ $line->journalEntry->entry_date->format('M d, Y') }}</td>
                                     <td>
                                         <a href="{{ route('journal-entries.show', $line->journalEntry) }}">
                                             {{ $line->journalEntry->entry_number }}
