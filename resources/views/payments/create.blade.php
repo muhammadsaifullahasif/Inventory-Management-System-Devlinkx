@@ -242,6 +242,7 @@
     $accountsJson = $bankCashAccounts->map(function($account) {
         return [
             'id' => $account->id,
+            'name' => $account->name,
             'bank_name' => $account->bank_name,
             'current_balance' => $account->current_balance,
             'parent_name' => $account->parent ? $account->parent->name : 'Other',
