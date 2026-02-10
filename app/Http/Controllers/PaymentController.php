@@ -65,7 +65,7 @@ class PaymentController extends Controller
         $payments = $query->orderBy('payment_date', 'DESC')
                         ->orderBy('id', 'DESC')
                         ->paginate(15)
-                        -withQueryString();
+                        ->withQueryString();
 
         $bankCashAccounts = ChartOfAccount::where('is_bank_cash', true)
             ->where('is_active', true)
