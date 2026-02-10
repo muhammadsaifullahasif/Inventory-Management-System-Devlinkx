@@ -146,6 +146,6 @@ class PaymentService
             throw new \Exception('Default Accounts Payable account not found.');
         }
 
-        return $defaultPayable;
+        return $defaultPayable->id;
     }
 }
