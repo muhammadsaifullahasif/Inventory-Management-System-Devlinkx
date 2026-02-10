@@ -16,7 +16,7 @@ class ReportController extends Controller
 {
     protected JournalService $journalService;
 
-    public function __contruct(JournalService $journalService)
+    public function __construct(JournalService $journalService)
     {
         $this->journalService = $journalService;
         $this->middleware('permission:accounting-reports-view');
