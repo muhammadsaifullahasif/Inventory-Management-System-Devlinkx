@@ -29,9 +29,9 @@ class GeneralLedgerController extends Controller
             ->orderBy('code')
             ->get();
 
-        $selectedAccountId = $request->get('account_id');
-        $dateFrom = $request->get('date_from');
-        $dateTo = $request->get('date_to');
+        $selectedAccountId = $request->get('account_id', 'all');
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
 
         $account = null;
         $transactions = collect();
@@ -39,8 +39,27 @@ class GeneralLedgerController extends Controller
         $runningBalance = 0;
         $totalDebit = 0;
         $totalCredit = 0;
+        $showAll = ($selectedAccountId === 'all' || empty($selectedAccountId));
 
-        if ($selectedAccountId) {
+        if ($showAll) {
+            // All accounts — get all posted transactions in date range
+            $transactions = JournalEntryLine::with(['journalEntry', 'account'])
+                ->whereHas('journalEntry', function ($q) use ($dateFrom, $dateTo) {
+                    $q->where('is_posted', true)
+                        ->where('entry_date', '>=', $dateFrom)
+                        ->where('entry_date', '<=', $dateTo);
+                })
+                ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
+                ->orderBy('journal_entries.entry_date')
+                ->orderBy('journal_entry_lines.journal_entry_id')
+                ->orderBy('journal_entry_lines.id')
+                ->select('journal_entry_lines.*')
+                ->get();
+
+            $totalDebit = $transactions->sum('debit');
+            $totalCredit = $transactions->sum('credit');
+        } else {
+            // Single account mode
             $account = ChartOfAccount::findOrFail($selectedAccountId);
 
             // Get opening balance (before date_from)
@@ -76,7 +95,8 @@ class GeneralLedgerController extends Controller
             'runningBalance', 
             'selectedAccountId', 
             'dateFrom', 
-            'dateTo'
+            'dateTo',
+            'showAll'
         ));
     }
 }

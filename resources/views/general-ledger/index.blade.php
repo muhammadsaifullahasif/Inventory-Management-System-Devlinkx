@@ -26,9 +26,9 @@
         <div class="card-body">
             <form action="{{ route('general-ledger.index') }}" method="GET" class="row g-3">
                 <div class="col-md-4">
-                    <label for="" class="form-label">Account <span class="text-danger">*</span></label>
-                    <select name="account_id" class="form-control" required>
-                        <option value="">Select Account</option>
+                    <label class="form-label">Account</label>
+                    <select name="account_id" class="form-control">
+                        <option value="all" {{ $selectedAccountId === 'all' ? 'selected' : '' }}>-- All Accounts --</option>
                         @foreach ($groups as $group)
                             <optgroup label="{{ $group->code }} - {{ $group->name }} ({{ ucfirst($group->nature) }})">
                                 @foreach ($group->children as $child)
@@ -44,11 +44,11 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label for="" class="form-label">From Date:</label>
+                    <label class="form-label">From Date</label>
                     <input type="date" name="date_from" class="form-control" value="{{ $dateFrom }}">
                 </div>
                 <div class="col-md-3">
-                    <label for="" class="form-label">To Date:</label>
+                    <label class="form-label">To Date</label>
                     <input type="date" name="date_to" class="form-control" value="{{ $dateTo }}">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
@@ -56,14 +56,124 @@
                         <i class="fas fa-search mr-1"></i>Filter
                     </button>
                     <a href="{{ route('general-ledger.index') }}" class="btn btn-outline-secondary">
-                        <i class="fas fa-times mr-1"></i>Cancel
+                        <i class="fas fa-undo mr-1"></i>Reset
                     </a>
                 </div>
             </form>
         </div>
     </div>
 
-    @if ($account)
+    @if ($showAll)
+        {{-- ==================== ALL ACCOUNTS VIEW ==================== --}}
+
+        <!-- Summary Bar -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="small-box bg-primary">
+                    <div class="inner">
+                        <h4>{{ number_format($totalDebit, 2) }}</h4>
+                        <p>Total Debit</p>
+                    </div>
+                    <div class="icon"><i class="fas fa-arrow-circle-up"></i></div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="small-box bg-danger">
+                    <div class="inner">
+                        <h4>{{ number_format($totalCredit, 2) }}</h4>
+                        <p>Total Credit</p>
+                    </div>
+                    <div class="icon"><i class="fas fa-arrow-circle-down"></i></div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="small-box bg-info">
+                    <div class="inner">
+                        <h4>{{ $transactions->count() }}</h4>
+                        <p>Total Entries</p>
+                    </div>
+                    <div class="icon"><i class="fas fa-list"></i></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- All Accounts Ledger Table -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    All Accounts: {{ \Carbon\Carbon::parse($dateFrom)->format('M d, Y') }} to {{ \Carbon\Carbon::parse($dateTo)->format('M d, Y') }}
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover table-sm">
+                        <thead>
+                            <tr class="table-dark">
+                                <th>Date</th>
+                                <th>Entry #</th>
+                                <th>Account</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                                <th class="text-right">Debit</th>
+                                <th class="text-right">Credit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($transactions as $line)
+                                <tr>
+                                    <td>{{ $line->journalEntry->entry_date->format('M d, Y') }}</td>
+                                    <td>
+                                        <a href="{{ route('journal-entries.show', $line->journalEntry) }}">
+                                            {{ $line->journalEntry->entry_number }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a href="{{ route('general-ledger.index', ['account_id' => $line->account->id, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}">
+                                            <code>{{ $line->account->code }}</code> {{ $line->account->name }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        @if ($line->journalEntry->reference_type === 'bill')
+                                            <span class="badge bg-warning text-dark">Bill</span>
+                                        @elseif ($line->journalEntry->reference_type === 'payment')
+                                            <span class="badge bg-success">Payment</span>
+                                        @else
+                                            <span class="badge bg-secondary">{{ ucfirst($line->journalEntry->reference_type) }}</span>
+                                        @endif
+                                    </td>
+                                    <td>{{ $line->description ?? $line->journalEntry->narration }}</td>
+                                    <td class="text-right">
+                                        {{ $line->debit > 0 ? number_format($line->debit, 2) : '-' }}
+                                    </td>
+                                    <td class="text-right">
+                                        {{ $line->credit > 0 ? number_format($line->credit, 2) : '-' }}
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="7" class="text-center py-3 text-muted">
+                                        No transactions found for the selected period.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                        @if ($transactions->isNotEmpty())
+                            <tfoot>
+                                <tr class="table-dark fw-bold">
+                                    <td colspan="5" class="text-right">Totals:</td>
+                                    <td class="text-right">{{ number_format($totalDebit, 2) }}</td>
+                                    <td class="text-right">{{ number_format($totalCredit, 2) }}</td>
+                                </tr>
+                            </tfoot>
+                        @endif
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    @else
+        {{-- ==================== SINGLE ACCOUNT VIEW ==================== --}}
+
         <!-- Account Header -->
         <div class="card mb-4">
             <div class="card-body">
@@ -93,13 +203,13 @@
             </div>
         </div>
 
-        <!-- Ledger Table -->
+        <!-- Single Account Ledger Table -->
         <div class="card">
             <div class="card-body">
                 <div class="table-responsive">
                     <table class="table table-striped table-hover table-sm">
                         <thead>
-                            <tr>
+                            <tr class="table-dark">
                                 <th>Date</th>
                                 <th>Entry #</th>
                                 <th>Type</th>
@@ -110,7 +220,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <!-- Opening Balance Row -->
+                            <!-- Opening Balance -->
                             <tr class="table-secondary">
                                 <td>
                                     @if ($dateFrom)
@@ -135,7 +245,7 @@
                                     </td>
                                     <td>
                                         @if ($line->journalEntry->reference_type === 'bill')
-                                            <span class="badge bg-warning text-dang">Bill</span>
+                                            <span class="badge bg-warning text-dark">Bill</span>
                                         @elseif ($line->journalEntry->reference_type === 'payment')
                                             <span class="badge bg-success">Payment</span>
                                         @else
@@ -144,18 +254,10 @@
                                     </td>
                                     <td>{{ $line->description ?? $line->journalEntry->narration }}</td>
                                     <td class="text-right">
-                                        @if ($line->debit > 0)
-                                            {{ number_format($line->debit, 2) }}
-                                        @else
-                                            -
-                                        @endif
+                                        {{ $line->debit > 0 ? number_format($line->debit, 2) : '-' }}
                                     </td>
                                     <td class="text-right">
-                                        @if ($line->credit > 0)
-                                            {{ number_format($line->credit, 2) }}
-                                        @else
-                                            -
-                                        @endif
+                                        {{ $line->credit > 0 ? number_format($line->credit, 2) : '-' }}
                                     </td>
                                     <td class="text-right fw-bold {{ $line->running_balance >= 0 ? '' : 'text-danger' }}">
                                         {{ number_format(abs($line->running_balance), 2) }}
@@ -168,27 +270,17 @@
                                     </td>
                                 </tr>
                             @endforelse
-
-                            <!-- Closing Balance -->
-                            <tr class="table-dark">
-                                <td colspan="4" class="text-right fw-bold">Totals / Closing Balance:</td>
-                                <td class="text-right fw-bold">{{ number_format($totalDebit, 2) }}</td>
-                                <td class="text-right fw-bold">{{ number_format($totalCredit, 2) }}</td>
-                                <td class="text-right fw-bold">{{ number_format(abs($runningBalance), 2) }}</td>
-                            </tr>
                         </tbody>
+                        <tfoot>
+                            <tr class="table-dark fw-bold">
+                                <td colspan="4" class="text-right">Totals / Closing Balance:</td>
+                                <td class="text-right">{{ number_format($totalDebit, 2) }}</td>
+                                <td class="text-right">{{ number_format($totalCredit, 2) }}</td>
+                                <td class="text-right">{{ number_format(abs($runningBalance), 2) }}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
-            </div>
-        </div>
-
-    @else
-        <!-- No Account Selected -->
-        <div class="card">
-            <div class="card-body text-center py-5">
-                <i class="fas fa-book text-muted" style="font-size: 4rem;"></i>
-                <h4 class="text-muted mt-3">Select an Account</h4>
-                <p class="text-muted">Choose an account from the dropdown above to view its ledger.</p>
             </div>
         </div>
     @endif
