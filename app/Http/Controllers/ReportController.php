@@ -33,11 +33,11 @@ class ReportController extends Controller
     /**
      * Trail Balance Report
      */
-    public function trailBalance(Request $request)
+    public function trialBalance(Request $request)
     {
         $asOfDate = $request->get('as_of_date', date('Y-m-d'));
 
-        $accounts = $this->journalService->getTrailBalance($asOfDate);
+        $accounts = $this->journalService->getTrialBalance($asOfDate);
 
         $totalDebit = $accounts->sum('debit');
         $totalCredit = $accounts->sum('credit');
@@ -80,7 +80,7 @@ class ReportController extends Controller
         //Filter by expense group if selected
         if ($groupId) {
             $accountIds = ChartOfAccount::where('parent_id', $groupId)
-                -pluck('id');
+                ->pluck('id');
             $query->whereIn('bill_items.expense_account_id', $accountIds);
         }
 
@@ -175,7 +175,7 @@ class ReportController extends Controller
             $bills = $billsQuery->orderBy('bill_date')->get();
 
             // Get payments for this supplier's bills
-            $billIds = Bill::where('supplier_id', $supplier_id)
+            $billIds = Bill::where('supplier_id', $supplierId)
                 ->whereIn('status', ['unpaid', 'partially_paid', 'paid'])
                 ->pluck('id');
 
@@ -243,18 +243,19 @@ class ReportController extends Controller
             $totalBills = $bills->sum('total_amount');
             $totalPayments = $payments->sum('amount');
 
-            return view('reports.supplier-ledger', compact(
-                'suppliers',
-                'supplier',
-                'transactions',
-                'openingBalance',
-                'totalBills',
-                'totalPayments',
-                'supplierId',
-                'dateFrom',
-                'dateTo'
-            ));
         }
+        
+        return view('reports.supplier-ledger', compact(
+            'suppliers',
+            'supplier',
+            'transactions',
+            'openingBalance',
+            'totalBills',
+            'totalPayments',
+            'supplierId',
+            'dateFrom',
+            'dateTo'
+        ));
     }
 
     /**
