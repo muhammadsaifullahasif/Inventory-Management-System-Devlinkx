@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
@@ -40,7 +41,7 @@ class Payment extends Model
         return $this->belongsTo(ChartOfAccount::class, 'payment_account_id');
     }
 
-    public function journalEntry(): BelongsTo
+    public function journalEntry(): HasOne
     {
         return $this->hasOne(JournalEntry::class, 'reference_id')
             ->where('reference_type', 'payment');
