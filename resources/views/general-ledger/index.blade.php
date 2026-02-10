@@ -122,7 +122,7 @@
                                 <td colspan="3"><strong>Opening Balance</strong></td>
                                 <td class="text-right">-</td>
                                 <td class="text-right">-</td>
-                                <td class="text-right fw-bold">{{ number_format(abs($openingBalance, 2)) }}</td>
+                                <td class="text-right fw-bold">{{ number_format(abs($openingBalance), 2) }}</td>
                             </tr>
 
                             @forelse ($transactions as $line)
