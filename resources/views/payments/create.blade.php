@@ -236,7 +236,7 @@
 @php
     // Group bank/cash accounts by parent (Banks vs Cash in Hand)
     $groupedAccounts = $bankCashAccounts->groupBy(function($account) {
-        return $account->parent ? $account->parent->name : 'Other';s
+        return $account->parent ? $account->parent->name : 'Other';
     });
 
     $accountsJson = $bankCashAccounts->map(function($account) {
