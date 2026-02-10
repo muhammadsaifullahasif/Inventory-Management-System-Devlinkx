@@ -28,16 +28,20 @@
     <div class="row mb-4">
         <div class="col-md-6">
             <div class="card bg-primary text-white">
-                <h6 class="card-title">Total Payments</h6>
-                <h3 class="mb-0 text-right">{{ number_format($totalPayments, 2) }}</h3>
-                <small>All time</small>
+                <div class="card-body">
+                    <h6 class="card-title">Total Payments</h6>
+                    <h3 class="mb-0 text-right">{{ number_format($totalPayments, 2) }}</h3>
+                    <small>All time</small>
+                </div>
             </div>
         </div>
         <div class="col-md-6">
             <div class="card bg-success text-white">
-                <h6 class="card-title">This Month</h6>
-                <h3 class="mb-0 text-right">{{ number_format($monthlyPayments, 2) }}</h3>
-                <small>{{ now()->format('F Y') }}</small>
+                <div class="card-body">
+                    <h6 class="card-title">This Month</h6>
+                    <h3 class="mb-0 text-right">{{ number_format($monthlyPayments, 2) }}</h3>
+                    <small>{{ now()->format('F Y') }}</small>
+                </div>
             </div>
         </div>
     </div>
@@ -46,11 +50,11 @@
     <div class="card mb-4">
         <div class="card-body">
             <form action="{{ route('payments.index') }}" method="GET" class="row g-3">
-                <div class="col-md-3">
+                <div class="col-md-3 mb-3">
                     <label for="" class="form-label">Search</label>
                     <input type="text" name="search" class="form-control" placeholder="Payment #, Bill #, or Supplier" value="{{ request('search') }}">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-3 mb-3">
                     <label for="" class="form-label">Method</label>
                     <select name="payment_method" class="form-control">
                         <option value="">All Methods</option>
@@ -58,7 +62,7 @@
                         <option value="cash" {{ request('payment_method') == 'cash' ? 'selected' : '' }}>Cash</option>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-2 mb-3">
                     <label for="" class="form-label">Account</label>
                     <select name="payment_account_id" class="form-control">
                         <option value="">All Accounts</option>
@@ -69,15 +73,15 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-2 mb-3">
                     <label for="" class="form-label">From</label>
                     <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-2 mb-3">
                     <label for="" class="form-label">To</label>
                     <input type="date" name="date_to" class="form-control" value="{{ request('date_to') }}">
                 </div>
-                <div class="col-md-1 d-flex align-items-end">
+                <div class="col-md-2 mb-3 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary mr-1">
                         <i class="fas fa-search mr-1"></i>Filter
                     </button>
