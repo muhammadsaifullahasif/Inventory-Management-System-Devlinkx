@@ -91,7 +91,7 @@
                                 </tr>
                                 <tr>
                                     <th>Created At:</th>
-                                    <td>{{ $journalEntry->creted_at->format('M d, Y H:i') }}</td>
+                                    <td>{{ $journalEntry->created_at->format('M d, Y H:i') }}</td>
                                 </tr>
                             </table>
                         </div>
