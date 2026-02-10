@@ -10,6 +10,7 @@
                     @can('add racks')
                         <a href="{{ route('racks.create') }}" class="btn btn-outline-primary btn-sm mb-3">Add Rack</a>
                     @endcan
+                    <a href="{{ route('racks.label.bulk-form') }}" class="btn btn-outline-info btn-sm mb-3"><i class="fas fa-print mr-1"></i>Print Labels</a>
                 </div><!-- /.col -->
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">
@@ -92,6 +93,7 @@
                         <td>{{ \Carbon\Carbon::parse($rack->created_at)->format('d M, Y') }}</td>
                         <td>
                             <div class="btn-group">
+                                <a href="{{ route('racks.print-label', $rack->id) }}" class="btn btn-info btn-sm" title="Print Label"><i class="fas fa-print"></i></a>
                                 <a href="{{ route('racks.edit', $rack->id) }}" class="btn btn-primary btn-sm"><i class="fas fa-edit"></i></a>
                                 <form action="{{ route('racks.destroy', $rack->id) }}" method="POST" id="rack-{{ $rack->id }}-delete-form">
                                     @csrf

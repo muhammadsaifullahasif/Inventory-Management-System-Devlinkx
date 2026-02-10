@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Rack;
 use App\Models\Warehouse;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
@@ -157,5 +158,76 @@ class RackController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'An error occurred while deleting the rack: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Show label printing options for the specified rack.
+     */
+    public function printLabel(string $id)
+    {
+        $rack = Rack::with('warehouse')->findOrFail($id);
+        return view('racks.print-label', compact('rack'));
+    }
+
+    /**
+     * Generate and download label PDF for the specified rack.
+     */
+    public function printLabelView(Request $request, string $id)
+    {
+        $rack = Rack::with('warehouse')->findOrFail($id);
+        $quantity = (int) $request->get('quantity', 21);
+        $quantity = max(1, min(100, $quantity));
+        $columns = (int) $request->get('columns', 3);
+        $columns = max(2, min(5, $columns));
+
+        $pdf = Pdf::loadView('racks.label', compact('rack', 'quantity', 'columns'))
+            ->setPaper('a4', 'portrait');
+        return $pdf->download('rack_label_' . $rack->name . '.pdf');
+    }
+
+    /**
+     * Show bulk label printing form for racks.
+     */
+    public function bulkPrintLabelForm()
+    {
+        $racks = Rack::with('warehouse')->orderBy('name')->get();
+        $warehouses = Warehouse::orderBy('name')->get();
+        return view('racks.bulk-print-label', compact('racks', 'warehouses'));
+    }
+
+    /**
+     * Generate PDF with labels for multiple racks.
+     */
+    public function bulkPrintLabel(Request $request)
+    {
+        $request->validate([
+            'racks' => 'required|array|min:1',
+            'racks.*.id' => 'required|exists:racks,id',
+            'racks.*.quantity' => 'required|integer|min:1|max:100',
+            'columns' => 'nullable|integer|min:2|max:5',
+        ]);
+
+        $columns = (int) $request->get('columns', 3);
+        $columns = max(2, min(5, $columns));
+
+        $racksData = [];
+        foreach ($request->racks as $rackInput) {
+            $rack = Rack::with('warehouse')->find($rackInput['id']);
+            if ($rack) {
+                $racksData[] = [
+                    'rack' => $rack,
+                    'quantity' => (int) $rackInput['quantity'],
+                ];
+            }
+        }
+
+        if (empty($racksData)) {
+            return redirect()->back()->with('error', 'No valid racks selected for label printing.');
+        }
+
+        $pdf = Pdf::loadView('racks.bulk-label', compact('racksData', 'columns'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->download('rack_labels_' . date('Y-m-d_H-i-s') . '.pdf');
     }
 }

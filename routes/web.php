@@ -155,6 +155,10 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('/warehouses', WarehouseController::class);
 
     // Racks
+    Route::get('/racks/print-label/{id}', [RackController::class, 'printLabel'])->name('racks.print-label');
+    Route::get('/racks/label/print/{id}', [RackController::class, 'printLabelView'])->name('racks.label.print');
+    Route::get('/racks/label/bulk', [RackController::class, 'bulkPrintLabelForm'])->name('racks.label.bulk-form');
+    Route::post('/racks/label/bulk', [RackController::class, 'bulkPrintLabel'])->name('racks.label.bulk-print');
     Route::resource('/racks', RackController::class);
     Route::get('/warehouses/{warehouse}/racks', [RackController::class, 'getRacksByWarehouse'])->name('warehouses.racks');
 
