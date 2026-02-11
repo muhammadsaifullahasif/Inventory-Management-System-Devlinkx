@@ -1622,7 +1622,7 @@ class EbayController extends Controller
                 'ebay_order_status' => $ebayOrder['order_status'],
                 'ebay_payment_status' => $ebayOrder['payment_status'],
                 'order_status' => $this->mapEbayOrderStatus($ebayOrder['order_status']),
-                'payment_status' => $this->mapEbayPaymentStatus($ebayOrder['payment_status']),
+                'payment_status' => $this->mapEbayPaymentStatus($ebayOrder['payment_status'], $ebayOrder),
             ]);
 
             return 'updated';
@@ -1651,7 +1651,7 @@ class EbayController extends Controller
                 'total' => $ebayOrder['total'],
                 'currency' => $ebayOrder['currency'],
                 'order_status' => $this->mapEbayOrderStatus($ebayOrder['order_status']),
-                'payment_status' => $this->mapEbayPaymentStatus($ebayOrder['payment_status']),
+                'payment_status' => $this->mapEbayPaymentStatus($ebayOrder['payment_status'], $ebayOrder),
                 'ebay_order_status' => $ebayOrder['order_status'],
                 'ebay_payment_status' => $ebayOrder['payment_status'],
                 'ebay_raw_data' => $ebayOrder['raw_data'],
@@ -1680,8 +1680,8 @@ class EbayController extends Controller
                     'variation_attributes' => $lineItem['variation_attributes'],
                 ]);
 
-                // Update inventory if payment is complete
-                if ($this->mapEbayPaymentStatus($ebayOrder['payment_status']) === 'paid') {
+                // Update inventory if payment is actually complete
+                if ($this->mapEbayPaymentStatus($ebayOrder['payment_status'], $ebayOrder) === 'paid') {
                     $orderItem->updateInventory();
                 }
             }
@@ -1728,13 +1728,31 @@ class EbayController extends Controller
 
     /**
      * Map eBay payment status to local status
+     *
+     * IMPORTANT: 'NoPaymentFailure' does NOT mean paid!
+     * It only means "no payment failure occurred". The buyer may or may not have paid.
+     * To determine if actually paid, check PaidTime or CheckoutStatus.
      */
-    private function mapEbayPaymentStatus(string $ebayStatus): string
+    private function mapEbayPaymentStatus(string $ebayStatus, array $ebayOrder = []): string
     {
+        // If we have the full order data, use PaidTime as the most reliable indicator
+        if (!empty($ebayOrder)) {
+            if (!empty($ebayOrder['paid_time'])) {
+                return 'paid';
+            }
+
+            $checkoutStatus = strtolower($ebayOrder['checkout_status'] ?? '');
+            if ($checkoutStatus === 'complete') {
+                return 'paid';
+            }
+        }
+
         return match (strtolower($ebayStatus)) {
-            'nopaymentfailure', 'paymentcomplete' => 'paid',
-            'paymentpending' => 'pending',
+            'paymentcomplete', 'paid' => 'paid',
+            'paymentpending', 'pending' => 'pending',
             'refunded' => 'refunded',
+            'paymentfailed', 'failed' => 'failed',
+            // NoPaymentFailure = no failure, NOT paid. Default to pending.
             default => 'pending',
         };
     }

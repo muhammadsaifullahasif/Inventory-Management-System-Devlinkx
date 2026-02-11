@@ -941,11 +941,30 @@ class OrderController extends Controller
     /**
      * Determine local order status from eBay transaction data
      */
+    /**
+     * Determine local order status from eBay transaction data
+     *
+     * eBay Status meanings:
+     * - Active: Order is in progress (awaiting payment or fulfillment)
+     * - Completed: Order has been fulfilled/shipped, NOT delivered
+     * - Cancelled/Inactive: Order was cancelled
+     *
+     * eBay Payment statuses:
+     * - NoPaymentFailure: No payment failure occurred (does NOT mean paid)
+     * - PaymentComplete: Payment has been received
+     *
+     * eBay CompleteStatus:
+     * - Incomplete: Order is not yet complete (checkout not finished, payment pending)
+     * - Complete: Order checkout and payment are complete
+     *
+     * Note: eBay does not provide a "Delivered" status in the Trading API.
+     * Only mark as delivered when we explicitly receive a delivery notification.
+     */
     protected function determineOrderStatusFromEbay($transaction): string
     {
         // Check for cancellation first
         $cancelStatus = (string) ($transaction->ContainingOrder->CancelStatus ?? '');
-        if (!empty($cancelStatus) && strtolower($cancelStatus) !== 'none') {
+        if (!empty($cancelStatus) && strtolower($cancelStatus) !== 'none' && strtolower($cancelStatus) !== 'notapplicable') {
             if (in_array(strtolower($cancelStatus), ['cancelled', 'cancelcomplete', 'cancelcompleted'])) {
                 return 'cancelled';
             }
@@ -957,26 +976,15 @@ class OrderController extends Controller
         // Check if shipped
         $shippedTime = (string) ($transaction->ShippedTime ?? '');
         if (!empty($shippedTime)) {
-            // Check if delivered (CompleteStatus = Completed after shipping)
-            $completeStatus = strtolower((string) ($transaction->Status->CompleteStatus ?? ''));
-            $orderStatus = strtolower((string) ($transaction->ContainingOrder->OrderStatus ?? ''));
-
-            // If order is complete and shipped, it's likely delivered
-            if ($completeStatus === 'completed' || $orderStatus === 'completed') {
-                return 'delivered';
-            }
-
             return 'shipped';
         }
 
         // Check eBay order status
         $ebayOrderStatus = strtolower((string) ($transaction->ContainingOrder->OrderStatus ?? ''));
-        $completeStatus = strtolower((string) ($transaction->Status->CompleteStatus ?? ''));
 
-        // Map eBay statuses to local statuses
+        // eBay "Completed" means shipped/fulfilled, NOT delivered
         if (in_array($ebayOrderStatus, ['completed', 'complete'])) {
-            // Completed without ShippedTime - could be digital/virtual delivery or marked complete
-            return 'delivered';
+            return 'shipped';
         }
 
         if (in_array($ebayOrderStatus, ['shipped'])) {
@@ -987,29 +995,42 @@ class OrderController extends Controller
             return 'cancelled';
         }
 
-        if (in_array($ebayOrderStatus, ['active', 'inprogress'])) {
-            return 'processing';
-        }
-
-        // Check payment status to determine if processing
-        $paymentStatus = strtolower((string) ($transaction->Status->eBayPaymentStatus ?? ''));
+        // For Active orders, determine status based on payment
+        $completeStatus = strtolower((string) ($transaction->Status->CompleteStatus ?? ''));
+        $checkoutStatus = strtolower((string) ($transaction->Status->CheckoutStatus ?? ''));
         $paidTime = (string) ($transaction->PaidTime ?? '');
+        $paymentStatus = strtolower((string) ($transaction->Status->eBayPaymentStatus ?? ''));
 
-        if (!empty($paidTime) || in_array($paymentStatus, ['nopaymentfailure', 'paymentcomplete'])) {
+        // Order is processing only if payment is actually confirmed
+        if (!empty($paidTime) || $paymentStatus === 'paymentcomplete' || $checkoutStatus === 'checkoutcomplete' || $completeStatus === 'complete') {
             return 'processing';
         }
 
+        // Unpaid / checkout incomplete → pending
         return 'pending';
     }
 
     /**
      * Determine local payment status from eBay transaction data
+     *
+     * eBay eBayPaymentStatus meanings:
+     * - NoPaymentFailure: No payment failure occurred (does NOT mean paid!)
+     * - PaymentComplete: Payment has been received (actually paid)
+     * - PaymentPending: Payment is pending
+     * - PaymentFailed: Payment attempt failed
+     *
+     * Reliable indicators of payment:
+     * - PaidTime is set: Confirmed paid
+     * - CheckoutStatus = CheckoutComplete: Checkout (including payment) is done
+     * - CompleteStatus = Complete: Transaction is complete
+     * - eBayPaymentStatus = PaymentComplete: Payment confirmed
      */
     protected function determinePaymentStatusFromEbay($transaction): string
     {
         $paymentStatus = strtolower((string) ($transaction->Status->eBayPaymentStatus ?? ''));
         $paidTime = (string) ($transaction->PaidTime ?? '');
         $checkoutStatus = strtolower((string) ($transaction->Status->CheckoutStatus ?? ''));
+        $completeStatus = strtolower((string) ($transaction->Status->CompleteStatus ?? ''));
 
         // Check refund status
         $refundStatus = (string) ($transaction->MonetaryDetails->Refunds->Refund->RefundStatus ?? '');
@@ -1017,27 +1038,33 @@ class OrderController extends Controller
             return 'refunded';
         }
 
-        // Paid if PaidTime is set or payment status indicates payment complete
+        // Paid if PaidTime is explicitly set
         if (!empty($paidTime)) {
             return 'paid';
         }
 
-        if (in_array($paymentStatus, ['nopaymentfailure', 'paymentcomplete', 'paid'])) {
+        // PaymentComplete explicitly means paid
+        if (in_array($paymentStatus, ['paymentcomplete', 'paid'])) {
             return 'paid';
         }
 
+        // CheckoutComplete means buyer completed checkout (including payment)
         if ($checkoutStatus === 'checkoutcomplete') {
             return 'paid';
         }
 
-        if (in_array($paymentStatus, ['paymentpending', 'pending'])) {
-            return 'pending';
+        // CompleteStatus = Complete means the transaction is fully complete
+        if ($completeStatus === 'complete') {
+            return 'paid';
         }
 
+        // Payment failed
         if (in_array($paymentStatus, ['paymentfailed', 'failed'])) {
             return 'failed';
         }
 
+        // NoPaymentFailure with CheckoutIncomplete = buyer hasn't paid yet
+        // NoPaymentFailure only means "no failure occurred", NOT that payment was received
         return 'pending';
     }
 

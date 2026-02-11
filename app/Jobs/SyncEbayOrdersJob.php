@@ -270,6 +270,8 @@ class SyncEbayOrdersJob implements ShouldQueue
             'order_id' => (string) ($order->OrderID ?? ''),
             'order_status' => (string) ($order->OrderStatus ?? ''),
             'payment_status' => (string) ($order->CheckoutStatus->eBayPaymentStatus ?? ''),
+            'checkout_status' => (string) ($order->CheckoutStatus->Status ?? ''),
+            'cancel_status' => (string) ($order->CancelStatus ?? ''),
             'buyer' => $buyer,
             'shipping_address' => $shippingAddress,
             'line_items' => $lineItems,
@@ -280,6 +282,9 @@ class SyncEbayOrdersJob implements ShouldQueue
             'created_time' => (string) ($order->CreatedTime ?? ''),
             'paid_time' => (string) ($order->PaidTime ?? ''),
             'shipped_time' => (string) ($order->ShippedTime ?? ''),
+            'tracking_number' => (string) ($order->ShippingDetails->ShipmentTrackingDetails->ShipmentTrackingNumber ?? ''),
+            'shipping_carrier' => (string) ($order->ShippingDetails->ShipmentTrackingDetails->ShippingCarrierUsed ?? ''),
+            'pickup_status' => (string) ($order->PickupDetails->PickupStatus ?? ''),
             'raw_data' => json_decode(json_encode($order), true),
         ];
     }
@@ -307,7 +312,7 @@ class SyncEbayOrdersJob implements ShouldQueue
                 'ebay_order_status' => $ebayOrder['order_status'],
                 'ebay_payment_status' => $ebayOrder['payment_status'],
                 'order_status' => $this->mapEbayOrderStatus($ebayOrder['order_status'], $ebayOrder),
-                'payment_status' => $this->mapEbayPaymentStatus($ebayOrder['payment_status']),
+                'payment_status' => $this->mapEbayPaymentStatus($ebayOrder['payment_status'], $ebayOrder),
                 'fulfillment_status' => $this->mapEbayFulfillmentStatus($ebayOrder),
             ];
 
@@ -327,7 +332,7 @@ class SyncEbayOrdersJob implements ShouldQueue
             $existingOrder->update($updateData);
 
             // Update inventory for items that weren't updated yet
-            if ($this->mapEbayPaymentStatus($ebayOrder['payment_status']) === 'paid') {
+            if ($this->mapEbayPaymentStatus($ebayOrder['payment_status'], $ebayOrder) === 'paid') {
                 foreach ($existingOrder->items as $item) {
                     if (!$item->inventory_updated) {
                         $item->updateInventory();
@@ -360,7 +365,7 @@ class SyncEbayOrdersJob implements ShouldQueue
                 'total' => $ebayOrder['total'],
                 'currency' => $ebayOrder['currency'],
                 'order_status' => $this->mapEbayOrderStatus($ebayOrder['order_status'], $ebayOrder),
-                'payment_status' => $this->mapEbayPaymentStatus($ebayOrder['payment_status']),
+                'payment_status' => $this->mapEbayPaymentStatus($ebayOrder['payment_status'], $ebayOrder),
                 'fulfillment_status' => $this->mapEbayFulfillmentStatus($ebayOrder),
                 'ebay_order_status' => $ebayOrder['order_status'],
                 'ebay_payment_status' => $ebayOrder['payment_status'],
@@ -390,7 +395,7 @@ class SyncEbayOrdersJob implements ShouldQueue
                     'variation_attributes' => $lineItem['variation_attributes'],
                 ]);
 
-                if ($this->mapEbayPaymentStatus($ebayOrder['payment_status']) === 'paid') {
+                if ($this->mapEbayPaymentStatus($ebayOrder['payment_status'], $ebayOrder) === 'paid') {
                     $orderItem->updateInventory();
                 }
             }
@@ -446,13 +451,30 @@ class SyncEbayOrdersJob implements ShouldQueue
         };
     }
 
-    private function mapEbayPaymentStatus(string $ebayStatus): string
+    /**
+     * IMPORTANT: 'NoPaymentFailure' does NOT mean paid!
+     * It means "no payment failure occurred". Use PaidTime/CheckoutStatus to confirm payment.
+     */
+    private function mapEbayPaymentStatus(string $ebayStatus, array $ebayOrder = []): string
     {
+        // If we have the full order data, use PaidTime as the most reliable indicator
+        if (!empty($ebayOrder)) {
+            if (!empty($ebayOrder['paid_time'])) {
+                return 'paid';
+            }
+
+            $checkoutStatus = strtolower($ebayOrder['checkout_status'] ?? '');
+            if ($checkoutStatus === 'complete') {
+                return 'paid';
+            }
+        }
+
         return match (strtolower($ebayStatus)) {
-            'nopaymentfailure', 'paymentcomplete', 'paid' => 'paid',
+            'paymentcomplete', 'paid' => 'paid',
             'paymentpending', 'pending' => 'pending',
             'refunded' => 'refunded',
             'paymentfailed', 'failed' => 'failed',
+            // NoPaymentFailure = no failure, NOT paid. Default to pending.
             default => 'pending',
         };
     }
