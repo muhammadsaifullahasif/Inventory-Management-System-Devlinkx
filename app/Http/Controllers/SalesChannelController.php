@@ -6,7 +6,7 @@ use App\Models\SalesChannel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Services\EbayNotificationService;
+use App\Services\Ebay\EbayNotificationService;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class SalesChannelController extends Controller
