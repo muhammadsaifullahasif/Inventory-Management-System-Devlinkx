@@ -111,11 +111,10 @@ class EbayOrderService
 
         return match (strtolower($ebayStatus)) {
             'paymentcomplete', 'paid' => 'paid',
-            'paymentpending', 'pending' => 'pending',
             'refunded' => 'refunded',
             'paymentfailed', 'failed' => 'failed',
-            // NoPaymentFailure = no failure, NOT paid
-            default => 'pending',
+            // NoPaymentFailure = no failure, NOT paid. Default to unpaid.
+            default => 'unpaid',
         };
     }
 
@@ -213,7 +212,7 @@ class EbayOrderService
             return 'failed';
         }
 
-        return 'pending';
+        return 'unpaid';
     }
 
     /**
@@ -689,11 +688,18 @@ class EbayOrderService
 
             $paidTime = $this->parseEbayDate($transaction['PaidTime'] ?? '');
 
-            $order->update([
+            $updateData = [
                 'payment_status' => 'paid',
                 'paid_at' => $paidTime ?? now(),
                 'ebay_payment_status' => $transaction['Status']['eBayPaymentStatus'] ?? 'NoPaymentFailure',
-            ]);
+            ];
+
+            // When paid but not yet shipped, move order to processing
+            if (in_array($order->order_status, ['pending', 'unpaid'])) {
+                $updateData['order_status'] = 'processing';
+            }
+
+            $order->update($updateData);
 
             $order->setMeta('event_log_' . time(), [
                 'event' => 'ItemMarkedPaid',
@@ -1066,8 +1072,8 @@ class EbayOrderService
             return $this->saveFromNotification($data, $channel, $notificationType, $timestamp);
         }
 
-        if ($order->payment_status === 'pending') {
-            $order->update(['payment_status' => 'awaiting_payment']);
+        if ($order->payment_status !== 'paid') {
+            $order->update(['payment_status' => 'unpaid']);
         }
 
         $order->setMeta('event_log_' . time(), [
