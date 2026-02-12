@@ -43,12 +43,18 @@ class EbayOrderService
      * Map eBay order status to local order status.
      *
      * eBay Status meanings:
-     * - Active: Order is awaiting payment or fulfillment
-     * - Completed: Order has been fulfilled/shipped (NOT delivered)
+     * - Active: Order is awaiting payment or checkout completion
+     * - Completed: Checkout/payment is complete (does NOT mean shipped!)
      * - Cancelled/Inactive: Order was cancelled
      *
-     * IMPORTANT: eBay Trading API has NO "Delivered" status.
-     * Only mark as delivered on explicit delivery notification.
+     * IMPORTANT: eBay "Completed" = payment done, NOT shipped.
+     * Only mark as shipped when ShippedTime is present.
+     * eBay Trading API has NO "Delivered" status — only via delivery notifications.
+     *
+     * Status flow:
+     *   Not paid        → pending
+     *   Paid, not shipped → processing
+     *   Shipped          → shipped
      */
     public function mapOrderStatus(string $ebayStatus, array $ebayOrder = []): string
     {
@@ -63,18 +69,19 @@ class EbayOrderService
             }
         }
 
-        // Check if shipped_time is set
+        // Only mark as shipped when we have actual shipping evidence
         if (!empty($ebayOrder['shipped_time'])) {
             return 'shipped';
         }
 
         // Map based on eBay order status
         return match (strtolower($ebayStatus)) {
+            // Completed = checkout/payment done, NOT shipped
+            'completed', 'complete' => 'processing',
+            // Active = may or may not be paid yet
             'active' => $this->isPaymentConfirmed($ebayOrder) ? 'processing' : 'pending',
-            'completed', 'complete' => 'shipped',
             'cancelled', 'inactive' => 'cancelled',
-            'shipped' => 'shipped',
-            default => 'pending',
+            default => $this->isPaymentConfirmed($ebayOrder) ? 'processing' : 'pending',
         };
     }
 
@@ -154,30 +161,30 @@ class EbayOrderService
             }
         }
 
+        // Only mark as shipped when we have actual shipping evidence
         $shippedTime = $transaction['ShippedTime'] ?? '';
         if (!empty($shippedTime)) {
             return 'shipped';
         }
 
         $ebayOrderStatus = strtolower($transaction['ContainingOrder']['OrderStatus'] ?? '');
-        if (in_array($ebayOrderStatus, ['completed', 'complete', 'shipped'])) {
-            return 'shipped';
-        }
         if (in_array($ebayOrderStatus, ['cancelled', 'inactive'])) {
             return 'cancelled';
         }
 
-        // Check payment for Active orders
+        // Check if payment is confirmed (Completed = paid, NOT shipped)
         $completeStatus = strtolower($transaction['Status']['CompleteStatus'] ?? '');
         $checkoutStatus = strtolower($transaction['Status']['CheckoutStatus'] ?? '');
         $paidTime = $transaction['PaidTime'] ?? '';
         $paymentStatus = strtolower($transaction['Status']['eBayPaymentStatus'] ?? '');
 
-        if (!empty($paidTime) || $paymentStatus === 'paymentcomplete' || $checkoutStatus === 'checkoutcomplete' || $completeStatus === 'complete') {
-            return 'processing';
-        }
+        $isPaid = !empty($paidTime)
+            || $paymentStatus === 'paymentcomplete'
+            || $checkoutStatus === 'checkoutcomplete'
+            || $completeStatus === 'complete'
+            || in_array($ebayOrderStatus, ['completed', 'complete']);
 
-        return 'pending';
+        return $isPaid ? 'processing' : 'pending';
     }
 
     /**
@@ -612,6 +619,7 @@ class EbayOrderService
 
             $order->update([
                 'order_status' => 'shipped',
+                'payment_status' => 'paid',
                 'fulfillment_status' => 'fulfilled',
                 'tracking_number' => $trackingNumber ?: $order->tracking_number,
                 'shipping_carrier' => $shippingCarrier ?: $order->shipping_carrier,
