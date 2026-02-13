@@ -134,7 +134,7 @@
             </div>
 
             <!-- Sales Channels Section -->
-            @if(isset($salesChannels) && $salesChannels->count() > 0)
+            {{-- @if(isset($salesChannels) && $salesChannels->count() > 0)
             <div class="card card-outline card-info mt-3">
                 <div class="card-header">
                     <h3 class="card-title"><i class="fas fa-store mr-2"></i>List on Sales Channels</h3>
@@ -173,7 +173,7 @@
                     @enderror
                 </div>
             </div>
-            @endif
+            @endif --}}
 
             <button type="submit" class="btn btn-primary">Save</button>
         </form>

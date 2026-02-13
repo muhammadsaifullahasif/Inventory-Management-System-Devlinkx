@@ -2,20 +2,32 @@
 
 namespace App\Http\Controllers;
 
+use App\Imports\ProductsImport;
 use App\Models\Brand;
-use App\Models\Product;
 use App\Models\Category;
-use App\Models\Warehouse;
+use App\Models\Product;
+use App\Models\Rack;
 use App\Models\SalesChannel;
 use App\Models\SalesChannelProduct;
+use App\Models\Warehouse;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class ProductController extends Controller
 {
+    protected $aliases = [
+        'name' => ['name', 'product_name', 'title', 'product_title'],
+        'sku' => ['sku', 'item_sku', 'product_sku'],
+        'barcode' => ['barcode', 'ean', 'upc', 'code'],
+        'regular_price' => ['regular_price', 'price', 'base_price'],
+        'sale_price' => ['sale_price', 'discount_price', 'offer_price'],
+        'quantity' => ['qty', 'quantity', 'stock', 'stock_qty', 'stock_quantity']
+    ];
+
     public function __construct()
     {
         $this->middleware(PermissionMiddleware::using('view products'), ['only' => ['index']]);
@@ -96,8 +108,9 @@ class ProductController extends Controller
     {
         $categories = Category::all();
         $brands = Brand::all();
-        $salesChannels = SalesChannel::where('active_status', 1)->get();
-        return view('products.new', compact('categories', 'brands', 'salesChannels'));
+        // $salesChannels = SalesChannel::where('active_status', 1)->get();
+        // return view('products.new', compact('categories', 'brands', 'salesChannels'));
+        return view('products.new', compact('categories', 'brands'));
     }
 
     /**
@@ -180,10 +193,10 @@ class ProductController extends Controller
             ]);
 
             // Handle Sales Channels - Create listings
-            $selectedChannels = $request->input('sales_channels', []);
-            if (!empty($selectedChannels)) {
-                $this->syncSalesChannels($product, $selectedChannels, []);
-            }
+            // $selectedChannels = $request->input('sales_channels', []);
+            // if (!empty($selectedChannels)) {
+            //     $this->syncSalesChannels($product, $selectedChannels, []);
+            // }
 
             DB::commit();
 
@@ -729,6 +742,244 @@ class ProductController extends Controller
             DB::rollBack();
             Log::error('Stock update failed', ['error' => $e->getMessage(), 'product_id' => $id]);
             return redirect()->back()->with('error', 'An error occurred while updating stock: ' . $e->getMessage());
+        }
+    }
+
+    public function import_products()
+    {
+        $warehouses = Warehouse::get();
+        return view('products.import', compact('warehouses'));
+    }
+
+    protected function normalizedHeader($header)
+    {
+        return strtolower(trim(str_replace([' ', '#'], ['_', ''], $header)));
+    }
+
+    public function import_products_preview(Request $request)
+    {
+        $request->validate([
+            'warehouse' => 'required|exists:warehouses,id',
+            'upload' => 'required|file|mimes:csv,txt',
+        ]);
+
+        $warehouse = $request->warehouse;
+
+        $warehouses = Warehouse::where('active_status', '1')->get();
+
+        $racks = Rack::where('warehouse_id', $warehouse)->where('active_status', 1)->get();
+
+        $categories = Category::where('active_status', 1)->get();
+
+        $brands = Brand::where('active_status', 1)->get();
+
+        $data = Excel::toArray(new ProductsImport, $request->file('upload'));
+
+        // $rows = $data[0];
+        $headers = $data[0][0];
+        $normalizedHeaders = [];
+
+        foreach ($headers as $header) {
+            $clean = $this->normalizedHeader($header);
+            $mapped = $clean;
+            foreach ($this->aliases as $dbField => $words) {
+                foreach ($words as $word) {
+                    if ($clean === $this->normalizedHeader($word)) {
+                        $mapped = $dbField;
+                        break 2;
+                    }
+                }
+            }
+
+            $normalizedHeaders[] = $mapped;
+        }
+        $rows = array_slice($data[0], 1);
+
+        $mapped = [];
+        foreach ($rows as $row) {
+            unset($normalizedHeaders[0]);
+            unset($row[0]);
+            if (count($normalizedHeaders) === count($row)) {
+                $mapped[] = array_combine($normalizedHeaders, $row);
+            }
+        }
+        // dd($mapped);
+        // unset($rows[0]);
+
+        $products = [];
+
+        foreach ($mapped as $row) {
+            $product = Product::where('sku', $row['sku'])->where('barcode', $row['barcode'])->first();
+            $products[] = [
+                'name' => $row['name'],
+                'sku' => $row['sku'],
+                'barcode' => $row['barcode'],
+                'description' => $row['description'],
+                'regular_price' => $row['regular_price'],
+                'sale_price' => $row['sale_price'],
+                'quantity' => $row['quantity'],
+                'weight' => $row['weight'],
+                'length' => $row['length'],
+                'width' => $row['width'],
+                'height' => $row['height'],
+                'category_id' => $row['category'],
+                'brand_id' => $row['brand'],
+            ];
+        }
+
+        // dd($products);
+
+        return view('products.import-preview', compact('products', 'warehouses', 'racks', 'warehouse', 'categories', 'brands'));
+    }
+
+    public function import_products_store(Request $request)
+    {
+        // $request->validate([
+
+        //     'warehouse_id' => 'required|exists:warehouses,id',
+
+        //     'products' => 'required|array|min:1',
+
+        //     'products.name' => 'required|array|min:1',
+        //     'products.name.*' => 'required|string|max:255',
+
+        //     'products.description' => 'required|array|min:1',
+        //     'products.description.*' => 'nullable|string',
+
+        //     'products.category' => 'required|array|min:1',
+        //     'products.category.*' => 'required|exists:categories,id',
+
+        //     'products.brand' => 'required|array|min:1',
+        //     'products.brand.*' => 'required|exists:brands,id',
+
+        //     'products.sku' => 'required|array|min:1',
+        //     'products.sku.*' => 'required|string|max:100|distinct|unique:products,sku',
+
+        //     'products.barcode' => 'required|array|min:1',
+        //     'products.barcode.*' => 'required|string|max:100|distinct|unique:products,barcode',
+
+        //     'products.regular_price' => 'required|array|min:1',
+        //     'products.regular_price.*' => 'required|numeric|min:0',
+
+        //     'products.sale_price' => 'required|array|min:1',
+        //     'products.sale_price.*' => 'nullable|numeric|min:0',
+
+        //     'products.quantity' => 'required|array|min:1',
+        //     'products.quantity.*' => 'nullable|numeric|min:0',
+
+        //     'products.weight' => 'required|array|min:1',
+        //     'products.weight.*' => 'nullable|numeric',
+
+        //     'products.length' => 'required|array|min:1',
+        //     'products.length.*' => 'nullable|numeric',
+
+        //     'products.width' => 'required|array|min:1',
+        //     'products.width.*' => 'nullable|numeric',
+
+        //     'products.height' => 'required|array|min:1',
+        //     'products.height.*' => 'nullable|numeric',
+        // ]);
+
+        // dd($request->all());
+
+        $productsColumn = $request->products;
+
+        // Count number of products
+        $productCount = count($productsColumn['name']);
+
+        // Build row-based array
+        $products = [];
+
+        for ($i = 0; $i < $productCount; $i++) {
+            $products[] = [
+                'name' => $productsColumn['name'][$i] ?? null,
+                'description' => $productsColumn['description'][$i] ?? null,
+                'category' => $productsColumn['category'][$i] ?? null,
+                'brand' => $productsColumn['brand'][$i] ?? null,
+                'sku' => $productsColumn['sku'][$i] ?? null,
+                'barcode' => $productsColumn['barcode'][$i] ?? null,
+                'regular_price' => $productsColumn['regular_price'][$i] ?? null,
+                'sale_price' => $productsColumn['sale_price'][$i] ?? null,
+                'quantity' => $productsColumn['quantity'][$i] ?? null,
+                'weight' => $productsColumn['weight'][$i] ?? null,
+                'length' => $productsColumn['length'][$i] ?? null,
+                'width' => $productsColumn['width'][$i] ?? null,
+                'height' => $productsColumn['height'][$i] ?? null,
+                'rack' => $productsColumn['rack'][$i] ?? null,
+            ];
+        }
+
+        try {
+            DB::beginTransaction();
+
+            foreach ($products as $product) {
+                // dd($product);
+                $productExists = Product::where('sku', $product['sku'])
+                    ->where('barcode', $product['barcode'])
+                    ->first();
+                
+                if (!$productExists) {
+                    // Product creation logic here
+                    $productNew = new Product();
+                    $productNew->name = $product['name'];
+                    $productNew->sku = $product['sku'];
+                    $productNew->barcode = $product['barcode'];
+                    $productNew->category_id = $product['category'];
+                    $productNew->brand_id = $product['brand'];
+                    $productNew->description = $product['description'];
+                    if (empty($product['sale_price']) || $product['sale_price'] == 0) {
+                        $productNew->price = $product['regular_price'];
+                    } else {
+                        $productNew->price = $product['sale_price'];
+                    }
+                    $productNew->save();
+
+                    $productExists = $productNew;
+                } else {
+                    $productExists->name = $product['name'];
+                    $productExists->sku = $product['sku'];
+                    $productExists->barcode = $product['barcode'];
+                    $productExists->category_id = $product['category'];
+                    $productExists->brand_id = $product['brand'];
+                    $productExists->description = $product['description'];
+                    if (empty($product['sale_price']) || $product['sale_price'] == 0) {
+                        $productExists->price = $product['regular_price'];
+                    } else {
+                        $productExists->price = $product['sale_price'];
+                    }
+                    $productExists->save();
+                }
+
+                // Update product meta
+                foreach (['weight', 'length', 'width', 'height', 'regular_price', 'sale_price'] as $metaKey) {
+                    $metaValue = $product[$metaKey];
+                    $productExists->product_meta()->updateOrCreate(
+                        ['meta_key' => $metaKey],
+                        ['meta_value' => $metaValue]
+                    );
+                }
+
+                // Add stock using update with DB::raw or create
+                $productExists->product_stocks()
+                    ->where('product_id', $productExists->id)
+                    ->where('warehouse_id', $request->warehouse_id)
+                    ->where('rack_id', $product['rack'])
+                    ->update(['quantity' => DB::raw('quantity + ' . $product['quantity'])])
+                    ?: $productExists->product_stocks()->create([
+                        'product_id' => $productExists->id,
+                        'warehouse_id' => $request->warehouse_id,
+                        'rack_id' => $product['rack'],
+                        'quantity' => $product['quantity']
+                    ]);
+            }
+
+            DB::commit();
+
+            return redirect()->route('products.index')->with('success', 'Product imported successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Product creation failed', ['error' => $e->getMessage()]);
+            return redirect()->route('products.index')->with('error', 'An error occurred while importing the products: ' . $e->getMessage())->withInput();
         }
     }
 }

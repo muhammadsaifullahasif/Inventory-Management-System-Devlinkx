@@ -163,6 +163,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/warehouses/{warehouse}/racks', [RackController::class, 'getRacksByWarehouse'])->name('warehouses.racks');
 
     // Products
+    Route::get('/products/import', [ProductController::class, 'import_products'])->name('products.import');
+    Route::post('/products/import/preview', [ProductController::class, 'import_products_preview'])->name('products.import.preview');
+    Route::post('/products/import/store', [ProductController::class, 'import_products_store'])->name('products.import.store');
     Route::resource('/products', ProductController::class);
     Route::get('/products/search/{query}', [ProductController::class, 'search'])->name('products.search');
     Route::get('/products/print-barcode/{id}', [ProductController::class, 'printBarcode'])->name('products.print-barcode');

@@ -10,6 +10,7 @@
                     @can('add products')
                         <a href="{{ route('products.create') }}" class="btn btn-outline-primary btn-sm mb-3">Add Product</a>
                     @endcan
+                    <a href="{{ route('products.import') }}" class="btn btn-outline-success btn-sm mb-3">Products Import</a>
                     <a href="{{ route('products.barcode.bulk-form') }}" class="btn btn-outline-secondary btn-sm mb-3">Print Barcodes</a>
                 </div><!-- /.col -->
                 <div class="col-sm-6">

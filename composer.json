@@ -12,6 +12,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.10.1",
         "laravel/ui": "^4.6",
+        "maatwebsite/excel": "^3.1",
         "picqer/php-barcode-generator": "^3.2",
         "spatie/laravel-permission": "^6.24"
     },
