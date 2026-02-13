@@ -139,6 +139,7 @@ class EbayController extends Controller
             Log::info('Starting eBay sync listings (new products only)', ['sales_channel_id' => $salesChannel->id]);
 
             $result = $this->ebayService->getAllActiveListings($salesChannel);
+            Log::info('eBay listings', ['result' => $result]);
             $allItems = $result['items'];
             $totalFetched = count($allItems);
 
