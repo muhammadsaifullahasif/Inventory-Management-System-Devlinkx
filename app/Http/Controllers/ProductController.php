@@ -822,8 +822,8 @@ class ProductController extends Controller
                 'length' => $row['length'],
                 'width' => $row['width'],
                 'height' => $row['height'],
-                'category_id' => $row['category'],
-                'brand_id' => $row['brand'],
+                'category_id' => $row['category'] ?? '',
+                'brand_id' => $row['brand'] ?? '',
             ];
         }
 
