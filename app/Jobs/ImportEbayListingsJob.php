@@ -238,8 +238,13 @@ class ImportEbayListingsJob implements ShouldQueue
         Warehouse $warehouse,
         Rack $rack
     ): Product {
-        // Get or create category
-        $categoryName = $item['category']['name'] ?? 'Uncategorized';
+        // Get or create category - extract last segment from eBay category path
+        // eBay returns: "Home & Garden:Household Supplies & Cleaning:Trash Cans & Wastebaskets"
+        // We want: "Trash Cans & Wastebaskets"
+        $fullCategoryPath = $item['category']['name'] ?? 'Uncategorized';
+        $categoryParts = explode(':', $fullCategoryPath);
+        $categoryName = trim(end($categoryParts)) ?: 'Uncategorized';
+
         $category = Category::whereLike('name', '%' . $categoryName . '%')->first();
         if (!$category) {
             $category = Category::create([
