@@ -501,7 +501,7 @@ class ProductController extends Controller
             ]);
         }
 
-        // Process existing channels - Sync inventory only
+        // Process existing channels - Sync inventory, dimensions, and SKU (if changed)
         foreach ($channelsToUpdate as $channelId) {
             $channel = SalesChannel::find($channelId);
             if (!$channel || !$channel->isEbay()) {
@@ -531,8 +531,8 @@ class ProductController extends Controller
                     }
                 }
 
-                // Sync inventory to eBay
-                $result = $ebayController->syncInventory($channel, $externalId, $product);
+                // Sync product data to eBay (quantity, weight, dimensions, and SKU if changed)
+                $result = $ebayController->syncProductToEbay($channel, $externalId, $product, $skuChanged);
 
                 $product->sales_channels()->updateExistingPivot($channelId, [
                     'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
@@ -540,10 +540,11 @@ class ProductController extends Controller
                     'last_synced_at' => now(),
                 ]);
 
-                Log::info('Product inventory synced on sales channel', [
+                Log::info('Product synced on sales channel', [
                     'product_id' => $product->id,
                     'channel_id' => $channelId,
                     'ebay_item_id' => $externalId,
+                    'sku_changed' => $skuChanged,
                 ]);
 
             } catch (\Exception $e) {
@@ -553,7 +554,7 @@ class ProductController extends Controller
                     'last_synced_at' => now(),
                 ]);
 
-                Log::error('Failed to sync inventory on sales channel', [
+                Log::error('Failed to sync product on sales channel', [
                     'product_id' => $product->id,
                     'channel_id' => $channelId,
                     'error' => $e->getMessage(),

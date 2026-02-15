@@ -278,6 +278,37 @@ XML;
             $xml .= "\n                    <ConditionID>" . (int) $fields['condition_id'] . "</ConditionID>";
         }
 
+        // Shipping package details (weight and dimensions)
+        if (isset($fields['weight']) || isset($fields['length']) || isset($fields['width']) || isset($fields['height'])) {
+            $xml .= "\n                    <ShippingPackageDetails>";
+
+            if (isset($fields['weight']) && $fields['weight'] > 0) {
+                $weight = (float) $fields['weight'];
+                $weightMajor = floor($weight);
+                $weightMinor = round(($weight - $weightMajor) * 16); // Convert decimal lbs to ounces
+                $weightUnit = $fields['weight_unit'] ?? 'lbs';
+                $xml .= "\n                        <WeightMajor unit=\"{$weightUnit}\">{$weightMajor}</WeightMajor>";
+                $xml .= "\n                        <WeightMinor unit=\"oz\">{$weightMinor}</WeightMinor>";
+            }
+
+            if (isset($fields['length']) && $fields['length'] > 0) {
+                $dimensionUnit = $fields['dimension_unit'] ?? 'inches';
+                $xml .= "\n                        <PackageLength unit=\"{$dimensionUnit}\">" . (float) $fields['length'] . "</PackageLength>";
+            }
+
+            if (isset($fields['width']) && $fields['width'] > 0) {
+                $dimensionUnit = $fields['dimension_unit'] ?? 'inches';
+                $xml .= "\n                        <PackageWidth unit=\"{$dimensionUnit}\">" . (float) $fields['width'] . "</PackageWidth>";
+            }
+
+            if (isset($fields['height']) && $fields['height'] > 0) {
+                $dimensionUnit = $fields['dimension_unit'] ?? 'inches';
+                $xml .= "\n                        <PackageDepth unit=\"{$dimensionUnit}\">" . (float) $fields['height'] . "</PackageDepth>";
+            }
+
+            $xml .= "\n                    </ShippingPackageDetails>";
+        }
+
         $xml .= "\n                </Item>\n            </ReviseItemRequest>";
 
         return $xml;

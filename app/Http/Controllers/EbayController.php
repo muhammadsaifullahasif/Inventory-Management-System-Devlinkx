@@ -131,15 +131,22 @@ class EbayController extends Controller
     /**
      * Sync listings - Import only NEW products from eBay that don't exist in system
      */
+    /**
+     * Sync listings from eBay.
+     *
+     * For each eBay listing:
+     * - Match by SKU (if exists) OR ItemID
+     * - If product EXISTS locally: Push local stock/dimensions TO eBay
+     * - If product NOT found: Create new product from eBay data
+     */
     public function syncListings(string $id)
     {
         try {
             $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
 
-            Log::info('Starting eBay sync listings (new products only)', ['sales_channel_id' => $salesChannel->id]);
+            Log::info('Starting eBay sync listings', ['sales_channel_id' => $salesChannel->id]);
 
             $result = $this->ebayService->getAllActiveListings($salesChannel);
-            Log::info('eBay listings', ['result' => $result]);
             $allItems = $result['items'];
             $totalFetched = count($allItems);
 
@@ -147,50 +154,60 @@ class EbayController extends Controller
                 return redirect()->back()->with('info', 'No active listings found on eBay.');
             }
 
-            // Get all existing SKUs (item_ids) from products
-            $existingSkus = Product::whereIn('sku', array_column($allItems, 'item_id'))
-                ->pluck('sku')
-                ->toArray();
-
-            // Filter out existing products - only keep new ones
-            $newItems = array_filter($allItems, function ($item) use ($existingSkus) {
-                return !in_array($item['item_id'], $existingSkus);
-            });
-
-            $newItems = array_values($newItems);
-            $newListingsCount = count($newItems);
-            $skippedCount = $totalFetched - $newListingsCount;
-
-            Log::info('eBay Sync - Filtered Results', [
-                'total_fetched' => $totalFetched,
-                'new_listings' => $newListingsCount,
-                'skipped_existing' => $skippedCount,
-            ]);
-
-            if ($newListingsCount === 0) {
-                return redirect()->back()->with('info',
-                    "All {$totalFetched} eBay listings are already in your system. No new products to import."
-                );
+            // Collect all possible SKUs and ItemIDs for matching
+            $ebaySkus = [];
+            $ebayItemIds = [];
+            foreach ($allItems as $item) {
+                $ebayItemIds[] = $item['item_id'];
+                if (!empty($item['sku'])) {
+                    $ebaySkus[] = $item['sku'];
+                }
             }
+
+            // Find existing products by SKU OR ItemID
+            $existingProducts = Product::where(function ($query) use ($ebaySkus, $ebayItemIds) {
+                if (!empty($ebaySkus)) {
+                    $query->whereIn('sku', $ebaySkus);
+                }
+                $query->orWhereIn('sku', $ebayItemIds);
+            })->pluck('sku')->toArray();
+
+            $existingCount = 0;
+            $newCount = 0;
+            foreach ($allItems as $item) {
+                $ebaySku = !empty($item['sku']) ? $item['sku'] : $item['item_id'];
+                if (in_array($ebaySku, $existingProducts) || in_array($item['item_id'], $existingProducts)) {
+                    $existingCount++;
+                } else {
+                    $newCount++;
+                }
+            }
+
+            Log::info('eBay Sync - Analysis', [
+                'total_fetched' => $totalFetched,
+                'existing_products' => $existingCount,
+                'new_products' => $newCount,
+            ]);
 
             // Create import log
             $importLog = EbayImportLog::create([
                 'sales_channel_id' => $id,
-                'total_listings' => $newListingsCount,
+                'total_listings' => $totalFetched,
                 'total_batcheds' => 0,
                 'status' => 'pending',
                 'started_at' => now(),
             ]);
 
             Log::info('eBay Sync Listings - Dispatching to Queue', [
-                'total_new_listings' => $newListingsCount,
-                'skipped_existing' => $skippedCount,
+                'total_listings' => $totalFetched,
+                'existing_to_sync' => $existingCount,
+                'new_to_create' => $newCount,
                 'sales_channel_id' => $id,
                 'import_log_id' => $importLog->id,
             ]);
 
-            // Split items into batches and dispatch jobs
-            $batches = array_chunk($newItems, self::BATCH_SIZE);
+            // Split ALL items into batches (job handles existing vs new differently)
+            $batches = array_chunk($allItems, self::BATCH_SIZE);
             $totalBatches = count($batches);
 
             $importLog->update([
@@ -211,9 +228,10 @@ class EbayController extends Controller
             }
 
             return redirect()->back()->with('success',
-                "Found {$totalFetched} eBay listings. {$skippedCount} already in system (skipped). " .
-                "Importing {$newListingsCount} new products in {$totalBatches} batch(es). " .
-                "Import ID: {$importLog->id}"
+                "Found {$totalFetched} eBay listings. " .
+                "{$existingCount} existing products will be synced (local stock/dimensions → eBay). " .
+                "{$newCount} new products will be created. " .
+                "Processing in {$totalBatches} batch(es). Import ID: {$importLog->id}"
             );
 
         } catch (\Exception $e) {
@@ -1184,6 +1202,86 @@ class EbayController extends Controller
             return $result;
         } catch (Exception $e) {
             Log::error('Failed to sync inventory to eBay', [
+                'product_id' => $product->id,
+                'item_id' => $itemId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Sync product data to eBay (quantity, weight, dimensions, and optionally SKU).
+     *
+     * Used when updating a product locally with sales channel checkbox checked.
+     * Pushes: quantity, weight, length, width, height, and SKU (if changed).
+     */
+    public function syncProductToEbay(SalesChannel $channel, string $itemId, Product $product, bool $syncSku = false): array
+    {
+        try {
+            $channel = $this->client->ensureValidToken($channel);
+
+            // Calculate total quantity from product_stocks table
+            $totalQuantity = ProductStock::where('product_id', $product->id)
+                ->where('active_status', '1')
+                ->where('delete_status', '0')
+                ->sum(DB::raw('CAST(quantity AS UNSIGNED)'));
+
+            // Get product meta for dimensions
+            $meta = $product->product_meta->pluck('meta_value', 'meta_key')->toArray();
+
+            $fields = [
+                'quantity' => (int) $totalQuantity,
+            ];
+
+            // Add SKU if changed
+            if ($syncSku) {
+                $fields['sku'] = $product->sku;
+            }
+
+            // Add dimensions if available
+            if (!empty($meta['weight']) && $meta['weight'] > 0) {
+                $fields['weight'] = (float) $meta['weight'];
+                $fields['weight_unit'] = $meta['weight_unit'] ?? 'lbs';
+            }
+            if (!empty($meta['length']) && $meta['length'] > 0) {
+                $fields['length'] = (float) $meta['length'];
+            }
+            if (!empty($meta['width']) && $meta['width'] > 0) {
+                $fields['width'] = (float) $meta['width'];
+            }
+            if (!empty($meta['height']) && $meta['height'] > 0) {
+                $fields['height'] = (float) $meta['height'];
+            }
+            if (!empty($meta['dimension_unit'])) {
+                $fields['dimension_unit'] = $meta['dimension_unit'];
+            }
+
+            Log::info('Syncing product to eBay', [
+                'product_id' => $product->id,
+                'item_id' => $itemId,
+                'sku' => $product->sku,
+                'sync_sku' => $syncSku,
+                'fields' => $fields,
+                'channel_id' => $channel->id,
+            ]);
+
+            // Use reviseItem to update quantity, dimensions, and optionally SKU
+            $result = $this->ebayService->reviseItem($channel, $itemId, $fields);
+
+            Log::info('eBay product sync result', [
+                'product_id' => $product->id,
+                'item_id' => $itemId,
+                'result' => $result,
+            ]);
+
+            return $result;
+        } catch (Exception $e) {
+            Log::error('Failed to sync product to eBay', [
                 'product_id' => $product->id,
                 'item_id' => $itemId,
                 'error' => $e->getMessage(),
