@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use Exception;
+use Throwable;
 use App\Models\Rack;
 use App\Models\Product;
 use App\Models\Category;
@@ -387,7 +388,7 @@ class ImportEbayListingsJob implements ShouldQueue
         }
     }
 
-    public function failed(Exception $exception): void
+    public function failed(Throwable $exception): void
     {
         Log::error('eBay Import Job Failed', [
             'batch' => $this->batchNumber,
