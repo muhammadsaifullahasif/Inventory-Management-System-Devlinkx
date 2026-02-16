@@ -186,8 +186,8 @@ class ImportEbayListingsJob implements ShouldQueue
             ->where('delete_status', '0')
             ->sum(DB::raw('CAST(quantity AS UNSIGNED)'));
 
-        // Get dimensions from product meta
-        $meta = $product->product_meta->pluck('meta_value', 'meta_key')->toArray();
+        // Get dimensions from product meta (use query to avoid serialization issues in queue)
+        $meta = $product->product_meta()->pluck('meta_value', 'meta_key')->toArray();
 
         $fields = [
             'quantity' => (int) $totalQuantity,

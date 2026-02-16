@@ -12,7 +12,9 @@
       "Bash(composer require:*)",
       "Bash(composer dump-autoload:*)",
       "WebFetch(domain:developer.ebay.com)",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "Bash(Get-Content storage/logs/laravel.log -Tail 100)",
+      "Bash(Select-String -Pattern \"eBay|Error|error|Exception\" -Context 2,5)"
     ]
   }
 }
