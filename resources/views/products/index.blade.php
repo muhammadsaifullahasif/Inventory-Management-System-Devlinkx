@@ -12,6 +12,7 @@
                     @endcan
                     <a href="{{ route('products.import') }}" class="btn btn-outline-success btn-sm mb-3">Products Import</a>
                     <a href="{{ route('products.barcode.bulk-form') }}" class="btn btn-outline-secondary btn-sm mb-3">Print Barcodes</a>
+                    <a href="{{ route('products.bulk-update.form') }}" class="btn btn-outline-warning btn-sm mb-3">Bulk Update</a>
                 </div><!-- /.col -->
                 <div class="col-sm-6">
                     <ol class="breadcrumb float-sm-right">

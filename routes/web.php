@@ -173,6 +173,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/products/barcode/bulk', [ProductController::class, 'bulkPrintBarcodeForm'])->name('products.barcode.bulk-form');
     Route::post('/products/barcode/bulk', [ProductController::class, 'bulkPrintBarcode'])->name('products.barcode.bulk-print');
     Route::post('/products/{id}/update-stock', [ProductController::class, 'updateStock'])->name('products.update-stock');
+    Route::get('/products/bulk-update', [ProductController::class, 'bulkUpdateForm'])->name('products.bulk-update.form');
+    Route::post('/products/bulk-update', [ProductController::class, 'bulkUpdate'])->name('products.bulk-update');
 
     // Purchases
     Route::resource('/purchases', PurchaseController::class);

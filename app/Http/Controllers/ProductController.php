@@ -983,4 +983,162 @@ class ProductController extends Controller
             return redirect()->route('products.index')->with('error', 'An error occurred while importing the products: ' . $e->getMessage())->withInput();
         }
     }
+
+    /**
+     * Show bulk update form.
+     */
+    public function bulkUpdateForm(Request $request)
+    {
+        $query = Product::with(['category', 'brand'])->where('delete_status', '0');
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('sku', 'like', "%{$search}%")
+                  ->orWhere('barcode', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        if ($request->filled('brand_id')) {
+            $query->where('brand_id', $request->brand_id);
+        }
+
+        $products = $query->orderBy('name')->get();
+
+        // Eager-load meta as key-value per product
+        $productsMeta = [];
+        foreach ($products as $product) {
+            $productsMeta[$product->id] = $product->product_meta()
+                ->pluck('meta_value', 'meta_key')
+                ->toArray();
+        }
+
+        $categories = Category::orderBy('name')->get();
+        $brands     = Brand::orderBy('name')->get();
+
+        return view('products.bulk-update', compact('products', 'productsMeta', 'categories', 'brands'));
+    }
+
+    /**
+     * Save bulk update changes.
+     */
+    public function bulkUpdate(Request $request)
+    {
+        $request->validate([
+            'products'           => 'required|array|min:1',
+            'products.*.id'      => 'required|exists:products,id',
+            'products.*.sku'     => 'nullable|string|max:100',
+            'products.*.barcode' => 'nullable|string|max:100',
+            'products.*.weight'  => 'nullable|numeric|min:0',
+            'products.*.length'  => 'nullable|numeric|min:0',
+            'products.*.width'   => 'nullable|numeric|min:0',
+            'products.*.height'  => 'nullable|numeric|min:0',
+        ]);
+
+        $updated  = 0;
+        $skipped  = 0;
+        $errors   = [];
+
+        try {
+            DB::beginTransaction();
+
+            foreach ($request->products as $row) {
+                $product = Product::find($row['id']);
+                if (!$product) {
+                    $skipped++;
+                    continue;
+                }
+
+                $skuChanged = false;
+
+                // SKU — check uniqueness before saving
+                if (!empty($row['sku']) && $row['sku'] !== $product->sku) {
+                    $exists = Product::where('sku', $row['sku'])
+                        ->where('id', '!=', $product->id)
+                        ->exists();
+                    if ($exists) {
+                        $errors[] = "SKU \"{$row['sku']}\" already in use (product: {$product->name}).";
+                        $skipped++;
+                        continue;
+                    }
+                    $product->sku = $row['sku'];
+                    $skuChanged = true;
+                }
+
+                // Barcode — check uniqueness before saving
+                if (isset($row['barcode']) && $row['barcode'] !== $product->barcode) {
+                    if (!empty($row['barcode'])) {
+                        $exists = Product::where('barcode', $row['barcode'])
+                            ->where('id', '!=', $product->id)
+                            ->exists();
+                        if ($exists) {
+                            $errors[] = "Barcode \"{$row['barcode']}\" already in use (product: {$product->name}).";
+                            $skipped++;
+                            continue;
+                        }
+                    }
+                    $product->barcode = $row['barcode'] ?: null;
+                }
+
+                $product->save();
+
+                // Dimensions stored in product_meta
+                $metaKeys = ['weight', 'length', 'width', 'height'];
+                foreach ($metaKeys as $key) {
+                    if (array_key_exists($key, $row)) {
+                        $product->product_meta()->updateOrCreate(
+                            ['product_id' => $product->id, 'meta_key' => $key],
+                            ['meta_value' => $row[$key] !== '' ? $row[$key] : null]
+                        );
+                    }
+                }
+
+                // Push new SKU to all linked sales channels
+                if ($skuChanged) {
+                    $ebayController = app(EbayController::class);
+                    foreach ($product->activeSalesChannels as $channel) {
+                        $itemId = $channel->pivot->external_listing_id;
+                        if ($itemId) {
+                            try {
+                                $ebayController->syncProductToEbay($channel, $itemId, $product, true);
+                            } catch (\Throwable $e) {
+                                Log::warning('Bulk update: eBay SKU sync failed', [
+                                    'product_id' => $product->id,
+                                    'channel_id' => $channel->id,
+                                    'error'      => $e->getMessage(),
+                                ]);
+                            }
+                        }
+                    }
+                }
+
+                $updated++;
+            }
+
+            DB::commit();
+
+            $message = "{$updated} product(s) updated successfully.";
+            if ($skipped) {
+                $message .= " {$skipped} skipped.";
+            }
+            if (!empty($errors)) {
+                $message .= ' Issues: ' . implode(' ', $errors);
+            }
+
+            return redirect()->route('products.bulk-update.form')
+                ->with('success', $message);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Bulk product update failed', ['error' => $e->getMessage()]);
+            return redirect()->back()
+                ->with('error', 'An error occurred: ' . $e->getMessage())
+                ->withInput();
+        }
+    }
 }
