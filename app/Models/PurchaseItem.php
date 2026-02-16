@@ -13,6 +13,8 @@ class PurchaseItem extends Model
         'sku',
         'name',
         'quantity',
+        'previous_quantity',
+        'avg_cost',
         'price',
         'note',
         'rack_id',

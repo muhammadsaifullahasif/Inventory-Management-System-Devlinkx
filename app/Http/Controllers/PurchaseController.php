@@ -107,29 +107,57 @@ class PurchaseController extends Controller
             foreach ($request->products as $productInput) {
                 $product = Product::find($productInput['id']);
 
+                $incomingQty  = (float) $productInput['quantity'];
+                $purchasePrice = (float) $productInput['price'];
+                $warehouseId  = $request->warehouse_id;
+                $rackId       = $productInput['rack'];
+
+                // Snapshot current stock record BEFORE modifying it
+                $existingStock = $product->product_stocks()
+                    ->where('warehouse_id', $warehouseId)
+                    ->where('rack_id', $rackId)
+                    ->first();
+
+                $prevQty     = $existingStock ? (float) $existingStock->quantity : 0;
+                $prevAvgCost = $existingStock ? (float) $existingStock->avg_cost  : 0;
+
+                // Weighted average cost: (old_qty * old_avg + new_qty * purchase_price) / (old_qty + new_qty)
+                $newTotalQty = $prevQty + $incomingQty;
+                $newAvgCost  = $newTotalQty > 0
+                    ? (($prevQty * $prevAvgCost) + ($incomingQty * $purchasePrice)) / $newTotalQty
+                    : $purchasePrice;
+
                 $purchase->purchase_items()->create([
-                    'product_id' => $product->id,
-                    'barcode' => $product->barcode,
-                    'sku' => $product->sku,
-                    'name' => $product->name,
-                    'quantity' => $productInput['quantity'],
-                    'price' => $productInput['price'],
-                    'note' => $productInput['note'] ?? null,
-                    'rack_id' => $productInput['rack'],
+                    'product_id'        => $product->id,
+                    'barcode'           => $product->barcode,
+                    'sku'               => $product->sku,
+                    'name'              => $product->name,
+                    'quantity'          => $incomingQty,
+                    'previous_quantity' => $prevQty,
+                    'avg_cost'          => round($newAvgCost, 4),
+                    'price'             => $purchasePrice,
+                    'note'              => $productInput['note'] ?? null,
+                    'rack_id'           => $rackId,
                 ]);
 
-                // Add stock using update with DB::raw or create
-                $product->product_stocks()
-                    ->where('product_id', $product->id)
-                    ->where('warehouse_id', $request->warehouse_id)
-                    ->where('rack_id', $productInput['rack'])
-                    ->update(['quantity' => DB::raw('quantity + ' . $productInput['quantity'])])
-                    ?: $product->product_stocks()->create([
-                        'product_id' => $product->id,
-                        'warehouse_id' => $request->warehouse_id,
-                        'rack_id' => $productInput['rack'],
-                        'quantity' => $productInput['quantity']
+                // Add stock and persist previous_quantity + avg_cost
+                if ($existingStock) {
+                    $existingStock->previous_quantity = $prevQty;
+                    $existingStock->quantity          = $prevQty + $incomingQty;
+                    $existingStock->avg_cost          = round($newAvgCost, 4);
+                    $existingStock->save();
+                } else {
+                    $product->product_stocks()->create([
+                        'product_id'        => $product->id,
+                        'warehouse_id'      => $warehouseId,
+                        'rack_id'           => $rackId,
+                        'quantity'          => $incomingQty,
+                        'previous_quantity' => 0,
+                        'avg_cost'          => round($newAvgCost, 4),
+                        'active_status'     => '1',
+                        'delete_status'     => '0',
                     ]);
+                }
 
                 // Sync inventory to all linked sales channels
                 Log::info('Triggering inventory sync after purchase creation', [
@@ -211,80 +239,130 @@ class PurchaseController extends Controller
                     // Update existing purchase item
                     $purchaseItem = $purchase->purchase_items()->find($itemId);
                     if ($purchaseItem) {
-                        $oldQuantity = $purchaseItem->quantity;
-                        $oldRackId = $purchaseItem->rack_id;
+                        $oldQuantity    = (float) $purchaseItem->quantity;
+                        $oldRackId      = $purchaseItem->rack_id;
                         $oldWarehouseId = $oldPurchaseWarehouseId;
 
-                        $newQuantity = $productInput['quantity'];
-                        $newRackId = $productInput['rack'];
+                        $newQuantity    = (float) $productInput['quantity'];
+                        $newRackId      = $productInput['rack'];
                         $newWarehouseId = $request->warehouse_id;
+                        $purchasePrice  = (float) $productInput['price'];
 
-                        $purchaseItem->update([
-                            'product_id' => $product->id,
-                            'barcode' => $product->barcode,
-                            'sku' => $product->sku,
-                            'name' => $product->name,
-                            'quantity' => $newQuantity,
-                            'price' => $productInput['price'],
-                            'note' => $productInput['note'] ?? null,
-                            'rack_id' => $newRackId
-                        ]);
-
-                        // Step 1: Subtract old quantity from old location
+                        // Step 1: Subtract old quantity from old location and recalculate avg_cost
                         $oldStock = $product->product_stocks()
                             ->where('warehouse_id', $oldWarehouseId)
                             ->where('rack_id', $oldRackId)
                             ->first();
 
                         if ($oldStock) {
+                            $prevQtyOld = (float) $oldStock->quantity;
                             $oldStock->quantity -= $oldQuantity;
                             if ($oldStock->quantity <= 0) {
                                 $oldStock->delete();
+                                $oldStock = null;
                             } else {
+                                $oldStock->previous_quantity = $prevQtyOld;
                                 $oldStock->save();
                             }
                         }
 
-                        // Step 2: Add new quantity to new location
-                        $product->product_stocks()
-                            ->where('product_id', $product->id)
+                        // Step 2: Add new quantity to new location and recalculate avg_cost
+                        $newStock = $product->product_stocks()
                             ->where('warehouse_id', $newWarehouseId)
                             ->where('rack_id', $newRackId)
-                            ->update(['quantity' => DB::raw("quantity + $newQuantity")])
-                            ?: $product->product_stocks()->create([
-                                'product_id' => $product->id,
-                                'warehouse_id' => $newWarehouseId,
-                                'rack_id' => $newRackId,
-                                'quantity' => $newQuantity
+                            ->first();
+
+                        $prevQtyNew     = $newStock ? (float) $newStock->quantity : 0;
+                        $prevAvgCostNew = $newStock ? (float) $newStock->avg_cost  : 0;
+                        $newTotalQty    = $prevQtyNew + $newQuantity;
+                        $newAvgCost     = $newTotalQty > 0
+                            ? (($prevQtyNew * $prevAvgCostNew) + ($newQuantity * $purchasePrice)) / $newTotalQty
+                            : $purchasePrice;
+
+                        if ($newStock) {
+                            $newStock->previous_quantity = $prevQtyNew;
+                            $newStock->quantity          = $prevQtyNew + $newQuantity;
+                            $newStock->avg_cost          = round($newAvgCost, 4);
+                            $newStock->save();
+                        } else {
+                            $product->product_stocks()->create([
+                                'product_id'        => $product->id,
+                                'warehouse_id'      => $newWarehouseId,
+                                'rack_id'           => $newRackId,
+                                'quantity'          => $newQuantity,
+                                'previous_quantity' => 0,
+                                'avg_cost'          => round($newAvgCost, 4),
+                                'active_status'     => '1',
+                                'delete_status'     => '0',
                             ]);
+                        }
+
+                        $purchaseItem->update([
+                            'product_id'        => $product->id,
+                            'barcode'           => $product->barcode,
+                            'sku'               => $product->sku,
+                            'name'              => $product->name,
+                            'quantity'          => $newQuantity,
+                            'previous_quantity' => $prevQtyNew,
+                            'avg_cost'          => round($newAvgCost, 4),
+                            'price'             => $purchasePrice,
+                            'note'              => $productInput['note'] ?? null,
+                            'rack_id'           => $newRackId,
+                        ]);
 
                         $productsToSync[$product->id] = $product;
                         $existingItemIds[] = $itemId;
                     }
                 } else {
                     // Create new purchase item
+                    $incomingQty   = (float) $productInput['quantity'];
+                    $purchasePrice = (float) $productInput['price'];
+                    $warehouseId   = $request->warehouse_id;
+                    $rackId        = $productInput['rack'];
+
+                    $existingStock = $product->product_stocks()
+                        ->where('warehouse_id', $warehouseId)
+                        ->where('rack_id', $rackId)
+                        ->first();
+
+                    $prevQty     = $existingStock ? (float) $existingStock->quantity : 0;
+                    $prevAvgCost = $existingStock ? (float) $existingStock->avg_cost  : 0;
+
+                    $newTotalQty = $prevQty + $incomingQty;
+                    $newAvgCost  = $newTotalQty > 0
+                        ? (($prevQty * $prevAvgCost) + ($incomingQty * $purchasePrice)) / $newTotalQty
+                        : $purchasePrice;
+
                     $newItem = $purchase->purchase_items()->create([
-                        'product_id' => $product->id,
-                        'barcode' => $product->barcode,
-                        'sku' => $product->sku,
-                        'name' => $product->name,
-                        'quantity' => $productInput['quantity'],
-                        'price' => $productInput['price'],
-                        'note' => $productInput['note'] ?? null,
-                        'rack_id' => $productInput['rack']
+                        'product_id'        => $product->id,
+                        'barcode'           => $product->barcode,
+                        'sku'               => $product->sku,
+                        'name'              => $product->name,
+                        'quantity'          => $incomingQty,
+                        'previous_quantity' => $prevQty,
+                        'avg_cost'          => round($newAvgCost, 4),
+                        'price'             => $purchasePrice,
+                        'note'              => $productInput['note'] ?? null,
+                        'rack_id'           => $rackId,
                     ]);
 
-                    $product->product_stocks()
-                        ->where('product_id', $product->id)
-                        ->where('warehouse_id', $request->warehouse_id)
-                        ->where('rack_id', $productInput['rack'])
-                        ->update(['quantity' => DB::raw('quantity + ' . $productInput['quantity'])])
-                        ?: $product->product_stocks()->create([
-                            'product_id' => $product->id,
-                            'warehouse_id' => $request->warehouse_id,
-                            'rack_id' => $productInput['rack'],
-                            'quantity' => $productInput['quantity']
+                    if ($existingStock) {
+                        $existingStock->previous_quantity = $prevQty;
+                        $existingStock->quantity          = $prevQty + $incomingQty;
+                        $existingStock->avg_cost          = round($newAvgCost, 4);
+                        $existingStock->save();
+                    } else {
+                        $product->product_stocks()->create([
+                            'product_id'        => $product->id,
+                            'warehouse_id'      => $warehouseId,
+                            'rack_id'           => $rackId,
+                            'quantity'          => $incomingQty,
+                            'previous_quantity' => 0,
+                            'avg_cost'          => round($newAvgCost, 4),
+                            'active_status'     => '1',
+                            'delete_status'     => '0',
                         ]);
+                    }
 
                     $productsToSync[$product->id] = $product;
                     $existingItemIds[] = $newItem->id;

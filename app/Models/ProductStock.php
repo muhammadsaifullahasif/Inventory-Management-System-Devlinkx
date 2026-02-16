@@ -11,6 +11,8 @@ class ProductStock extends Model
         'warehouse_id',
         'rack_id',
         'quantity',
+        'previous_quantity',
+        'avg_cost',
         'active_status',
         'delete_status',
     ];
