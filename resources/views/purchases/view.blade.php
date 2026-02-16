@@ -54,8 +54,10 @@
                             <th>#</th>
                             <th>SKU</th>
                             <th>Name</th>
-                            <th>Quantity</th>
-                            <th>Price</th>
+                            <th>Qty Purchased</th>
+                            <th>Prev. Stock</th>
+                            <th>Unit Price</th>
+                            <th>Avg Cost</th>
                             <th>Note</th>
                             <th>Sub Total</th>
                             <th>Rack</th>
@@ -71,7 +73,17 @@
                                 </td>
                                 <td>{{ $item->name }} - {{ $item->barcode }}</td>
                                 <td><input type="text" name="quantity[]" value="{{ $item->quantity }}" class="form-control quantity" readonly></td>
+                                <td>
+                                    <span class="badge badge-secondary px-2 py-1" style="font-size:.9em;">
+                                        {{ number_format((float) $item->previous_quantity, 2) }}
+                                    </span>
+                                </td>
                                 <td><input type="text" name="price[]" value="{{ $item->price }}" class="form-control price" readonly></td>
+                                <td>
+                                    <span class="badge badge-info px-2 py-1" style="font-size:.9em;">
+                                        {{ number_format((float) $item->avg_cost, 4) }}
+                                    </span>
+                                </td>
                                 <td><input type="text" name="note[]" value="{{ $item->note }}" class="form-control note" readonly></td>
                                 <td><input type="text" name="subtotal[]" value="{{ ($item->price * $item->quantity) }}" class="form-control subtotal" readonly></td>
                                 <td>
@@ -87,12 +99,7 @@
                     </tbody>
                     <tfoot>
                         <tr>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td><strong>Total:</strong></td>
+                            <td colspan="8"><strong>Total:</strong></td>
                             <td><strong id="total"></strong></td>
                             <td></td>
                         </tr>
