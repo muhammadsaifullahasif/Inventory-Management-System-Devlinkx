@@ -166,6 +166,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/products/import', [ProductController::class, 'import_products'])->name('products.import');
     Route::post('/products/import/preview', [ProductController::class, 'import_products_preview'])->name('products.import.preview');
     Route::post('/products/import/store', [ProductController::class, 'import_products_store'])->name('products.import.store');
+    Route::get('/products/bulk-update', [ProductController::class, 'bulkUpdateForm'])->name('products.bulk-update.form');
+    Route::post('/products/bulk-update', [ProductController::class, 'bulkUpdate'])->name('products.bulk-update');
     Route::resource('/products', ProductController::class);
     Route::get('/products/search/{query}', [ProductController::class, 'search'])->name('products.search');
     Route::get('/products/print-barcode/{id}', [ProductController::class, 'printBarcode'])->name('products.print-barcode');
@@ -173,8 +175,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/products/barcode/bulk', [ProductController::class, 'bulkPrintBarcodeForm'])->name('products.barcode.bulk-form');
     Route::post('/products/barcode/bulk', [ProductController::class, 'bulkPrintBarcode'])->name('products.barcode.bulk-print');
     Route::post('/products/{id}/update-stock', [ProductController::class, 'updateStock'])->name('products.update-stock');
-    Route::get('/products/bulk-update', [ProductController::class, 'bulkUpdateForm'])->name('products.bulk-update.form');
-    Route::post('/products/bulk-update', [ProductController::class, 'bulkUpdate'])->name('products.bulk-update');
 
     // Purchases
     Route::resource('/purchases', PurchaseController::class);
