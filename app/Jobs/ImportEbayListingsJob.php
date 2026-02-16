@@ -313,8 +313,8 @@ class ImportEbayListingsJob implements ShouldQueue
             'warehouse_id' => $warehouse->id,
             'rack_id' => $rack->id,
             'quantity' => $quantity,
-            'active_status' => 1,
-            'delete_status' => 0,
+            'active_status' => '1',
+            'delete_status' => '0',
         ]);
 
         return $product;
