@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\OrderItem;
 use App\Models\OrderMeta;
+use App\Models\Shipping;
 use App\Models\SalesChannel;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -82,6 +83,13 @@ class OrderController extends Controller
         // Get sales channels for filter dropdown
         $salesChannels = SalesChannel::all();
 
+        // Get active carriers for the ship modal
+        $shippingCarriers = Shipping::where('active_status', '1')
+            ->where('delete_status', '0')
+            ->orderBy('is_default', 'desc')
+            ->orderBy('name')
+            ->get(['id', 'name', 'type', 'is_default']);
+
         // Return JSON if requested via API
         if ($request->wantsJson()) {
             return response()->json([
@@ -90,7 +98,7 @@ class OrderController extends Controller
             ]);
         }
 
-        return view('orders.index', compact('orders', 'salesChannels'));
+        return view('orders.index', compact('orders', 'salesChannels', 'shippingCarriers'));
     }
 
     /**
@@ -205,7 +213,7 @@ class OrderController extends Controller
      */
     public function show(Request $request, string $id)
     {
-        $order = Order::with(['items.product', 'metas', 'salesChannel'])->find($id);
+        $order = Order::with(['items.product.product_meta', 'metas', 'salesChannel'])->find($id);
 
         if (!$order) {
             if ($request->wantsJson()) {
@@ -231,7 +239,13 @@ class OrderController extends Controller
             ]);
         }
 
-        return view('orders.show', compact('order', 'metaData'));
+        $shippingCarriers = Shipping::where('active_status', '1')
+            ->where('delete_status', '0')
+            ->orderBy('is_default', 'desc')
+            ->orderBy('name')
+            ->get(['id', 'name', 'type', 'is_default']);
+
+        return view('orders.show', compact('order', 'metaData', 'shippingCarriers'));
     }
 
     /**
@@ -356,6 +370,69 @@ class OrderController extends Controller
             'success' => true,
             'data' => $order,
         ]);
+    }
+
+    /**
+     * Return order items with product dimensions for the rate-quote modal.
+     * Used by the orders/index ship modal to populate the items table via AJAX.
+     */
+    public function rateInfo(string $id): JsonResponse
+    {
+        $order = Order::with(['items.product.product_meta'])->findOrFail($id);
+
+        $items = $order->items->map(function ($item) {
+            $meta = $item->product?->product_meta ?? [];
+            return [
+                'order_item_id' => $item->id,
+                'title'         => $item->title,
+                'sku'           => $item->sku ?? 'N/A',
+                'quantity'      => (int) $item->quantity,
+                'weight'        => (float) ($meta['weight'] ?? 0),
+                'length'        => (float) ($meta['length'] ?? 0),
+                'width'         => (float) ($meta['width']  ?? 0),
+                'height'        => (float) ($meta['height'] ?? 0),
+            ];
+        });
+
+        return response()->json(['success' => true, 'items' => $items]);
+    }
+
+    /**
+     * Get estimated shipping rates for an order from a specific carrier.
+     * Does NOT create a shipment — read-only cost estimate only.
+     */
+    public function getShippingRates(Request $request): JsonResponse
+    {
+        $request->validate([
+            'order_id'                  => 'required|integer|exists:orders,id',
+            'carrier_id'                => 'required|integer|exists:shippings,id',
+            'items'                     => 'nullable|array',
+            'items.*.order_item_id'     => 'nullable|integer',
+            'items.*.weight'            => 'nullable|numeric|min:0',
+            'items.*.length'            => 'nullable|numeric|min:0',
+            'items.*.width'             => 'nullable|numeric|min:0',
+            'items.*.height'            => 'nullable|numeric|min:0',
+        ]);
+
+        $order        = Order::with(['items.product.product_meta'])->findOrFail($request->order_id);
+        $carrier      = Shipping::findOrFail($request->carrier_id);
+        $itemOverrides = $request->input('items', []);
+
+        try {
+            $rates = $this->shippingService->getRatesForOrder($order, $carrier, $itemOverrides);
+
+            return response()->json([
+                'success' => true,
+                'rates'   => $rates,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('getShippingRates failed', ['order_id' => $request->order_id, 'error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     /**

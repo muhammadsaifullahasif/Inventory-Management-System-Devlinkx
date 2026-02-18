@@ -138,4 +138,167 @@ class ShippingService
         Shipping::where('id', '!=', $carrierId)->update(['is_default' => false]);
         Shipping::where('id', $carrierId)->update(['is_default' => true]);
     }
+
+    // -------------------------------------------------------------------------
+    // Rate Quoting
+    // -------------------------------------------------------------------------
+
+    /**
+     * Get estimated shipping rates for an order from a specific carrier.
+     * Returns an array of rate options: [['service' => ..., 'amount' => ..., 'currency' => ..., 'transit_days' => ...], ...]
+     *
+     * @throws \RuntimeException if the carrier type is unsupported or token is unavailable
+     */
+    public function getRatesForOrder(Order $order, Shipping $carrier, array $itemOverrides = []): array
+    {
+        $service = $this->resolveCarrierService($carrier);
+
+        if (!$service) {
+            throw new \RuntimeException("Carrier type '{$carrier->type}' is not supported for rate quotes.");
+        }
+
+        // Build a lookup map from user-supplied overrides keyed by order_item_id
+        $overrideMap = [];
+        foreach ($itemOverrides as $override) {
+            if (!empty($override['order_item_id'])) {
+                $overrideMap[(int) $override['order_item_id']] = $override;
+            }
+        }
+
+        // Build package weight/dimensions from order items
+        $totalWeight = 0.0;
+        $maxLength   = 0.0;
+        $maxWidth    = 0.0;
+        $maxHeight   = 0.0;
+
+        foreach ($order->items as $item) {
+            $qty      = (int) ($item->quantity ?? 1);
+            $override = $overrideMap[$item->id] ?? null;
+
+            if ($override) {
+                // Use user-supplied values (may be 0 if field was left blank — fall back below)
+                $weight = (float) ($override['weight'] ?? 0);
+                $length = (float) ($override['length'] ?? 0);
+                $width  = (float) ($override['width']  ?? 0);
+                $height = (float) ($override['height'] ?? 0);
+            } else {
+                $product = $item->product;
+                $meta    = $product?->product_meta ?? [];
+                $weight  = (float) ($meta['weight'] ?? $product?->weight ?? 0);
+                $length  = (float) ($meta['length'] ?? $product?->length ?? 0);
+                $width   = (float) ($meta['width']  ?? $product?->width  ?? 0);
+                $height  = (float) ($meta['height'] ?? $product?->height ?? 0);
+            }
+
+            $totalWeight += $weight * $qty;
+            $maxLength    = max($maxLength, $length);
+            $maxWidth     = max($maxWidth,  $width);
+            $maxHeight    = max($maxHeight, $height);
+        }
+
+        // Fallback to 1 lb / 12×12×12 if no product dimensions are set
+        if ($totalWeight <= 0) {
+            $totalWeight = 1.0;
+        }
+        if ($maxLength <= 0) { $maxLength = 12.0; }
+        if ($maxWidth  <= 0) { $maxWidth  = 12.0; }
+        if ($maxHeight <= 0) { $maxHeight = 12.0; }
+
+        $weightUnit    = $carrier->weight_unit    ?? 'lbs';
+        $dimensionUnit = $carrier->dimension_unit ?? 'inches';
+
+        $shipmentDetails = [
+            'accountNumber'       => ['value' => $carrier->account_number ?? ''],
+            'requestedShipment'   => [
+                'shipper' => [
+                    'address' => [
+                        'postalCode'  => config('shipping.shipper_postal_code', '10001'),
+                        'countryCode' => config('shipping.shipper_country',     'US'),
+                    ],
+                ],
+                'recipient' => [
+                    'address' => [
+                        'streetLines'         => array_values(array_filter([
+                            $order->shipping_address_line1 ?? '',
+                            $order->shipping_address_line2 ?? null,
+                        ])),
+                        'city'                => $order->shipping_city          ?? '',
+                        'stateOrProvinceCode' => $order->shipping_state         ?? '',
+                        'postalCode'          => $order->shipping_postal_code   ?? '',
+                        'countryCode'         => $order->shipping_country       ?? 'US',
+                        'residential'         => in_array($order->address_type, ['RESIDENTIAL', 'MIXED']),
+                    ],
+                ],
+                'pickupType'               => 'USE_SCHEDULED_PICKUP',
+                'rateRequestType'          => ['ACCOUNT', 'LIST'],
+                'requestedPackageLineItems' => [[
+                    'weight' => [
+                        'units' => strtoupper($weightUnit),
+                        'value' => round($totalWeight, 2),
+                    ],
+                    'dimensions' => [
+                        'length' => (int) ceil($maxLength),
+                        'width'  => (int) ceil($maxWidth),
+                        'height' => (int) ceil($maxHeight),
+                        'units'  => strtoupper($dimensionUnit) === 'CM' ? 'CM' : 'IN',
+                    ],
+                ]],
+            ],
+        ];
+
+        $rawRates = $service->getRates($shipmentDetails);
+
+        return $this->normalizeRates($rawRates, $carrier->type);
+    }
+
+    /**
+     * Normalize carrier-specific rate responses into a uniform structure.
+     */
+    protected function normalizeRates(array $rawRates, string $carrierType): array
+    {
+        $normalized = [];
+
+        if (strtolower($carrierType) === 'fedex') {
+            foreach ($rawRates as $rate) {
+                $serviceType  = $rate['serviceType']  ?? 'UNKNOWN';
+                $serviceName  = $rate['serviceName']  ?? ucwords(strtolower(str_replace('_', ' ', $serviceType)));
+                $ratedShipmentDetails = $rate['ratedShipmentDetails'] ?? [];
+                $amount   = null;
+                $currency = 'USD';
+
+                // Prefer ACCOUNT rate; fall back to LIST
+                foreach ($ratedShipmentDetails as $detail) {
+                    if (($detail['rateType'] ?? '') === 'ACCOUNT') {
+                        $amount   = $detail['totalNetCharge']   ?? $detail['totalNetFedExCharge'] ?? null;
+                        $currency = $detail['currency'] ?? 'USD';
+                        break;
+                    }
+                }
+                if ($amount === null && !empty($ratedShipmentDetails)) {
+                    $first    = $ratedShipmentDetails[0];
+                    $amount   = $first['totalNetCharge'] ?? $first['totalNetFedExCharge'] ?? null;
+                    $currency = $first['currency'] ?? 'USD';
+                }
+
+                $transitDays = $rate['transitTime'] ?? null;
+                if ($transitDays === null) {
+                    $commitDetails = $rate['operationalDetail']['commitDays'] ?? null;
+                    $transitDays   = $commitDetails;
+                }
+
+                $normalized[] = [
+                    'service_code'  => $serviceType,
+                    'service_name'  => $serviceName,
+                    'amount'        => $amount !== null ? (float) $amount : null,
+                    'currency'      => $currency,
+                    'transit_days'  => $transitDays,
+                ];
+            }
+        }
+
+        // Sort cheapest first
+        usort($normalized, fn($a, $b) => ($a['amount'] ?? PHP_INT_MAX) <=> ($b['amount'] ?? PHP_INT_MAX));
+
+        return $normalized;
+    }
 }
