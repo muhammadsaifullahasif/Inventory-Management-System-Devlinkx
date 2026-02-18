@@ -296,9 +296,9 @@
                                                 <th>Item</th>
                                                 <th class="text-center" style="width:40px;">Qty</th>
                                                 <th class="text-center" style="width:75px;">Weight</th>
-                                                <th class="text-center" style="width:65px;">L</th>
-                                                <th class="text-center" style="width:65px;">W</th>
-                                                <th class="text-center" style="width:65px;">H</th>
+                                                <th class="text-center" style="width:75px;">L</th>
+                                                <th class="text-center" style="width:75px;">W</th>
+                                                <th class="text-center" style="width:75px;">H</th>
                                             </tr>
                                         </thead>
                                         <tbody id="itemsDimTbody"></tbody>

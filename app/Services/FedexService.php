@@ -154,7 +154,11 @@ class FedexService
                 ->post("{$endpoint}/rate/v1/rates/quotes", $shipmentDetails);
 
             if (!$response->successful()) {
-                Log::warning('FedEx: getRates failed', ['status' => $response->status()]);
+                Log::warning('FedEx: getRates failed', [
+                    'status'  => $response->status(),
+                    'body'    => $response->body(),
+                    'payload' => $shipmentDetails,
+                ]);
                 return [];
             }
 

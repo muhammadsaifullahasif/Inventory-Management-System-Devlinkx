@@ -207,6 +207,10 @@ class ShippingService
         $weightUnit    = $carrier->weight_unit    ?? 'lbs';
         $dimensionUnit = $carrier->dimension_unit ?? 'inches';
 
+        // FedEx accepts only 'LB' or 'KG' — not 'LBS', 'KGS', etc.
+        $fedexWeightUnit = in_array(strtolower($weightUnit), ['kg', 'kgs', 'kilogram', 'kilograms']) ? 'KG' : 'LB';
+        $fedexDimUnit    = strtolower($dimensionUnit) === 'cm' ? 'CM' : 'IN';
+
         $shipmentDetails = [
             'accountNumber'       => ['value' => $carrier->account_number ?? ''],
             'requestedShipment'   => [
@@ -232,15 +236,16 @@ class ShippingService
                 'pickupType'               => 'USE_SCHEDULED_PICKUP',
                 'rateRequestType'          => ['ACCOUNT', 'LIST'],
                 'requestedPackageLineItems' => [[
+                    'packageCount' => 1,
                     'weight' => [
-                        'units' => strtoupper($weightUnit),
+                        'units' => $fedexWeightUnit,
                         'value' => round($totalWeight, 2),
                     ],
                     'dimensions' => [
                         'length' => (int) ceil($maxLength),
                         'width'  => (int) ceil($maxWidth),
                         'height' => (int) ceil($maxHeight),
-                        'units'  => strtoupper($dimensionUnit) === 'CM' ? 'CM' : 'IN',
+                        'units'  => $fedexDimUnit,
                     ],
                 ]],
             ],
