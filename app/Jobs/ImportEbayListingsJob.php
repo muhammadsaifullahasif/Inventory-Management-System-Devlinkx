@@ -190,26 +190,14 @@ class ImportEbayListingsJob implements ShouldQueue
         $meta = $product->product_meta()->pluck('meta_value', 'meta_key')->toArray();
 
         $fields = [
-            'quantity' => (int) $totalQuantity,
+            'quantity'       => (int) $totalQuantity,
+            'weight'         => (float) ($meta['weight'] ?? 0),
+            'weight_unit'    => $meta['weight_unit'] ?? 'lbs',
+            'length'         => (float) ($meta['length'] ?? 0),
+            'width'          => (float) ($meta['width'] ?? 0),
+            'height'         => (float) ($meta['height'] ?? 0),
+            'dimension_unit' => $meta['dimension_unit'] ?? 'inches',
         ];
-
-        // Add dimensions if available
-        if (!empty($meta['weight'])) {
-            $fields['weight'] = (float) $meta['weight'];
-            $fields['weight_unit'] = $meta['weight_unit'] ?? 'lbs';
-        }
-        if (!empty($meta['length'])) {
-            $fields['length'] = (float) $meta['length'];
-        }
-        if (!empty($meta['width'])) {
-            $fields['width'] = (float) $meta['width'];
-        }
-        if (!empty($meta['height'])) {
-            $fields['height'] = (float) $meta['height'];
-        }
-        if (!empty($meta['dimension_unit'])) {
-            $fields['dimension_unit'] = $meta['dimension_unit'];
-        }
 
         // Push to eBay using ReviseItem (supports quantity + dimensions)
         $result = $ebayService->reviseItem($salesChannel, $itemId, $fields);

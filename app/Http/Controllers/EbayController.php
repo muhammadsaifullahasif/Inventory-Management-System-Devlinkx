@@ -1231,34 +1231,22 @@ class EbayController extends Controller
                 ->where('delete_status', '0')
                 ->sum(DB::raw('CAST(quantity AS UNSIGNED)'));
 
-            // Get product meta for dimensions
-            $meta = $product->product_meta->pluck('meta_value', 'meta_key')->toArray();
+            // Get product meta for dimensions (use query to avoid serialization issues)
+            $meta = $product->product_meta()->pluck('meta_value', 'meta_key')->toArray();
 
             $fields = [
-                'quantity' => (int) $totalQuantity,
+                'quantity'       => (int) $totalQuantity,
+                'weight'         => (float) ($meta['weight'] ?? 0),
+                'weight_unit'    => $meta['weight_unit'] ?? 'lbs',
+                'length'         => (float) ($meta['length'] ?? 0),
+                'width'          => (float) ($meta['width'] ?? 0),
+                'height'         => (float) ($meta['height'] ?? 0),
+                'dimension_unit' => $meta['dimension_unit'] ?? 'inches',
             ];
 
             // Add SKU if changed
             if ($syncSku) {
                 $fields['sku'] = $product->sku;
-            }
-
-            // Add dimensions if available
-            if (!empty($meta['weight']) && $meta['weight'] > 0) {
-                $fields['weight'] = (float) $meta['weight'];
-                $fields['weight_unit'] = $meta['weight_unit'] ?? 'lbs';
-            }
-            if (!empty($meta['length']) && $meta['length'] > 0) {
-                $fields['length'] = (float) $meta['length'];
-            }
-            if (!empty($meta['width']) && $meta['width'] > 0) {
-                $fields['width'] = (float) $meta['width'];
-            }
-            if (!empty($meta['height']) && $meta['height'] > 0) {
-                $fields['height'] = (float) $meta['height'];
-            }
-            if (!empty($meta['dimension_unit'])) {
-                $fields['dimension_unit'] = $meta['dimension_unit'];
             }
 
             Log::info('Syncing product to eBay', [
