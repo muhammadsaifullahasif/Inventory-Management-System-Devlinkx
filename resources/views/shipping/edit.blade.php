@@ -58,6 +58,38 @@
         </div>
 
         <hr>
+        <h6 class="font-weight-bold mb-3">Shipper Address <small class="text-muted font-weight-normal">(Ship From)</small></h6>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label>Company / Sender Name</label>
+                <input type="text" name="shipper_name" value="{{ old('shipper_name', $shipping->shipper_name) }}" class="form-control" placeholder="e.g. My Store LLC">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label>Street Address</label>
+                <input type="text" name="shipper_address" value="{{ old('shipper_address', $shipping->shipper_address) }}" class="form-control" placeholder="123 Warehouse Blvd">
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <label>City</label>
+                <input type="text" name="shipper_city" value="{{ old('shipper_city', $shipping->shipper_city) }}" class="form-control" placeholder="City">
+            </div>
+            <div class="col-md-2 mb-3">
+                <label>State</label>
+                <input type="text" name="shipper_state" value="{{ old('shipper_state', $shipping->shipper_state) }}" class="form-control" placeholder="TX" maxlength="2">
+            </div>
+            <div class="col-md-3 mb-3">
+                <label>Postal Code</label>
+                <input type="text" name="shipper_postal_code" value="{{ old('shipper_postal_code', $shipping->shipper_postal_code) }}" class="form-control" placeholder="77477">
+            </div>
+            <div class="col-md-3 mb-3">
+                <label>Country</label>
+                <input type="text" name="shipper_country" value="{{ old('shipper_country', $shipping->shipper_country ?? 'US') }}" class="form-control" placeholder="US" maxlength="2">
+            </div>
+        </div>
+
+        <hr>
         <h6 class="font-weight-bold mb-3">API Credentials</h6>
         <p class="text-muted small">Leave blank to keep existing credentials.</p>
 

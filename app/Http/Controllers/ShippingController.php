@@ -21,7 +21,7 @@ class ShippingController extends Controller
     }
     public function store(Request $request)
     {
-        $request->validate(["name"=>"required|string|max:255","type"=>"required|string|max:100","account_number"=>"nullable|string|max:255","api_endpoint"=>"nullable|url|max:500","sandbox_endpoint"=>"nullable|url|max:500","tracking_url"=>"nullable|url|max:500","default_service"=>"nullable|string|max:255","weight_unit"=>"required|in:lbs,kg,oz,g","dimension_unit"=>"required|in:inches,cm","client_id"=>"nullable|string|max:500","client_secret"=>"nullable|string|max:500"]);
+        $request->validate(["name"=>"required|string|max:255","type"=>"required|string|max:100","account_number"=>"nullable|string|max:255","api_endpoint"=>"nullable|url|max:500","sandbox_endpoint"=>"nullable|url|max:500","tracking_url"=>"nullable|url|max:500","default_service"=>"nullable|string|max:255","weight_unit"=>"required|in:lbs,kg,oz,g","dimension_unit"=>"required|in:inches,cm","client_id"=>"nullable|string|max:500","client_secret"=>"nullable|string|max:500","shipper_name"=>"nullable|string|max:255","shipper_address"=>"nullable|string|max:255","shipper_city"=>"nullable|string|max:100","shipper_state"=>"nullable|string|max:2","shipper_postal_code"=>"nullable|string|max:20","shipper_country"=>"nullable|string|max:2"]);
         $isDefault = $request->boolean("is_default");
         $isAV = $request->boolean("is_address_validation");
         if ($isDefault) { Shipping::where("delete_status","0")->update(["is_default"=>false]); }
@@ -30,7 +30,7 @@ class ShippingController extends Controller
         if ($request->filled("client_id") || $request->filled("client_secret")) {
             $creds = ["client_id"=>$request->input("client_id",""),"client_secret"=>$request->input("client_secret","")];
         }
-        Shipping::create(["name"=>$request->name,"type"=>$request->type,"account_number"=>$request->account_number,"api_endpoint"=>$request->api_endpoint,"sandbox_endpoint"=>$request->sandbox_endpoint,"tracking_url"=>$request->tracking_url,"default_service"=>$request->default_service,"weight_unit"=>$request->weight_unit,"dimension_unit"=>$request->dimension_unit,"is_sandbox"=>$request->boolean("is_sandbox"),"is_default"=>$isDefault,"is_address_validation"=>$isAV,"credentials"=>$creds,"status"=>"active","active_status"=>"1","delete_status"=>"0"]);
+        Shipping::create(["name"=>$request->name,"type"=>$request->type,"account_number"=>$request->account_number,"api_endpoint"=>$request->api_endpoint,"sandbox_endpoint"=>$request->sandbox_endpoint,"tracking_url"=>$request->tracking_url,"default_service"=>$request->default_service,"weight_unit"=>$request->weight_unit,"dimension_unit"=>$request->dimension_unit,"shipper_name"=>$request->shipper_name,"shipper_address"=>$request->shipper_address,"shipper_city"=>$request->shipper_city,"shipper_state"=>$request->shipper_state ? strtoupper($request->shipper_state) : null,"shipper_postal_code"=>$request->shipper_postal_code,"shipper_country"=>$request->shipper_country ? strtoupper($request->shipper_country) : 'US',"is_sandbox"=>$request->boolean("is_sandbox"),"is_default"=>$isDefault,"is_address_validation"=>$isAV,"credentials"=>$creds,"status"=>"active","active_status"=>"1","delete_status"=>"0"]);
         return redirect()->route("shipping.index")->with("success","Shipping carrier added successfully.");
     }
     public function show(string $id)
@@ -46,16 +46,16 @@ class ShippingController extends Controller
     public function update(Request $request, string $id)
     {
         $shipping = Shipping::where("id",$id)->where("delete_status","0")->firstOrFail();
-        $request->validate(["name"=>"required|string|max:255","type"=>"required|string|max:100","account_number"=>"nullable|string|max:255","api_endpoint"=>"nullable|url|max:500","sandbox_endpoint"=>"nullable|url|max:500","tracking_url"=>"nullable|url|max:500","default_service"=>"nullable|string|max:255","weight_unit"=>"required|in:lbs,kg,oz,g","dimension_unit"=>"required|in:inches,cm","client_id"=>"nullable|string|max:500","client_secret"=>"nullable|string|max:500"]);
+        $request->validate(["name"=>"required|string|max:255","type"=>"required|string|max:100","account_number"=>"nullable|string|max:255","api_endpoint"=>"nullable|url|max:500","sandbox_endpoint"=>"nullable|url|max:500","tracking_url"=>"nullable|url|max:500","default_service"=>"nullable|string|max:255","weight_unit"=>"required|in:lbs,kg,oz,g","dimension_unit"=>"required|in:inches,cm","client_id"=>"nullable|string|max:500","client_secret"=>"nullable|string|max:500","shipper_name"=>"nullable|string|max:255","shipper_address"=>"nullable|string|max:255","shipper_city"=>"nullable|string|max:100","shipper_state"=>"nullable|string|max:2","shipper_postal_code"=>"nullable|string|max:20","shipper_country"=>"nullable|string|max:2"]);
         $isDefault = $request->boolean("is_default");
         $isAV = $request->boolean("is_address_validation");
-        if ($isDefault) { Shipping::where("id","\!=",$id)->where("delete_status","0")->update(["is_default"=>false]); }
-        if ($isAV) { Shipping::where("id","\!=",$id)->where("delete_status","0")->update(["is_address_validation"=>false]); }
+        if ($isDefault) { Shipping::where("id","!=",$id)->where("delete_status","0")->update(["is_default"=>false]); }
+        if ($isAV) { Shipping::where("id","!=",$id)->where("delete_status","0")->update(["is_address_validation"=>false]); }
         $ec = $shipping->credentials ?? [];
         if ($request->filled("client_id") || $request->filled("client_secret")) {
             $creds = ["client_id"=>$request->input("client_id",$ec["client_id"]??""),"client_secret"=>$request->input("client_secret",$ec["client_secret"]??"")];
         } else { $creds = $ec ?: null; }
-        $shipping->update(["name"=>$request->name,"type"=>$request->type,"account_number"=>$request->account_number,"api_endpoint"=>$request->api_endpoint,"sandbox_endpoint"=>$request->sandbox_endpoint,"tracking_url"=>$request->tracking_url,"default_service"=>$request->default_service,"weight_unit"=>$request->weight_unit,"dimension_unit"=>$request->dimension_unit,"is_sandbox"=>$request->boolean("is_sandbox"),"is_default"=>$isDefault,"is_address_validation"=>$isAV,"credentials"=>$creds]);
+        $shipping->update(["name"=>$request->name,"type"=>$request->type,"account_number"=>$request->account_number,"api_endpoint"=>$request->api_endpoint,"sandbox_endpoint"=>$request->sandbox_endpoint,"tracking_url"=>$request->tracking_url,"default_service"=>$request->default_service,"weight_unit"=>$request->weight_unit,"dimension_unit"=>$request->dimension_unit,"shipper_name"=>$request->shipper_name,"shipper_address"=>$request->shipper_address,"shipper_city"=>$request->shipper_city,"shipper_state"=>$request->shipper_state ? strtoupper($request->shipper_state) : null,"shipper_postal_code"=>$request->shipper_postal_code,"shipper_country"=>$request->shipper_country ? strtoupper($request->shipper_country) : 'US',"is_sandbox"=>$request->boolean("is_sandbox"),"is_default"=>$isDefault,"is_address_validation"=>$isAV,"credentials"=>$creds]);
         return redirect()->route("shipping.index")->with("success","Shipping carrier updated successfully.");
     }
     public function destroy(string $id)

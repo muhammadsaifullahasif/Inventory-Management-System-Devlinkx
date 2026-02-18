@@ -406,7 +406,7 @@
 
     <!-- Ship Order Modal -->
     <div class="modal fade" id="shipModal" tabindex="-1" role="dialog" aria-labelledby="showShipModalLabel">
-        <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-dialog modal-xl" role="document">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="showShipModalLabel">Ship Order &mdash; {{ $order->order_number }}</h5>
@@ -523,8 +523,15 @@
                             <h6 class="card-title mb-0"><i class="fas fa-dollar-sign mr-1"></i> Get Shipping Rates</h6>
                         </div>
                         <div class="card-body py-2">
+
+                            <!-- Shipper info (shown after rates are fetched) -->
+                            <div id="showShipperInfo" class="alert alert-light py-2 small mb-2" style="display:none;">
+                                <i class="fas fa-warehouse mr-1 text-muted"></i>
+                                <strong>Ship From:</strong> <span id="showShipperAddress"></span>
+                            </div>
+
                             <div class="form-row align-items-end">
-                                <div class="col-md-8">
+                                <div class="col-md-6">
                                     <label class="small mb-1">Carrier</label>
                                     <select id="showRateCarrierId" class="form-control form-control-sm">
                                         <option value="">-- Select carrier --</option>
@@ -535,29 +542,32 @@
                                         @endforeach
                                     </select>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-6">
                                     <button type="button" id="showGetRatesBtn" class="btn btn-info btn-sm btn-block mt-1">
                                         <i class="fas fa-search-dollar mr-1"></i> Get Rates
                                     </button>
                                 </div>
                             </div>
+
                             <!-- Rates Result -->
                             <div id="showRatesResult" class="mt-3" style="display:none;">
                                 <div id="showRatesLoading" class="text-center py-2" style="display:none;">
                                     <i class="fas fa-spinner fa-spin mr-1"></i> Fetching rates...
                                 </div>
                                 <div id="showRatesError" class="alert alert-danger py-2 small mb-0" style="display:none;"></div>
-                                <div id="showRatesTable" style="display:none;">
-                                    <table class="table table-sm table-bordered mb-0 mt-2">
-                                        <thead class="thead-light">
-                                            <tr>
-                                                <th>Service</th>
-                                                <th class="text-right">Est. Cost</th>
-                                                <th class="text-center">Transit</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="showRatesTbody"></tbody>
-                                    </table>
+                                <div id="showRatesServiceWrap" style="display:none;">
+                                    <div class="form-row mt-2">
+                                        <div class="col-md-8">
+                                            <label class="small mb-1">Select Service</label>
+                                            <select id="showServiceSelect" class="form-control form-control-sm">
+                                                <option value="">-- Choose a service --</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="small mb-1">&nbsp;</label>
+                                            <div id="showSelectedCost" class="form-control form-control-sm bg-light text-center font-weight-bold" style="display:none;"></div>
+                                        </div>
+                                    </div>
                                     <small class="text-muted d-block mt-1"><i class="fas fa-info-circle mr-1"></i>Rates are estimates only. Actual cost may vary.</small>
                                 </div>
                             </div>
@@ -607,7 +617,7 @@
         $(document).ready(function() {
 
             // ----------------------------------------------------------------
-            // Get Rates — collect dimension overrides from the table inputs
+            // Get Rates — collect dimension overrides, populate service dropdown
             // ----------------------------------------------------------------
             $('#showGetRatesBtn').on('click', function() {
                 var carrierId = $('#showRateCarrierId').val();
@@ -630,8 +640,10 @@
                 $('#showRatesResult').show();
                 $('#showRatesLoading').show();
                 $('#showRatesError').hide().text('');
-                $('#showRatesTable').hide();
-                $('#showRatesTbody').empty();
+                $('#showRatesServiceWrap').hide();
+                $('#showServiceSelect').empty().append('<option value="">-- Choose a service --</option>');
+                $('#showSelectedCost').hide().text('');
+                $('#showShipperInfo').hide();
 
                 $.ajax({
                     url: '{{ route('orders.shipping-rates') }}',
@@ -653,19 +665,34 @@
                             $('#showRatesError').text('No rates returned. Check carrier credentials and address.').show();
                             return;
                         }
+
+                        // Show shipper address if available
+                        if (response.shipper) {
+                            $('#showShipperAddress').text(response.shipper);
+                            $('#showShipperInfo').show();
+                        }
+
+                        // Populate service dropdown
                         $.each(rates, function(i, rate) {
-                            var cost    = rate.amount !== null ? rate.currency + ' ' + parseFloat(rate.amount).toFixed(2) : 'N/A';
-                            var transit = rate.transit_days ? rate.transit_days + ' day(s)' : '-';
-                            $('#showRatesTbody').append(
-                                '<tr>' +
-                                '<td>' + $('<span>').text(rate.service_name).html() + '</td>' +
-                                '<td class="text-right font-weight-bold">' + $('<span>').text(cost).html() + '</td>' +
-                                '<td class="text-center">' + $('<span>').text(transit).html() + '</td>' +
-                                '</tr>'
+                            var cost    = rate.amount !== null
+                                ? rate.currency + ' ' + parseFloat(rate.amount).toFixed(2)
+                                : 'N/A';
+                            var transit = rate.transit_days ? ' (' + rate.transit_days + ')' : '';
+                            var label   = rate.service_name + ' — ' + cost + transit;
+                            $('#showServiceSelect').append(
+                                $('<option>', {
+                                    value:            rate.service_code,
+                                    'data-amount':    rate.amount,
+                                    'data-currency':  rate.currency,
+                                    'data-transit':   rate.transit_days || '',
+                                    'data-name':      rate.service_name,
+                                    text:             label
+                                })
                             );
                         });
-                        $('#showRatesTable').show();
-                        // Auto-fill carrier name
+                        $('#showRatesServiceWrap').show();
+
+                        // Auto-fill carrier name in ship form
                         var carrierLabel = $('#showRateCarrierId option:selected').text()
                             .replace(' ★', '').replace(/\s*\(.*\)$/, '').trim();
                         $('#showShipCarrierName').val(carrierLabel);
@@ -676,6 +703,25 @@
                         $('#showRatesError').text(msg).show();
                     }
                 });
+            });
+
+            // ----------------------------------------------------------------
+            // Service selection — show cost for chosen service
+            // ----------------------------------------------------------------
+            $('#showServiceSelect').on('change', function() {
+                var $opt = $(this).find('option:selected');
+                if (!$opt.val()) {
+                    $('#showSelectedCost').hide().text('');
+                    return;
+                }
+                var amount   = $opt.data('amount');
+                var currency = $opt.data('currency') || 'USD';
+                var transit  = $opt.data('transit');
+                var costText = amount !== null && amount !== ''
+                    ? currency + ' ' + parseFloat(amount).toFixed(2)
+                    : 'N/A';
+                if (transit) { costText += ' (' + transit + ')'; }
+                $('#showSelectedCost').text(costText).show();
             });
 
             // ----------------------------------------------------------------

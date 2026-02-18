@@ -216,8 +216,8 @@ class ShippingService
             'requestedShipment'   => [
                 'shipper' => [
                     'address' => [
-                        'postalCode'  => config('shipping.shipper_postal_code', '77477'),
-                        'countryCode' => config('shipping.shipper_country',     'US'),
+                        'postalCode'  => $carrier->shipper_postal_code ?: config('shipping.shipper_postal_code', '10001'),
+                        'countryCode' => $carrier->shipper_country     ?: config('shipping.shipper_country',     'US'),
                     ],
                 ],
                 'recipient' => [

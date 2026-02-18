@@ -45,6 +45,22 @@
                 <div class="col-sm-8">{{ $shipping->default_service ?: '-' }}</div>
             </div>
             <div class="row mb-2">
+                <div class="col-sm-4 text-muted">Ship From (Shipper)</div>
+                <div class="col-sm-8">
+                    @php
+                        $shipperParts = array_filter([
+                            $shipping->shipper_name,
+                            $shipping->shipper_address,
+                            $shipping->shipper_city,
+                            $shipping->shipper_state,
+                            $shipping->shipper_postal_code,
+                            $shipping->shipper_country,
+                        ]);
+                    @endphp
+                    {{ $shipperParts ? implode(', ', $shipperParts) : '-' }}
+                </div>
+            </div>
+            <div class="row mb-2">
                 <div class="col-sm-4 text-muted">Weight Unit</div>
                 <div class="col-sm-8">{{ $shipping->weight_unit }}</div>
             </div>

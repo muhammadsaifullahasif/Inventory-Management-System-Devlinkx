@@ -421,9 +421,20 @@ class OrderController extends Controller
         try {
             $rates = $this->shippingService->getRatesForOrder($order, $carrier, $itemOverrides);
 
+            $shipperAddress = implode(', ', array_filter([
+                $carrier->shipper_name,
+                $carrier->shipper_address,
+                $carrier->shipper_city,
+                $carrier->shipper_state,
+                $carrier->shipper_postal_code,
+                $carrier->shipper_country,
+            ]));
+
             return response()->json([
-                'success' => true,
-                'rates'   => $rates,
+                'success'        => true,
+                'rates'          => $rates,
+                'shipper'        => $shipperAddress ?: null,
+                'carrier_name'   => $carrier->name,
             ]);
         } catch (\Throwable $e) {
             Log::error('getShippingRates failed', ['order_id' => $request->order_id, 'error' => $e->getMessage()]);
