@@ -49,6 +49,8 @@ class Order extends Model
         'notification_received_at',
         'order_date',
         'paid_at',
+        'address_type',
+        'address_validated_at',
     ];
 
     protected $casts = [
@@ -57,6 +59,7 @@ class Order extends Model
         'paid_at' => 'datetime',
         'shipped_at' => 'datetime',
         'notification_received_at' => 'datetime',
+        'address_validated_at'    => 'datetime',
         'subtotal' => 'decimal:2',
         'shipping_cost' => 'decimal:2',
         'tax' => 'decimal:2',

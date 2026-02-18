@@ -10,6 +10,7 @@ use App\Models\OrderItem;
 use App\Models\SalesChannel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\ShippingService;
 
 /**
  * eBay order processing, status mapping, and notification handlers.
@@ -356,6 +357,19 @@ class EbayOrderService
             }
 
             DB::commit();
+
+            // Validate shipping address if a carrier has address validation enabled
+            if ($order->shipping_address_line1) {
+                try {
+                    (new ShippingService())->validateOrderAddress($order);
+                } catch (\Throwable $e) {
+                    Log::warning('EbayOrderService: address validation failed after order create', [
+                        'order_id' => $order->id,
+                        'error'    => $e->getMessage(),
+                    ]);
+                }
+            }
+
             return 'created';
 
         } catch (Exception $e) {
@@ -563,10 +577,24 @@ class EbayOrderService
                 ]);
             }
 
+            $isNewOrder = !isset($orderData['id']);
             $this->saveOrderItemFromNotification($order, $transaction, $item);
             $this->saveOrderMetaFromNotification($order, $transaction, $response);
 
             DB::commit();
+
+            // Validate shipping address for new orders if a carrier has it enabled
+            if ($isNewOrder && $order->shipping_address_line1) {
+                try {
+                    (new ShippingService())->validateOrderAddress($order);
+                } catch (\Throwable $e) {
+                    Log::warning('EbayOrderService: address validation failed after notification create', [
+                        'order_id' => $order->id,
+                        'error'    => $e->getMessage(),
+                    ]);
+                }
+            }
+
             return $order;
 
         } catch (Exception $e) {

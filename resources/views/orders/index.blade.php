@@ -53,30 +53,17 @@
                     </div>
                     <div class="col-md-2">
                         <div class="form-group">
-                            <label>Order Status</label>
+                            <label>Status</label>
                             <select name="order_status" class="form-control form-control-sm">
                                 <option value="">All</option>
-                                <option value="pending" {{ request('order_status') == 'pending' ? 'selected' : '' }}>Pending</option>
+                                <option value="awaiting_payment" {{ request('order_status') == 'awaiting_payment' ? 'selected' : '' }}>Awaiting Payment</option>
                                 <option value="processing" {{ request('order_status') == 'processing' ? 'selected' : '' }}>Processing</option>
-                                <option value="shipped" {{ request('order_status') == 'shipped' ? 'selected' : '' }}>Shipped</option>
+                                <option value="shipped" {{ request('order_status') == 'shipped' ? 'selected' : '' }}>Shipped / Fulfilled</option>
                                 <option value="delivered" {{ request('order_status') == 'delivered' ? 'selected' : '' }}>Delivered</option>
                                 <option value="ready_for_pickup" {{ request('order_status') == 'ready_for_pickup' ? 'selected' : '' }}>Ready for Pickup</option>
                                 <option value="cancellation_requested" {{ request('order_status') == 'cancellation_requested' ? 'selected' : '' }}>Cancellation Requested</option>
                                 <option value="cancelled" {{ request('order_status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
                                 <option value="refunded" {{ request('order_status') == 'refunded' ? 'selected' : '' }}>Refunded</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="col-md-2">
-                        <div class="form-group">
-                            <label>Payment Status</label>
-                            <select name="payment_status" class="form-control form-control-sm">
-                                <option value="">All</option>
-                                <option value="pending" {{ request('payment_status') == 'pending' ? 'selected' : '' }}>Pending</option>
-                                <option value="awaiting_payment" {{ request('payment_status') == 'awaiting_payment' ? 'selected' : '' }}>Awaiting Payment</option>
-                                <option value="paid" {{ request('payment_status') == 'paid' ? 'selected' : '' }}>Paid</option>
-                                <option value="refunded" {{ request('payment_status') == 'refunded' ? 'selected' : '' }}>Refunded</option>
-                                <option value="failed" {{ request('payment_status') == 'failed' ? 'selected' : '' }}>Failed</option>
                             </select>
                         </div>
                     </div>
@@ -117,8 +104,7 @@
                             <th>Items</th>
                             <th>Total</th>
                             <th>Status</th>
-                            <th>Payment</th>
-                            <th>Fulfillment</th>
+                            <th>Address Type</th>
                             <th>Order Date</th>
                             <th style="width: 120px;">Actions</th>
                         </tr>
@@ -157,44 +143,48 @@
                                 </td>
                                 <td>
                                     @php
-                                        $statusColors = [
-                                            'pending' => 'warning',
-                                            'processing' => 'info',
-                                            'shipped' => 'primary',
-                                            'delivered' => 'success',
-                                            'cancelled' => 'danger',
-                                            'refunded' => 'secondary',
-                                            'ready_for_pickup' => 'info',
-                                            'cancellation_requested' => 'warning',
-                                        ];
-                                        $statusColor = $statusColors[$order->order_status] ?? 'secondary';
+                                        // Consolidated status: single badge based on payment + fulfillment
+                                        $isPaid       = in_array($order->payment_status, ['paid']);
+                                        $isShipped    = in_array($order->fulfillment_status, ['fulfilled', 'partially_fulfilled'])
+                                                        || in_array($order->order_status, ['shipped', 'delivered', 'ready_for_pickup']);
+                                        $isCancelled  = in_array($order->order_status, ['cancelled', 'cancellation_requested']);
+                                        $isRefunded   = $order->order_status === 'refunded' || $order->payment_status === 'refunded';
+
+                                        if ($isRefunded) {
+                                            $statusLabel = 'Refunded';
+                                            $statusColor = 'secondary';
+                                        } elseif ($isCancelled) {
+                                            $statusLabel = ucfirst(str_replace('_', ' ', $order->order_status));
+                                            $statusColor = 'danger';
+                                        } elseif (!$isPaid) {
+                                            $statusLabel = 'Awaiting Payment';
+                                            $statusColor = 'warning';
+                                        } elseif ($isPaid && !$isShipped) {
+                                            $statusLabel = 'Processing';
+                                            $statusColor = 'info';
+                                        } else {
+                                            $statusLabel = 'Shipped / Fulfilled';
+                                            $statusColor = 'success';
+                                        }
                                     @endphp
-                                    <span class="badge badge-{{ $statusColor }}">{{ ucfirst(str_replace('_', ' ', $order->order_status ?? 'N/A')) }}</span>
+                                    <span class="badge badge-{{ $statusColor }}">{{ $statusLabel }}</span>
                                 </td>
                                 <td>
                                     @php
-                                        $paymentColors = [
-                                            'pending' => 'warning',
-                                            'paid' => 'success',
-                                            'refunded' => 'info',
-                                            'failed' => 'danger',
-                                            'awaiting_payment' => 'warning',
+                                        $addrColors = [
+                                            'BUSINESS'    => 'primary',
+                                            'RESIDENTIAL' => 'success',
+                                            'MIXED'       => 'warning',
+                                            'UNKNOWN'     => 'secondary',
                                         ];
-                                        $paymentColor = $paymentColors[$order->payment_status] ?? 'secondary';
+                                        $addrType  = $order->address_type ?? 'UNKNOWN';
+                                        $addrColor = $addrColors[$addrType] ?? 'secondary';
                                     @endphp
-                                    <span class="badge badge-{{ $paymentColor }}">{{ ucfirst(str_replace('_', ' ', $order->payment_status ?? 'N/A')) }}</span>
-                                </td>
-                                <td>
-                                    @php
-                                        $fulfillmentColors = [
-                                            'unfulfilled' => 'danger',
-                                            'partially_fulfilled' => 'warning',
-                                            'fulfilled' => 'success',
-                                            'ready_for_pickup' => 'info',
-                                        ];
-                                        $fulfillmentColor = $fulfillmentColors[$order->fulfillment_status] ?? 'secondary';
-                                    @endphp
-                                    <span class="badge badge-{{ $fulfillmentColor }}">{{ ucfirst(str_replace('_', ' ', $order->fulfillment_status ?? 'N/A')) }}</span>
+                                    @if ($order->address_validated_at)
+                                        <span class="badge badge-{{ $addrColor }}">{{ $addrType }}</span>
+                                    @else
+                                        <span class="text-muted small">-</span>
+                                    @endif
                                 </td>
                                 <td>
                                     @if($order->order_date)
@@ -224,7 +214,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11" class="text-center">No orders found.</td>
+                                <td colspan="10" class="text-center">No orders found.</td>
                             </tr>
                         @endforelse
                     </tbody>

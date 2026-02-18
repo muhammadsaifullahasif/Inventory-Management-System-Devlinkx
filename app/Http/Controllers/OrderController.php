@@ -13,9 +13,17 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\ShippingService;
 
 class OrderController extends Controller
 {
+    protected ShippingService $shippingService;
+
+    public function __construct(ShippingService $shippingService)
+    {
+        $this->shippingService = $shippingService;
+    }
+
     /**
      * Display a listing of orders
      */
@@ -169,6 +177,11 @@ class OrderController extends Controller
             }
 
             DB::commit();
+
+            // Validate shipping address if a carrier has address validation enabled
+            if ($order->shipping_address_line1) {
+                $this->shippingService->validateOrderAddress($order);
+            }
 
             return response()->json([
                 'success' => true,

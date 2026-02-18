@@ -241,6 +241,36 @@
                     </li>
                 @endcan
 
+                @canany(['view shipping', 'add shipping', 'edit shipping', 'delete shipping'])
+                    <li class="nav-item {{ request()->routeIs('shipping.*') ? 'menu-open' : '' }}">
+                        <a href="#" class="nav-link {{ request()->routeIs('shipping.*') ? 'active' : '' }}">
+                            <i class="nav-icon fas fa-truck"></i>
+                            <p>
+                                Shipping
+                                <i class="right fas fa-angle-left"></i>
+                            </p>
+                        </a>
+                        <ul class="nav nav-treeview">
+                            @canany(['view shipping', 'edit shipping', 'delete shipping'])
+                                <li class="nav-item">
+                                    <a href="{{ route('shipping.index') }}" class="nav-link {{ request()->routeIs('shipping.index') ? 'active' : '' }}">
+                                        <i class="far fa-circle nav-icon"></i>
+                                        <p>All Shipping</p>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('add shipping')
+                                <li class="nav-item">
+                                    <a href="{{ route('shipping.create') }}" class="nav-link {{ request()->routeIs('shipping.create') ? 'active' : '' }}">
+                                        <i class="fas fa-plus-circle nav-icon"></i>
+                                        <p>Add Shipping</p>
+                                    </a>
+                                </li>
+                            @endcan
+                        </ul>
+                    </li>
+                @endcan
+
                 <!-- Accounting Section -->
                 {{-- @canany(['']) --}}
                 {{-- @endcan --}}

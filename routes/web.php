@@ -24,6 +24,7 @@ use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\SalesChannelController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\ChartOfAccountController;
+use App\Http\Controllers\ShippingController;
 
 Route::get('/run-migrations', function() {
     if (!app()->environment('local')) {
@@ -221,6 +222,12 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/orders/{id}/ship', [OrderController::class, 'markAsShipped'])->name('orders.ship');
     Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
     Route::get('/orders-statistics', [OrderController::class, 'statistics'])->name('orders.statistics');
+
+
+    // Shipping
+    Route::resource('/shipping', ShippingController::class);
+    Route::post('/shipping/{id}/toggle-status', [ShippingController::class, 'toggleStatus'])->name('shipping.toggle-status');
+    Route::post('/shipping/validate-address', [ShippingController::class, 'validateAddress'])->name('shipping.validate-address');
 
 
     // Chart of Accounts
