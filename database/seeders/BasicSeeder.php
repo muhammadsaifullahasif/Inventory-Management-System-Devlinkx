@@ -2,6 +2,8 @@
 
 namespace Database\Seeders;
 
+use App\Models\Brand;
+use App\Models\Category;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -120,5 +122,49 @@ class BasicSeeder extends Seeder
         $userAdmin->password = Hash::make('12345678');
         $userAdmin->save();
         $userAdmin->syncRoles('Admin');
+
+
+        $categories = [
+            'Body Moldings & Trims',
+            'Grilles',
+            'Fenders',
+            'Headlight Assemblies',
+            'Bumper Inserts & Covers',
+            'Bumpers & Reinforcements',
+            'Hinges, Latches & Additional Hood Components',
+            'Exterior Locks & Lock Hardware',
+            'Tail Light Assemblies',
+            'Radiators',
+            'Air Filter Housings',
+        ];
+
+        foreach ($categories as $category) {
+            Category::firstOrCreate(['name' => $category]);
+        }
+
+        $brands = [
+            'Audi',
+            'BMW',
+            'Cadillac',
+            'Chevrolet',
+            'Dodge',
+            'Ford',
+            'GMC',
+            'Honda',
+            'Hyundai',
+            'Jeep',
+            'Lexus',
+            'Mazda',
+            'Mercedes',
+            'Mitsubishi',
+            'Porsche',
+            'Tesla',
+            'Toyota',
+            'Volkswagen',
+        ];
+
+        foreach ($brands as $brand) {
+            Brand::firstOrCreate(['name' => $brand]);
+        }
     }
 }
