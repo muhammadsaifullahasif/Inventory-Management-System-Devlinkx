@@ -100,7 +100,7 @@ class SalesChannelController extends Controller
             . '?client_id=' . rawurlencode($salesChannel->client_id)
             . '&response_type=code'
             . '&redirect_uri=' . rawurlencode($salesChannel->ru_name)
-            . '&scope=' . rawurlencode($salesChannel->user_scopes);
+            . '&scope=' . $salesChannel->user_scopes;
     }
 
     public function ebay_callback(Request $request)
