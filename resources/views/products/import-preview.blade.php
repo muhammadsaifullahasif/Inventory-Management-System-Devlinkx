@@ -102,16 +102,16 @@
                                     <input type="number" name="products[quantity][]" value="{{ $product['quantity'] }}" class="form-control form-control-sm" required>
                                 </td>
                                 <td>
-                                    <input type="number" name="products[weight][]" value="{{ $product['weight'] }}" class="form-control form-control-sm" required>
+                                    <input type="number" name="products[weight][]" value="{{ $product['weight'] }}" class="form-control form-control-sm">
                                 </td>
                                 <td>
-                                    <input type="number" name="products[length][]" value="{{ $product['length'] }}" class="form-control form-control-sm" required>
+                                    <input type="number" name="products[length][]" value="{{ $product['length'] }}" class="form-control form-control-sm">
                                 </td>
                                 <td>
-                                    <input type="number" name="products[width][]" value="{{ $product['width'] }}" class="form-control form-control-sm" required>
+                                    <input type="number" name="products[width][]" value="{{ $product['width'] }}" class="form-control form-control-sm">
                                 </td>
                                 <td>
-                                    <input type="number" name="products[height]" value="{{ $product['height'] }}" class="form-control form-control-sm" required>
+                                    <input type="number" name="products[height]" value="{{ $product['height'] }}" class="form-control form-control-sm">
                                 </td>
                                 <td>
                                     <select name="products[rack][]" class="form-control form-control-sm" required>
