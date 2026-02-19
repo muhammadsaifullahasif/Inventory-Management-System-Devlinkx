@@ -167,11 +167,36 @@ class EbayService
         try {
             $response = $this->client->call($channel, 'GetSellerList', $xml);
 
+            Log::info('eBay GetSellerList response for SKU search', [
+                'sku' => $sku,
+                'ack' => $response['Ack'] ?? 'N/A',
+                'items_count' => isset($response['ItemArray']['Item']) ? (is_array($response['ItemArray']['Item']) ? count($response['ItemArray']['Item']) : 1) : 0,
+                'pagination' => $response['PaginationResult'] ?? null,
+                'errors' => $response['Errors'] ?? null,
+            ]);
+
             if (($response['Ack'] ?? '') === 'Failure') {
+                Log::warning('eBay GetSellerList failed', [
+                    'sku' => $sku,
+                    'errors' => $response['Errors'] ?? 'Unknown error',
+                ]);
                 return null;
             }
 
             $items = self::normalizeList($response['ItemArray']['Item'] ?? []);
+
+            // Log all items found for debugging
+            if (count($items) > 0) {
+                Log::info('eBay items found in search', [
+                    'sku_searched' => $sku,
+                    'items' => array_map(fn($item) => [
+                        'ItemID' => $item['ItemID'] ?? '',
+                        'SKU' => $item['SKU'] ?? 'NO_SKU',
+                        'Title' => $item['Title'] ?? '',
+                    ], $items),
+                ]);
+            }
+
             foreach ($items as $item) {
                 $itemSku = $item['SKU'] ?? '';
                 if (strtoupper($itemSku) === strtoupper($sku)) {
@@ -186,6 +211,11 @@ class EbayService
                     ];
                 }
             }
+
+            Log::info('eBay SKU not found in results', [
+                'sku_searched' => $sku,
+                'items_checked' => count($items),
+            ]);
 
             return null;
         } catch (Exception $e) {
