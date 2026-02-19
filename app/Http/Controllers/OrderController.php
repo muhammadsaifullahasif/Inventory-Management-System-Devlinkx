@@ -432,10 +432,11 @@ class OrderController extends Controller
             ]));
 
             return response()->json([
-                'success'        => true,
-                'rates'          => $rates,
-                'shipper'        => $shipperAddress ?: null,
-                'carrier_name'   => $carrier->name,
+                'success'         => true,
+                'rates'           => $rates,
+                'shipper'         => $shipperAddress ?: null,
+                'carrier_name'    => $carrier->name,
+                'default_service' => $carrier->default_service,
             ]);
         } catch (\Throwable $e) {
             Log::error('getShippingRates failed', ['order_id' => $request->order_id, 'error' => $e->getMessage()]);

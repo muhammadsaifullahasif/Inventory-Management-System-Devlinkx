@@ -53,7 +53,10 @@
             </div>
             <div class="col-md-6 mb-3">
                 <label>Default Service Level</label>
-                <input type="text" name="default_service" value="{{ old('default_service', $shipping->default_service) }}" class="form-control" placeholder="e.g. FEDEX_GROUND">
+                <select name="default_service" id="defaultService" class="form-control">
+                    <option value="">-- Select service (optional) --</option>
+                </select>
+                <small class="text-muted">Select carrier type first to see available services</small>
             </div>
         </div>
 
@@ -192,3 +195,75 @@
     </form>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+$(document).ready(function() {
+    // Carrier services mapping
+    var carrierServices = {
+        fedex: [
+            { code: 'FEDEX_GROUND', name: 'FedEx Ground' },
+            { code: 'FEDEX_HOME_DELIVERY', name: 'FedEx Home Delivery' },
+            { code: 'FEDEX_EXPRESS_SAVER', name: 'FedEx Express Saver' },
+            { code: 'FEDEX_2_DAY', name: 'FedEx 2Day' },
+            { code: 'FEDEX_2_DAY_AM', name: 'FedEx 2Day AM' },
+            { code: 'STANDARD_OVERNIGHT', name: 'FedEx Standard Overnight' },
+            { code: 'PRIORITY_OVERNIGHT', name: 'FedEx Priority Overnight' },
+            { code: 'FIRST_OVERNIGHT', name: 'FedEx First Overnight' },
+            { code: 'GROUND_HOME_DELIVERY', name: 'FedEx Ground Home Delivery' },
+            { code: 'SMART_POST', name: 'FedEx SmartPost' },
+            { code: 'FEDEX_FREIGHT_ECONOMY', name: 'FedEx Freight Economy' },
+            { code: 'FEDEX_FREIGHT_PRIORITY', name: 'FedEx Freight Priority' },
+            { code: 'INTERNATIONAL_ECONOMY', name: 'FedEx International Economy' },
+            { code: 'INTERNATIONAL_PRIORITY', name: 'FedEx International Priority' },
+            { code: 'INTERNATIONAL_FIRST', name: 'FedEx International First' },
+            { code: 'INTERNATIONAL_GROUND', name: 'FedEx International Ground' }
+        ],
+        ups: [
+            { code: 'UPS_GROUND', name: 'UPS Ground' },
+            { code: 'UPS_3_DAY_SELECT', name: 'UPS 3 Day Select' },
+            { code: 'UPS_2ND_DAY_AIR', name: 'UPS 2nd Day Air' },
+            { code: 'UPS_2ND_DAY_AIR_AM', name: 'UPS 2nd Day Air AM' },
+            { code: 'UPS_NEXT_DAY_AIR_SAVER', name: 'UPS Next Day Air Saver' },
+            { code: 'UPS_NEXT_DAY_AIR', name: 'UPS Next Day Air' },
+            { code: 'UPS_NEXT_DAY_AIR_EARLY', name: 'UPS Next Day Air Early' },
+            { code: 'UPS_SUREPOST', name: 'UPS SurePost' }
+        ],
+        usps: [
+            { code: 'USPS_PRIORITY_MAIL', name: 'USPS Priority Mail' },
+            { code: 'USPS_PRIORITY_MAIL_EXPRESS', name: 'USPS Priority Mail Express' },
+            { code: 'USPS_FIRST_CLASS', name: 'USPS First Class' },
+            { code: 'USPS_PARCEL_SELECT', name: 'USPS Parcel Select' },
+            { code: 'USPS_MEDIA_MAIL', name: 'USPS Media Mail' },
+            { code: 'USPS_RETAIL_GROUND', name: 'USPS Retail Ground' }
+        ],
+        dhl: [
+            { code: 'DHL_EXPRESS_WORLDWIDE', name: 'DHL Express Worldwide' },
+            { code: 'DHL_EXPRESS_12', name: 'DHL Express 12:00' },
+            { code: 'DHL_EXPRESS_9', name: 'DHL Express 9:00' },
+            { code: 'DHL_ECONOMY_SELECT', name: 'DHL Economy Select' }
+        ]
+    };
+
+    var currentDefaultService = '{{ old('default_service', $shipping->default_service) }}';
+
+    // Populate services dropdown when carrier type changes
+    $('select[name="type"]').on('change', function() {
+        var type = $(this).val();
+        var $serviceSelect = $('#defaultService');
+
+        $serviceSelect.empty().append('<option value="">-- Select service (optional) --</option>');
+
+        if (type && carrierServices[type]) {
+            $.each(carrierServices[type], function(i, service) {
+                var selected = (currentDefaultService === service.code) ? ' selected' : '';
+                $serviceSelect.append('<option value="' + service.code + '"' + selected + '>' + service.name + '</option>');
+            });
+        }
+    });
+
+    // Trigger on page load to populate services for existing carrier type
+    $('select[name="type"]').trigger('change');
+});
+</script>
+@endpush

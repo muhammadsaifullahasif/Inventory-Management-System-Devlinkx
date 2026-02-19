@@ -597,6 +597,14 @@
                         $('#generateLabelBtn').hide().prop('disabled', true);
                         $('#labelResult').hide();
 
+                        // Auto-select default service if available
+                        if (response.default_service) {
+                            var $defaultRadio = $('input[name="serviceRadio"][value="' + response.default_service + '"]');
+                            if ($defaultRadio.length) {
+                                $defaultRadio.prop('checked', true).trigger('change');
+                            }
+                        }
+
                         // Auto-fill carrier name in manual ship form
                         var carrierLabel = $('#rateCarrierId option:selected').text()
                             .replace(' ★', '').replace(/\s*\(.*\)$/, '').trim();
