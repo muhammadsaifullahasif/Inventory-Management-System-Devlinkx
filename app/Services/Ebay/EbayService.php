@@ -156,23 +156,52 @@ class EbayService
 
     /**
      * Find a listing by SKU.
+     * Searches in multiple date ranges due to eBay's 120-day limit.
      */
     public function findListingBySku(SalesChannel $channel, string $sku): ?array
     {
-        $endTimeFrom = now()->subYear()->toIso8601String();
-        $endTimeTo = now()->addYear()->toIso8601String();
+        // eBay GetSellerList API has a 120-day max range limit
+        // Search in two ranges: future 120 days (for GTC listings) and past 120 days
+        $ranges = [
+            // Future listings (GTC listings that will end in the future)
+            ['from' => now()->toIso8601String(), 'to' => now()->addDays(119)->toIso8601String()],
+            // Past/current listings (recently ended or ending soon)
+            ['from' => now()->subDays(119)->toIso8601String(), 'to' => now()->toIso8601String()],
+        ];
 
+        foreach ($ranges as $range) {
+            $result = $this->searchListingBySkuInRange($channel, $sku, $range['from'], $range['to']);
+            if ($result !== null) {
+                return $result;
+            }
+        }
+
+        Log::info('eBay SKU not found in any date range', [
+            'sku_searched' => $sku,
+        ]);
+
+        return null;
+    }
+
+    /**
+     * Search for a listing by SKU within a specific date range.
+     */
+    protected function searchListingBySkuInRange(SalesChannel $channel, string $sku, string $endTimeFrom, string $endTimeTo): ?array
+    {
         $xml = EbayXmlBuilder::getSellerListBySku($sku, $endTimeFrom, $endTimeTo);
 
         try {
             $response = $this->client->call($channel, 'GetSellerList', $xml);
 
+            $itemsCount = isset($response['ItemArray']['Item'])
+                ? (is_array($response['ItemArray']['Item']) ? count($response['ItemArray']['Item']) : 1)
+                : 0;
+
             Log::info('eBay GetSellerList response for SKU search', [
                 'sku' => $sku,
+                'range' => ['from' => $endTimeFrom, 'to' => $endTimeTo],
                 'ack' => $response['Ack'] ?? 'N/A',
-                'items_count' => isset($response['ItemArray']['Item']) ? (is_array($response['ItemArray']['Item']) ? count($response['ItemArray']['Item']) : 1) : 0,
-                'pagination' => $response['PaginationResult'] ?? null,
-                'errors' => $response['Errors'] ?? null,
+                'items_count' => $itemsCount,
             ]);
 
             if (($response['Ack'] ?? '') === 'Failure') {
@@ -185,21 +214,15 @@ class EbayService
 
             $items = self::normalizeList($response['ItemArray']['Item'] ?? []);
 
-            // Log all items found for debugging
-            if (count($items) > 0) {
-                Log::info('eBay items found in search', [
-                    'sku_searched' => $sku,
-                    'items' => array_map(fn($item) => [
-                        'ItemID' => $item['ItemID'] ?? '',
-                        'SKU' => $item['SKU'] ?? 'NO_SKU',
-                        'Title' => $item['Title'] ?? '',
-                    ], $items),
-                ]);
-            }
-
             foreach ($items as $item) {
                 $itemSku = $item['SKU'] ?? '';
                 if (strtoupper($itemSku) === strtoupper($sku)) {
+                    Log::info('eBay listing found by SKU', [
+                        'sku' => $sku,
+                        'ItemID' => $item['ItemID'] ?? '',
+                        'Title' => $item['Title'] ?? '',
+                    ]);
+
                     return [
                         'ItemID' => $item['ItemID'] ?? '',
                         'Title' => $item['Title'] ?? '',
@@ -212,14 +235,13 @@ class EbayService
                 }
             }
 
-            Log::info('eBay SKU not found in results', [
-                'sku_searched' => $sku,
-                'items_checked' => count($items),
-            ]);
-
             return null;
         } catch (Exception $e) {
-            Log::error('Failed to find listing by SKU', ['sku' => $sku, 'error' => $e->getMessage()]);
+            Log::error('Failed to find listing by SKU in range', [
+                'sku' => $sku,
+                'range' => ['from' => $endTimeFrom, 'to' => $endTimeTo],
+                'error' => $e->getMessage(),
+            ]);
             return null;
         }
     }
