@@ -222,6 +222,8 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('/orders', OrderController::class);
     Route::get('/orders/ebay/{ebayOrderId}', [OrderController::class, 'getByEbayOrderId'])->name('orders.ebay');
     Route::post('/orders/{id}/ship', [OrderController::class, 'markAsShipped'])->name('orders.ship');
+    Route::post('/orders/{id}/generate-label', [OrderController::class, 'generateShippingLabel'])->name('orders.generate-label');
+    Route::get('/orders/{id}/label', [OrderController::class, 'downloadLabel'])->name('orders.label');
     Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
     Route::get('/orders-statistics', [OrderController::class, 'statistics'])->name('orders.statistics');
 

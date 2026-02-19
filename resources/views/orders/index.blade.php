@@ -345,53 +345,74 @@
                                 </div>
                                 <div id="ratesError" class="alert alert-danger py-2 small mb-0" style="display:none;"></div>
                                 <div id="ratesServiceWrap" style="display:none;">
-                                    <div class="form-row mt-1">
-                                        <div class="col-md-8">
-                                            <label class="small mb-1">Select Service</label>
-                                            <select id="serviceSelect" class="form-control form-control-sm">
-                                                <option value="">-- Choose a service --</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label class="small mb-1">&nbsp;</label>
-                                            <div id="selectedCost" class="form-control form-control-sm bg-light text-center font-weight-bold" style="display:none;"></div>
-                                        </div>
+                                    <label class="small mb-1">Select Service</label>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-hover table-bordered mb-2" id="ratesTable">
+                                            <thead class="thead-light">
+                                                <tr>
+                                                    <th style="width:40px;"></th>
+                                                    <th>Service</th>
+                                                    <th class="text-right" style="width:120px;">Cost</th>
+                                                    <th class="text-center" style="width:100px;">Transit</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="ratesTableBody"></tbody>
+                                        </table>
                                     </div>
                                     <small class="text-muted d-block mt-1"><i class="fas fa-info-circle mr-1"></i>Rates are estimates only. Actual cost may vary.</small>
+
+                                    <!-- Generate Label Button -->
+                                    <button type="button" id="generateLabelBtn" class="btn btn-success btn-block mt-3" style="display:none;" disabled>
+                                        <i class="fas fa-print mr-1"></i> Generate Label &amp; Mark Shipped
+                                    </button>
+
+                                    <!-- Label Result (shown after label is generated) -->
+                                    <div id="labelResult" class="alert alert-success mt-3" style="display:none;">
+                                        <h6 class="mb-2"><i class="fas fa-check-circle mr-1"></i> Label Generated Successfully!</h6>
+                                        <p class="mb-2">Tracking Number: <strong id="trackingNumber"></strong></p>
+                                        <a href="#" id="downloadLabelLink" class="btn btn-primary btn-sm" target="_blank">
+                                            <i class="fas fa-download mr-1"></i> Download Label
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Mark as Shipped Section -->
-                    <div class="card card-outline card-success mb-0">
-                        <div class="card-header py-2">
-                            <h6 class="card-title mb-0"><i class="fas fa-shipping-fast mr-1"></i> Mark as Shipped</h6>
+                    <!-- Manual Mark as Shipped Section (optional, for manual tracking entry) -->
+                    <div class="card card-outline card-secondary mb-0">
+                        <div class="card-header py-2" data-toggle="collapse" data-target="#manualShipSection" style="cursor:pointer;">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-keyboard mr-1"></i> Manual Entry (Already Have Tracking?)
+                                <i class="fas fa-chevron-down float-right mt-1"></i>
+                            </h6>
                         </div>
-                        <div class="card-body py-2">
-                            <form id="shipForm" method="POST">
-                                @csrf
-                                <div class="form-row">
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-2">
-                                            <label class="small mb-1">Shipping Carrier <span class="text-danger">*</span></label>
-                                            <input type="text" name="shipping_carrier" id="shipCarrierName" class="form-control form-control-sm" required placeholder="e.g., FedEx, UPS, USPS">
+                        <div id="manualShipSection" class="collapse">
+                            <div class="card-body py-2">
+                                <form id="shipForm" method="POST">
+                                    @csrf
+                                    <div class="form-row">
+                                        <div class="col-md-6">
+                                            <div class="form-group mb-2">
+                                                <label class="small mb-1">Shipping Carrier <span class="text-danger">*</span></label>
+                                                <input type="text" name="shipping_carrier" id="shipCarrierName" class="form-control form-control-sm" required placeholder="e.g., FedEx, UPS, USPS">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group mb-2">
+                                                <label class="small mb-1">Tracking Number <span class="text-danger">*</span></label>
+                                                <input type="text" name="tracking_number" class="form-control form-control-sm" required placeholder="Enter tracking number">
+                                            </div>
                                         </div>
                                     </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-2">
-                                            <label class="small mb-1">Tracking Number <span class="text-danger">*</span></label>
-                                            <input type="text" name="tracking_number" class="form-control form-control-sm" required placeholder="Enter tracking number">
-                                        </div>
+                                    <div class="d-flex justify-content-end">
+                                        <button type="button" class="btn btn-secondary btn-sm mr-2" data-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-success btn-sm">
+                                            <i class="fas fa-check mr-1"></i> Mark as Shipped
+                                        </button>
                                     </div>
-                                </div>
-                                <div class="d-flex justify-content-end">
-                                    <button type="button" class="btn btn-secondary btn-sm mr-2" data-dismiss="modal">Cancel</button>
-                                    <button type="submit" class="btn btn-success btn-sm">
-                                        <i class="fas fa-check mr-1"></i> Mark as Shipped
-                                    </button>
-                                </div>
-                            </form>
+                                </form>
+                            </div>
                         </div>
                     </div>
 
@@ -436,8 +457,9 @@
                 $('#ratesError').hide().text('');
                 $('#ratesLoading').hide();
                 $('#ratesServiceWrap').hide();
-                $('#serviceSelect').empty().append('<option value="">-- Choose a service --</option>');
-                $('#selectedCost').hide().text('');
+                $('#ratesTableBody').empty();
+                $('#generateLabelBtn').hide().prop('disabled', true);
+                $('#labelResult').hide();
                 $('#shipperInfo').hide();
                 $('#shipperAddress').text('');
 
@@ -519,8 +541,9 @@
                 $('#ratesLoading').show();
                 $('#ratesError').hide().text('');
                 $('#ratesServiceWrap').hide();
-                $('#serviceSelect').empty().append('<option value="">-- Choose a service --</option>');
-                $('#selectedCost').hide().text('');
+                $('#ratesTableBody').empty();
+                $('#generateLabelBtn').hide().prop('disabled', true);
+                $('#labelResult').hide();
 
                 $.ajax({
                     url: '{{ route('orders.shipping-rates') }}',
@@ -549,27 +572,32 @@
                             $('#shipperInfo').show();
                         }
 
-                        // Populate service dropdown
+                        // Populate rates table with radio buttons
+                        $('#ratesTableBody').empty();
                         $.each(rates, function(i, rate) {
-                            var cost    = rate.amount !== null
+                            var cost = rate.amount !== null
                                 ? rate.currency + ' ' + parseFloat(rate.amount).toFixed(2)
                                 : 'N/A';
-                            var transit = rate.transit_days ? ' (' + rate.transit_days + ')' : '';
-                            var label   = rate.service_name + ' — ' + cost + transit;
-                            $('#serviceSelect').append(
-                                $('<option>', {
-                                    value:           rate.service_code,
-                                    'data-amount':   rate.amount,
-                                    'data-currency': rate.currency,
-                                    'data-transit':  rate.transit_days || '',
-                                    'data-name':     rate.service_name,
-                                    text:            label
-                                })
-                            );
+                            var transit = rate.transit_days || '-';
+                            var row = '<tr class="rate-row" style="cursor:pointer;">' +
+                                '<td class="text-center align-middle">' +
+                                    '<input type="radio" name="serviceRadio" value="' + rate.service_code + '"' +
+                                    ' data-amount="' + (rate.amount || '') + '"' +
+                                    ' data-currency="' + (rate.currency || 'USD') + '"' +
+                                    ' data-transit="' + (rate.transit_days || '') + '"' +
+                                    ' data-name="' + rate.service_name + '">' +
+                                '</td>' +
+                                '<td>' + rate.service_name + '</td>' +
+                                '<td class="text-right">' + cost + '</td>' +
+                                '<td class="text-center">' + transit + '</td>' +
+                                '</tr>';
+                            $('#ratesTableBody').append(row);
                         });
                         $('#ratesServiceWrap').show();
+                        $('#generateLabelBtn').hide().prop('disabled', true);
+                        $('#labelResult').hide();
 
-                        // Auto-fill carrier name in ship form
+                        // Auto-fill carrier name in manual ship form
                         var carrierLabel = $('#rateCarrierId option:selected').text()
                             .replace(' ★', '').replace(/\s*\(.*\)$/, '').trim();
                         $('#shipCarrierName').val(carrierLabel);
@@ -583,22 +611,77 @@
             });
 
             // ----------------------------------------------------------------
-            // Service selection — show cost for chosen service
+            // Service selection — clicking row selects radio, enable Generate Label
             // ----------------------------------------------------------------
-            $('#serviceSelect').on('change', function() {
-                var $opt = $(this).find('option:selected');
-                if (!$opt.val()) {
-                    $('#selectedCost').hide().text('');
+            $(document).on('click', '.rate-row', function() {
+                $(this).find('input[type="radio"]').prop('checked', true).trigger('change');
+            });
+
+            $(document).on('change', 'input[name="serviceRadio"]', function() {
+                if ($(this).is(':checked')) {
+                    $('#generateLabelBtn').show().prop('disabled', false);
+                }
+            });
+
+            // ----------------------------------------------------------------
+            // Generate Label button click
+            // ----------------------------------------------------------------
+            $('#generateLabelBtn').on('click', function() {
+                var $radio = $('input[name="serviceRadio"]:checked');
+                if (!$radio.length) {
+                    alert('Please select a service first.');
                     return;
                 }
-                var amount   = $opt.data('amount');
-                var currency = $opt.data('currency') || 'USD';
-                var transit  = $opt.data('transit');
-                var costText = amount !== null && amount !== ''
-                    ? currency + ' ' + parseFloat(amount).toFixed(2)
-                    : 'N/A';
-                if (transit) { costText += ' (' + transit + ')'; }
-                $('#selectedCost').text(costText).show();
+
+                var orderId     = $('#getRatesBtn').data('order-id');
+                var carrierId   = $('#rateCarrierId').val();
+                var serviceCode = $radio.val();
+
+                // Collect dimension overrides
+                var itemOverrides = [];
+                $('#itemsDimTbody tr').each(function() {
+                    var itemId = $(this).find('.dim-input').first().data('item-id');
+                    var entry  = { order_item_id: itemId };
+                    $(this).find('.dim-input').each(function() {
+                        entry[$(this).data('dim')] = parseFloat($(this).val()) || 0;
+                    });
+                    itemOverrides.push(entry);
+                });
+
+                var $btn = $(this);
+                $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generating Label...');
+
+                $.ajax({
+                    url: '/orders/' + orderId + '/generate-label',
+                    type: 'POST',
+                    data: {
+                        _token:       '{{ csrf_token() }}',
+                        carrier_id:   carrierId,
+                        service_code: serviceCode,
+                        items:        itemOverrides
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            $('#trackingNumber').text(response.tracking_number);
+                            $('#downloadLabelLink').attr('href', response.label_url);
+                            $('#labelResult').show();
+                            $btn.hide();
+
+                            // Reload after 3 seconds to update order status
+                            setTimeout(function() {
+                                location.reload();
+                            }, 3000);
+                        } else {
+                            alert(response.message || 'Failed to generate label.');
+                            $btn.prop('disabled', false).html('<i class="fas fa-print mr-1"></i> Generate Label & Mark Shipped');
+                        }
+                    },
+                    error: function(xhr) {
+                        var msg = xhr.responseJSON?.message || 'Failed to generate label.';
+                        alert(msg);
+                        $btn.prop('disabled', false).html('<i class="fas fa-print mr-1"></i> Generate Label & Mark Shipped');
+                    }
+                });
             });
 
             // ----------------------------------------------------------------

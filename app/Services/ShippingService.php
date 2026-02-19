@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\Shipping;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class ShippingService
 {
@@ -305,5 +306,184 @@ class ShippingService
         usort($normalized, fn($a, $b) => ($a['amount'] ?? PHP_INT_MAX) <=> ($b['amount'] ?? PHP_INT_MAX));
 
         return $normalized;
+    }
+
+    // -------------------------------------------------------------------------
+    // Label Generation
+    // -------------------------------------------------------------------------
+
+    /**
+     * Generate a shipping label for an order.
+     * Creates a shipment with the carrier, saves the label PDF, and returns tracking info.
+     *
+     * @param Order $order The order to ship
+     * @param Shipping $carrier The carrier to use
+     * @param string $serviceCode The service type code (e.g., 'FEDEX_GROUND')
+     * @param array $itemOverrides Optional weight/dimension overrides keyed by order_item_id
+     * @return array ['tracking_number' => string, 'label_path' => string, 'carrier_name' => string]
+     * @throws \RuntimeException on failure
+     */
+    public function generateLabelForOrder(Order $order, Shipping $carrier, string $serviceCode, array $itemOverrides = []): array
+    {
+        $service = $this->resolveCarrierService($carrier);
+
+        if (!$service) {
+            throw new \RuntimeException("Carrier type '{$carrier->type}' is not supported for label generation.");
+        }
+
+        // Build a lookup map from user-supplied overrides keyed by order_item_id
+        $overrideMap = [];
+        foreach ($itemOverrides as $override) {
+            if (!empty($override['order_item_id'])) {
+                $overrideMap[(int) $override['order_item_id']] = $override;
+            }
+        }
+
+        // Build package weight/dimensions from order items
+        $totalWeight = 0.0;
+        $maxLength   = 0.0;
+        $maxWidth    = 0.0;
+        $maxHeight   = 0.0;
+
+        foreach ($order->items as $item) {
+            $qty      = (int) ($item->quantity ?? 1);
+            $override = $overrideMap[$item->id] ?? null;
+
+            if ($override) {
+                $weight = (float) ($override['weight'] ?? 0);
+                $length = (float) ($override['length'] ?? 0);
+                $width  = (float) ($override['width']  ?? 0);
+                $height = (float) ($override['height'] ?? 0);
+            } else {
+                $product = $item->product;
+                $meta    = $product?->product_meta ?? [];
+                $weight  = (float) ($meta['weight'] ?? $product?->weight ?? 0);
+                $length  = (float) ($meta['length'] ?? $product?->length ?? 0);
+                $width   = (float) ($meta['width']  ?? $product?->width  ?? 0);
+                $height  = (float) ($meta['height'] ?? $product?->height ?? 0);
+            }
+
+            $totalWeight += $weight * $qty;
+            $maxLength    = max($maxLength, $length);
+            $maxWidth     = max($maxWidth,  $width);
+            $maxHeight    = max($maxHeight, $height);
+        }
+
+        // Fallback to 1 lb / 12×12×12 if no product dimensions are set
+        if ($totalWeight <= 0) {
+            $totalWeight = 1.0;
+        }
+        if ($maxLength <= 0) { $maxLength = 12.0; }
+        if ($maxWidth  <= 0) { $maxWidth  = 12.0; }
+        if ($maxHeight <= 0) { $maxHeight = 12.0; }
+
+        $weightUnit    = $carrier->weight_unit    ?? 'lbs';
+        $dimensionUnit = $carrier->dimension_unit ?? 'inches';
+
+        // FedEx accepts only 'LB' or 'KG' — not 'LBS', 'KGS', etc.
+        $fedexWeightUnit = in_array(strtolower($weightUnit), ['kg', 'kgs', 'kilogram', 'kilograms']) ? 'KG' : 'LB';
+        $fedexDimUnit    = strtolower($dimensionUnit) === 'cm' ? 'CM' : 'IN';
+
+        // Build shipper address from carrier
+        $shipperStreetLines = array_values(array_filter([
+            $carrier->shipper_address ?? '',
+        ]));
+        if (empty($shipperStreetLines)) {
+            $shipperStreetLines = ['123 Shipper Street'];
+        }
+
+        // Build recipient address from order
+        $recipientStreetLines = array_values(array_filter([
+            $order->shipping_address_line1 ?? '',
+            $order->shipping_address_line2 ?? null,
+        ]));
+
+        $shipmentPayload = [
+            'labelResponseOptions' => 'LABEL',
+            'accountNumber'        => ['value' => $carrier->account_number ?? ''],
+            'requestedShipment'    => [
+                'shipper' => [
+                    'contact' => [
+                        'personName'  => $carrier->shipper_name ?? 'Shipper',
+                        'phoneNumber' => '1234567890',
+                    ],
+                    'address' => [
+                        'streetLines'         => $shipperStreetLines,
+                        'city'                => $carrier->shipper_city          ?? 'New York',
+                        'stateOrProvinceCode' => $carrier->shipper_state         ?? 'NY',
+                        'postalCode'          => $carrier->shipper_postal_code   ?? '10001',
+                        'countryCode'         => $carrier->shipper_country       ?? 'US',
+                    ],
+                ],
+                'recipients' => [[
+                    'contact' => [
+                        'personName'  => $order->shipping_name ?? $order->buyer_name ?? 'Recipient',
+                        'phoneNumber' => $order->buyer_phone ?? '1234567890',
+                    ],
+                    'address' => [
+                        'streetLines'         => $recipientStreetLines,
+                        'city'                => $order->shipping_city          ?? '',
+                        'stateOrProvinceCode' => $order->shipping_state         ?? '',
+                        'postalCode'          => $order->shipping_postal_code   ?? '',
+                        'countryCode'         => $order->shipping_country       ?? 'US',
+                        'residential'         => in_array($order->address_type, ['RESIDENTIAL', 'MIXED']),
+                    ],
+                ]],
+                'serviceType'          => $serviceCode,
+                'packagingType'        => 'YOUR_PACKAGING',
+                'pickupType'           => 'USE_SCHEDULED_PICKUP',
+                'shippingChargesPayment' => [
+                    'paymentType' => 'SENDER',
+                    'payor'       => [
+                        'responsibleParty' => [
+                            'accountNumber' => ['value' => $carrier->account_number ?? ''],
+                        ],
+                    ],
+                ],
+                'labelSpecification' => [
+                    'labelFormatType' => 'COMMON2D',
+                    'imageType'       => 'PDF',
+                    'labelStockType'  => 'PAPER_7X475',
+                ],
+                'requestedPackageLineItems' => [[
+                    'weight' => [
+                        'units' => $fedexWeightUnit,
+                        'value' => round($totalWeight, 2),
+                    ],
+                    'dimensions' => [
+                        'length' => (int) ceil($maxLength),
+                        'width'  => (int) ceil($maxWidth),
+                        'height' => (int) ceil($maxHeight),
+                        'units'  => $fedexDimUnit,
+                    ],
+                ]],
+            ],
+        ];
+
+        // Call FedEx to create shipment
+        $result = $service->createShipment($shipmentPayload);
+
+        // Save the label PDF to storage
+        $trackingNumber = $result['tracking_number'];
+        $labelBase64    = $result['label_base64'];
+        $labelFormat    = strtolower($result['label_format'] ?? 'pdf');
+
+        $filename  = "shipping-labels/order-{$order->id}-{$trackingNumber}.{$labelFormat}";
+        $labelData = base64_decode($labelBase64);
+
+        Storage::put($filename, $labelData);
+
+        Log::info('ShippingService: label generated and saved', [
+            'order_id'        => $order->id,
+            'tracking_number' => $trackingNumber,
+            'label_path'      => $filename,
+            'carrier'         => $carrier->name,
+        ]);
+
+        return [
+            'tracking_number' => $trackingNumber,
+            'label_path'      => $filename,
+            'carrier_name'    => $carrier->name,
+        ];
     }
 }

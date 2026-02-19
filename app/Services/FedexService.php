@@ -168,4 +168,78 @@ class FedexService
             return [];
         }
     }
+
+    /**
+     * Create a shipment and generate a shipping label.
+     *
+     * @param array $shipmentDetails The full shipment payload for FedEx Ship API
+     * @return array ['tracking_number' => string, 'label_base64' => string, 'label_format' => string]
+     * @throws \RuntimeException on failure
+     */
+    public function createShipment(array $shipmentDetails): array
+    {
+        $token = $this->getAccessToken();
+        if (!$token) {
+            throw new \RuntimeException('FedEx: Unable to obtain access token');
+        }
+
+        $endpoint = $this->carrier->is_sandbox
+            ? ($this->carrier->sandbox_endpoint ?: 'https://apis-sandbox.fedex.com')
+            : ($this->carrier->api_endpoint     ?: 'https://apis.fedex.com');
+
+        try {
+            $response = Http::withToken($token)
+                ->post("{$endpoint}/ship/v1/shipments", $shipmentDetails);
+
+            if (!$response->successful()) {
+                $errorBody = $response->json();
+                $errorMessage = $errorBody['errors'][0]['message']
+                    ?? $errorBody['error_description']
+                    ?? $response->body();
+
+                Log::error('FedEx: createShipment failed', [
+                    'status'  => $response->status(),
+                    'body'    => $response->body(),
+                    'payload' => $shipmentDetails,
+                ]);
+
+                throw new \RuntimeException("FedEx shipment creation failed: {$errorMessage}");
+            }
+
+            $data = $response->json();
+
+            // Extract tracking number
+            $trackingNumber = $data['output']['transactionShipments'][0]['masterTrackingNumber'] ?? null;
+            if (!$trackingNumber) {
+                $trackingNumber = $data['output']['transactionShipments'][0]['pieceResponses'][0]['trackingNumber'] ?? null;
+            }
+
+            // Extract label (base64 encoded)
+            $labelBase64 = $data['output']['transactionShipments'][0]['pieceResponses'][0]['packageDocuments'][0]['encodedLabel'] ?? null;
+            $labelFormat = $data['output']['transactionShipments'][0]['pieceResponses'][0]['packageDocuments'][0]['docType'] ?? 'PDF';
+
+            if (!$trackingNumber || !$labelBase64) {
+                Log::error('FedEx: createShipment missing tracking or label', [
+                    'response' => $data,
+                ]);
+                throw new \RuntimeException('FedEx: Shipment created but missing tracking number or label');
+            }
+
+            Log::info('FedEx: shipment created successfully', [
+                'tracking_number' => $trackingNumber,
+                'carrier_id'      => $this->carrier->id,
+            ]);
+
+            return [
+                'tracking_number' => $trackingNumber,
+                'label_base64'    => $labelBase64,
+                'label_format'    => $labelFormat,
+            ];
+        } catch (\RuntimeException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('FedEx: createShipment exception', ['message' => $e->getMessage()]);
+            throw new \RuntimeException("FedEx shipment creation failed: {$e->getMessage()}");
+        }
+    }
 }

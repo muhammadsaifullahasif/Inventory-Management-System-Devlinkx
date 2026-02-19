@@ -476,10 +476,10 @@
                                         <tr>
                                             <th>Item</th>
                                             <th class="text-center" style="width:40px;">Qty</th>
-                                            <th class="text-center" style="width:75px;">Weight</th>
-                                            <th class="text-center" style="width:75px;">L</th>
-                                            <th class="text-center" style="width:75px;">W</th>
-                                            <th class="text-center" style="width:75px;">H</th>
+                                            <th class="text-center" style="width:90px;">Weight</th>
+                                            <th class="text-center" style="width:90px;">L</th>
+                                            <th class="text-center" style="width:90px;">W</th>
+                                            <th class="text-center" style="width:90px;">H</th>
                                         </tr>
                                     </thead>
                                     <tbody id="showItemsDimTbody">
@@ -556,53 +556,74 @@
                                 </div>
                                 <div id="showRatesError" class="alert alert-danger py-2 small mb-0" style="display:none;"></div>
                                 <div id="showRatesServiceWrap" style="display:none;">
-                                    <div class="form-row mt-2">
-                                        <div class="col-md-8">
-                                            <label class="small mb-1">Select Service</label>
-                                            <select id="showServiceSelect" class="form-control form-control-sm">
-                                                <option value="">-- Choose a service --</option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label class="small mb-1">&nbsp;</label>
-                                            <div id="showSelectedCost" class="form-control form-control-sm bg-light text-center font-weight-bold" style="display:none;"></div>
-                                        </div>
+                                    <label class="small mb-1">Select Service</label>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-hover table-bordered mb-2" id="showRatesTable">
+                                            <thead class="thead-light">
+                                                <tr>
+                                                    <th style="width:40px;"></th>
+                                                    <th>Service</th>
+                                                    <th class="text-right" style="width:120px;">Cost</th>
+                                                    <th class="text-center" style="width:100px;">Transit</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="showRatesTableBody"></tbody>
+                                        </table>
                                     </div>
                                     <small class="text-muted d-block mt-1"><i class="fas fa-info-circle mr-1"></i>Rates are estimates only. Actual cost may vary.</small>
+
+                                    <!-- Generate Label Button -->
+                                    <button type="button" id="showGenerateLabelBtn" class="btn btn-success btn-block mt-3" style="display:none;" disabled>
+                                        <i class="fas fa-print mr-1"></i> Generate Label &amp; Mark Shipped
+                                    </button>
+
+                                    <!-- Label Result (shown after label is generated) -->
+                                    <div id="showLabelResult" class="alert alert-success mt-3" style="display:none;">
+                                        <h6 class="mb-2"><i class="fas fa-check-circle mr-1"></i> Label Generated Successfully!</h6>
+                                        <p class="mb-2">Tracking Number: <strong id="showTrackingNumber"></strong></p>
+                                        <a href="#" id="showDownloadLabelLink" class="btn btn-primary btn-sm" target="_blank">
+                                            <i class="fas fa-download mr-1"></i> Download Label
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Mark as Shipped Section -->
-                    <div class="card card-outline card-success mb-0">
-                        <div class="card-header py-2">
-                            <h6 class="card-title mb-0"><i class="fas fa-shipping-fast mr-1"></i> Mark as Shipped</h6>
+                    <!-- Manual Mark as Shipped Section (optional, for manual tracking entry) -->
+                    <div class="card card-outline card-secondary mb-0">
+                        <div class="card-header py-2" data-toggle="collapse" data-target="#manualShipSection" style="cursor:pointer;">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-keyboard mr-1"></i> Manual Entry (Already Have Tracking?)
+                                <i class="fas fa-chevron-down float-right mt-1"></i>
+                            </h6>
                         </div>
-                        <div class="card-body py-2">
-                            <form id="shipForm" action="{{ route('orders.ship', $order->id) }}" method="POST">
-                                @csrf
-                                <div class="form-row">
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-2">
-                                            <label class="small mb-1">Shipping Carrier <span class="text-danger">*</span></label>
-                                            <input type="text" name="shipping_carrier" id="showShipCarrierName" class="form-control form-control-sm" required placeholder="e.g., FedEx, UPS, USPS">
+                        <div id="manualShipSection" class="collapse">
+                            <div class="card-body py-2">
+                                <form id="shipForm" action="{{ route('orders.ship', $order->id) }}" method="POST">
+                                    @csrf
+                                    <div class="form-row">
+                                        <div class="col-md-6">
+                                            <div class="form-group mb-2">
+                                                <label class="small mb-1">Shipping Carrier <span class="text-danger">*</span></label>
+                                                <input type="text" name="shipping_carrier" id="showShipCarrierName" class="form-control form-control-sm" required placeholder="e.g., FedEx, UPS, USPS">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group mb-2">
+                                                <label class="small mb-1">Tracking Number <span class="text-danger">*</span></label>
+                                                <input type="text" name="tracking_number" class="form-control form-control-sm" required placeholder="Enter tracking number">
+                                            </div>
                                         </div>
                                     </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-2">
-                                            <label class="small mb-1">Tracking Number <span class="text-danger">*</span></label>
-                                            <input type="text" name="tracking_number" class="form-control form-control-sm" required placeholder="Enter tracking number">
-                                        </div>
+                                    <div class="d-flex justify-content-end">
+                                        <button type="button" class="btn btn-secondary btn-sm mr-2" data-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-success btn-sm">
+                                            <i class="fas fa-check mr-1"></i> Mark as Shipped
+                                        </button>
                                     </div>
-                                </div>
-                                <div class="d-flex justify-content-end">
-                                    <button type="button" class="btn btn-secondary btn-sm mr-2" data-dismiss="modal">Cancel</button>
-                                    <button type="submit" class="btn btn-success btn-sm">
-                                        <i class="fas fa-check mr-1"></i> Mark as Shipped
-                                    </button>
-                                </div>
-                            </form>
+                                </form>
+                            </div>
                         </div>
                     </div>
 
@@ -672,27 +693,32 @@
                             $('#showShipperInfo').show();
                         }
 
-                        // Populate service dropdown
+                        // Populate rates table with radio buttons
+                        $('#showRatesTableBody').empty();
                         $.each(rates, function(i, rate) {
-                            var cost    = rate.amount !== null
+                            var cost = rate.amount !== null
                                 ? rate.currency + ' ' + parseFloat(rate.amount).toFixed(2)
                                 : 'N/A';
-                            var transit = rate.transit_days ? ' (' + rate.transit_days + ')' : '';
-                            var label   = rate.service_name + ' — ' + cost + transit;
-                            $('#showServiceSelect').append(
-                                $('<option>', {
-                                    value:            rate.service_code,
-                                    'data-amount':    rate.amount,
-                                    'data-currency':  rate.currency,
-                                    'data-transit':   rate.transit_days || '',
-                                    'data-name':      rate.service_name,
-                                    text:             label
-                                })
-                            );
+                            var transit = rate.transit_days || '-';
+                            var row = '<tr class="show-rate-row" style="cursor:pointer;">' +
+                                '<td class="text-center align-middle">' +
+                                    '<input type="radio" name="showServiceRadio" value="' + rate.service_code + '"' +
+                                    ' data-amount="' + (rate.amount || '') + '"' +
+                                    ' data-currency="' + (rate.currency || 'USD') + '"' +
+                                    ' data-transit="' + (rate.transit_days || '') + '"' +
+                                    ' data-name="' + rate.service_name + '">' +
+                                '</td>' +
+                                '<td>' + rate.service_name + '</td>' +
+                                '<td class="text-right">' + cost + '</td>' +
+                                '<td class="text-center">' + transit + '</td>' +
+                                '</tr>';
+                            $('#showRatesTableBody').append(row);
                         });
                         $('#showRatesServiceWrap').show();
+                        $('#showGenerateLabelBtn').hide().prop('disabled', true);
+                        $('#showLabelResult').hide();
 
-                        // Auto-fill carrier name in ship form
+                        // Auto-fill carrier name in manual ship form
                         var carrierLabel = $('#showRateCarrierId option:selected').text()
                             .replace(' ★', '').replace(/\s*\(.*\)$/, '').trim();
                         $('#showShipCarrierName').val(carrierLabel);
@@ -706,22 +732,76 @@
             });
 
             // ----------------------------------------------------------------
-            // Service selection — show cost for chosen service
+            // Service selection — clicking row selects radio, enable Generate Label
             // ----------------------------------------------------------------
-            $('#showServiceSelect').on('change', function() {
-                var $opt = $(this).find('option:selected');
-                if (!$opt.val()) {
-                    $('#showSelectedCost').hide().text('');
+            $(document).on('click', '.show-rate-row', function() {
+                $(this).find('input[type="radio"]').prop('checked', true).trigger('change');
+            });
+
+            $(document).on('change', 'input[name="showServiceRadio"]', function() {
+                if ($(this).is(':checked')) {
+                    $('#showGenerateLabelBtn').show().prop('disabled', false);
+                }
+            });
+
+            // ----------------------------------------------------------------
+            // Generate Label button click
+            // ----------------------------------------------------------------
+            $('#showGenerateLabelBtn').on('click', function() {
+                var $radio = $('input[name="showServiceRadio"]:checked');
+                if (!$radio.length) {
+                    alert('Please select a service first.');
                     return;
                 }
-                var amount   = $opt.data('amount');
-                var currency = $opt.data('currency') || 'USD';
-                var transit  = $opt.data('transit');
-                var costText = amount !== null && amount !== ''
-                    ? currency + ' ' + parseFloat(amount).toFixed(2)
-                    : 'N/A';
-                if (transit) { costText += ' (' + transit + ')'; }
-                $('#showSelectedCost').text(costText).show();
+
+                var carrierId   = $('#showRateCarrierId').val();
+                var serviceCode = $radio.val();
+
+                // Collect dimension overrides
+                var itemOverrides = [];
+                $('#showItemsDimTbody tr').each(function() {
+                    var itemId = $(this).find('.show-dim-input').first().data('item-id');
+                    var entry  = { order_item_id: itemId };
+                    $(this).find('.show-dim-input').each(function() {
+                        entry[$(this).data('dim')] = parseFloat($(this).val()) || 0;
+                    });
+                    itemOverrides.push(entry);
+                });
+
+                var $btn = $(this);
+                $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generating Label...');
+
+                $.ajax({
+                    url: '{{ route('orders.generate-label', $order->id) }}',
+                    type: 'POST',
+                    data: {
+                        _token:       '{{ csrf_token() }}',
+                        carrier_id:   carrierId,
+                        service_code: serviceCode,
+                        items:        itemOverrides
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            $('#showTrackingNumber').text(response.tracking_number);
+                            $('#showDownloadLabelLink').attr('href', response.label_url);
+                            $('#showLabelResult').show();
+                            $btn.hide();
+
+                            // Reload after 3 seconds to update order status
+                            setTimeout(function() {
+                                location.reload();
+                            }, 3000);
+                        } else {
+                            alert(response.message || 'Failed to generate label.');
+                            $btn.prop('disabled', false).html('<i class="fas fa-print mr-1"></i> Generate Label & Mark Shipped');
+                        }
+                    },
+                    error: function(xhr) {
+                        var msg = xhr.responseJSON?.message || 'Failed to generate label.';
+                        alert(msg);
+                        $btn.prop('disabled', false).html('<i class="fas fa-print mr-1"></i> Generate Label & Mark Shipped');
+                    }
+                });
             });
 
             // ----------------------------------------------------------------

@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use App\Services\ShippingService;
 
 class OrderController extends Controller
@@ -673,5 +674,132 @@ class OrderController extends Controller
                 'to' => $dateTo,
             ],
         ]);
+    }
+
+    /**
+     * Generate a shipping label for an order.
+     * Creates a shipment with the carrier, stores the label, and marks the order as shipped.
+     */
+    public function generateShippingLabel(Request $request, string $id): JsonResponse
+    {
+        $order = Order::with(['items.product.product_meta', 'salesChannel'])->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        $validated = $request->validate([
+            'carrier_id'                => 'required|integer|exists:shippings,id',
+            'service_code'              => 'required|string',
+            'items'                     => 'nullable|array',
+            'items.*.order_item_id'     => 'nullable|integer',
+            'items.*.weight'            => 'nullable|numeric|min:0',
+            'items.*.length'            => 'nullable|numeric|min:0',
+            'items.*.width'             => 'nullable|numeric|min:0',
+            'items.*.height'            => 'nullable|numeric|min:0',
+        ]);
+
+        $carrier      = Shipping::findOrFail($validated['carrier_id']);
+        $serviceCode  = $validated['service_code'];
+        $itemOverrides = $validated['items'] ?? [];
+
+        try {
+            DB::beginTransaction();
+
+            // Generate label via ShippingService
+            $labelResult = $this->shippingService->generateLabelForOrder(
+                $order,
+                $carrier,
+                $serviceCode,
+                $itemOverrides
+            );
+
+            $trackingNumber = $labelResult['tracking_number'];
+            $labelPath      = $labelResult['label_path'];
+            $carrierName    = $labelResult['carrier_name'];
+
+            // Update order with shipping info and mark as shipped
+            $order->update([
+                'shipping_carrier'     => $carrierName,
+                'tracking_number'      => $trackingNumber,
+                'shipping_label_path'  => $labelPath,
+                'label_generated_at'   => now(),
+                'fulfillment_status'   => 'fulfilled',
+                'order_status'         => 'shipped',
+                'shipped_at'           => now(),
+            ]);
+
+            // Deduct inventory for all items
+            foreach ($order->items as $item) {
+                if (!$item->inventory_updated) {
+                    $item->updateInventory();
+                }
+            }
+
+            DB::commit();
+
+            // Sync shipment to eBay if this is an eBay order
+            $ebayResult = null;
+            if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+                $ebayResult = $this->syncShipmentToEbay($order, $carrierName, $trackingNumber);
+            }
+
+            $message = 'Shipping label generated and order marked as shipped';
+            if ($ebayResult) {
+                if ($ebayResult['success']) {
+                    $message .= ' and synced to eBay';
+                } else {
+                    $message .= '. eBay sync failed: ' . ($ebayResult['message'] ?? 'Unknown error');
+                }
+            }
+
+            return response()->json([
+                'success'         => true,
+                'message'         => $message,
+                'tracking_number' => $trackingNumber,
+                'label_url'       => route('orders.label', $order->id),
+                'data'            => $order->fresh(['items']),
+                'ebay_sync'       => $ebayResult,
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to generate shipping label', [
+                'order_id' => $id,
+                'error'    => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate shipping label: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Download the shipping label for an order.
+     */
+    public function downloadLabel(string $id)
+    {
+        $order = Order::find($id);
+
+        if (!$order) {
+            abort(404, 'Order not found');
+        }
+
+        if (!$order->shipping_label_path) {
+            abort(404, 'No shipping label found for this order');
+        }
+
+        if (!Storage::exists($order->shipping_label_path)) {
+            abort(404, 'Shipping label file not found');
+        }
+
+        $filename = "label-{$order->order_number}.pdf";
+
+        return Storage::download($order->shipping_label_path, $filename);
     }
 }
