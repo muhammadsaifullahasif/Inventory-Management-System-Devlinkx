@@ -103,10 +103,8 @@ class BasicSeeder extends Seeder
         $role = Role::create(['name' => 'superadmin']);
         $roleAdmin = Role::create(['name' => 'Admin']);
 
-        if (!empty($permissions)) {
-            foreach ($permissions as $permission) {
-                $roleAdmin->givePermissionTo($permission);
-            }
+        foreach ($permissions as $permission) {
+            $roleAdmin->givePermissionTo($permission);
         }
 
         $user = new User();
@@ -114,6 +112,7 @@ class BasicSeeder extends Seeder
         $user->email = 'superadmin@gmail.com';
         $user->password = Hash::make('12345678');
         $user->save();
+        $user->syncRoles('superadmin');
         
         $userAdmin = new User();
         $userAdmin->name = 'Admin';
