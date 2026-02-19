@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -139,7 +140,7 @@ class BasicSeeder extends Seeder
         ];
 
         foreach ($categories as $category) {
-            Category::firstOrCreate(['name' => $category]);
+            Category::firstOrCreate(['name' => $category, 'slug' => Str::slug($category)]);
         }
 
         $brands = [
@@ -164,7 +165,7 @@ class BasicSeeder extends Seeder
         ];
 
         foreach ($brands as $brand) {
-            Brand::firstOrCreate(['name' => $brand]);
+            Brand::firstOrCreate(['name' => $brand, 'slug' => Str::slug($brand)]);
         }
     }
 }
