@@ -59,7 +59,7 @@ class WarehouseController extends Controller
         ]);
 
         try {
-            Warehouse::create([
+            $warehouse = Warehouse::create([
                 'name' => $request->name,
                 'is_default' => $request->is_default ? '1' : '0'
             ]);
