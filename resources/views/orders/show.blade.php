@@ -129,7 +129,25 @@
                                 <tr>
                                     <td class="text-muted">Tracking:</td>
                                     <td>
-                                        <strong>{{ $order->shipping_carrier }}</strong>: {{ $order->tracking_number }}
+                                        <strong>{{ $order->shipping_carrier }}</strong>:
+                                        @if($order->tracking_url)
+                                            <a href="{{ $order->tracking_url }}" target="_blank" class="text-primary">
+                                                {{ $order->tracking_number }} <i class="fas fa-external-link-alt fa-xs"></i>
+                                            </a>
+                                        @else
+                                            {{ $order->tracking_number }}
+                                        @endif
+                                    </td>
+                                </tr>
+                                @endif
+                                @if($order->delivered_at)
+                                <tr>
+                                    <td class="text-muted">Delivered At:</td>
+                                    <td>
+                                        <span class="text-success">
+                                            <i class="fas fa-check-circle mr-1"></i>
+                                            {{ \Carbon\Carbon::parse($order->delivered_at)->format('d M, Y H:i') }}
+                                        </span>
                                     </td>
                                 </tr>
                                 @endif

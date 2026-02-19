@@ -486,4 +486,154 @@ class ShippingService
             'carrier_name'    => $carrier->name,
         ];
     }
+
+    // -------------------------------------------------------------------------
+    // Delivery Status Tracking
+    // -------------------------------------------------------------------------
+
+    /**
+     * Check delivery status for a single order.
+     * Updates order status to 'delivered' if the carrier reports it as delivered.
+     *
+     * @param Order $order The order to check
+     * @return array ['checked' => bool, 'delivered' => bool, 'status' => string, 'error' => ?string]
+     */
+    public function checkOrderDeliveryStatus(Order $order): array
+    {
+        // Must have a tracking number and shipping carrier
+        if (!$order->tracking_number || !$order->shipping_id) {
+            return [
+                'checked'   => false,
+                'delivered' => false,
+                'status'    => 'Missing tracking number or carrier',
+                'error'     => 'Order missing tracking_number or shipping_id',
+            ];
+        }
+
+        // Already delivered? Skip
+        if ($order->order_status === 'delivered') {
+            return [
+                'checked'   => false,
+                'delivered' => true,
+                'status'    => 'Already delivered',
+                'error'     => null,
+            ];
+        }
+
+        $carrier = $order->shippingCarrier;
+        if (!$carrier) {
+            return [
+                'checked'   => false,
+                'delivered' => false,
+                'status'    => 'Carrier not found',
+                'error'     => "Carrier ID {$order->shipping_id} not found",
+            ];
+        }
+
+        $service = $this->resolveCarrierService($carrier);
+        if (!$service) {
+            return [
+                'checked'   => false,
+                'delivered' => false,
+                'status'    => 'Unsupported carrier',
+                'error'     => "Carrier type '{$carrier->type}' not supported for tracking",
+            ];
+        }
+
+        try {
+            $trackingResult = $service->getTrackingStatus($order->tracking_number);
+
+            // Update last checked timestamp
+            $order->update(['tracking_last_checked_at' => now()]);
+
+            if ($trackingResult['delivered']) {
+                // Parse delivered_at from ISO 8601 string if available
+                $deliveredAt = $trackingResult['delivered_at']
+                    ? \Carbon\Carbon::parse($trackingResult['delivered_at'])
+                    : now();
+
+                $order->update([
+                    'order_status' => 'delivered',
+                    'delivered_at' => $deliveredAt,
+                ]);
+
+                Log::info('ShippingService: order marked as delivered', [
+                    'order_id'        => $order->id,
+                    'tracking_number' => $order->tracking_number,
+                    'delivered_at'    => $deliveredAt,
+                ]);
+
+                return [
+                    'checked'   => true,
+                    'delivered' => true,
+                    'status'    => $trackingResult['status'],
+                    'error'     => null,
+                ];
+            }
+
+            return [
+                'checked'   => true,
+                'delivered' => false,
+                'status'    => $trackingResult['status'],
+                'error'     => null,
+            ];
+        } catch (\Throwable $e) {
+            Log::warning('ShippingService: tracking check failed', [
+                'order_id'        => $order->id,
+                'tracking_number' => $order->tracking_number,
+                'error'           => $e->getMessage(),
+            ]);
+
+            return [
+                'checked'   => false,
+                'delivered' => false,
+                'status'    => 'Error',
+                'error'     => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Check delivery status for all shipped orders that haven't been delivered yet.
+     *
+     * @param int $limit Maximum number of orders to check in one run
+     * @return array ['total' => int, 'checked' => int, 'delivered' => int, 'errors' => int]
+     */
+    public function checkAllPendingDeliveries(int $limit = 100): array
+    {
+        $stats = ['total' => 0, 'checked' => 0, 'delivered' => 0, 'errors' => 0];
+
+        // Get shipped orders with tracking that aren't delivered yet
+        $orders = Order::where('order_status', 'shipped')
+            ->whereNotNull('tracking_number')
+            ->whereNotNull('shipping_id')
+            ->whereNull('delivered_at')
+            ->orderBy('tracking_last_checked_at', 'asc') // Check oldest first
+            ->limit($limit)
+            ->get();
+
+        $stats['total'] = $orders->count();
+
+        foreach ($orders as $order) {
+            $result = $this->checkOrderDeliveryStatus($order);
+
+            if ($result['checked']) {
+                $stats['checked']++;
+                if ($result['delivered']) {
+                    $stats['delivered']++;
+                }
+            }
+
+            if ($result['error']) {
+                $stats['errors']++;
+            }
+
+            // Small delay to avoid rate limiting
+            usleep(200000); // 200ms
+        }
+
+        Log::info('ShippingService: delivery status check complete', $stats);
+
+        return $stats;
+    }
 }

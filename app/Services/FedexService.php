@@ -189,10 +189,15 @@ class FedexService
 
         try {
             $response = Http::withToken($token)
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                    'x-locale'     => 'en_US',
+                ])
                 ->post("{$endpoint}/ship/v1/shipments", $shipmentDetails);
 
             if (!$response->successful()) {
                 $errorBody = $response->json();
+                $errorCode = $errorBody['errors'][0]['code'] ?? '';
                 $errorMessage = $errorBody['errors'][0]['message']
                     ?? $errorBody['error_description']
                     ?? $response->body();
@@ -202,6 +207,15 @@ class FedexService
                     'body'    => $response->body(),
                     'payload' => $shipmentDetails,
                 ]);
+
+                // Provide more helpful error message for common issues
+                if ($response->status() === 403 || $errorCode === 'FORBIDDEN.ERROR') {
+                    throw new \RuntimeException(
+                        "FedEx authorization failed. Please ensure: (1) Ship API is enabled in your FedEx Developer Portal project, " .
+                        "(2) Your account number is authorized for shipping, (3) You're using the correct sandbox/production credentials. " .
+                        "Original error: {$errorMessage}"
+                    );
+                }
 
                 throw new \RuntimeException("FedEx shipment creation failed: {$errorMessage}");
             }
@@ -240,6 +254,101 @@ class FedexService
         } catch (\Throwable $e) {
             Log::error('FedEx: createShipment exception', ['message' => $e->getMessage()]);
             throw new \RuntimeException("FedEx shipment creation failed: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Get tracking status for a shipment.
+     *
+     * @param string $trackingNumber The FedEx tracking number
+     * @return array ['status_code' => string, 'status' => string, 'delivered' => bool, 'delivered_at' => ?string, 'raw' => array]
+     */
+    public function getTrackingStatus(string $trackingNumber): array
+    {
+        $token = $this->getAccessToken();
+        if (!$token) {
+            throw new \RuntimeException('FedEx: Unable to obtain access token');
+        }
+
+        $endpoint = $this->carrier->is_sandbox
+            ? ($this->carrier->sandbox_endpoint ?: 'https://apis-sandbox.fedex.com')
+            : ($this->carrier->api_endpoint     ?: 'https://apis.fedex.com');
+
+        $payload = [
+            'includeDetailedScans' => false,
+            'trackingInfo' => [[
+                'trackingNumberInfo' => [
+                    'trackingNumber' => $trackingNumber,
+                ],
+            ]],
+        ];
+
+        try {
+            $response = Http::withToken($token)
+                ->post("{$endpoint}/track/v1/trackingnumbers", $payload);
+
+            if (!$response->successful()) {
+                Log::warning('FedEx: getTrackingStatus failed', [
+                    'status'          => $response->status(),
+                    'body'            => $response->body(),
+                    'tracking_number' => $trackingNumber,
+                ]);
+                throw new \RuntimeException('FedEx tracking request failed');
+            }
+
+            $data = $response->json();
+
+            // Extract tracking result
+            $trackResult = $data['output']['completeTrackResults'][0]['trackResults'][0] ?? null;
+
+            if (!$trackResult) {
+                return [
+                    'status_code' => 'UNKNOWN',
+                    'status'      => 'Unknown',
+                    'delivered'   => false,
+                    'delivered_at' => null,
+                    'raw'         => $data,
+                ];
+            }
+
+            $latestStatus = $trackResult['latestStatusDetail'] ?? [];
+            $statusCode   = $latestStatus['code'] ?? 'UNKNOWN';
+            $statusText   = $latestStatus['statusByLocale'] ?? $latestStatus['description'] ?? 'Unknown';
+
+            // Check if delivered
+            $delivered   = ($statusCode === 'DL');
+            $deliveredAt = null;
+
+            if ($delivered) {
+                // Find actual delivery date/time
+                $dateAndTimes = $trackResult['dateAndTimes'] ?? [];
+                foreach ($dateAndTimes as $dt) {
+                    if (($dt['type'] ?? '') === 'ACTUAL_DELIVERY') {
+                        $deliveredAt = $dt['dateTime'] ?? null;
+                        break;
+                    }
+                }
+            }
+
+            Log::info('FedEx: tracking status retrieved', [
+                'tracking_number' => $trackingNumber,
+                'status_code'     => $statusCode,
+                'status'          => $statusText,
+                'delivered'       => $delivered,
+            ]);
+
+            return [
+                'status_code'  => $statusCode,
+                'status'       => $statusText,
+                'delivered'    => $delivered,
+                'delivered_at' => $deliveredAt,
+                'raw'          => $trackResult,
+            ];
+        } catch (\RuntimeException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('FedEx: getTrackingStatus exception', ['message' => $e->getMessage()]);
+            throw new \RuntimeException("FedEx tracking failed: {$e->getMessage()}");
         }
     }
 }

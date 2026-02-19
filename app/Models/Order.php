@@ -38,10 +38,14 @@ class Order extends Model
         'payment_status',
         'fulfillment_status',
         'shipping_carrier',
+        'shipping_id',
         'tracking_number',
+        'tracking_url',
         'shipping_label_path',
         'label_generated_at',
         'shipped_at',
+        'delivered_at',
+        'tracking_last_checked_at',
         'ebay_order_status',
         'ebay_payment_status',
         'cancel_status',
@@ -60,6 +64,8 @@ class Order extends Model
         'order_date' => 'datetime',
         'paid_at' => 'datetime',
         'shipped_at' => 'datetime',
+        'delivered_at' => 'datetime',
+        'tracking_last_checked_at' => 'datetime',
         'label_generated_at' => 'datetime',
         'notification_received_at' => 'datetime',
         'address_validated_at'    => 'datetime',
@@ -76,6 +82,14 @@ class Order extends Model
     public function salesChannel()
     {
         return $this->belongsTo(SalesChannel::class, 'sales_channel_id');
+    }
+
+    /**
+     * Get the shipping carrier used for this order
+     */
+    public function shippingCarrier()
+    {
+        return $this->belongsTo(Shipping::class, 'shipping_id');
     }
 
     /**

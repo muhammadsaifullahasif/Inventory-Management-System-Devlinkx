@@ -722,10 +722,18 @@ class OrderController extends Controller
             $labelPath      = $labelResult['label_path'];
             $carrierName    = $labelResult['carrier_name'];
 
+            // Build tracking URL from carrier's tracking_url base + tracking number
+            $trackingUrl = null;
+            if ($carrier->tracking_url) {
+                $trackingUrl = $carrier->tracking_url . $trackingNumber;
+            }
+
             // Update order with shipping info and mark as shipped
             $order->update([
                 'shipping_carrier'     => $carrierName,
+                'shipping_id'          => $carrier->id,
                 'tracking_number'      => $trackingNumber,
+                'tracking_url'         => $trackingUrl,
                 'shipping_label_path'  => $labelPath,
                 'label_generated_at'   => now(),
                 'fulfillment_status'   => 'fulfilled',
