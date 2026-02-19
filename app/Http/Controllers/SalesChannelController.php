@@ -84,20 +84,25 @@ class SalesChannelController extends Controller
 
             session(['sales_channel_id' => $sales_channel->id]);
 
-            // Build eBay authorization URL with properly encoded parameters
-            $authUrl = env('EBAY_AUTH_URL') . '?' . http_build_query([
-                'client_id'     => $sales_channel->client_id,
-                'response_type' => 'code',
-                'redirect_uri'  => $sales_channel->ru_name,
-                'scope'         => $sales_channel->user_scopes,
-            ]);
-
-            return redirect($authUrl);
+            return redirect($this->buildEbayAuthUrl($sales_channel));
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'An error occurred while creating the sales channel.'])->withInput();
         }
     }
-    
+
+    /**
+     * Build eBay OAuth authorization URL with proper encoding.
+     * eBay requires spaces in scopes to be %20, not + signs.
+     */
+    protected function buildEbayAuthUrl(SalesChannel $salesChannel): string
+    {
+        return env('EBAY_AUTH_URL')
+            . '?client_id=' . rawurlencode($salesChannel->client_id)
+            . '&response_type=code'
+            . '&redirect_uri=' . rawurlencode($salesChannel->ru_name)
+            . '&scope=' . rawurlencode($salesChannel->user_scopes);
+    }
+
     public function ebay_callback(Request $request)
     {
         try {
@@ -345,15 +350,7 @@ class SalesChannelController extends Controller
 
             session(['sales_channel_id' => $sales_channel->id]);
 
-            // Build eBay authorization URL with properly encoded parameters
-            $authUrl = env('EBAY_AUTH_URL') . '?' . http_build_query([
-                'client_id'     => $sales_channel->client_id,
-                'response_type' => 'code',
-                'redirect_uri'  => $sales_channel->ru_name,
-                'scope'         => $sales_channel->user_scopes,
-            ]);
-
-            return redirect($authUrl);
+            return redirect($this->buildEbayAuthUrl($sales_channel));
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'An error occurred while updating the sales channel.'])->withInput();
         }
