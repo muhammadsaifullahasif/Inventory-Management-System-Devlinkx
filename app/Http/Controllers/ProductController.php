@@ -911,7 +911,7 @@ class ProductController extends Controller
         }
 
         try {
-            DB::beginTransaction();
+            // DB::beginTransaction();
 
             foreach ($products as $product) {
                 // dd($product);
@@ -974,11 +974,11 @@ class ProductController extends Controller
                     ]);
             }
 
-            DB::commit();
+            // DB::commit();
 
             return redirect()->route('products.index')->with('success', 'Product imported successfully.');
         } catch (\Exception $e) {
-            DB::rollBack();
+            // DB::rollBack();
             Log::error('Product creation failed', ['error' => $e->getMessage()]);
             return redirect()->route('products.index')->with('error', 'An error occurred while importing the products: ' . $e->getMessage())->withInput();
         }
