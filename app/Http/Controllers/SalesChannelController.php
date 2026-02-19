@@ -84,10 +84,15 @@ class SalesChannelController extends Controller
 
             session(['sales_channel_id' => $sales_channel->id]);
 
-            // return redirect(env('EBAY_AUTH_URL') . '?client_id=' . $sales_channel->client_id . '&response_type=code' . '&redirect_uri=' . $sales_channel->ru_name . '&scope=' . urlencode($sales_channel->user_scopes));
-            return redirect(env('EBAY_AUTH_URL') . '?client_id=' . $sales_channel->client_id . '&response_type=code' . '&redirect_uri=' . $sales_channel->ru_name . '&scope=' . $sales_channel->user_scopes);
+            // Build eBay authorization URL with properly encoded parameters
+            $authUrl = env('EBAY_AUTH_URL') . '?' . http_build_query([
+                'client_id'     => $sales_channel->client_id,
+                'response_type' => 'code',
+                'redirect_uri'  => $sales_channel->ru_name,
+                'scope'         => $sales_channel->user_scopes,
+            ]);
 
-            // return redirect()->route('sales-channels.index')->with('success', 'Sales Channel created successfully.');
+            return redirect($authUrl);
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'An error occurred while creating the sales channel.'])->withInput();
         }
@@ -98,8 +103,33 @@ class SalesChannelController extends Controller
         try {
             $code = request('code');
 
+            if (!$code) {
+                // Check for error response from eBay
+                $error = request('error');
+                $errorDescription = request('error_description');
+                Log::error('eBay callback: No authorization code received', [
+                    'error' => $error,
+                    'error_description' => $errorDescription,
+                ]);
+                throw new \Exception('Authorization failed: ' . ($errorDescription ?? $error ?? 'No code received'));
+            }
+
             $sales_channel_id = session('sales_channel_id');
+            if (!$sales_channel_id) {
+                Log::error('eBay callback: No sales_channel_id in session');
+                throw new \Exception('Session expired. Please try connecting again.');
+            }
+
             $sales_channel = SalesChannel::find($sales_channel_id);
+            if (!$sales_channel) {
+                Log::error('eBay callback: Sales channel not found', ['id' => $sales_channel_id]);
+                throw new \Exception('Sales channel not found.');
+            }
+
+            Log::info('eBay callback: Exchanging authorization code', [
+                'sales_channel_id' => $sales_channel_id,
+                'ru_name' => $sales_channel->ru_name,
+            ]);
 
             $response = Http::asForm()
                 ->withBasicAuth($sales_channel->client_id, $sales_channel->client_secret)
@@ -113,9 +143,15 @@ class SalesChannelController extends Controller
 
             Log::info('eBay callback response data', ['response_data' => $response_data]);
 
-            if ($response->failed()) {
-                Log::error('eBay callback error', ['error' => $response->body()]);
-                throw new \Exception('Failed to retrieve eBay access token');
+            if ($response->failed() || isset($response_data['error'])) {
+                Log::error('eBay callback error', [
+                    'status' => $response->status(),
+                    'error' => $response_data['error'] ?? null,
+                    'error_description' => $response_data['error_description'] ?? null,
+                    'body' => $response->body(),
+                ]);
+                $errorMsg = $response_data['error_description'] ?? $response_data['error'] ?? 'Failed to retrieve eBay access token';
+                throw new \Exception($errorMsg);
             }
 
             $sales_channel->authorization_code = $code;
@@ -309,9 +345,15 @@ class SalesChannelController extends Controller
 
             session(['sales_channel_id' => $sales_channel->id]);
 
-            return redirect(env('EBAY_AUTH_URL') . '?client_id=' . $sales_channel->client_id . '&response_type=code' . '&redirect_uri=' . $sales_channel->ru_name . '&scope=' . urlencode($sales_channel->user_scopes));
+            // Build eBay authorization URL with properly encoded parameters
+            $authUrl = env('EBAY_AUTH_URL') . '?' . http_build_query([
+                'client_id'     => $sales_channel->client_id,
+                'response_type' => 'code',
+                'redirect_uri'  => $sales_channel->ru_name,
+                'scope'         => $sales_channel->user_scopes,
+            ]);
 
-            // return redirect()->route('sales-channels.index')->with('success', 'Sales Channel updated successfully.');
+            return redirect($authUrl);
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'An error occurred while updating the sales channel.'])->withInput();
         }
