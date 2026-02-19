@@ -3,10 +3,11 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Illuminate\Database\Seeder;
-use Database\Seeders\ChartOfAccountsSeeder;
 use Database\Seeders\AccountingPermissionsSeeder;
+use Database\Seeders\BasicSeeder;
+use Database\Seeders\ChartOfAccountsSeeder;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -20,6 +21,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             ChartOfAccountsSeeder::class,
             AccountingPermissionsSeeder::class,
+            BasicSeeder::class,
         ]);
 
         // User::factory(10)->create();
