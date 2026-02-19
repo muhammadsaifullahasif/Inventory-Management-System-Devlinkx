@@ -96,11 +96,22 @@ class SalesChannelController extends Controller
      */
     protected function buildEbayAuthUrl(SalesChannel $salesChannel): string
     {
-        return env('EBAY_AUTH_URL')
+        // Clean up scopes - remove any extra whitespace and ensure single spaces
+        $scopes = preg_replace('/\s+/', ' ', trim($salesChannel->user_scopes));
+
+        $url = env('EBAY_AUTH_URL')
             . '?client_id=' . rawurlencode($salesChannel->client_id)
             . '&response_type=code'
             . '&redirect_uri=' . rawurlencode($salesChannel->ru_name)
-            . '&scope=' . $salesChannel->user_scopes;
+            . '&scope=' . rawurlencode($scopes);
+
+        Log::info('eBay Auth URL generated', [
+            'url' => $url,
+            'scopes_raw' => $salesChannel->user_scopes,
+            'scopes_cleaned' => $scopes,
+        ]);
+
+        return $url;
     }
 
     public function ebay_callback(Request $request)
