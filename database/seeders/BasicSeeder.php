@@ -114,12 +114,12 @@ class BasicSeeder extends Seeder
         $user->email = 'superadmin@gmail.com';
         $user->password = Hash::make('12345678');
         $user->save();
-        $user->syncRoles($request->role);
-
+        
         $userAdmin = new User();
         $userAdmin->name = 'Admin';
         $userAdmin->email = 'admin@gmail.com';
         $userAdmin->password = Hash::make('12345678');
         $userAdmin->save();
+        $userAdmin->syncRoles('Admin');
     }
 }
