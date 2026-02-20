@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\User;
+use App\Models\Warehouse;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -167,5 +168,12 @@ class BasicSeeder extends Seeder
         foreach ($brands as $brand) {
             Brand::firstOrCreate(['name' => $brand, 'slug' => Str::slug($brand)]);
         }
+
+        $warehouse = Warehouse::firstOrCreate(['name' => 'Default Warehouse', 'is_default' => '1']);
+
+        $warehouse->racks()->create([
+            'name' => 'Rack 1',
+            'is_default' => '1',
+        ]);
     }
 }
