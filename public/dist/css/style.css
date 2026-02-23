@@ -73,3 +73,52 @@ a {
 .form-control-sm, .form-select-sm {
     padding: .25rem .5rem;
 }
+
+/* Modal z-index fix for Duralux template */
+.modal {
+    z-index: 1060 !important;
+    position: fixed !important;
+}
+
+.modal-backdrop {
+    z-index: 1040 !important;
+}
+
+.modal-dialog {
+    position: relative !important;
+    z-index: 1061 !important;
+}
+
+.modal-content {
+    position: relative !important;
+    z-index: 1062 !important;
+}
+
+/* Ensure modal content is visible above backdrop */
+.modal.show .modal-dialog {
+    z-index: 1061 !important;
+}
+
+/* Fix for nested modals or multiple modals */
+.modal-open .modal {
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+/* Ensure nxl-container doesn't interfere with modals */
+.nxl-container {
+    position: relative;
+    z-index: 1;
+}
+
+/* Fix modal appearing behind sidebar or header */
+.modal-open .nxl-navigation,
+.modal-open .nxl-header {
+    z-index: auto;
+}
+
+/* Make sure the modal body is scrollable */
+.modal-body {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+}
