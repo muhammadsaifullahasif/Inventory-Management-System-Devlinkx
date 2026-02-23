@@ -68,7 +68,7 @@
             @if($widgetSettings['revenue_month']['enabled'] ?? true)
             <!-- Revenue This Month -->
             <div class="col-xxl-3 col-md-6" data-widget="revenue_month">
-                <div class="card stretch stretch-full">
+                <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between">
                             <div class="d-flex align-items-center gap-3">
@@ -100,7 +100,7 @@
             @if($widgetSettings['orders_today']['enabled'] ?? true)
             <!-- Orders Today -->
             <div class="col-xxl-3 col-md-6" data-widget="orders_today">
-                <div class="card stretch stretch-full">
+                <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between">
                             <div class="d-flex align-items-center gap-3">
