@@ -13,7 +13,7 @@
     <title>Duralux || Login Creative</title>
     <!--! END:  Apps Title-->
     <!--! BEGIN: Favicon-->
-    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('images/favicon.ico') }}">
+    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('images/sigma-body-parts-logo.png') }}">
     <!--! END: Favicon-->
     <!--! BEGIN: Bootstrap CSS-->
     <link rel="stylesheet" type="text/css" href="{{ asset('css/bootstrap.min.css') }}">
