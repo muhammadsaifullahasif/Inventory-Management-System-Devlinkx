@@ -1,35 +1,39 @@
 @extends('layouts.app')
 
 @section('header')
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 d-inline mr-2">Add New Accounts</h1>
-                    @can('chart-of-accounts-add')
-                        <a href="{{ route('chart-of-accounts.create') }}" class="btn btn-outline-primary btn-sm mb-3">Add Account</a>
-                    @endcan
-                </div><!-- /.col -->
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Chart of Accounts</li>
-                    </ol>
-                </div><!-- /.col -->
-            </div><!-- /.row -->
-        </div><!-- /.container-fluid -->
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Add New Account</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('chart-of-accounts.index') }}">Chart of Accounts</a></li>
+                <li class="breadcrumb-item">Add Account</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('chart-of-accounts.index') }}" class="btn btn-light-brand">
+                        <i class="feather-arrow-left me-2"></i>
+                        <span>Back to Accounts</span>
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- /.content-header -->
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
-    <!-- Form -->
     <div class="row">
+        <!-- Form Card -->
         <div class="col-lg-8">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Account Details</h5>
+                    <h5 class="card-title">Account Details</h5>
                 </div>
                 <div class="card-body">
                     <form action="{{ route('chart-of-accounts.store') }}" method="POST">
@@ -38,7 +42,7 @@
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="parent_id" class="form-label">Parent Group <span class="text-danger">*</span></label>
-                                <select name="parent_id" id="parent_id" class="form-control @error('parent_id') is-invalid @enderror" required>
+                                <select name="parent_id" id="parent_id" class="form-select @error('parent_id') is-invalid @enderror" required>
                                     <option value="">Select Group</option>
                                     @foreach ($groups as $group)
                                         <option value="{{ $group->id }}" data-nature="{{ $group->nature }}" {{ (old('parent_id') ?? $selectedGroup) == $group->id ? 'selected' : '' }}>
@@ -83,19 +87,18 @@
 
                         <!-- Bank/Cash Account Fields -->
                         <div class="mb-3">
-                            <div class="form-check">
+                            <div class="form-check form-switch">
                                 <input type="checkbox" name="is_bank_cash" id="is_bank_cash" class="form-check-input" value="1" {{ old('is_bank_cash') ? 'checked' : '' }}>
                                 <label for="is_bank_cash" class="form-check-label">This is a Bank or Cash account</label>
                             </div>
                         </div>
 
                         <div id="bank-fields" class="border rounded p-3 mb-3" style="display: none;">
-                            <h6 class="mb-3">Bank Account Details</h6>
+                            <h6 class="mb-3"><i class="feather-credit-card me-2"></i>Bank Account Details</h6>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label for="bank_name" class="form-label">Bank Name</label>
                                     <input type="text" name="bank_name" id="bank_name" class="form-control @error('bank_name') is-invalid @enderror" value="{{ old('bank_name') }}" placeholder="e.g., MCB, HBL">
-
                                     @error('bank_name')
                                         <span class="invalid-feedback">{{ $message }}</span>
                                     @enderror
@@ -135,13 +138,11 @@
                             </div>
                         </div>
 
-                        <div class="d-grid gap-2">
+                        <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-check"></i> Save Account
+                                <i class="feather-save me-2"></i>Save Account
                             </button>
-                            <a href="{{ route('chart-of-accounts.index') }}" class="btn btn-secondary">
-                                <i class="fas fa-times"></i> Cancel
-                            </a>
+                            <a href="{{ route('chart-of-accounts.index') }}" class="btn btn-light-brand">Cancel</a>
                         </div>
                     </form>
                 </div>
@@ -152,7 +153,7 @@
         <div class="col-lg-4">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Help</h5>
+                    <h5 class="card-title"><i class="feather-help-circle me-2"></i>Help</h5>
                 </div>
                 <div class="card-body">
                     <h6>Account Types</h6>

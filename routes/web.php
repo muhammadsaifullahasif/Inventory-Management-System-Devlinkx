@@ -116,7 +116,7 @@ Route::get('/run-chart-of-accounts-seeder', function() {
 });
 
 Route::get('/run-accounting-permissions-seeder', function() {
-    Artisan::class('db:seed', [
+    Artisan::call('db:seed', [
         '--class' => 'AccountingPermissionsSeeder'
     ]);
 
@@ -169,13 +169,13 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/products/import/store', [ProductController::class, 'import_products_store'])->name('products.import.store');
     Route::get('/products/bulk-update', [ProductController::class, 'bulkUpdateForm'])->name('products.bulk-update.form');
     Route::post('/products/bulk-update', [ProductController::class, 'bulkUpdate'])->name('products.bulk-update');
-    Route::resource('/products', ProductController::class);
     Route::get('/products/search/{query}', [ProductController::class, 'search'])->name('products.search');
     Route::get('/products/print-barcode/{id}', [ProductController::class, 'printBarcode'])->name('products.print-barcode');
     Route::get('/products/barcode/print/{id}', [ProductController::class, 'printBarcodeView'])->name('products.barcode.print');
     Route::get('/products/barcode/bulk', [ProductController::class, 'bulkPrintBarcodeForm'])->name('products.barcode.bulk-form');
     Route::post('/products/barcode/bulk', [ProductController::class, 'bulkPrintBarcode'])->name('products.barcode.bulk-print');
     Route::post('/products/{id}/update-stock', [ProductController::class, 'updateStock'])->name('products.update-stock');
+    Route::resource('/products', ProductController::class);
 
     // Purchases
     Route::resource('/purchases', PurchaseController::class);

@@ -1,185 +1,213 @@
 @extends('layouts.app')
 
 @section('header')
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 d-inline mr-2">Purchase New</h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('purchases.index') }}">Purchases</a></li>
-                        <li class="breadcrumb-item active">Purchase New</li>
-                    </ol>
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Add Purchase</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('purchases.index') }}">Purchases</a></li>
+                <li class="breadcrumb-item">Add Purchase</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('purchases.index') }}" class="btn btn-light-brand">
+                        <i class="feather-arrow-left me-2"></i>
+                        <span>Back to Purchases</span>
+                    </a>
                 </div>
             </div>
         </div>
     </div>
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
-    <div class="card card-body">
-        <form action="{{ route('purchases.store') }}" method="post" id="purchaseForm">
-            @csrf
-            <div class="mb-3">
-                <label for="purchase_number">Purchase Number: <span class="text-danger">*</span></label>
-                <input type="text" id="purchase_number" name="purchase_number" value="{{ old('purchase_number') }}" class="form-control @error('purchase_number') is-invalid @enderror" placeholder="Purchase Number">
-                @error('purchase_number')
-                    <span class="invalid-feedback">{{ $message }}</span>
-                @enderror
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Purchase Information</h5>
             </div>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="supplier_id">Supplier: <span class="text-danger">*</span></label>
-                    <select name="supplier_id" id="supplier_id" class="form-control @error('supplier_id') is-invalid @enderror">
-                        <option value="">Select Supplier</option>
-                        @foreach ($suppliers as $supplier)
-                            <option value="{{ $supplier->id }}" {{ (old('supplier_id') == $supplier->id) ? 'selected' : '' }}>{{ (($supplier->last_name != '') ? $supplier->first_name . ' ' . $supplier->last_name : $supplier->first_name) }}</option>
-                        @endforeach
-                    </select>
-                    @error('supplier_id')
-                        <span class="invalid-feedback">{{ $message }}</span>
-                    @enderror
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="warehouse_id">Warehouse: <span class="text-danger">*</span></label>
-                    <select name="warehouse_id" id="warehouse_id" class="form-control @error('warehouse_id') is-invalid @enderror">
-                        <option value="">Select Warehouse</option>
-                        @foreach ($warehouses as $warehouse)
-                            <option value="{{ $warehouse->id }}" {{ (old('warehouse_id') == $warehouse->id) ? 'selected' : '' }}>{{ $warehouse->name }}</option>
-                        @endforeach
-                    </select>
-                    @error('warehouse_id')
-                        <span class="invalid-feedback">{{ $message }}</span>
-                    @enderror
-                </div>
-            </div>
-            <div class="mb-3">
-                <label for="purchase_note">Purchase Note:</label>
-                <input type="text" id="purchase_note" name="purchase_note" value="{{ old('purchase_note') }}" class="form-control @error('purchase_note') is-invalid @enderror">
-                @error('purchase_note')
-                    <span class="invalid-feedback">{{ $message }}</span>
-                @enderror
-            </div>
-
-            <hr>
-            <h5>Select Products</h5>
-
-            <!-- Controls Row -->
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label for="productSearch">Search/Filter:</label>
-                    <input type="text" id="productSearch" class="form-control" placeholder="Filter by name, SKU, or barcode...">
-                </div>
-                <div class="col-md-2">
-                    <label for="perPage">Per Page:</label>
-                    <select id="perPage" class="form-control">
-                        <option value="10">10</option>
-                        <option value="25" selected>25</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                    </select>
-                </div>
-                <div class="col-md-3 d-flex align-items-end">
-                    <div class="btn-group">
-                        <button type="button" class="btn btn-outline-secondary" id="selectAllBtn">Select All</button>
-                        <button type="button" class="btn btn-outline-secondary" id="deselectAllBtn">Deselect All</button>
+            <div class="card-body">
+                <form action="{{ route('purchases.store') }}" method="post" id="purchaseForm">
+                    @csrf
+                    <div class="mb-4">
+                        <label for="purchase_number" class="form-label">Purchase Number <span class="text-danger">*</span></label>
+                        <input type="text" id="purchase_number" name="purchase_number" value="{{ old('purchase_number') }}" class="form-control @error('purchase_number') is-invalid @enderror" placeholder="Purchase Number">
+                        @error('purchase_number')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                     </div>
-                </div>
-                <div class="col-md-3 d-flex align-items-end justify-content-end">
-                    <div>
-                        <span id="selectedCount" class="text-primary font-weight-bold"></span>
-                        <span class="ml-3"><strong>Total: <span id="grandTotal">0.00</span></strong></span>
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <label for="supplier_id" class="form-label">Supplier <span class="text-danger">*</span></label>
+                            <select name="supplier_id" id="supplier_id" class="form-select @error('supplier_id') is-invalid @enderror">
+                                <option value="">Select Supplier</option>
+                                @foreach ($suppliers as $supplier)
+                                    <option value="{{ $supplier->id }}" {{ (old('supplier_id') == $supplier->id) ? 'selected' : '' }}>{{ (($supplier->last_name != '') ? $supplier->first_name . ' ' . $supplier->last_name : $supplier->first_name) }}</option>
+                                @endforeach
+                            </select>
+                            @error('supplier_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <label for="warehouse_id" class="form-label">Warehouse <span class="text-danger">*</span></label>
+                            <select name="warehouse_id" id="warehouse_id" class="form-select @error('warehouse_id') is-invalid @enderror">
+                                <option value="">Select Warehouse</option>
+                                @foreach ($warehouses as $warehouse)
+                                    <option value="{{ $warehouse->id }}" {{ (old('warehouse_id') == $warehouse->id) ? 'selected' : '' }}>{{ $warehouse->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('warehouse_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
                     </div>
-                </div>
-            </div>
+                    <div class="mb-4">
+                        <label for="purchase_note" class="form-label">Purchase Note</label>
+                        <input type="text" id="purchase_note" name="purchase_note" value="{{ old('purchase_note') }}" class="form-control @error('purchase_note') is-invalid @enderror" placeholder="Optional notes">
+                        @error('purchase_note')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
 
-            <!-- Products Table -->
-            <div class="table-responsive mb-3">
-                <table class="table table-bordered table-hover table-sm" id="productsTable">
-                    <thead class="thead-light">
-                        <tr>
-                            <th style="width: 40px;">
-                                <input type="checkbox" id="selectPageCheckbox" title="Select all on this page">
-                            </th>
-                            <th>SKU</th>
-                            <th>Name</th>
-                            <th>Barcode</th>
-                            <th style="width: 80px;">Stock</th>
-                            <th style="width: 140px;">Rack</th>
-                            <th style="width: 80px;">Qty</th>
-                            <th style="width: 100px;">Price</th>
-                            <th style="width: 130px;">Note</th>
-                            <th style="width: 90px;">SubTotal</th>
-                        </tr>
-                    </thead>
-                    <tbody id="productsTableBody">
-                        @foreach($products as $product)
-                            <tr class="product-row"
-                                data-id="{{ $product->id }}"
-                                data-name="{{ strtolower($product->name) }}"
-                                data-sku="{{ strtolower($product->sku) }}"
-                                data-barcode="{{ strtolower($product->barcode ?? '') }}">
-                                <td>
-                                    <input type="checkbox" class="product-checkbox"
-                                        data-product-id="{{ $product->id }}">
-                                    <input type="hidden" class="product-id-input"
-                                        value="{{ $product->id }}" disabled>
-                                </td>
-                                <td>{{ $product->sku }}</td>
-                                <td>{{ $product->name }}</td>
-                                <td>{{ $product->barcode ?? 'N/A' }}</td>
-                                <td class="text-center">
-                                    <span class="badge badge-secondary">{{ (int)($product->product_stocks_sum_quantity ?? 0) }}</span>
-                                </td>
-                                <td>
-                                    <select class="form-control form-control-sm rack-select" disabled>
-                                        <option value="">Select Rack</option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <input type="number" class="form-control form-control-sm quantity-input"
-                                        value="1" min="1" disabled>
-                                </td>
-                                <td>
-                                    <input type="number" class="form-control form-control-sm price-input"
-                                        value="0" min="0" step="0.01" disabled>
-                                </td>
-                                <td>
-                                    <input type="text" class="form-control form-control-sm note-input"
-                                        value="" disabled>
-                                </td>
-                                <td>
-                                    <input type="text" class="form-control form-control-sm subtotal-input"
-                                        value="0.00" readonly>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
+                    <hr class="my-4">
+                    <h6 class="mb-3"><i class="feather-package me-2"></i>Select Products</h6>
 
-            <!-- Pagination -->
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <div id="paginationInfo" class="text-muted"></div>
-                </div>
-                <div class="col-md-6">
-                    <nav>
-                        <ul class="pagination justify-content-end mb-0" id="pagination"></ul>
-                    </nav>
-                </div>
-            </div>
+                    <!-- Controls Row -->
+                    <div class="row mb-3 g-3">
+                        <div class="col-md-4">
+                            <label for="productSearch" class="form-label">Search/Filter</label>
+                            <input type="text" id="productSearch" class="form-control form-control-sm" placeholder="Filter by name, SKU, or barcode...">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="perPage" class="form-label">Per Page</label>
+                            <select id="perPage" class="form-select form-select-sm">
+                                <option value="10">10</option>
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-light-brand btn-sm" id="selectAllBtn">Select All</button>
+                                <button type="button" class="btn btn-light-brand btn-sm" id="deselectAllBtn">Deselect All</button>
+                            </div>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end justify-content-end">
+                            <div>
+                                <span id="selectedCount" class="text-primary fw-bold"></span>
+                                <span class="ms-3"><strong>Total: $<span id="grandTotal">0.00</span></strong></span>
+                            </div>
+                        </div>
+                    </div>
 
-            <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
-                <i class="fas fa-save mr-1"></i>Save Purchase
-            </button>
-            <a href="{{ route('purchases.index') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left mr-1"></i>Back
-            </a>
-        </form>
+                    <!-- Products Table -->
+                    <div class="table-responsive mb-3">
+                        <table class="table table-bordered table-hover" id="productsTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;">
+                                        <div class="btn-group mb-1">
+                                            <div class="custom-control custom-checkbox ms-1">
+                                                <input type="checkbox" class="custom-control-input" id="selectPageCheckbox" title="Select all on this page">
+                                                <label for="selectPageCheckbox" class="custom-control-label"></label>
+                                            </div>
+                                        </div>
+                                        {{-- <input type="checkbox" class="form-check-input" id="selectPageCheckbox" title="Select all on this page"> --}}
+                                    </th>
+                                    <th>SKU</th>
+                                    <th>Name</th>
+                                    <th>Barcode</th>
+                                    <th style="width: 80px;">Stock</th>
+                                    <th style="width: 140px;">Rack</th>
+                                    <th style="width: 100px;">Qty</th>
+                                    <th style="width: 100px;">Price</th>
+                                    <th style="width: 200px;">Note</th>
+                                    <th style="width: 150px;">SubTotal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsTableBody">
+                                @foreach($products as $product)
+                                    <tr class="product-row"
+                                        data-id="{{ $product->id }}"
+                                        data-name="{{ strtolower($product->name) }}"
+                                        data-sku="{{ strtolower($product->sku) }}"
+                                        data-barcode="{{ strtolower($product->barcode ?? '') }}">
+                                        <td>
+                                            {{-- <input type="checkbox" class="form-check-input product-checkbox"
+                                                data-product-id="{{ $product->id }}">
+                                            <input type="hidden" class="product-id-input"
+                                                value="{{ $product->id }}" disabled> --}}
+                                            <div class="item-checkbox ms-1">
+                                                <div class="custom-control custom-checkbox">
+                                                    <input type="checkbox" class="custom-control-input checkbox product-checkbox" id="{{ $product->id }}" data-product-id="{{ $product->id }}">
+                                                    <label for="{{ $product->id }}" class="custom-control-label"></label>
+                                                    <input type="hidden" class="product-id-input" value="{{ $product->id }}" disabled>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td><span class="fs-12">{{ $product->sku }}</span></td>
+                                        <td>{{ $product->name }}</td>
+                                        <td><span class="fs-12 text-muted">{{ $product->barcode ?? 'N/A' }}</span></td>
+                                        <td class="text-center">
+                                            <span class="badge bg-soft-secondary text-secondary">{{ (int)($product->product_stocks_sum_quantity ?? 0) }}</span>
+                                        </td>
+                                        <td>
+                                            <select class="form-select form-select-sm rack-select" disabled>
+                                                <option value="">Select Rack</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm quantity-input"
+                                                value="1" min="1" disabled>
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm price-input"
+                                                value="0" min="0" step="0.01" disabled>
+                                        </td>
+                                        <td>
+                                            <input type="text" class="form-control form-control-sm note-input"
+                                                value="" disabled>
+                                        </td>
+                                        <td>
+                                            <input type="text" class="form-control form-control-sm subtotal-input"
+                                                value="0.00" readonly>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div id="paginationInfo" class="text-muted fs-12"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <nav>
+                                <ul class="pagination pagination-sm justify-content-end mb-0" id="pagination"></ul>
+                            </nav>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+                            <i class="feather-save me-2"></i>Save Purchase
+                        </button>
+                        <a href="{{ route('purchases.index') }}" class="btn btn-light-brand">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 @endsection
 
@@ -400,7 +428,6 @@ $(document).ready(function(){
 
     // Form submission - set proper name attributes for checked products only
     document.getElementById('purchaseForm').addEventListener('submit', function(e) {
-        // Remove all existing dynamic name attributes
         document.querySelectorAll('.product-id-input').forEach(el => el.removeAttribute('name'));
         document.querySelectorAll('.rack-select').forEach(el => el.removeAttribute('name'));
         document.querySelectorAll('.quantity-input').forEach(el => el.removeAttribute('name'));

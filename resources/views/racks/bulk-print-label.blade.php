@@ -1,138 +1,158 @@
 @extends('layouts.app')
 
 @section('header')
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0">Bulk Print Rack Labels</h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('racks.index') }}">Racks</a></li>
-                        <li class="breadcrumb-item active">Bulk Print Labels</li>
-                    </ol>
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Bulk Print Rack Labels</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('racks.index') }}">Racks</a></li>
+                <li class="breadcrumb-item">Bulk Print Labels</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('racks.index') }}" class="btn btn-light-brand">
+                        <i class="feather-arrow-left me-2"></i>
+                        <span>Back to Racks</span>
+                    </a>
                 </div>
             </div>
         </div>
     </div>
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">Select Racks to Print Labels</h3>
-        </div>
-        <div class="card-body">
-            <form method="POST" action="{{ route('racks.label.bulk-print') }}" id="bulkLabelForm">
-                @csrf
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title"><i class="feather-printer me-2"></i>Select Racks to Print Labels</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ route('racks.label.bulk-print') }}" id="bulkLabelForm">
+                    @csrf
 
-                <!-- Controls Row -->
-                <div class="row mb-4">
-                    <div class="col-md-3">
-                        <label for="rackSearch">Search/Filter:</label>
-                        <input type="text" id="rackSearch" class="form-control" placeholder="Filter by rack name...">
-                    </div>
-                    <div class="col-md-2">
-                        <label for="warehouseFilter">Warehouse:</label>
-                        <select id="warehouseFilter" class="form-control">
-                            <option value="">All Warehouses</option>
-                            @foreach($warehouses as $warehouse)
-                                <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <label for="defaultQuantity">Quantity per Rack:</label>
-                        <input type="number" id="defaultQuantity" name="default_quantity" class="form-control" value="1" min="1" max="100">
-                    </div>
-                    <div class="col-md-1">
-                        <label for="columns">Columns:</label>
-                        <select id="columns" name="columns" class="form-control">
-                            <option value="2" selected>2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
-                            <option value="5">5</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <label for="perPage">Per Page:</label>
-                        <select id="perPage" class="form-control">
-                            <option value="10">10</option>
-                            <option value="25" selected>25</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <div class="btn-group w-100">
-                            <button type="button" class="btn btn-outline-secondary" id="selectAllBtn">Select All</button>
-                            <button type="button" class="btn btn-outline-secondary" id="deselectAllBtn">Deselect</button>
+                    <!-- Controls Row -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <label for="rackSearch" class="form-label">Search/Filter</label>
+                            <input type="text" id="rackSearch" class="form-control form-control-sm" placeholder="Filter by rack name...">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="warehouseFilter" class="form-label">Warehouse</label>
+                            <select id="warehouseFilter" class="form-select form-select-sm">
+                                <option value="">All Warehouses</option>
+                                @foreach($warehouses as $warehouse)
+                                    <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="defaultQuantity" class="form-label">Quantity per Rack</label>
+                            <input type="number" id="defaultQuantity" name="default_quantity" class="form-control form-control-sm" value="1" min="1" max="100">
+                        </div>
+                        <div class="col-md-1">
+                            <label for="columns" class="form-label">Columns</label>
+                            <select id="columns" name="columns" class="form-select form-select-sm">
+                                <option value="2" selected>2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="perPage" class="form-label">Per Page</label>
+                            <select id="perPage" class="form-select form-select-sm">
+                                <option value="10">10</option>
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <div class="btn-group w-100">
+                                <button type="button" class="btn btn-light-brand btn-sm" id="selectAllBtn">Select All</button>
+                                <button type="button" class="btn btn-light-brand btn-sm" id="deselectAllBtn">Deselect</button>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Racks Table -->
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover" id="racksTable">
-                        <thead class="thead-light">
-                            <tr>
-                                <th style="width: 50px;">
-                                    <input type="checkbox" id="selectPageCheckbox" title="Select all on this page">
-                                </th>
-                                <th>Rack Name</th>
-                                <th>Warehouse</th>
-                                <th style="width: 120px;">Quantity</th>
-                            </tr>
-                        </thead>
-                        <tbody id="racksTableBody">
-                            @foreach($racks as $rack)
-                                <tr class="rack-row"
-                                    data-id="{{ $rack->id }}"
-                                    data-name="{{ strtolower($rack->name) }}"
-                                    data-warehouse-id="{{ $rack->warehouse_id }}">
-                                    <td>
-                                        <input type="checkbox" class="rack-checkbox"
-                                            name="racks[{{ $rack->id }}][id]"
-                                            value="{{ $rack->id }}">
-                                    </td>
-                                    <td>{{ $rack->name }}</td>
-                                    <td>{{ $rack->warehouse->name }}</td>
-                                    <td>
-                                        <input type="number"
-                                            name="racks[{{ $rack->id }}][quantity]"
-                                            class="form-control form-control-sm quantity-input"
-                                            value="1" min="1" max="100" disabled>
-                                    </td>
+                    <!-- Racks Table -->
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="racksTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">
+                                        <div class="btn-group mb-1">
+                                            <div class="custom-control custom-checkbox ms-1">
+                                                <input type="checkbox" class="custom-control-input" id="selectPageCheckbox" title="Select all on this page">
+                                                <label for="selectPageCheckbox" class="custom-control-label"></label>
+                                            </div>
+                                        </div>
+                                        {{-- <input type="checkbox" class="form-check-input" id="selectPageCheckbox" title="Select all on this page"> --}}
+                                    </th>
+                                    <th>Rack Name</th>
+                                    <th>Warehouse</th>
+                                    <th style="width: 120px;">Quantity</th>
                                 </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
+                            </thead>
+                            <tbody id="racksTableBody">
+                                @foreach($racks as $rack)
+                                    <tr class="rack-row"
+                                        data-id="{{ $rack->id }}"
+                                        data-name="{{ strtolower($rack->name) }}"
+                                        data-warehouse-id="{{ $rack->warehouse_id }}">
+                                        <td>
+                                            {{-- <input type="checkbox" class="form-check-input rack-checkbox"
+                                                name="racks[{{ $rack->id }}][id]"
+                                                value="{{ $rack->id }}"> --}}
 
-                <!-- Pagination -->
-                <div class="row mt-3">
-                    <div class="col-md-6">
-                        <div id="paginationInfo" class="text-muted"></div>
-                        <div id="selectedCount" class="text-primary font-weight-bold mt-1"></div>
+                                            <div class="item-checkbox ms-1">
+                                                <div class="custom-control custom-checkbox">
+                                                    <input type="checkbox" name="racks[{{ $rack->id }}][id]" value="{{ $rack->id }}" class="custom-control-input checkbox rack-checkbox" id="rack_{{ $rack->id }}" data-rack-id="{{ $rack->id }}">
+                                                    <label for="rack_{{ $rack->id }}" class="custom-control-label"></label>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td><span class="fw-semibold">{{ $rack->name }}</span></td>
+                                        <td><span class="badge bg-soft-secondary text-secondary">{{ $rack->warehouse->name }}</span></td>
+                                        <td>
+                                            <input type="number"
+                                                name="racks[{{ $rack->id }}][quantity]"
+                                                class="form-control form-control-sm quantity-input"
+                                                value="1" min="1" max="100" disabled>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="col-md-6">
-                        <nav>
-                            <ul class="pagination justify-content-end mb-0" id="pagination"></ul>
-                        </nav>
-                    </div>
-                </div>
 
-                <div class="mt-3">
-                    <button type="submit" class="btn btn-primary" id="printBtn" disabled>
-                        <i class="fas fa-print"></i> Print Selected Labels
-                    </button>
-                    <a href="{{ route('racks.index') }}" class="btn btn-secondary">
-                        <i class="fas fa-arrow-left"></i> Back to Racks
-                    </a>
-                </div>
-            </form>
+                    <!-- Pagination -->
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <div id="paginationInfo" class="text-muted fs-12"></div>
+                            <div id="selectedCount" class="text-primary fw-semibold mt-1"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <nav>
+                                <ul class="pagination justify-content-end mb-0" id="pagination"></ul>
+                            </nav>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary" id="printBtn" disabled>
+                            <i class="feather-printer me-2"></i>Print Selected Labels
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 @endsection
@@ -154,10 +174,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const deselectAllBtn = document.getElementById('deselectAllBtn');
     const printBtn = document.getElementById('printBtn');
 
-    // Initialize
     updateDisplay();
 
-    // Search/Filter functionality
     searchInput.addEventListener('input', applyFilters);
     warehouseFilter.addEventListener('change', applyFilters);
 
@@ -175,14 +193,12 @@ document.addEventListener('DOMContentLoaded', function() {
         updateDisplay();
     }
 
-    // Per page change
     perPageSelect.addEventListener('change', function() {
         perPage = parseInt(this.value);
         currentPage = 1;
         updateDisplay();
     });
 
-    // Default quantity change
     defaultQuantityInput.addEventListener('change', function() {
         const newQty = parseInt(this.value) || 1;
         document.querySelectorAll('.quantity-input').forEach(input => {
@@ -193,7 +209,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Select all on current page
     selectPageCheckbox.addEventListener('change', function() {
         const visibleRows = getVisibleRows();
         visibleRows.forEach(row => {
@@ -208,7 +223,6 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSelectedCount();
     });
 
-    // Select all filtered
     selectAllBtn.addEventListener('click', function() {
         filteredRows.forEach(row => {
             const checkbox = row.querySelector('.rack-checkbox');
@@ -220,7 +234,6 @@ document.addEventListener('DOMContentLoaded', function() {
         updateDisplay();
     });
 
-    // Deselect all
     deselectAllBtn.addEventListener('click', function() {
         allRows.forEach(row => {
             const checkbox = row.querySelector('.rack-checkbox');
@@ -231,7 +244,6 @@ document.addEventListener('DOMContentLoaded', function() {
         updateDisplay();
     });
 
-    // Individual checkbox change
     document.getElementById('racksTableBody').addEventListener('change', function(e) {
         if (e.target.classList.contains('rack-checkbox')) {
             const row = e.target.closest('tr');
@@ -270,13 +282,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (totalPages <= 1) return;
 
-        // Previous button
         const prevLi = document.createElement('li');
         prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
         prevLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage - 1}">&laquo;</a>`;
         pagination.appendChild(prevLi);
 
-        // Page numbers
         let startPage = Math.max(1, currentPage - 2);
         let endPage = Math.min(totalPages, startPage + 4);
         if (endPage - startPage < 4) {
@@ -290,13 +300,11 @@ document.addEventListener('DOMContentLoaded', function() {
             pagination.appendChild(li);
         }
 
-        // Next button
         const nextLi = document.createElement('li');
         nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
         nextLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage + 1}">&raquo;</a>`;
         pagination.appendChild(nextLi);
 
-        // Add click handlers
         pagination.querySelectorAll('.page-link').forEach(link => {
             link.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -327,7 +335,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const count = selectedCheckboxes.length;
 
         document.getElementById('selectedCount').textContent =
-            count > 0 ? `${count} rack(s) selected for printing` : 'No racks selected';
+            count > 0 ? `${count} rack(s) selected for printing` : 'No rack selected';
 
         printBtn.disabled = count === 0;
     }
@@ -341,7 +349,6 @@ document.addEventListener('DOMContentLoaded', function() {
         selectPageCheckbox.indeterminate = checkedCount > 0 && checkedCount < visibleCheckboxes.length;
     }
 
-    // Form submission - remove unchecked racks from form data
     document.getElementById('bulkLabelForm').addEventListener('submit', function(e) {
         const uncheckedRows = document.querySelectorAll('.rack-checkbox:not(:checked)');
         uncheckedRows.forEach(checkbox => {

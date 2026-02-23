@@ -1,31 +1,33 @@
 @extends('layouts.app')
 
 @section('header')
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 d-inline mr-2">Create New Bill</h1>
-                    @can('bills-add')
-                        <a href="{{ route('bills.create') }}" class="btn btn-outline-primary btn-sm mb-3">Add New Bill</a>
-                    @endcan
-                </div><!-- /.col -->
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('bills.index') }}">Bills</a></li>
-                        <li class="breadcrumb-item active">Create</li>
-                    </ol>
-                </div><!-- /.col -->
-            </div><!-- /.row -->
-        </div><!-- /.container-fluid -->
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Create New Bill</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('bills.index') }}">Bills</a></li>
+                <li class="breadcrumb-item">Create</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('bills.index') }}" class="btn btn-light-brand">
+                        <i class="feather-arrow-left me-2"></i>
+                        <span>Back to Bills</span>
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- /.content-header -->
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
-    <!-- Form -->
     <form action="{{ route('bills.store') }}" method="POST" id="billForm">
         @csrf
 
@@ -34,13 +36,13 @@
                 <!-- Bill Details Card -->
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Bill Details</h5>
+                        <h5 class="card-title">Bill Details</h5>
                     </div>
                     <div class="card-body">
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="supplier_id" class="form-label">Supplier <span class="text-danger">*</span></label>
-                                <select name="supplier_id" id="supplier_id" class="form-control @error('supplier_id') is-invalid @enderror" required>
+                                <select name="supplier_id" id="supplier_id" class="form-select @error('supplier_id') is-invalid @enderror" required>
                                     <option value="">Select Supplier</option>
                                     @foreach ($suppliers as $supplier)
                                         <option value="{{ $supplier->id }}" {{ old('supplier_id') == $supplier->id ? 'selected' : '' }}>
@@ -49,7 +51,7 @@
                                     @endforeach
                                 </select>
                                 @error('supplier_id')
-                                    <span class="invalid-feedbak">{{ $message }}</span>
+                                    <span class="invalid-feedback">{{ $message }}</span>
                                 @enderror
                             </div>
                             <div class="col-md-3">
@@ -72,17 +74,15 @@
 
                 <!-- Expense Items Card -->
                 <div class="card mb-4">
-                    <div class="card-header">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h5 class="card-title mb-0">Expense Items</h5>
-                            <button type="button" class="btn btn-primary btn-sm" id="addItemBtn">
-                                <i class="fas fa-plus"></i>
-                            </button>
-                        </div>
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Expense Items</h5>
+                        <button type="button" class="btn btn-primary btn-sm" id="addItemBtn">
+                            <i class="feather-plus me-1"></i>Add Item
+                        </button>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body p-0">
                         <div class="table-responsive">
-                            <table class="table table-striped table-hover table-sm" id="itemsTable">
+                            <table class="table table-hover mb-0" id="itemsTable">
                                 <thead>
                                     <tr>
                                         <th width="200">Expense Group</th>
@@ -97,7 +97,7 @@
                                 </tbody>
                                 <tfoot>
                                     <tr class="table-light">
-                                        <td colspan="3" class="text-right fw-bold">Total:</td>
+                                        <td colspan="3" class="text-end fw-bold">Total:</td>
                                         <td class="fw-bold">
                                             <span id="totalAmount">0.00</span>
                                         </td>
@@ -112,7 +112,7 @@
                 <!-- Notes Card -->
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Notes</h5>
+                        <h5 class="card-title">Notes</h5>
                     </div>
                     <div class="card-body">
                         <textarea name="notes" id="notes" rows="3" class="form-control" placeholder="Optional notes...">{{ old('notes') }}</textarea>
@@ -125,17 +125,17 @@
                 <!-- Summary Card -->
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Summary</h5>
+                        <h5 class="card-title"><i class="feather-file-text me-2"></i>Summary</h5>
                     </div>
                     <div class="card-body">
                         <table class="table table-sm">
                             <tr>
                                 <th>Items:</th>
-                                <td class="text-right"><span id="itemCount">0</span></td>
+                                <td class="text-end"><span id="itemCount">0</span></td>
                             </tr>
                             <tr class="table-light">
                                 <th>Total Amount:</th>
-                                <td class="text-right fw-bold"><span id="summaryTotal">0.00</span></td>
+                                <td class="text-end fw-bold fs-5"><span id="summaryTotal">0.00</span></td>
                             </tr>
                         </table>
                     </div>
@@ -144,7 +144,7 @@
                 <!-- Actions Card -->
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Actions</h5>
+                        <h5 class="card-title"><i class="feather-settings me-2"></i>Actions</h5>
                     </div>
                     <div class="card-body">
                         <input type="hidden" name="status" id="statusField" value="draft">
@@ -152,16 +152,16 @@
 
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-secondary" onclick="setAction('draft', 'save')">
-                                <i class="fas fa-file mr-1"></i>Save as Draft
+                                <i class="feather-file me-2"></i>Save as Draft
                             </button>
                             <button type="submit" class="btn btn-primary" onclick="setAction('unpaid', 'save')">
-                                <i class="fas fa-check mr-1"></i>Save & Post
+                                <i class="feather-check me-2"></i>Save & Post
                             </button>
-                            <button type="submit" class="btn btn-outline-primary" onclick="setAction('unpaid', 'save_new')">
-                                <i class="fas fa-plus mr-1"></i>Save & New
+                            <button type="submit" class="btn btn-light-brand" onclick="setAction('unpaid', 'save_new')">
+                                <i class="feather-plus me-2"></i>Save & New
                             </button>
                             <a href="{{ route('bills.index') }}" class="btn btn-outline-secondary">
-                                <i class="fas fa-times mr-1"></i>Cancel
+                                <i class="feather-x me-2"></i>Cancel
                             </a>
                         </div>
                     </div>
@@ -174,7 +174,7 @@
     <template id="itemRowTemplate">
         <tr class="item-row">
             <td>
-                <select name="items[INDEX][expense_group_id]" class="form-control form-control-sm expense-group" required>
+                <select name="items[INDEX][expense_group_id]" class="form-select form-select-sm expense-group" required>
                     <option value="">Select Group</option>
                     @foreach ($expenseGroups as $group)
                         <option value="{{ $group->id }}">{{ $group->name }}</option>
@@ -196,7 +196,7 @@
             </td>
             <td>
                 <button type="button" class="btn btn-outline-danger btn-sm remove-item">
-                    <i class="fas fa-times"></i>
+                    <i class="feather-x"></i>
                 </button>
             </td>
         </tr>
@@ -381,7 +381,7 @@
                 const exactMatch = accounts.find(a => a.name.toLowerCase() === searchText.toLowerCase());
                 if (!exactMatch) {
                     html += `<div class="dd-new" data-new-name="${searchText}">
-                        <i class="fas fa-plus mr-1"></i> Create "<strong>${searchText}</strong>" as new account
+                        <i class="feather-plus me-1"></i> Create "<strong>${searchText}</strong>" as new account
                     </div>`;
                 }
             }
@@ -467,7 +467,7 @@
             border-radius: 0 0 0.25rem 0.25rem;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-        
+
         .account-dropdown .dd-item {
             padding: 5px 10px;
             cursor: pointer;

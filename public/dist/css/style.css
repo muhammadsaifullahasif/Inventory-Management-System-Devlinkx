@@ -69,3 +69,7 @@ a {
     padding-left: .75rem;
     padding-right: .75rem;
 }
+
+.form-control-sm, .form-select-sm {
+    padding: .25rem .5rem;
+}

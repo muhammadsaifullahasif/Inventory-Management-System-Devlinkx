@@ -1,27 +1,33 @@
 @extends('layouts.app')
 
 @section('header')
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 d-inline mr-2">Order Details</h1>
-                    <span class="badge badge-{{ $order->order_status === 'cancelled' ? 'danger' : 'primary' }} ml-2">
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Order Details</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('orders.index') }}">Orders</a></li>
+                <li class="breadcrumb-item">{{ $order->order_number }}</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <span class="badge bg-soft-{{ $order->order_status === 'cancelled' ? 'danger' : 'primary' }} text-{{ $order->order_status === 'cancelled' ? 'danger' : 'primary' }}">
                         {{ strtoupper($order->order_status ?? 'N/A') }}
                     </span>
-                </div><!-- /.col -->
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('orders.index') }}">Orders</a></li>
-                        <li class="breadcrumb-item active">{{ $order->order_number }}</li>
-                    </ol>
-                </div><!-- /.col -->
-            </div><!-- /.row -->
-        </div><!-- /.container-fluid -->
+                    <a href="{{ route('orders.index') }}" class="btn btn-light-brand">
+                        <i class="feather-arrow-left me-2"></i>
+                        <span>Back to Orders</span>
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- /.content-header -->
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
@@ -29,9 +35,9 @@
         <!-- Order Summary -->
         <div class="col-md-8">
             <!-- Order Info Card -->
-            <div class="card card-outline card-primary">
+            <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-file-invoice mr-2"></i>Order Information</h3>
+                    <h5 class="card-title"><i class="feather-file-text me-2"></i>Order Information</h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
@@ -44,16 +50,16 @@
                                 @if($order->ebay_order_id)
                                 <tr>
                                     <td class="text-muted">eBay Order ID:</td>
-                                    <td><code>{{ $order->ebay_order_id }}</code></td>
+                                    <td><code class="fs-12">{{ $order->ebay_order_id }}</code></td>
                                 </tr>
                                 @endif
                                 <tr>
                                     <td class="text-muted">Sales Channel:</td>
                                     <td>
                                         @if($order->salesChannel)
-                                            <span class="badge badge-info">{{ $order->salesChannel->name }}</span>
+                                            <span class="badge bg-soft-info text-info">{{ $order->salesChannel->name }}</span>
                                         @else
-                                            <span class="badge badge-secondary">N/A</span>
+                                            <span class="badge bg-soft-secondary text-secondary">N/A</span>
                                         @endif
                                     </td>
                                 </tr>
@@ -85,7 +91,7 @@
                                             ];
                                             $statusColor = $statusColors[$order->order_status] ?? 'secondary';
                                         @endphp
-                                        <span class="badge badge-{{ $statusColor }}">{{ ucfirst(str_replace('_', ' ', $order->order_status ?? 'N/A')) }}</span>
+                                        <span class="badge bg-soft-{{ $statusColor }} text-{{ $statusColor }}">{{ ucfirst(str_replace('_', ' ', $order->order_status ?? 'N/A')) }}</span>
                                     </td>
                                 </tr>
                                 <tr>
@@ -101,7 +107,7 @@
                                             ];
                                             $paymentColor = $paymentColors[$order->payment_status] ?? 'secondary';
                                         @endphp
-                                        <span class="badge badge-{{ $paymentColor }}">{{ ucfirst(str_replace('_', ' ', $order->payment_status ?? 'N/A')) }}</span>
+                                        <span class="badge bg-soft-{{ $paymentColor }} text-{{ $paymentColor }}">{{ ucfirst(str_replace('_', ' ', $order->payment_status ?? 'N/A')) }}</span>
                                     </td>
                                 </tr>
                                 <tr>
@@ -116,7 +122,7 @@
                                             ];
                                             $fulfillmentColor = $fulfillmentColors[$order->fulfillment_status] ?? 'secondary';
                                         @endphp
-                                        <span class="badge badge-{{ $fulfillmentColor }}">{{ ucfirst(str_replace('_', ' ', $order->fulfillment_status ?? 'N/A')) }}</span>
+                                        <span class="badge bg-soft-{{ $fulfillmentColor }} text-{{ $fulfillmentColor }}">{{ ucfirst(str_replace('_', ' ', $order->fulfillment_status ?? 'N/A')) }}</span>
                                     </td>
                                 </tr>
                                 @if($order->shipped_at)
@@ -132,7 +138,7 @@
                                         <strong>{{ $order->shipping_carrier }}</strong>:
                                         @if($order->tracking_url)
                                             <a href="{{ $order->tracking_url }}" target="_blank" class="text-primary">
-                                                {{ $order->tracking_number }} <i class="fas fa-external-link-alt fa-xs"></i>
+                                                {{ $order->tracking_number }} <i class="feather-external-link fs-10"></i>
                                             </a>
                                         @else
                                             {{ $order->tracking_number }}
@@ -145,7 +151,7 @@
                                     <td class="text-muted">Delivered At:</td>
                                     <td>
                                         <span class="text-success">
-                                            <i class="fas fa-check-circle mr-1"></i>
+                                            <i class="feather-check-circle me-1"></i>
                                             {{ \Carbon\Carbon::parse($order->delivered_at)->format('d M, Y H:i') }}
                                         </span>
                                     </td>
@@ -158,181 +164,182 @@
             </div>
 
             <!-- Order Items Card -->
-            <div class="card card-outline card-success">
+            <div class="card mt-4">
                 <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-shopping-cart mr-2"></i>Order Items ({{ $order->items->count() }})</h3>
+                    <h5 class="card-title"><i class="feather-shopping-cart me-2"></i>Order Items ({{ $order->items->count() }})</h5>
                 </div>
                 <div class="card-body p-0">
-                    <table class="table table-striped table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th style="width: 50px;">#</th>
-                                <th>Item</th>
-                                <th>SKU</th>
-                                <th class="text-center">Qty</th>
-                                <th class="text-right">Unit Price</th>
-                                <th class="text-right">Total</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($order->items as $index => $item)
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
                                 <tr>
-                                    <td>{{ $index + 1 }}</td>
-                                    <td>
-                                        <strong>{{ $item->title }}</strong>
-                                        @if($item->variation_attributes)
-                                            <br>
-                                            <small class="text-muted">
-                                                @foreach($item->variation_attributes as $key => $value)
-                                                    {{ $key }}: {{ $value }}{{ !$loop->last ? ', ' : '' }}
-                                                @endforeach
-                                            </small>
-                                        @endif
-                                        @if($item->ebay_item_id)
-                                            <br><small class="text-muted">eBay Item: {{ $item->ebay_item_id }}</small>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        {{ $item->sku ?? 'N/A' }}
-                                        @if($item->product)
-                                            <br><a href="{{ route('products.show', $item->product_id) }}" class="text-primary"><small>View Product</small></a>
-                                        @endif
-                                    </td>
-                                    <td class="text-center">{{ $item->quantity }}</td>
-                                    <td class="text-right">{{ $item->currency ?? 'USD' }} {{ number_format($item->unit_price, 2) }}</td>
-                                    <td class="text-right">{{ $item->currency ?? 'USD' }} {{ number_format($item->total_price, 2) }}</td>
+                                    <th style="width: 50px;">#</th>
+                                    <th>Item</th>
+                                    <th>SKU</th>
+                                    <th class="text-center">Qty</th>
+                                    <th class="text-end">Unit Price</th>
+                                    <th class="text-end">Total</th>
                                 </tr>
-                            @endforeach
-                        </tbody>
-                        <tfoot class="bg-light">
-                            <tr>
-                                <td colspan="5" class="text-right"><strong>Subtotal:</strong></td>
-                                <td class="text-right">{{ $order->currency ?? 'USD' }} {{ number_format($order->subtotal, 2) }}</td>
-                            </tr>
-                            <tr>
-                                <td colspan="5" class="text-right"><strong>Shipping:</strong></td>
-                                <td class="text-right">{{ $order->currency ?? 'USD' }} {{ number_format($order->shipping_cost, 2) }}</td>
-                            </tr>
-                            @if($order->tax > 0)
-                            <tr>
-                                <td colspan="5" class="text-right"><strong>Tax:</strong></td>
-                                <td class="text-right">{{ $order->currency ?? 'USD' }} {{ number_format($order->tax, 2) }}</td>
-                            </tr>
-                            @endif
-                            @if($order->discount > 0)
-                            <tr>
-                                <td colspan="5" class="text-right"><strong>Discount:</strong></td>
-                                <td class="text-right text-danger">-{{ $order->currency ?? 'USD' }} {{ number_format($order->discount, 2) }}</td>
-                            </tr>
-                            @endif
-                            <tr>
-                                <td colspan="5" class="text-right"><strong>Total:</strong></td>
-                                <td class="text-right"><strong>{{ $order->currency ?? 'USD' }} {{ number_format($order->total, 2) }}</strong></td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                            </thead>
+                            <tbody>
+                                @foreach($order->items as $index => $item)
+                                    <tr>
+                                        <td>{{ $index + 1 }}</td>
+                                        <td>
+                                            <span class="fw-semibold">{{ $item->title }}</span>
+                                            @if($item->variation_attributes)
+                                                <span class="d-block fs-11 text-muted">
+                                                    @foreach($item->variation_attributes as $key => $value)
+                                                        {{ $key }}: {{ $value }}{{ !$loop->last ? ', ' : '' }}
+                                                    @endforeach
+                                                </span>
+                                            @endif
+                                            @if($item->ebay_item_id)
+                                                <span class="d-block fs-11 text-muted">eBay Item: {{ $item->ebay_item_id }}</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <span class="fs-12">{{ $item->sku ?? 'N/A' }}</span>
+                                            @if($item->product)
+                                                <a href="{{ route('products.show', $item->product_id) }}" class="d-block text-primary fs-11">View Product</a>
+                                            @endif
+                                        </td>
+                                        <td class="text-center">{{ $item->quantity }}</td>
+                                        <td class="text-end">{{ $item->currency ?? 'USD' }} {{ number_format($item->unit_price, 2) }}</td>
+                                        <td class="text-end">{{ $item->currency ?? 'USD' }} {{ number_format($item->total_price, 2) }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot class="bg-light">
+                                <tr>
+                                    <td colspan="5" class="text-end"><strong>Subtotal:</strong></td>
+                                    <td class="text-end">{{ $order->currency ?? 'USD' }} {{ number_format($order->subtotal, 2) }}</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="5" class="text-end"><strong>Shipping:</strong></td>
+                                    <td class="text-end">{{ $order->currency ?? 'USD' }} {{ number_format($order->shipping_cost, 2) }}</td>
+                                </tr>
+                                @if($order->tax > 0)
+                                <tr>
+                                    <td colspan="5" class="text-end"><strong>Tax:</strong></td>
+                                    <td class="text-end">{{ $order->currency ?? 'USD' }} {{ number_format($order->tax, 2) }}</td>
+                                </tr>
+                                @endif
+                                @if($order->discount > 0)
+                                <tr>
+                                    <td colspan="5" class="text-end"><strong>Discount:</strong></td>
+                                    <td class="text-end text-danger">-{{ $order->currency ?? 'USD' }} {{ number_format($order->discount, 2) }}</td>
+                                </tr>
+                                @endif
+                                <tr>
+                                    <td colspan="5" class="text-end"><strong>Total:</strong></td>
+                                    <td class="text-end"><strong class="text-primary">{{ $order->currency ?? 'USD' }} {{ number_format($order->total, 2) }}</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
                 </div>
             </div>
 
             <!-- Order Meta Data -->
             @if(count($metaData) > 0)
-            <div class="card card-outline card-secondary collapsed-card">
-                <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-database mr-2"></i>Additional Details</h3>
-                    <div class="card-tools">
-                        <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                    </div>
+            <div class="card mt-4">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h5 class="card-title"><i class="feather-database me-2"></i>Additional Details</h5>
+                    <a href="javascript:void(0);" class="btn btn-sm btn-icon btn-light-brand" data-bs-toggle="collapse" data-bs-target="#metaCollapse">
+                        <i class="feather-chevron-down"></i>
+                    </a>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        @if(isset($metaData['shipping_address']))
-                        <div class="col-md-6">
-                            <h6><strong>Shipping Address (Meta)</strong></h6>
-                            <table class="table table-sm table-borderless">
-                                @foreach($metaData['shipping_address'] as $key => $value)
-                                    @if(!empty($value))
-                                    <tr>
-                                        <td class="text-muted" style="width: 120px;">{{ ucfirst(str_replace('_', ' ', $key)) }}:</td>
-                                        <td>{{ $value }}</td>
-                                    </tr>
-                                    @endif
-                                @endforeach
-                            </table>
-                        </div>
-                        @endif
+                <div class="collapse" id="metaCollapse">
+                    <div class="card-body">
+                        <div class="row">
+                            @if(isset($metaData['shipping_address']))
+                            <div class="col-md-6 mb-3">
+                                <h6 class="fw-bold">Shipping Address (Meta)</h6>
+                                <table class="table table-sm table-borderless">
+                                    @foreach($metaData['shipping_address'] as $key => $value)
+                                        @if(!empty($value))
+                                        <tr>
+                                            <td class="text-muted" style="width: 120px;">{{ ucfirst(str_replace('_', ' ', $key)) }}:</td>
+                                            <td>{{ $value }}</td>
+                                        </tr>
+                                        @endif
+                                    @endforeach
+                                </table>
+                            </div>
+                            @endif
 
-                        @if(isset($metaData['shipping_service_selected']))
-                        <div class="col-md-6">
-                            <h6><strong>Shipping Service</strong></h6>
-                            <table class="table table-sm table-borderless">
-                                @foreach($metaData['shipping_service_selected'] as $key => $value)
-                                    @if(!empty($value) && $value !== '0')
-                                    <tr>
-                                        <td class="text-muted" style="width: 150px;">{{ ucfirst(str_replace('_', ' ', $key)) }}:</td>
-                                        <td>{{ $value }}</td>
-                                    </tr>
-                                    @endif
-                                @endforeach
-                            </table>
-                        </div>
-                        @endif
+                            @if(isset($metaData['shipping_service_selected']))
+                            <div class="col-md-6 mb-3">
+                                <h6 class="fw-bold">Shipping Service</h6>
+                                <table class="table table-sm table-borderless">
+                                    @foreach($metaData['shipping_service_selected'] as $key => $value)
+                                        @if(!empty($value) && $value !== '0')
+                                        <tr>
+                                            <td class="text-muted" style="width: 150px;">{{ ucfirst(str_replace('_', ' ', $key)) }}:</td>
+                                            <td>{{ $value }}</td>
+                                        </tr>
+                                        @endif
+                                    @endforeach
+                                </table>
+                            </div>
+                            @endif
 
-                        @if(isset($metaData['transaction_status']))
-                        <div class="col-md-6">
-                            <h6><strong>Transaction Status</strong></h6>
-                            <table class="table table-sm table-borderless">
-                                @foreach($metaData['transaction_status'] as $key => $value)
-                                    @if(!empty($value))
-                                    <tr>
-                                        <td class="text-muted" style="width: 150px;">{{ ucfirst(str_replace('_', ' ', $key)) }}:</td>
-                                        <td>{{ $value }}</td>
-                                    </tr>
-                                    @endif
-                                @endforeach
-                            </table>
-                        </div>
-                        @endif
+                            @if(isset($metaData['transaction_status']))
+                            <div class="col-md-6 mb-3">
+                                <h6 class="fw-bold">Transaction Status</h6>
+                                <table class="table table-sm table-borderless">
+                                    @foreach($metaData['transaction_status'] as $key => $value)
+                                        @if(!empty($value))
+                                        <tr>
+                                            <td class="text-muted" style="width: 150px;">{{ ucfirst(str_replace('_', ' ', $key)) }}:</td>
+                                            <td>{{ $value }}</td>
+                                        </tr>
+                                        @endif
+                                    @endforeach
+                                </table>
+                            </div>
+                            @endif
 
-                        @if(isset($metaData['payment_details']))
-                        <div class="col-md-6">
-                            <h6><strong>Payment Details</strong></h6>
-                            <table class="table table-sm table-borderless">
-                                @foreach($metaData['payment_details'] as $key => $value)
-                                    @if(!empty($value) && $value !== '0')
-                                    <tr>
-                                        <td class="text-muted" style="width: 180px;">{{ ucfirst(str_replace('_', ' ', $key)) }}:</td>
-                                        <td>{{ $value }}</td>
-                                    </tr>
-                                    @endif
-                                @endforeach
-                            </table>
-                        </div>
-                        @endif
+                            @if(isset($metaData['payment_details']))
+                            <div class="col-md-6 mb-3">
+                                <h6 class="fw-bold">Payment Details</h6>
+                                <table class="table table-sm table-borderless">
+                                    @foreach($metaData['payment_details'] as $key => $value)
+                                        @if(!empty($value) && $value !== '0')
+                                        <tr>
+                                            <td class="text-muted" style="width: 180px;">{{ ucfirst(str_replace('_', ' ', $key)) }}:</td>
+                                            <td>{{ $value }}</td>
+                                        </tr>
+                                        @endif
+                                    @endforeach
+                                </table>
+                            </div>
+                            @endif
 
-                        @if(isset($metaData['tax_details']))
-                        <div class="col-md-12">
-                            <h6><strong>Tax Details</strong></h6>
-                            <pre class="bg-light p-2" style="font-size: 11px; max-height: 200px; overflow: auto;">{{ json_encode($metaData['tax_details'], JSON_PRETTY_PRINT) }}</pre>
-                        </div>
-                        @endif
+                            @if(isset($metaData['tax_details']))
+                            <div class="col-md-12 mb-3">
+                                <h6 class="fw-bold">Tax Details</h6>
+                                <pre class="bg-light p-2 rounded" style="font-size: 11px; max-height: 200px; overflow: auto;">{{ json_encode($metaData['tax_details'], JSON_PRETTY_PRINT) }}</pre>
+                            </div>
+                            @endif
 
-                        @if(isset($metaData['seller_info']))
-                        <div class="col-md-6">
-                            <h6><strong>Seller Info</strong></h6>
-                            <table class="table table-sm table-borderless">
-                                @foreach($metaData['seller_info'] as $key => $value)
-                                    @if(!empty($value))
-                                    <tr>
-                                        <td class="text-muted" style="width: 120px;">{{ ucfirst(str_replace('_', ' ', $key)) }}:</td>
-                                        <td>{{ $value }}</td>
-                                    </tr>
-                                    @endif
-                                @endforeach
-                            </table>
+                            @if(isset($metaData['seller_info']))
+                            <div class="col-md-6">
+                                <h6 class="fw-bold">Seller Info</h6>
+                                <table class="table table-sm table-borderless">
+                                    @foreach($metaData['seller_info'] as $key => $value)
+                                        @if(!empty($value))
+                                        <tr>
+                                            <td class="text-muted" style="width: 120px;">{{ ucfirst(str_replace('_', ' ', $key)) }}:</td>
+                                            <td>{{ $value }}</td>
+                                        </tr>
+                                        @endif
+                                    @endforeach
+                                </table>
+                            </div>
+                            @endif
                         </div>
-                        @endif
                     </div>
                 </div>
             </div>
@@ -342,28 +349,28 @@
         <!-- Customer & Shipping Sidebar -->
         <div class="col-md-4">
             <!-- Customer Card -->
-            <div class="card card-outline card-info">
+            <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-user mr-2"></i>Customer</h3>
+                    <h5 class="card-title"><i class="feather-user me-2"></i>Customer</h5>
                 </div>
                 <div class="card-body">
                     <p class="mb-1"><strong>{{ $order->buyer_name ?? 'N/A' }}</strong></p>
                     @if($order->buyer_username)
-                        <p class="mb-1 text-muted"><small>Username: {{ $order->buyer_username }}</small></p>
+                        <p class="mb-1 text-muted fs-12">Username: {{ $order->buyer_username }}</p>
                     @endif
                     @if($order->buyer_email)
-                        <p class="mb-1"><i class="fas fa-envelope mr-1"></i> <a href="mailto:{{ $order->buyer_email }}">{{ $order->buyer_email }}</a></p>
+                        <p class="mb-1"><i class="feather-mail me-1 fs-12"></i> <a href="mailto:{{ $order->buyer_email }}">{{ $order->buyer_email }}</a></p>
                     @endif
                     @if($order->buyer_phone)
-                        <p class="mb-0"><i class="fas fa-phone mr-1"></i> {{ $order->buyer_phone }}</p>
+                        <p class="mb-0"><i class="feather-phone me-1 fs-12"></i> {{ $order->buyer_phone }}</p>
                     @endif
                 </div>
             </div>
 
             <!-- Shipping Address Card -->
-            <div class="card card-outline card-warning">
+            <div class="card mt-4">
                 <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-map-marker-alt mr-2"></i>Shipping Address</h3>
+                    <h5 class="card-title"><i class="feather-map-pin me-2"></i>Shipping Address</h5>
                 </div>
                 <div class="card-body">
                     <address class="mb-0">
@@ -386,9 +393,9 @@
 
             <!-- Buyer Message -->
             @if($order->buyer_checkout_message)
-            <div class="card card-outline card-secondary">
+            <div class="card mt-4">
                 <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-comment mr-2"></i>Buyer Message</h3>
+                    <h5 class="card-title"><i class="feather-message-square me-2"></i>Buyer Message</h5>
                 </div>
                 <div class="card-body">
                     <p class="mb-0">{{ $order->buyer_checkout_message }}</p>
@@ -397,25 +404,25 @@
             @endif
 
             <!-- Actions Card -->
-            <div class="card card-outline card-dark">
+            <div class="card mt-4">
                 <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-cogs mr-2"></i>Actions</h3>
+                    <h5 class="card-title"><i class="feather-settings me-2"></i>Actions</h5>
                 </div>
                 <div class="card-body">
                     @if($order->fulfillment_status !== 'fulfilled' && $order->order_status !== 'cancelled')
-                        <button type="button" class="btn btn-primary btn-block mb-2" data-toggle="modal" data-target="#shipModal">
-                            <i class="fas fa-shipping-fast mr-1"></i> Mark as Shipped
+                        <button type="button" class="btn btn-primary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#shipModal">
+                            <i class="feather-truck me-1"></i> Mark as Shipped
                         </button>
                     @endif
 
                     @if($order->order_status !== 'cancelled')
-                        <button type="button" class="btn btn-danger btn-block" id="cancelOrderBtn">
-                            <i class="fas fa-times mr-1"></i> Cancel Order
+                        <button type="button" class="btn btn-danger w-100" id="cancelOrderBtn">
+                            <i class="feather-x me-1"></i> Cancel Order
                         </button>
                     @endif
 
-                    <a href="{{ route('orders.index') }}" class="btn btn-secondary btn-block mt-2">
-                        <i class="fas fa-arrow-left mr-1"></i> Back to Orders
+                    <a href="{{ route('orders.index') }}" class="btn btn-light-brand w-100 mt-2">
+                        <i class="feather-arrow-left me-1"></i> Back to Orders
                     </a>
                 </div>
             </div>
@@ -423,28 +430,26 @@
     </div>
 
     <!-- Ship Order Modal -->
-    <div class="modal fade" id="shipModal" tabindex="-1" role="dialog" aria-labelledby="showShipModalLabel">
-        <div class="modal-dialog modal-xl" role="document">
+    <div class="modal fade" id="shipModal" tabindex="-1" aria-labelledby="showShipModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="showShipModalLabel">Ship Order &mdash; {{ $order->order_number }}</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
 
                     <!-- Order Summary -->
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <h6 class="font-weight-bold mb-1">Customer</h6>
+                            <h6 class="fw-bold mb-1">Customer</h6>
                             <p class="mb-0">{{ $order->buyer_name ?? 'N/A' }}</p>
                             @if($order->buyer_email)
                                 <small class="text-muted">{{ $order->buyer_email }}</small>
                             @endif
                         </div>
                         <div class="col-md-6">
-                            <h6 class="font-weight-bold mb-1">Ship To</h6>
+                            <h6 class="fw-bold mb-1">Ship To</h6>
                             <p class="mb-0 small">
                                 {{ implode(', ', array_filter([
                                     $order->shipping_address_line1,
@@ -463,7 +468,7 @@
                         </div>
                         <div class="col-md-4">
                             <small class="text-muted">Order Total</small>
-                            <div class="font-weight-bold">{{ $order->currency ?? 'USD' }} {{ number_format($order->total, 2) }}</div>
+                            <div class="fw-bold">{{ $order->currency ?? 'USD' }} {{ number_format($order->total, 2) }}</div>
                         </div>
                         @if($order->address_type && $order->address_validated_at)
                         <div class="col-md-4">
@@ -472,7 +477,7 @@
                                 @php
                                     $addrColors = ['BUSINESS'=>'primary','RESIDENTIAL'=>'success','MIXED'=>'warning','UNKNOWN'=>'secondary'];
                                 @endphp
-                                <span class="badge badge-{{ $addrColors[$order->address_type] ?? 'secondary' }}">{{ $order->address_type }}</span>
+                                <span class="badge bg-soft-{{ $addrColors[$order->address_type] ?? 'secondary' }} text-{{ $addrColors[$order->address_type] ?? 'secondary' }}">{{ $order->address_type }}</span>
                             </div>
                         </div>
                         @endif
@@ -480,17 +485,15 @@
                     <hr class="my-2">
 
                     <!-- Items & Dimensions (server-rendered — product_meta already loaded) -->
-                    <div class="card card-outline card-secondary mb-3">
-                        <div class="card-header py-2">
-                            <h6 class="card-title mb-0"><i class="fas fa-boxes mr-1"></i> Items &amp; Dimensions</h6>
-                            <div class="card-tools">
-                                <small class="text-muted">Edit weight/dims to override product defaults</small>
-                            </div>
+                    <div class="card mb-3">
+                        <div class="card-header py-2 d-flex align-items-center justify-content-between">
+                            <h6 class="card-title mb-0"><i class="feather-package me-2"></i>Items & Dimensions</h6>
+                            <small class="text-muted">Edit weight/dims to override product defaults</small>
                         </div>
                         <div class="card-body p-0">
                             <div class="table-responsive">
-                                <table class="table table-sm table-bordered mb-0" style="font-size:12px;">
-                                    <thead class="thead-light">
+                                <table class="table table-sm mb-0" style="font-size:12px;">
+                                    <thead class="bg-light">
                                         <tr>
                                             <th>Item</th>
                                             <th class="text-center" style="width:40px;">Qty</th>
@@ -512,7 +515,7 @@
                                             <tr>
                                                 <td>
                                                     <strong>{{ \Illuminate\Support\Str::limit($item->title, 40) }}</strong>
-                                                    <br><small class="text-muted">{{ $item->sku ?? 'N/A' }}</small>
+                                                    <span class="d-block text-muted fs-11">{{ $item->sku ?? 'N/A' }}</span>
                                                 </td>
                                                 <td class="text-center">{{ $item->quantity }}</td>
                                                 <td><input type="number" class="form-control form-control-sm show-dim-input"
@@ -536,22 +539,22 @@
                     </div>
 
                     <!-- Rate Quote Section -->
-                    <div class="card card-outline card-info mb-3">
+                    <div class="card mb-3">
                         <div class="card-header py-2">
-                            <h6 class="card-title mb-0"><i class="fas fa-dollar-sign mr-1"></i> Get Shipping Rates</h6>
+                            <h6 class="card-title mb-0"><i class="feather-dollar-sign me-2"></i>Get Shipping Rates</h6>
                         </div>
                         <div class="card-body py-2">
 
                             <!-- Shipper info (shown after rates are fetched) -->
                             <div id="showShipperInfo" class="alert alert-light py-2 small mb-2" style="display:none;">
-                                <i class="fas fa-warehouse mr-1 text-muted"></i>
+                                <i class="feather-home me-1 text-muted"></i>
                                 <strong>Ship From:</strong> <span id="showShipperAddress"></span>
                             </div>
 
-                            <div class="form-row align-items-end">
+                            <div class="row g-2 align-items-end">
                                 <div class="col-md-6">
-                                    <label class="small mb-1">Carrier</label>
-                                    <select id="showRateCarrierId" class="form-control form-control-sm">
+                                    <label class="form-label small mb-1">Carrier</label>
+                                    <select id="showRateCarrierId" class="form-select form-select-sm">
                                         <option value="">-- Select carrier --</option>
                                         @foreach($shippingCarriers as $carrier)
                                             <option value="{{ $carrier->id }}" {{ $carrier->is_default ? 'selected' : '' }}>
@@ -561,8 +564,8 @@
                                     </select>
                                 </div>
                                 <div class="col-md-6">
-                                    <button type="button" id="showGetRatesBtn" class="btn btn-info btn-sm btn-block mt-1">
-                                        <i class="fas fa-search-dollar mr-1"></i> Get Rates
+                                    <button type="button" id="showGetRatesBtn" class="btn btn-info btn-sm w-100">
+                                        <i class="feather-search me-1"></i> Get Rates
                                     </button>
                                 </div>
                             </div>
@@ -570,37 +573,37 @@
                             <!-- Rates Result -->
                             <div id="showRatesResult" class="mt-3" style="display:none;">
                                 <div id="showRatesLoading" class="text-center py-2" style="display:none;">
-                                    <i class="fas fa-spinner fa-spin mr-1"></i> Fetching rates...
+                                    <div class="spinner-border spinner-border-sm me-2" role="status"></div> Fetching rates...
                                 </div>
                                 <div id="showRatesError" class="alert alert-danger py-2 small mb-0" style="display:none;"></div>
                                 <div id="showRatesServiceWrap" style="display:none;">
-                                    <label class="small mb-1">Select Service</label>
+                                    <label class="form-label small mb-1">Select Service</label>
                                     <div class="table-responsive">
-                                        <table class="table table-sm table-hover table-bordered mb-2" id="showRatesTable">
-                                            <thead class="thead-light">
+                                        <table class="table table-sm table-hover mb-2" id="showRatesTable">
+                                            <thead class="bg-light">
                                                 <tr>
                                                     <th style="width:40px;"></th>
                                                     <th>Service</th>
-                                                    <th class="text-right" style="width:120px;">Cost</th>
+                                                    <th class="text-end" style="width:120px;">Cost</th>
                                                     <th class="text-center" style="width:100px;">Transit</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="showRatesTableBody"></tbody>
                                         </table>
                                     </div>
-                                    <small class="text-muted d-block mt-1"><i class="fas fa-info-circle mr-1"></i>Rates are estimates only. Actual cost may vary.</small>
+                                    <small class="text-muted d-block mt-1"><i class="feather-info me-1"></i>Rates are estimates only. Actual cost may vary.</small>
 
                                     <!-- Generate Label Button -->
-                                    <button type="button" id="showGenerateLabelBtn" class="btn btn-success btn-block mt-3" style="display:none;" disabled>
-                                        <i class="fas fa-print mr-1"></i> Generate Label &amp; Mark Shipped
+                                    <button type="button" id="showGenerateLabelBtn" class="btn btn-success w-100 mt-3" style="display:none;" disabled>
+                                        <i class="feather-printer me-1"></i> Generate Label & Mark Shipped
                                     </button>
 
                                     <!-- Label Result (shown after label is generated) -->
                                     <div id="showLabelResult" class="alert alert-success mt-3" style="display:none;">
-                                        <h6 class="mb-2"><i class="fas fa-check-circle mr-1"></i> Label Generated Successfully!</h6>
+                                        <h6 class="mb-2"><i class="feather-check-circle me-1"></i> Label Generated Successfully!</h6>
                                         <p class="mb-2">Tracking Number: <strong id="showTrackingNumber"></strong></p>
                                         <a href="#" id="showDownloadLabelLink" class="btn btn-primary btn-sm" target="_blank">
-                                            <i class="fas fa-download mr-1"></i> Download Label
+                                            <i class="feather-download me-1"></i> Download Label
                                         </a>
                                     </div>
                                 </div>
@@ -609,35 +612,31 @@
                     </div>
 
                     <!-- Manual Mark as Shipped Section (optional, for manual tracking entry) -->
-                    <div class="card card-outline card-secondary mb-0">
-                        <div class="card-header py-2" data-toggle="collapse" data-target="#manualShipSection" style="cursor:pointer;">
-                            <h6 class="card-title mb-0">
-                                <i class="fas fa-keyboard mr-1"></i> Manual Entry (Already Have Tracking?)
-                                <i class="fas fa-chevron-down float-right mt-1"></i>
+                    <div class="card mb-0">
+                        <div class="card-header py-2" data-bs-toggle="collapse" data-bs-target="#manualShipSection" style="cursor:pointer;">
+                            <h6 class="card-title mb-0 d-flex align-items-center justify-content-between">
+                                <span><i class="feather-edit-3 me-2"></i>Manual Entry (Already Have Tracking?)</span>
+                                <i class="feather-chevron-down"></i>
                             </h6>
                         </div>
                         <div id="manualShipSection" class="collapse">
                             <div class="card-body py-2">
                                 <form id="shipForm" action="{{ route('orders.ship', $order->id) }}" method="POST">
                                     @csrf
-                                    <div class="form-row">
+                                    <div class="row g-2">
                                         <div class="col-md-6">
-                                            <div class="form-group mb-2">
-                                                <label class="small mb-1">Shipping Carrier <span class="text-danger">*</span></label>
-                                                <input type="text" name="shipping_carrier" id="showShipCarrierName" class="form-control form-control-sm" required placeholder="e.g., FedEx, UPS, USPS">
-                                            </div>
+                                            <label class="form-label small mb-1">Shipping Carrier <span class="text-danger">*</span></label>
+                                            <input type="text" name="shipping_carrier" id="showShipCarrierName" class="form-control form-control-sm" required placeholder="e.g., FedEx, UPS, USPS">
                                         </div>
                                         <div class="col-md-6">
-                                            <div class="form-group mb-2">
-                                                <label class="small mb-1">Tracking Number <span class="text-danger">*</span></label>
-                                                <input type="text" name="tracking_number" class="form-control form-control-sm" required placeholder="Enter tracking number">
-                                            </div>
+                                            <label class="form-label small mb-1">Tracking Number <span class="text-danger">*</span></label>
+                                            <input type="text" name="tracking_number" class="form-control form-control-sm" required placeholder="Enter tracking number">
                                         </div>
                                     </div>
-                                    <div class="d-flex justify-content-end">
-                                        <button type="button" class="btn btn-secondary btn-sm mr-2" data-dismiss="modal">Cancel</button>
+                                    <div class="d-flex justify-content-end mt-3 gap-2">
+                                        <button type="button" class="btn btn-light-brand btn-sm" data-bs-dismiss="modal">Cancel</button>
                                         <button type="submit" class="btn btn-success btn-sm">
-                                            <i class="fas fa-check mr-1"></i> Mark as Shipped
+                                            <i class="feather-check me-1"></i> Mark as Shipped
                                         </button>
                                     </div>
                                 </form>
@@ -680,8 +679,7 @@
                 $('#showRatesLoading').show();
                 $('#showRatesError').hide().text('');
                 $('#showRatesServiceWrap').hide();
-                $('#showServiceSelect').empty().append('<option value="">-- Choose a service --</option>');
-                $('#showSelectedCost').hide().text('');
+                $('#showRatesTableBody').empty();
                 $('#showShipperInfo').hide();
 
                 $.ajax({
@@ -868,7 +866,7 @@
                     data: form.serialize(),
                     success: function(response) {
                         if (response.success) {
-                            $('#shipModal').modal('hide');
+                            bootstrap.Modal.getInstance(document.getElementById('shipModal')).hide();
                             location.reload();
                         } else {
                             alert(response.message || 'Failed to update order');

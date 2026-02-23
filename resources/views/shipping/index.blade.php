@@ -1,110 +1,125 @@
 @extends('layouts.app')
 
 @section('header')
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 d-inline mr-2">Shipping Carriers</h1>
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Shipping Carriers</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item">Shipping</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
                     @can('add shipping')
-                        <a href="{{ route('shipping.create') }}" class="btn btn-outline-primary btn-sm mb-3">Add Carrier</a>
+                    <a href="{{ route('shipping.create') }}" class="btn btn-primary">
+                        <i class="feather-plus me-2"></i>
+                        <span>Add Carrier</span>
+                    </a>
                     @endcan
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Shipping</li>
-                    </ol>
                 </div>
             </div>
         </div>
     </div>
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
-    <div class="card card-body">
-        <div class="table-responsive">
-            <table class="table table-striped table-hover table-sm">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Name</th>
-                        <th>Type</th>
-                        <th>Account #</th>
-                        <th>Default Service</th>
-                        <th>Units</th>
-                        <th>Mode</th>
-                        <th>Default</th>
-                        <th>Addr. Validation</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse ($shippings as $shipping)
-                        <tr>
-                            <td>{{ $loop->iteration }}</td>
-                            <td><strong>{{ $shipping->name }}</strong></td>
-                            <td><span class="badge badge-secondary">{{ strtoupper($shipping->type) }}</span></td>
-                            <td>{{ $shipping->account_number ?: '-' }}</td>
-                            <td>{{ $shipping->default_service ?: '-' }}</td>
-                            <td class="text-nowrap"><small>{{ $shipping->weight_unit }} / {{ $shipping->dimension_unit }}</small></td>
-                            <td>
-                                @if ($shipping->is_sandbox)
-                                    <span class="badge badge-warning">Sandbox</span>
-                                @else
-                                    <span class="badge badge-success">Live</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if ($shipping->is_default)
-                                    <span class="badge badge-primary">Default</span>
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if ($shipping->is_address_validation)
-                                    <span class="badge badge-info">Enabled</span>
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
-                            </td>
-                            <td>
-                                <span class="badge carrier-status-badge badge-{{ $shipping->active_status === '1' ? 'success' : 'secondary' }}"
-                                      data-id="{{ $shipping->id }}" style="cursor:pointer;" title="Click to toggle">
-                                    {{ $shipping->active_status === '1' ? 'Active' : 'Inactive' }}
-                                </span>
-                            </td>
-                            <td class="text-nowrap">
-                                @can('view shipping')
-                                    <a href="{{ route('shipping.show', $shipping->id) }}" class="btn btn-info btn-xs">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                @endcan
-                                @can('edit shipping')
-                                    <a href="{{ route('shipping.edit', $shipping->id) }}" class="btn btn-warning btn-xs">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                @endcan
-                                @can('delete shipping')
-                                    <form action="{{ route('shipping.destroy', $shipping->id) }}" method="POST" class="d-inline delete-form">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-danger btn-xs"><i class="fas fa-trash"></i></button>
-                                    </form>
-                                @endcan
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="11" class="text-center text-muted py-3">
-                                No shipping carriers found. <a href="{{ route('shipping.create') }}">Add one</a>.
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Account #</th>
+                                <th>Default Service</th>
+                                <th>Units</th>
+                                <th>Mode</th>
+                                <th>Default</th>
+                                <th>Addr. Validation</th>
+                                <th>Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($shippings as $shipping)
+                                <tr>
+                                    <td>{{ $loop->iteration }}</td>
+                                    <td><span class="fw-semibold">{{ $shipping->name }}</span></td>
+                                    <td><span class="badge bg-soft-secondary text-secondary">{{ strtoupper($shipping->type) }}</span></td>
+                                    <td>{{ $shipping->account_number ?: '-' }}</td>
+                                    <td><span class="fs-12">{{ $shipping->default_service ?: '-' }}</span></td>
+                                    <td class="text-nowrap"><span class="fs-12 text-muted">{{ $shipping->weight_unit }} / {{ $shipping->dimension_unit }}</span></td>
+                                    <td>
+                                        @if ($shipping->is_sandbox)
+                                            <span class="badge bg-soft-warning text-warning">Sandbox</span>
+                                        @else
+                                            <span class="badge bg-soft-success text-success">Live</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if ($shipping->is_default)
+                                            <span class="badge bg-soft-primary text-primary">Default</span>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if ($shipping->is_address_validation)
+                                            <span class="badge bg-soft-info text-info">Enabled</span>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <span class="badge carrier-status-badge bg-soft-{{ $shipping->active_status === '1' ? 'success' : 'secondary' }} text-{{ $shipping->active_status === '1' ? 'success' : 'secondary' }}"
+                                              data-id="{{ $shipping->id }}" style="cursor:pointer;" title="Click to toggle">
+                                            {{ $shipping->active_status === '1' ? 'Active' : 'Inactive' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="hstack gap-2 justify-content-end">
+                                            @can('view shipping')
+                                                <a href="{{ route('shipping.show', $shipping->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="View">
+                                                    <i class="feather-eye"></i>
+                                                </a>
+                                            @endcan
+                                            @can('edit shipping')
+                                                <a href="{{ route('shipping.edit', $shipping->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="Edit">
+                                                    <i class="feather-edit-3"></i>
+                                                </a>
+                                            @endcan
+                                            @can('delete shipping')
+                                                <form action="{{ route('shipping.destroy', $shipping->id) }}" method="POST" class="d-inline delete-form">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="avatar-text avatar-md text-danger border-0 bg-transparent" data-bs-toggle="tooltip" title="Delete">
+                                                        <i class="feather-trash-2"></i>
+                                                    </button>
+                                                </form>
+                                            @endcan
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="11" class="text-center py-4 text-muted">
+                                        No shipping carriers found. <a href="{{ route('shipping.create') }}">Add one</a>.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 @endsection
@@ -124,8 +139,11 @@ $(document).ready(function () {
             data: { _token: '{{ csrf_token() }}' },
             success: function (res) {
                 if (res.success) {
-                    if (res.active) { badge.removeClass('badge-secondary').addClass('badge-success').text('Active'); }
-                    else { badge.removeClass('badge-success').addClass('badge-secondary').text('Inactive'); }
+                    if (res.active) {
+                        badge.removeClass('bg-soft-secondary text-secondary').addClass('bg-soft-success text-success').text('Active');
+                    } else {
+                        badge.removeClass('bg-soft-success text-success').addClass('bg-soft-secondary text-secondary').text('Inactive');
+                    }
                 }
             }
         });

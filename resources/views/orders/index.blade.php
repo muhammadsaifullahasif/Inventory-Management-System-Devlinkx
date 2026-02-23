@@ -1,248 +1,246 @@
 @extends('layouts.app')
 
 @section('header')
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 d-inline mr-2">Orders</h1>
-                </div><!-- /.col -->
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Orders</li>
-                    </ol>
-                </div><!-- /.col -->
-            </div><!-- /.row -->
-        </div><!-- /.container-fluid -->
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Orders</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item">Orders</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <span class="text-muted fs-12">{{ $orders->total() }} orders</span>
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- /.content-header -->
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
-    <!-- Filters -->
-    <div class="card card-outline card-primary mb-3">
-        <div class="card-header">
-            <h3 class="card-title">Filters</h3>
-            <div class="card-tools">
-                <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                    <i class="fas fa-minus"></i>
-                </button>
+    <!-- Filters Card -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h5 class="card-title"><i class="feather-filter me-2"></i>Filters</h5>
+                <a href="javascript:void(0);" class="avatar-text avatar-md text-primary" data-bs-toggle="collapse" data-bs-target="#filterCollapse">
+                    <i class="feather-minus toggle-icon"></i>
+                </a>
             </div>
-        </div>
-        <div class="card-body">
-            <form action="{{ route('orders.index') }}" method="GET">
-                <div class="row">
-                    <div class="col-md-2">
-                        <div class="form-group">
-                            <label>Search</label>
-                            <input type="text" name="search" class="form-control form-control-sm" placeholder="Order #, Email, Name..." value="{{ request('search') }}">
+            <div class="collapse show" id="filterCollapse">
+                <div class="card-body py-3">
+                    <form action="{{ route('orders.index') }}" method="GET">
+                        <div class="row g-3">
+                            <div class="col-md-2">
+                                <label class="form-label">Search</label>
+                                <input type="text" name="search" class="form-control form-control-sm" placeholder="Order #, Email, Name..." value="{{ request('search') }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Sales Channel</label>
+                                <select name="sales_channel_id" class="form-select form-select-sm">
+                                    <option value="">All Channels</option>
+                                    @foreach($salesChannels as $channel)
+                                        <option value="{{ $channel->id }}" {{ request('sales_channel_id') == $channel->id ? 'selected' : '' }}>{{ $channel->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Status</label>
+                                <select name="order_status" class="form-select form-select-sm">
+                                    <option value="">All</option>
+                                    <option value="awaiting_payment" {{ request('order_status') == 'awaiting_payment' ? 'selected' : '' }}>Awaiting Payment</option>
+                                    <option value="processing" {{ request('order_status') == 'processing' ? 'selected' : '' }}>Processing</option>
+                                    <option value="shipped" {{ request('order_status') == 'shipped' ? 'selected' : '' }}>Shipped / Fulfilled</option>
+                                    <option value="delivered" {{ request('order_status') == 'delivered' ? 'selected' : '' }}>Delivered</option>
+                                    <option value="ready_for_pickup" {{ request('order_status') == 'ready_for_pickup' ? 'selected' : '' }}>Ready for Pickup</option>
+                                    <option value="cancellation_requested" {{ request('order_status') == 'cancellation_requested' ? 'selected' : '' }}>Cancellation Requested</option>
+                                    <option value="cancelled" {{ request('order_status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                                    <option value="refunded" {{ request('order_status') == 'refunded' ? 'selected' : '' }}>Refunded</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">From Date</label>
+                                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request('date_from') }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">To Date</label>
+                                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}">
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="feather-search me-2"></i>Filter
+                                </button>
+                                <a href="{{ route('orders.index') }}" class="btn btn-light-brand btn-sm">
+                                    <i class="feather-x me-2"></i>Clear
+                                </a>
+                            </div>
                         </div>
-                    </div>
-                    <div class="col-md-2">
-                        <div class="form-group">
-                            <label>Sales Channel</label>
-                            <select name="sales_channel_id" class="form-control form-control-sm">
-                                <option value="">All Channels</option>
-                                @foreach($salesChannels as $channel)
-                                    <option value="{{ $channel->id }}" {{ request('sales_channel_id') == $channel->id ? 'selected' : '' }}>{{ $channel->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-                    <div class="col-md-2">
-                        <div class="form-group">
-                            <label>Status</label>
-                            <select name="order_status" class="form-control form-control-sm">
-                                <option value="">All</option>
-                                <option value="awaiting_payment" {{ request('order_status') == 'awaiting_payment' ? 'selected' : '' }}>Awaiting Payment</option>
-                                <option value="processing" {{ request('order_status') == 'processing' ? 'selected' : '' }}>Processing</option>
-                                <option value="shipped" {{ request('order_status') == 'shipped' ? 'selected' : '' }}>Shipped / Fulfilled</option>
-                                <option value="delivered" {{ request('order_status') == 'delivered' ? 'selected' : '' }}>Delivered</option>
-                                <option value="ready_for_pickup" {{ request('order_status') == 'ready_for_pickup' ? 'selected' : '' }}>Ready for Pickup</option>
-                                <option value="cancellation_requested" {{ request('order_status') == 'cancellation_requested' ? 'selected' : '' }}>Cancellation Requested</option>
-                                <option value="cancelled" {{ request('order_status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                                <option value="refunded" {{ request('order_status') == 'refunded' ? 'selected' : '' }}>Refunded</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="col-md-2">
-                        <div class="form-group">
-                            <label>From Date</label>
-                            <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request('date_from') }}">
-                        </div>
-                    </div>
-                    <div class="col-md-2">
-                        <div class="form-group">
-                            <label>To Date</label>
-                            <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}">
-                        </div>
-                    </div>
+                    </form>
                 </div>
-                <div class="row">
-                    <div class="col-md-12">
-                        <button type="submit" class="btn btn-primary btn-sm">Filter</button>
-                        <a href="{{ route('orders.index') }}" class="btn btn-secondary btn-sm">Reset</a>
-                    </div>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 
     <!-- Orders Table -->
-    <div class="card">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover table-sm">
-                    <thead>
-                        <tr>
-                            <th style="width: 50px;">#</th>
-                            <th>Order #</th>
-                            <th>Channel</th>
-                            <th>Customer</th>
-                            <th>Items</th>
-                            <th>Total</th>
-                            <th>Status</th>
-                            <th>Address Type</th>
-                            <th>Order Date</th>
-                            <th style="width: 120px;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($orders as $order)
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
                             <tr>
-                                <td>{{ $order->id }}</td>
-                                <td>
-                                    <a href="{{ route('orders.show', $order->id) }}">
-                                        {{ $order->order_number }}
-                                    </a>
-                                    @if($order->ebay_order_id)
-                                        <br><small class="text-muted">eBay: {{ \Illuminate\Support\Str::limit($order->ebay_order_id, 20) }}</small>
-                                    @endif
-                                </td>
-                                <td>
-                                    @if($order->salesChannel)
-                                        <span class="badge badge-info">{{ $order->salesChannel->name }}</span>
-                                    @else
-                                        <span class="badge badge-secondary">N/A</span>
-                                    @endif
-                                </td>
-                                <td>
-                                    <strong>{{ $order->buyer_name ?? 'N/A' }}</strong>
-                                    @if($order->buyer_email)
-                                        <br><small class="text-muted">{{ $order->buyer_email }}</small>
-                                    @endif
-                                </td>
-                                <td>
-                                    {{ $order->items->count() }} item(s)
-                                    <br><small class="text-muted">Qty: {{ $order->items->sum('quantity') }}</small>
-                                </td>
-                                <td>
-                                    <strong>{{ $order->currency ?? 'USD' }} {{ number_format($order->total, 2) }}</strong>
-                                </td>
-                                <td>
-                                    @php
-                                        // Consolidated status: single badge based on payment + fulfillment
-                                        $isPaid       = in_array($order->payment_status, ['paid']);
-                                        $isShipped    = in_array($order->fulfillment_status, ['fulfilled', 'partially_fulfilled'])
-                                                        || in_array($order->order_status, ['shipped', 'delivered', 'ready_for_pickup']);
-                                        $isCancelled  = in_array($order->order_status, ['cancelled', 'cancellation_requested']);
-                                        $isRefunded   = $order->order_status === 'refunded' || $order->payment_status === 'refunded';
-
-                                        if ($isRefunded) {
-                                            $statusLabel = 'Refunded';
-                                            $statusColor = 'secondary';
-                                        } elseif ($isCancelled) {
-                                            $statusLabel = ucfirst(str_replace('_', ' ', $order->order_status));
-                                            $statusColor = 'danger';
-                                        } elseif (!$isPaid) {
-                                            $statusLabel = 'Awaiting Payment';
-                                            $statusColor = 'warning';
-                                        } elseif ($isPaid && !$isShipped) {
-                                            $statusLabel = 'Processing';
-                                            $statusColor = 'info';
-                                        } else {
-                                            $statusLabel = 'Shipped / Fulfilled';
-                                            $statusColor = 'success';
-                                        }
-                                    @endphp
-                                    <span class="badge badge-{{ $statusColor }}">{{ $statusLabel }}</span>
-                                </td>
-                                <td>
-                                    @php
-                                        $addrColors = [
-                                            'BUSINESS'    => 'primary',
-                                            'RESIDENTIAL' => 'success',
-                                            'MIXED'       => 'warning',
-                                            'UNKNOWN'     => 'secondary',
-                                        ];
-                                        $addrType  = $order->address_type ?? 'UNKNOWN';
-                                        $addrColor = $addrColors[$addrType] ?? 'secondary';
-                                    @endphp
-                                    @if ($order->address_validated_at)
-                                        <span class="badge badge-{{ $addrColor }}">{{ $addrType }}</span>
-                                    @else
-                                        <span class="text-muted small">-</span>
-                                    @endif
-                                </td>
-                                <td>
-                                    @if($order->order_date)
-                                        {{ \Carbon\Carbon::parse($order->order_date)->format('d M, Y') }}
-                                        <br><small class="text-muted">{{ \Carbon\Carbon::parse($order->order_date)->format('H:i') }}</small>
-                                    @else
-                                        N/A
-                                    @endif
-                                </td>
-                                <td>
-                                    <div class="btn-group">
-                                        <a href="{{ route('orders.show', $order->id) }}" class="btn btn-success btn-sm" title="View">
-                                            <i class="fas fa-eye"></i>
+                                <th>#</th>
+                                <th>Order #</th>
+                                <th>Channel</th>
+                                <th>Customer</th>
+                                <th>Items</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                                <th>Address Type</th>
+                                <th>Order Date</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($orders as $order)
+                                <tr>
+                                    <td>{{ $order->id }}</td>
+                                    <td>
+                                        <a href="{{ route('orders.show', $order->id) }}" class="fw-semibold text-primary">
+                                            {{ $order->order_number }}
                                         </a>
-                                        @if($order->fulfillment_status !== 'fulfilled' && $order->order_status !== 'cancelled')
-                                            <button type="button" class="btn btn-primary btn-sm ship-btn"
-                                                data-id="{{ $order->id }}"
-                                                data-order-number="{{ $order->order_number }}"
-                                                data-customer="{{ $order->buyer_name ?? 'N/A' }}"
-                                                data-email="{{ $order->buyer_email ?? '' }}"
-                                                data-address="{{ implode(', ', array_filter([$order->shipping_address_line1, $order->shipping_city, $order->shipping_state, $order->shipping_postal_code, $order->shipping_country])) }}"
-                                                data-items="{{ $order->items->count() }} item(s), Qty: {{ $order->items->sum('quantity') }}"
-                                                data-total="{{ ($order->currency ?? 'USD') . ' ' . number_format($order->total, 2) }}"
-                                                title="Mark as Shipped">
-                                                <i class="fas fa-shipping-fast"></i>
-                                            </button>
+                                        @if($order->ebay_order_id)
+                                            <span class="d-block fs-11 text-muted">eBay: {{ \Illuminate\Support\Str::limit($order->ebay_order_id, 20) }}</span>
                                         @endif
-                                        @if($order->order_status !== 'cancelled')
-                                            <button type="button" class="btn btn-danger btn-sm cancel-btn" data-id="{{ $order->id }}" title="Cancel Order">
-                                                <i class="fas fa-times"></i>
-                                            </button>
+                                    </td>
+                                    <td>
+                                        @if($order->salesChannel)
+                                            <span class="badge bg-soft-info text-info">{{ $order->salesChannel->name }}</span>
+                                        @else
+                                            <span class="badge bg-soft-secondary text-secondary">N/A</span>
                                         @endif
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="10" class="text-center">No orders found.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                                    </td>
+                                    <td>
+                                        <span class="fw-semibold">{{ $order->buyer_name ?? 'N/A' }}</span>
+                                        @if($order->buyer_email)
+                                            <span class="d-block fs-11 text-muted">{{ $order->buyer_email }}</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <span>{{ $order->items->count() }} item(s)</span>
+                                        <span class="d-block fs-11 text-muted">Qty: {{ $order->items->sum('quantity') }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="fw-semibold">{{ $order->currency ?? 'USD' }} {{ number_format($order->total, 2) }}</span>
+                                    </td>
+                                    <td>
+                                        @php
+                                            $isPaid       = in_array($order->payment_status, ['paid']);
+                                            $isShipped    = in_array($order->fulfillment_status, ['fulfilled', 'partially_fulfilled'])
+                                                            || in_array($order->order_status, ['shipped', 'delivered', 'ready_for_pickup']);
+                                            $isCancelled  = in_array($order->order_status, ['cancelled', 'cancellation_requested']);
+                                            $isRefunded   = $order->order_status === 'refunded' || $order->payment_status === 'refunded';
+
+                                            if ($isRefunded) {
+                                                $statusLabel = 'Refunded';
+                                                $statusColor = 'secondary';
+                                            } elseif ($isCancelled) {
+                                                $statusLabel = ucfirst(str_replace('_', ' ', $order->order_status));
+                                                $statusColor = 'danger';
+                                            } elseif (!$isPaid) {
+                                                $statusLabel = 'Awaiting Payment';
+                                                $statusColor = 'warning';
+                                            } elseif ($isPaid && !$isShipped) {
+                                                $statusLabel = 'Processing';
+                                                $statusColor = 'info';
+                                            } else {
+                                                $statusLabel = 'Shipped / Fulfilled';
+                                                $statusColor = 'success';
+                                            }
+                                        @endphp
+                                        <span class="badge bg-soft-{{ $statusColor }} text-{{ $statusColor }}">{{ $statusLabel }}</span>
+                                    </td>
+                                    <td>
+                                        @php
+                                            $addrColors = [
+                                                'BUSINESS'    => 'primary',
+                                                'RESIDENTIAL' => 'success',
+                                                'MIXED'       => 'warning',
+                                                'UNKNOWN'     => 'secondary',
+                                            ];
+                                            $addrType  = $order->address_type ?? 'UNKNOWN';
+                                            $addrColor = $addrColors[$addrType] ?? 'secondary';
+                                        @endphp
+                                        @if ($order->address_validated_at)
+                                            <span class="badge bg-soft-{{ $addrColor }} text-{{ $addrColor }}">{{ $addrType }}</span>
+                                        @else
+                                            <span class="text-muted fs-12">-</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($order->order_date)
+                                            <span class="fs-12">{{ \Carbon\Carbon::parse($order->order_date)->format('d M, Y') }}</span>
+                                            <span class="d-block fs-11 text-muted">{{ \Carbon\Carbon::parse($order->order_date)->format('H:i') }}</span>
+                                        @else
+                                            <span class="text-muted">N/A</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <div class="hstack gap-2 justify-content-end">
+                                            <a href="{{ route('orders.show', $order->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="View">
+                                                <i class="feather-eye"></i>
+                                            </a>
+                                            @if($order->fulfillment_status !== 'fulfilled' && $order->order_status !== 'cancelled')
+                                                <a href="javascript:void(0);" class="avatar-text avatar-md text-primary ship-btn"
+                                                    data-id="{{ $order->id }}"
+                                                    data-order-number="{{ $order->order_number }}"
+                                                    data-customer="{{ $order->buyer_name ?? 'N/A' }}"
+                                                    data-email="{{ $order->buyer_email ?? '' }}"
+                                                    data-address="{{ implode(', ', array_filter([$order->shipping_address_line1, $order->shipping_city, $order->shipping_state, $order->shipping_postal_code, $order->shipping_country])) }}"
+                                                    data-items="{{ $order->items->count() }} item(s), Qty: {{ $order->items->sum('quantity') }}"
+                                                    data-total="{{ ($order->currency ?? 'USD') . ' ' . number_format($order->total, 2) }}"
+                                                    data-bs-toggle="tooltip" title="Mark as Shipped">
+                                                    <i class="feather-truck"></i>
+                                                </a>
+                                            @endif
+                                            @if($order->order_status !== 'cancelled')
+                                                <a href="javascript:void(0);" class="avatar-text avatar-md text-danger cancel-btn" data-id="{{ $order->id }}" data-bs-toggle="tooltip" title="Cancel Order">
+                                                    <i class="feather-x"></i>
+                                                </a>
+                                            @endif
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="10" class="text-center py-4 text-muted">No orders found.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-        <div class="card-footer">
-            {{ $orders->appends(request()->query())->links('pagination::bootstrap-5') }}
+            @if($orders->hasPages())
+            <div class="card-footer">
+                {{ $orders->appends(request()->query())->links('pagination::bootstrap-5') }}
+            </div>
+            @endif
         </div>
     </div>
 
     <!-- Ship Order Modal -->
-    <div class="modal fade" id="shipModal" tabindex="-1" role="dialog" aria-labelledby="shipModalLabel">
-        <div class="modal-dialog modal-xl" role="document">
+    <div class="modal fade" id="shipModal" tabindex="-1" aria-labelledby="shipModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="shipModalLabel">Ship Order</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
 
@@ -250,12 +248,12 @@
                     <div id="shipOrderDetails" class="mb-3" style="display:none;">
                         <div class="row">
                             <div class="col-md-6">
-                                <h6 class="font-weight-bold mb-1">Customer</h6>
+                                <h6 class="fw-bold mb-1">Customer</h6>
                                 <p class="mb-0" id="shipCustomerName"></p>
                                 <small class="text-muted" id="shipCustomerEmail"></small>
                             </div>
                             <div class="col-md-6">
-                                <h6 class="font-weight-bold mb-1">Ship To</h6>
+                                <h6 class="fw-bold mb-1">Ship To</h6>
                                 <p class="mb-0 small" id="shipAddress"></p>
                             </div>
                         </div>
@@ -263,7 +261,7 @@
                         <div class="row">
                             <div class="col-md-4">
                                 <small class="text-muted">Order #</small>
-                                <div id="shipOrderNumber" class="font-weight-bold"></div>
+                                <div id="shipOrderNumber" class="fw-bold"></div>
                             </div>
                             <div class="col-md-4">
                                 <small class="text-muted">Items</small>
@@ -271,27 +269,25 @@
                             </div>
                             <div class="col-md-4">
                                 <small class="text-muted">Order Total</small>
-                                <div id="shipOrderTotal" class="font-weight-bold"></div>
+                                <div id="shipOrderTotal" class="fw-bold"></div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Items & Dimensions -->
-                    <div class="card card-outline card-secondary mb-3">
-                        <div class="card-header py-2">
-                            <h6 class="card-title mb-0"><i class="fas fa-boxes mr-1"></i> Items &amp; Dimensions</h6>
-                            <div class="card-tools">
-                                <small class="text-muted">Edit weight/dims to override product defaults</small>
-                            </div>
+                    <div class="card mb-3">
+                        <div class="card-header py-2 d-flex align-items-center justify-content-between">
+                            <h6 class="card-title mb-0"><i class="feather-package me-2"></i>Items & Dimensions</h6>
+                            <small class="text-muted">Edit weight/dims to override product defaults</small>
                         </div>
                         <div class="card-body p-0">
                             <div id="itemsLoading" class="text-center py-3">
-                                <i class="fas fa-spinner fa-spin mr-1"></i> Loading items...
+                                <div class="spinner-border spinner-border-sm me-2" role="status"></div> Loading items...
                             </div>
                             <div id="itemsTableWrap" style="display:none;">
                                 <div class="table-responsive">
-                                    <table class="table table-sm table-bordered mb-0" style="font-size:12px;">
-                                        <thead class="thead-light">
+                                    <table class="table table-sm mb-0" style="font-size:12px;">
+                                        <thead class="bg-light">
                                             <tr>
                                                 <th>Item</th>
                                                 <th class="text-center" style="width:40px;">Qty</th>
@@ -310,15 +306,15 @@
                     </div>
 
                     <!-- Rate Quote Section -->
-                    <div class="card card-outline card-info mb-3">
+                    <div class="card mb-3">
                         <div class="card-header py-2">
-                            <h6 class="card-title mb-0"><i class="fas fa-dollar-sign mr-1"></i> Get Shipping Rates</h6>
+                            <h6 class="card-title mb-0"><i class="feather-dollar-sign me-2"></i>Get Shipping Rates</h6>
                         </div>
                         <div class="card-body py-2">
-                            <div class="form-row align-items-end">
+                            <div class="row g-2 align-items-end">
                                 <div class="col-md-8">
-                                    <label class="small mb-1">Carrier</label>
-                                    <select id="rateCarrierId" class="form-control form-control-sm">
+                                    <label class="form-label small mb-1">Carrier</label>
+                                    <select id="rateCarrierId" class="form-select form-select-sm">
                                         <option value="">-- Select carrier --</option>
                                         @foreach($shippingCarriers as $carrier)
                                             <option value="{{ $carrier->id }}" {{ $carrier->is_default ? 'selected' : '' }}>
@@ -328,50 +324,50 @@
                                     </select>
                                 </div>
                                 <div class="col-md-4">
-                                    <button type="button" id="getRatesBtn" class="btn btn-info btn-sm btn-block mt-1">
-                                        <i class="fas fa-search-dollar mr-1"></i> Get Rates
+                                    <button type="button" id="getRatesBtn" class="btn btn-info btn-sm w-100">
+                                        <i class="feather-search me-1"></i> Get Rates
                                     </button>
                                 </div>
                             </div>
 
                             <!-- Rates Result -->
                             <div id="shipperInfo" class="alert alert-light py-2 small mb-0 mt-2" style="display:none;">
-                                <i class="fas fa-warehouse mr-1 text-muted"></i>
+                                <i class="feather-home me-1 text-muted"></i>
                                 <strong>Ship From:</strong> <span id="shipperAddress"></span>
                             </div>
                             <div id="ratesResult" class="mt-2" style="display:none;">
                                 <div id="ratesLoading" class="text-center py-2" style="display:none;">
-                                    <i class="fas fa-spinner fa-spin mr-1"></i> Fetching rates...
+                                    <div class="spinner-border spinner-border-sm me-2" role="status"></div> Fetching rates...
                                 </div>
                                 <div id="ratesError" class="alert alert-danger py-2 small mb-0" style="display:none;"></div>
                                 <div id="ratesServiceWrap" style="display:none;">
-                                    <label class="small mb-1">Select Service</label>
+                                    <label class="form-label small mb-1">Select Service</label>
                                     <div class="table-responsive">
-                                        <table class="table table-sm table-hover table-bordered mb-2" id="ratesTable">
-                                            <thead class="thead-light">
+                                        <table class="table table-sm table-hover mb-2" id="ratesTable">
+                                            <thead class="bg-light">
                                                 <tr>
                                                     <th style="width:40px;"></th>
                                                     <th>Service</th>
-                                                    <th class="text-right" style="width:120px;">Cost</th>
+                                                    <th class="text-end" style="width:120px;">Cost</th>
                                                     <th class="text-center" style="width:100px;">Transit</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="ratesTableBody"></tbody>
                                         </table>
                                     </div>
-                                    <small class="text-muted d-block mt-1"><i class="fas fa-info-circle mr-1"></i>Rates are estimates only. Actual cost may vary.</small>
+                                    <small class="text-muted d-block mt-1"><i class="feather-info me-1"></i>Rates are estimates only. Actual cost may vary.</small>
 
                                     <!-- Generate Label Button -->
-                                    <button type="button" id="generateLabelBtn" class="btn btn-success btn-block mt-3" style="display:none;" disabled>
-                                        <i class="fas fa-print mr-1"></i> Generate Label &amp; Mark Shipped
+                                    <button type="button" id="generateLabelBtn" class="btn btn-success w-100 mt-3" style="display:none;" disabled>
+                                        <i class="feather-printer me-1"></i> Generate Label & Mark Shipped
                                     </button>
 
                                     <!-- Label Result (shown after label is generated) -->
                                     <div id="labelResult" class="alert alert-success mt-3" style="display:none;">
-                                        <h6 class="mb-2"><i class="fas fa-check-circle mr-1"></i> Label Generated Successfully!</h6>
+                                        <h6 class="mb-2"><i class="feather-check-circle me-1"></i> Label Generated Successfully!</h6>
                                         <p class="mb-2">Tracking Number: <strong id="trackingNumber"></strong></p>
                                         <a href="#" id="downloadLabelLink" class="btn btn-primary btn-sm" target="_blank">
-                                            <i class="fas fa-download mr-1"></i> Download Label
+                                            <i class="feather-download me-1"></i> Download Label
                                         </a>
                                     </div>
                                 </div>
@@ -380,35 +376,31 @@
                     </div>
 
                     <!-- Manual Mark as Shipped Section (optional, for manual tracking entry) -->
-                    <div class="card card-outline card-secondary mb-0">
-                        <div class="card-header py-2" data-toggle="collapse" data-target="#manualShipSection" style="cursor:pointer;">
-                            <h6 class="card-title mb-0">
-                                <i class="fas fa-keyboard mr-1"></i> Manual Entry (Already Have Tracking?)
-                                <i class="fas fa-chevron-down float-right mt-1"></i>
+                    <div class="card mb-0">
+                        <div class="card-header py-2" data-bs-toggle="collapse" data-bs-target="#manualShipSection" style="cursor:pointer;">
+                            <h6 class="card-title mb-0 d-flex align-items-center justify-content-between">
+                                <span><i class="feather-edit-3 me-2"></i>Manual Entry (Already Have Tracking?)</span>
+                                <i class="feather-chevron-down"></i>
                             </h6>
                         </div>
                         <div id="manualShipSection" class="collapse">
                             <div class="card-body py-2">
                                 <form id="shipForm" method="POST">
                                     @csrf
-                                    <div class="form-row">
+                                    <div class="row g-2">
                                         <div class="col-md-6">
-                                            <div class="form-group mb-2">
-                                                <label class="small mb-1">Shipping Carrier <span class="text-danger">*</span></label>
-                                                <input type="text" name="shipping_carrier" id="shipCarrierName" class="form-control form-control-sm" required placeholder="e.g., FedEx, UPS, USPS">
-                                            </div>
+                                            <label class="form-label small mb-1">Shipping Carrier <span class="text-danger">*</span></label>
+                                            <input type="text" name="shipping_carrier" id="shipCarrierName" class="form-control form-control-sm" required placeholder="e.g., FedEx, UPS, USPS">
                                         </div>
                                         <div class="col-md-6">
-                                            <div class="form-group mb-2">
-                                                <label class="small mb-1">Tracking Number <span class="text-danger">*</span></label>
-                                                <input type="text" name="tracking_number" class="form-control form-control-sm" required placeholder="Enter tracking number">
-                                            </div>
+                                            <label class="form-label small mb-1">Tracking Number <span class="text-danger">*</span></label>
+                                            <input type="text" name="tracking_number" class="form-control form-control-sm" required placeholder="Enter tracking number">
                                         </div>
                                     </div>
-                                    <div class="d-flex justify-content-end">
-                                        <button type="button" class="btn btn-secondary btn-sm mr-2" data-dismiss="modal">Cancel</button>
+                                    <div class="d-flex justify-content-end mt-3 gap-2">
+                                        <button type="button" class="btn btn-light-brand btn-sm" data-bs-dismiss="modal">Cancel</button>
                                         <button type="submit" class="btn btn-success btn-sm">
-                                            <i class="fas fa-check mr-1"></i> Mark as Shipped
+                                            <i class="feather-check me-1"></i> Mark as Shipped
                                         </button>
                                     </div>
                                 </form>
@@ -472,7 +464,8 @@
                 // Store current order id for rate lookup
                 $('#getRatesBtn').data('order-id', orderId);
 
-                $('#shipModal').modal('show');
+                var shipModal = new bootstrap.Modal(document.getElementById('shipModal'));
+                shipModal.show();
 
                 // Load items with dimensions via AJAX
                 $.ajax({
@@ -731,7 +724,7 @@
                     data: form.serialize(),
                     success: function(response) {
                         if (response.success) {
-                            $('#shipModal').modal('hide');
+                            bootstrap.Modal.getInstance(document.getElementById('shipModal')).hide();
                             location.reload();
                         } else {
                             alert(response.message || 'Failed to update order');

@@ -1,54 +1,75 @@
 @extends('layouts.app')
 
 @section('header')
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 d-inline mr-2">Categories Edit</h1>
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Edit Category</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('categories.index') }}">Categories</a></li>
+                <li class="breadcrumb-item">Edit Category</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('categories.index') }}" class="btn btn-light-brand">
+                        <i class="feather-arrow-left me-2"></i>
+                        <span>Back to Categories</span>
+                    </a>
                     @can('add categories')
-                        <a href="{{ route('categories.create') }}" class="btn btn-outline-primary btn-sm mb-3">Add Category</a>
+                    <a href="{{ route('categories.create') }}" class="btn btn-primary">
+                        <i class="feather-plus me-2"></i>
+                        <span>Add Category</span>
+                    </a>
                     @endcan
-                </div><!-- /.col -->
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('categories.index') }}">Categories</a></li>
-                        <li class="breadcrumb-item active">Category Edit</li>
-                    </ol>
-                </div><!-- /.col -->
-            </div><!-- /.row -->
-        </div><!-- /.container-fluid -->
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- /.content-header -->
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
-    <div class="card card-body">
-        <form action="{{ route('categories.update', $category->id) }}" method="post">
-            @csrf
-            @method("PUT")
-            <div class="mb-3">
-                <label for="name">Name: <span class="text-danger">*</span></label>
-                <input type="text" id="name" name="name" value="{{ old('name', $category->name) }}" class="form-control @error('name') is-invalid @enderror" placeholder="Category Name">
-                @error('name')
-                    <span class="invalid-feedback">{{ $message }}</span>
-                @enderror
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Category Information</h5>
             </div>
-            <div class="mb-3">
-                <label for="parent_id">Parent Category:</label>
-                <select name="parent_id" id="parent_id" class="form-control">
-                    <option value="">Select Parent Category</option>
-                    @foreach ($parent_categories as $parent_category)
-                        <option value="{{ $parent_category->id }}" {{ (old('parent_id', $category->parent_id) == $parent_category->id) ? 'selected' : '' }}>{{ $parent_category->name }}</option>
-                    @endforeach
-                </select>
-                @error('parent_id')
-                    <span class="invalid-feedback">{{ $message }}</span>
-                @enderror
+            <div class="card-body">
+                <form action="{{ route('categories.update', $category->id) }}" method="post">
+                    @csrf
+                    @method("PUT")
+                    <div class="mb-4">
+                        <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
+                        <input type="text" id="name" name="name" value="{{ old('name', $category->name) }}" class="form-control @error('name') is-invalid @enderror" placeholder="Category Name">
+                        @error('name')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="mb-4">
+                        <label for="parent_id" class="form-label">Parent Category</label>
+                        <select name="parent_id" id="parent_id" class="form-select @error('parent_id') is-invalid @enderror">
+                            <option value="">Select Parent Category (Optional)</option>
+                            @foreach ($parent_categories as $parent_category)
+                                <option value="{{ $parent_category->id }}" {{ (old('parent_id', $category->parent_id) == $parent_category->id) ? 'selected' : '' }}>{{ $parent_category->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('parent_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="feather-save me-2"></i>Update Category
+                        </button>
+                        <a href="{{ route('categories.index') }}" class="btn btn-light-brand">Cancel</a>
+                    </div>
+                </form>
             </div>
-            <button type="submit" class="btn btn-primary">Save</button>
-        </form>
+        </div>
     </div>
 @endsection

@@ -1,409 +1,312 @@
-<!-- Main Sidebar Container -->
-<aside class="main-sidebar sidebar-light-primary elevation-4">
-    <!-- Brand Logo -->
-    <a href="index3.html" class="brand-link">
-        <img src="{{ asset('dist/img/AdminLTELogo.png') }}" alt="AdminLTE Logo" class="brand-image img-circle elevation-3"
-            style="opacity: .8">
-        <span class="brand-text font-weight-light">AdminLTE 3</span>
-    </a>
-
-    <!-- Sidebar -->
-    <div class="sidebar">
-        <!-- Sidebar user panel (optional) -->
-        <div class="user-panel mt-3 pb-3 mb-3 d-flex">
-            <div class="image">
-                <img src="{{ asset('dist/img/user2-160x160.jpg') }}" class="img-circle elevation-2" alt="User Image">
-            </div>
-            <div class="info">
-                <a href="#" class="d-block">Alexander Pierce</a>
-            </div>
+<!--! ================================================================ !-->
+<!--! [Start] Navigation Menu !-->
+<!--! ================================================================ !-->
+<nav class="nxl-navigation">
+    <div class="navbar-wrapper">
+        <div class="m-header">
+            <a href="{{ route('dashboard') }}" class="b-brand navbar-brand">
+                <!-- ========   change your logo here   ============ -->
+                <img src="{{ asset('images/sigma-body-parts-logo.png') }}" alt="" class="logo logo-lg" style="width: 52px;" />
+                <img src="{{ asset('images/sigma-body-parts-logo.png') }}" alt="" class="logo logo-sm" style="width: 52px;" />
+                Sigma Body Parts
+            </a>
         </div>
+        <div class="navbar-content">
+            <ul class="nxl-navbar">
+                <!-- Navigation Caption -->
+                <li class="nxl-item nxl-caption">
+                    <label>Navigation</label>
+                </li>
 
-        <!-- SidebarSearch Form -->
-        <div class="form-inline">
-            <div class="input-group" data-widget="sidebar-search">
-                <input class="form-control form-control-sidebar" type="search" placeholder="Search"
-                    aria-label="Search">
-                <div class="input-group-append">
-                    <button class="btn btn-sidebar">
-                        <i class="fas fa-search fa-fw"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Sidebar Menu -->
-        <nav class="mt-2">
-            <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu"
-                data-accordion="false">
-                <!-- Add icons to the links using the .nav-icon class
-                    with font-awesome or any other icon font library -->
-                <li class="nav-item">
-                    <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                        <i class="nav-icon fas fa-tachometer-alt"></i>
-                        <p>Dashboard</p>
+                <!-- Dashboard -->
+                <li class="nxl-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+                    <a href="{{ route('dashboard') }}" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-airplay"></i></span>
+                        <span class="nxl-mtext">Dashboard</span>
                     </a>
                 </li>
 
+                <!-- Orders -->
                 @canany(['view orders', 'add orders', 'edit orders', 'delete orders'])
-                    <li class="nav-item {{ request()->routeIs(['orders.*']) ? 'menu-open' : '' }}">
-                        <a href="#" class="nav-link {{ request()->routeIs(['orders.*']) ? 'active' : '' }}">
-                            <i class="nav-icon fas fa-th"></i>
-                            <p>
-                                Orders
-                                <i class="right fas fa-angle-left"></i>
-                            </p>
-                        </a>
-                        <ul class="nav nav-treeview">
-                            @canany(['view orders', 'edit orders', 'delete orders'])
-                                <li class="nav-item">
-                                    <a href="{{ route('orders.index') }}" class="nav-link {{ request()->routeIs('orders.index') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>All Orders</p>
-                                    </a>
-                                </li>
-                            @endcan
-                        </ul>
-                    </li>
-                @endcan
-
-                @canany(['view products', 'add products', 'edit products', 'delete products', 'view categories', 'add categories', 'edit categories', 'delete categories', 'view brands', 'add brands', 'edit brands', 'delete brands'])
-                    <li class="nav-item {{ request()->routeIs(['products.*', 'categories.*', 'brands.*']) ? 'menu-open' : '' }}">
-                        <a href="#" class="nav-link {{ request()->routeIs(['products.*', 'categories.*', 'brands.*']) ? 'active' : '' }}">
-                            <i class="nav-icon fas fa-th"></i>
-                            <p>
-                                Products
-                                <i class="right fas fa-angle-left"></i>
-                            </p>
-                        </a>
-                        <ul class="nav nav-treeview">
-                            @canany(['view products', 'edit products', 'delete products'])
-                                <li class="nav-item">
-                                    <a href="{{ route('products.index') }}" class="nav-link {{ request()->routeIs('products.index') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>All Products</p>
-                                    </a>
-                                </li>
-                            @endcan
-                            @can('add products')
-                                <li class="nav-item">
-                                    <a href="{{ route('products.create') }}" class="nav-link {{ request()->routeIs('products.create') ? 'active' : '' }}">
-                                        <i class="fas fa-plus-circle nav-icon"></i>
-                                        <p>Add Product</p>
-                                    </a>
-                                </li>
-                            @endcan
-                            @canany(['view categories', 'add categories', 'edit categories', 'delete categories'])
-                                <li class="nav-item">
-                                    <a href="{{ route('categories.index') }}" class="nav-link {{ request()->routeIs('categories.*') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>Categories</p>
-                                    </a>
-                                </li>
-                            @endcan
-                            @canany(['view brands', 'add brands', 'edit brands', 'delete brands'])
-                                <li class="nav-item">
-                                    <a href="{{ route('brands.index') }}" class="nav-link {{ request()->routeIs('brands.*') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>Brands</p>
-                                    </a>
-                                </li>
-                            @endcan
-                        </ul>
-                    </li>
-                @endcan
-
-                @canany(['view purchases', 'add purchases', 'edit purchases', 'delete purchases'])
-                    <li class="nav-item {{ request()->routeIs('purchases.*') ? 'menu-open' : '' }}">
-                        <a href="#" class="nav-link {{ request()->routeIs('purchases.*') ? 'active' : '' }}">
-                            <i class="nav-icon fas fa-th"></i>
-                            <p>
-                                Purchases
-                                <i class="right fas fa-angle-left"></i>
-                            </p>
-                        </a>
-                        <ul class="nav nav-treeview">
-                            @canany(['view purchases', 'edit purchases', 'delete purchases'])
-                                <li class="nav-item">
-                                    <a href="{{ route('purchases.index') }}" class="nav-link {{ request()->routeIs('purchases.index') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>All Purchases</p>
-                                    </a>
-                                </li>
-                            @endcan
-                            @can('add purchases')
-                                <li class="nav-item">
-                                    <a href="{{ route('purchases.create') }}" class="nav-link {{ request()->routeIs('purchases.create') ? 'active' : '' }}">
-                                        <i class="fas fa-plus-circle nav-icon"></i>
-                                        <p>Add Purchase</p>
-                                    </a>
-                                </li>
-                            @endcan
-                        </ul>
-                    </li>
-                @endcan
-
-                @canany(['view warehouses', 'add warehouses', 'edit warehouses', 'delete warehouses', 'view racks', 'add racks', 'edit racks', 'delete racks'])
-                    <li class="nav-item {{ request()->routeIs(['warehouses.*', 'racks.*']) ? 'menu-open' : '' }}">
-                        <a href="#" class="nav-link {{ request()->routeIs(['warehouses.*', 'racks.*']) ? 'active' : '' }}">
-                            <i class="nav-icon fas fa-warehouse"></i>
-                            <p>
-                                Warehouses
-                                <i class="right fas fa-angle-left"></i>
-                            </p>
-                        </a>
-                        <ul class="nav nav-treeview">
-                            @canany(['view warehouses', 'edit warehouses', 'delete warehouses'])
-                                <li class="nav-item">
-                                    <a href="{{ route('warehouses.index') }}" class="nav-link {{ request()->routeIs('warehouses.index') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>All Warehouses</p>
-                                    </a>
-                                </li>
-                            @endcan
-                            @can('add warehouses')
-                                <li class="nav-item">
-                                    <a href="{{ route('warehouses.create') }}" class="nav-link {{ request()->routeIs('warehouses.create') ? 'active' : '' }}">
-                                        <i class="fas fa-plus-circle nav-icon"></i>
-                                        <p>Add Warehouse</p>
-                                    </a>
-                                </li>
-                            @endcan
-                            @canany(['view racks', 'add racks', 'edit racks', 'delete racks'])
-                                <li class="nav-item">
-                                    <a href="{{ route('racks.index') }}" class="nav-link {{ request()->routeIs('racks.index') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>Racks</p>
-                                    </a>
-                                </li>
-                            @endcan
-                        </ul>
-                    </li>
-                @endcan
-
-                @canany(['view sales-channels', 'add sales-channels', 'edit sales-channels', 'delete sales-channels'])
-                    <li class="nav-item {{ request()->routeIs('sales-channels.*') ? 'menu-open' : '' }}">
-                        <a href="#" class="nav-link {{ request()->routeIs('sales-channels.*') ? 'active' : '' }}">
-                            <i class="nav-icon fas fa-th"></i>
-                            <p>
-                                Sale Channels
-                                <i class="right fas fa-angle-left"></i>
-                            </p>
-                        </a>
-                        <ul class="nav nav-treeview">
-                            @canany(['view sales-channels', 'edit sales-channels', 'delete sales-channels'])
-                                <li class="nav-item">
-                                    <a href="{{ route('sales-channels.index') }}" class="nav-link {{ request()->routeIs('sales-channels.index') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>All Sales Channel</p>
-                                    </a>
-                                </li>
-                            @endcan
-                            @can('add sales-channel')
-                                <li class="nav-item">
-                                    <a href="{{ route('sales-channels.create') }}" class="nav-link {{ request()->routeIs('sales-channels.create') ? 'active' : '' }}">
-                                        <i class="fas fa-plus-circle nav-icon"></i>
-                                        <p>Add Sales Channel</p>
-                                    </a>
-                                </li>
-                            @endcan
-                        </ul>
-                    </li>
-                @endcan
-
-                @canany(['view suppliers', 'add suppliers', 'edit suppliers', 'delete suppliers'])
-                    <li class="nav-item {{ request()->routeIs('suppliers.*') ? 'menu-open' : '' }}">
-                        <a href="#" class="nav-link {{ request()->routeIs('suppliers.*') ? 'active' : '' }}">
-                            <i class="nav-icon fas fa-user-ninja"></i>
-                            <p>
-                                Suppliers
-                                <i class="right fas fa-angle-left"></i>
-                            </p>
-                        </a>
-                        <ul class="nav nav-treeview">
-                            @canany(['view suppliers', 'edit suppliers', 'delete suppliers'])
-                                <li class="nav-item">
-                                    <a href="{{ route('suppliers.index') }}" class="nav-link {{ request()->routeIs('suppliers.index') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>All Suppliers</p>
-                                    </a>
-                                </li>
-                            @endcan
-                            @can('add suppliers')
-                                <li class="nav-item">
-                                    <a href="{{ route('suppliers.create') }}" class="nav-link {{ request()->routeIs('suppliers.create') ? 'active' : '' }}">
-                                        <i class="fas fa-plus-circle nav-icon"></i>
-                                        <p>Add Supplier</p>
-                                    </a>
-                                </li>
-                            @endcan
-                        </ul>
-                    </li>
-                @endcan
-
-                @canany(['view shipping', 'add shipping', 'edit shipping', 'delete shipping'])
-                    <li class="nav-item {{ request()->routeIs('shipping.*') ? 'menu-open' : '' }}">
-                        <a href="#" class="nav-link {{ request()->routeIs('shipping.*') ? 'active' : '' }}">
-                            <i class="nav-icon fas fa-truck"></i>
-                            <p>
-                                Shipping
-                                <i class="right fas fa-angle-left"></i>
-                            </p>
-                        </a>
-                        <ul class="nav nav-treeview">
-                            @canany(['view shipping', 'edit shipping', 'delete shipping'])
-                                <li class="nav-item">
-                                    <a href="{{ route('shipping.index') }}" class="nav-link {{ request()->routeIs('shipping.index') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>All Shipping</p>
-                                    </a>
-                                </li>
-                            @endcan
-                            @can('add shipping')
-                                <li class="nav-item">
-                                    <a href="{{ route('shipping.create') }}" class="nav-link {{ request()->routeIs('shipping.create') ? 'active' : '' }}">
-                                        <i class="fas fa-plus-circle nav-icon"></i>
-                                        <p>Add Shipping</p>
-                                    </a>
-                                </li>
-                            @endcan
-                        </ul>
-                    </li>
-                @endcan
-
-                <!-- Accounting Section -->
-                {{-- @canany(['']) --}}
-                {{-- @endcan --}}
-                <li class="nav-item {{ request()->routeIs('chart-of-accounts.*') || request()->routeIs('bills.*') || request()->routeIs('payments.*') || request()->routeIs('journal-entries.*') || request()->routeIs('general-ledger.*') || request()->routeIs('reports.*') ? 'menu-open' : '' }}">
-                    <a href="#" class="nav-link {{ request()->routeIs('chart-of-accounts.*') || request()->routeIs('bills.*') || request()->routeIs('payments.*') || request()->routeIs('journal-entries.*') || request()->routeIs('general-ledger.*') || request()->routeIs('reports.*') ? 'active' : '' }}">
-                        <i class="nav-icon fas fa-cash-register"></i>
-                        <p>
-                            Accounting
-                            <i class="right fas fa-angle-left"></i>
-                        </p>
+                <li class="nxl-item {{ request()->routeIs('orders.*') ? 'active' : '' }}">
+                    <a href="{{ route('orders.index') }}" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-shopping-cart"></i></span>
+                        <span class="nxl-mtext">Orders</span>
                     </a>
-                    <ul class="nav nav-treeview">
+                </li>
+                @endcan
+
+                <!-- Products -->
+                @canany(['view products', 'add products', 'edit products', 'delete products', 'view categories', 'add categories', 'edit categories', 'delete categories', 'view brands', 'add brands', 'edit brands', 'delete brands'])
+                <li class="nxl-item nxl-hasmenu {{ request()->routeIs(['products.*', 'categories.*', 'brands.*']) ? 'active nxl-trigger' : '' }}">
+                    <a href="javascript:void(0);" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-package"></i></span>
+                        <span class="nxl-mtext">Products</span>
+                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                    </a>
+                    <ul class="nxl-submenu">
+                        @canany(['view products', 'edit products', 'delete products'])
+                        <li class="nxl-item {{ request()->routeIs(['products.index', 'products.edit']) ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('products.index') }}">All Products</a>
+                        </li>
+                        @endcan
+                        @can('add products')
+                        <li class="nxl-item {{ request()->routeIs('products.create') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('products.create') }}">Add Product</a>
+                        </li>
+                        @endcan
+                        @canany(['view categories', 'add categories', 'edit categories', 'delete categories'])
+                        <li class="nxl-item {{ request()->routeIs('categories.*') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('categories.index') }}">Categories</a>
+                        </li>
+                        @endcan
+                        @canany(['view brands', 'add brands', 'edit brands', 'delete brands'])
+                        <li class="nxl-item {{ request()->routeIs('brands.*') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('brands.index') }}">Brands</a>
+                        </li>
+                        @endcan
+                    </ul>
+                </li>
+                @endcan
+
+                <!-- Purchases -->
+                @canany(['view purchases', 'add purchases', 'edit purchases', 'delete purchases'])
+                <li class="nxl-item nxl-hasmenu {{ request()->routeIs('purchases.*') ? 'active nxl-trigger' : '' }}">
+                    <a href="javascript:void(0);" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-shopping-bag"></i></span>
+                        <span class="nxl-mtext">Purchases</span>
+                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                    </a>
+                    <ul class="nxl-submenu">
+                        @canany(['view purchases', 'edit purchases', 'delete purchases'])
+                        <li class="nxl-item {{ request()->routeIs(['purchases.index', 'purchases.show', 'purchases.edit']) ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('purchases.index') }}">All Purchases</a>
+                        </li>
+                        @endcan
+                        @can('add purchases')
+                        <li class="nxl-item {{ request()->routeIs('purchases.create') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('purchases.create') }}">Add Purchase</a>
+                        </li>
+                        @endcan
+                    </ul>
+                </li>
+                @endcan
+
+                <!-- Warehouses -->
+                @canany(['view warehouses', 'add warehouses', 'edit warehouses', 'delete warehouses', 'view racks', 'add racks', 'edit racks', 'delete racks'])
+                <li class="nxl-item nxl-hasmenu {{ request()->routeIs(['warehouses.*', 'racks.*']) ? 'active nxl-trigger' : '' }}">
+                    <a href="javascript:void(0);" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-home"></i></span>
+                        <span class="nxl-mtext">Warehouses</span>
+                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                    </a>
+                    <ul class="nxl-submenu">
+                        @canany(['view warehouses', 'edit warehouses', 'delete warehouses'])
+                        <li class="nxl-item {{ request()->routeIs(['warehouses.index', 'warehouses.edit']) ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('warehouses.index') }}">All Warehouses</a>
+                        </li>
+                        @endcan
+                        @can('add warehouses')
+                        <li class="nxl-item {{ request()->routeIs('warehouses.create') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('warehouses.create') }}">Add Warehouse</a>
+                        </li>
+                        @endcan
+                        @canany(['view racks', 'add racks', 'edit racks', 'delete racks'])
+                        <li class="nxl-item {{ request()->routeIs('racks.*') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('racks.index') }}">Racks</a>
+                        </li>
+                        @endcan
+                    </ul>
+                </li>
+                @endcan
+
+                <!-- Sales Channels -->
+                @canany(['view sales-channels', 'add sales-channels', 'edit sales-channels', 'delete sales-channels'])
+                <li class="nxl-item nxl-hasmenu {{ request()->routeIs('sales-channels.*') ? 'active nxl-trigger' : '' }}">
+                    <a href="javascript:void(0);" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-share-2"></i></span>
+                        <span class="nxl-mtext">Sales Channels</span>
+                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                    </a>
+                    <ul class="nxl-submenu">
+                        @canany(['view sales-channels', 'edit sales-channels', 'delete sales-channels'])
+                        <li class="nxl-item {{ request()->routeIs(['sales-channels.index', 'sales-channels.edit']) ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('sales-channels.index') }}">All Channels</a>
+                        </li>
+                        @endcan
+                        @can('add sales-channel')
+                        <li class="nxl-item {{ request()->routeIs('sales-channels.create') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('sales-channels.create') }}">Add Channel</a>
+                        </li>
+                        @endcan
+                    </ul>
+                </li>
+                @endcan
+
+                <!-- Suppliers -->
+                @canany(['view suppliers', 'add suppliers', 'edit suppliers', 'delete suppliers'])
+                <li class="nxl-item nxl-hasmenu {{ request()->routeIs('suppliers.*') ? 'active nxl-trigger' : '' }}">
+                    <a href="javascript:void(0);" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-truck"></i></span>
+                        <span class="nxl-mtext">Suppliers</span>
+                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                    </a>
+                    <ul class="nxl-submenu">
+                        @canany(['view suppliers', 'edit suppliers', 'delete suppliers'])
+                        <li class="nxl-item {{ request()->routeIs(['suppliers.index', 'suppliers.edit']) ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('suppliers.index') }}">All Suppliers</a>
+                        </li>
+                        @endcan
+                        @can('add suppliers')
+                        <li class="nxl-item {{ request()->routeIs('suppliers.create') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('suppliers.create') }}">Add Supplier</a>
+                        </li>
+                        @endcan
+                    </ul>
+                </li>
+                @endcan
+
+                <!-- Shipping -->
+                @canany(['view shipping', 'add shipping', 'edit shipping', 'delete shipping'])
+                <li class="nxl-item nxl-hasmenu {{ request()->routeIs('shipping.*') ? 'active nxl-trigger' : '' }}">
+                    <a href="javascript:void(0);" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-send"></i></span>
+                        <span class="nxl-mtext">Shipping</span>
+                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                    </a>
+                    <ul class="nxl-submenu">
+                        @canany(['view shipping', 'edit shipping', 'delete shipping'])
+                        <li class="nxl-item {{ request()->routeIs(['shipping.index', 'shipping.edit']) ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('shipping.index') }}">All Shipping</a>
+                        </li>
+                        @endcan
+                        @can('add shipping')
+                        <li class="nxl-item {{ request()->routeIs('shipping.create') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('shipping.create') }}">Add Shipping</a>
+                        </li>
+                        @endcan
+                    </ul>
+                </li>
+                @endcan
+
+                <!-- Accounting Section Caption -->
+                <li class="nxl-item nxl-caption">
+                    <label>Accounting</label>
+                </li>
+
+                <!-- Accounting -->
+                <li class="nxl-item nxl-hasmenu {{ request()->routeIs(['chart-of-accounts.*', 'bills.*', 'payments.*', 'journal-entries.*', 'general-ledger.*', 'reports.*']) ? 'active nxl-trigger' : '' }}">
+                    <a href="javascript:void(0);" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-dollar-sign"></i></span>
+                        <span class="nxl-mtext">Accounting</span>
+                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                    </a>
+                    <ul class="nxl-submenu">
                         @can('chart-of-accounts-view')
-                            <li class="nav-item">
-                                <a href="{{ route('chart-of-accounts.index') }}" class="nav-link {{ request()->routeIs('chart-of-accounts.*') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>Chart of Accounts</p>
-                                </a>
-                            </li>
+                        <li class="nxl-item {{ request()->routeIs('chart-of-accounts.*') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('chart-of-accounts.index') }}">Chart of Accounts</a>
+                        </li>
                         @endcan
                         @can('bills-view')
-                            <li class="nav-item">
-                                <a href="{{ route('bills.index') }}" class="nav-link {{ request()->routeIs('bills.*') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>Bills</p>
-                                </a>
-                            </li>
+                        <li class="nxl-item {{ request()->routeIs('bills.*') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('bills.index') }}">Bills</a>
+                        </li>
                         @endcan
                         @can('payments-view')
-                            <li class="nav-item">
-                                <a href="{{ route('payments.index') }}" class="nav-link {{ request()->routeIs('payments.*') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>Payments</p>
-                                </a>
-                            </li>
+                        <li class="nxl-item {{ request()->routeIs('payments.*') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('payments.index') }}">Payments</a>
+                        </li>
                         @endcan
                         @can('journal-entries-view')
-                            <li class="nav-item">
-                                <a href="{{ route('journal-entries.index') }}" class="nav-link {{ request()->routeIs('journal-entries.*') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>Journal Entries</p>
-                                </a>
-                            </li>
+                        <li class="nxl-item {{ request()->routeIs('journal-entries.*') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('journal-entries.index') }}">Journal Entries</a>
+                        </li>
                         @endcan
                         @can('general-ledger-view')
-                            <li class="nav-item">
-                                <a href="{{ route('general-ledger.index') }}" class="nav-link {{ request()->routeIs('general-ledger.*') ? 'active' : '' }}">
-                                    <i class="far fa-circle nav-icon"></i>
-                                    <p>General Ledger</p>
-                                </a>
-                            </li>
+                        <li class="nxl-item {{ request()->routeIs('general-ledger.*') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('general-ledger.index') }}">General Ledger</a>
+                        </li>
                         @endcan
                         @can('accounting-reports-view')
-                            <li class="nav-item">
-                                <a href="{{ route('reports.index') }}" class="nav-link {{ request()->routeIs('reports.*') ? 'active' : '' }}">
-                                    <i class="fas fa-chart-bar nav-icon"></i>
-                                    <p>Reports</p>
-                                </a>
-                            </li>
+                        <li class="nxl-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('reports.index') }}">Reports</a>
+                        </li>
                         @endcan
                     </ul>
                 </li>
 
+                <!-- User Management Section Caption -->
+                <li class="nxl-item nxl-caption">
+                    <label>User Management</label>
+                </li>
+
+                <!-- Users -->
                 @canany(['view users', 'add users', 'edit users', 'delete users'])
-                    <li class="nav-item {{ request()->routeIs('users.*') ? 'menu-open' : '' }}">
-                        <a href="#" class="nav-link {{ request()->routeIs('users.*') ? 'active' : '' }}">
-                            <i class="nav-icon fas fa-users"></i>
-                            <p>
-                                Users
-                                <i class="right fas fa-angle-left"></i>
-                            </p>
-                        </a>
-                        <ul class="nav nav-treeview">
-                            @canany(['view users', 'edit users', 'delete users'])
-                                <li class="nav-item">
-                                    <a href="{{ route('users.index') }}" class="nav-link {{ request()->routeIs('users.index') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>All Users</p>
-                                    </a>
-                                </li>
-                            @endcan
-                            @can('add users')
-                                <li class="nav-item">
-                                    <a href="{{ route('users.create') }}" class="nav-link {{ request()->routeIs('users.create') ? 'active' : '' }}">
-                                        <i class="fas fa-plus-circle nav-icon"></i>
-                                        <p>Add User</p>
-                                    </a>
-                                </li>
-                            @endcan
-                        </ul>
-                    </li>
+                <li class="nxl-item nxl-hasmenu {{ request()->routeIs('users.*') ? 'active nxl-trigger' : '' }}">
+                    <a href="javascript:void(0);" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-users"></i></span>
+                        <span class="nxl-mtext">Users</span>
+                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                    </a>
+                    <ul class="nxl-submenu">
+                        @canany(['view users', 'edit users', 'delete users'])
+                        <li class="nxl-item {{ request()->routeIs(['users.index', 'users.edit']) ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('users.index') }}">All Users</a>
+                        </li>
+                        @endcan
+                        @can('add users')
+                        <li class="nxl-item {{ request()->routeIs('users.create') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('users.create') }}">Add User</a>
+                        </li>
+                        @endcan
+                    </ul>
+                </li>
                 @endcan
-                
+
+                <!-- Roles & Permissions -->
                 @canany(['view roles', 'add roles', 'edit roles', 'delete roles', 'view permissions', 'add permissions', 'edit permissions', 'delete permissions'])
-                    <li class="nav-item {{ request()->routeIs(['roles.*', 'permissions.*']) ? 'menu-open' : '' }}">
-                        <a href="#" class="nav-link {{ request()->routeIs(['roles.*', 'permissions.*']) ? 'active' : '' }}">
-                            <i class="nav-icon fas fa-user-tag"></i>
-                            <p>
-                                Roles
-                                <i class="right fas fa-angle-left"></i>
-                            </p>
-                        </a>
-                        <ul class="nav nav-treeview">
-                            @canany(['view roles', 'edit roles', 'delete roles'])
-                                <li class="nav-item">
-                                    <a href="{{ route('roles.index') }}" class="nav-link {{ request()->routeIs('roles.index') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>All Roles</p>
-                                    </a>
-                                </li>
-                            @endcan
-                            @can('add roles')
-                                <li class="nav-item">
-                                    <a href="{{ route('roles.create') }}" class="nav-link {{ request()->routeIs('roles.create') ? 'active' : '' }}">
-                                        <i class="fas fa-plus-circle nav-icon"></i>
-                                        <p>Add Role</p>
-                                    </a>
-                                </li>
-                            @endcan
-                            @canany(['view permissions', 'add permissions', 'edit permissions', 'delete permissions'])
-                                <li class="nav-item">
-                                    <a href="{{ route('permissions.index') }}" class="nav-link {{ request()->routeIs('permissions.*') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>Permissions</p>
-                                    </a>
-                                </li>
-                            @endcan
-                        </ul>
-                    </li>
+                <li class="nxl-item nxl-hasmenu {{ request()->routeIs(['roles.*', 'permissions.*']) ? 'active nxl-trigger' : '' }}">
+                    <a href="javascript:void(0);" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-shield"></i></span>
+                        <span class="nxl-mtext">Roles & Permissions</span>
+                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                    </a>
+                    <ul class="nxl-submenu">
+                        @canany(['view roles', 'edit roles', 'delete roles'])
+                        <li class="nxl-item {{ request()->routeIs(['roles.index', 'roles.edit']) ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('roles.index') }}">All Roles</a>
+                        </li>
+                        @endcan
+                        @can('add roles')
+                        <li class="nxl-item {{ request()->routeIs('roles.create') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('roles.create') }}">Add Role</a>
+                        </li>
+                        @endcan
+                        @canany(['view permissions', 'add permissions', 'edit permissions', 'delete permissions'])
+                        <li class="nxl-item {{ request()->routeIs('permissions.*') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('permissions.index') }}">Permissions</a>
+                        </li>
+                        @endcan
+                    </ul>
+                </li>
                 @endcan
             </ul>
-        </nav>
-        <!-- /.sidebar-menu -->
+
+            <!-- Sidebar Info Card -->
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="feather-box fs-4 text-dark"></i>
+                    <h6 class="mt-4 text-dark fw-bolder">Inventory System</h6>
+                    <p class="fs-11 my-3 text-muted">Manage your products, orders, and warehouse efficiently.</p>
+                    <div class="d-flex gap-2">
+                        <a href="{{ route('products.index') }}" class="btn btn-sm btn-light-brand flex-fill">Products</a>
+                        <a href="{{ route('orders.index') }}" class="btn btn-sm btn-primary flex-fill">Orders</a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- /.sidebar -->
-</aside>
+</nav>
+<!--! ================================================================ !-->
+<!--! [End] Navigation Menu !-->
+<!--! ================================================================ !-->

@@ -1,191 +1,271 @@
 @extends('layouts.app')
 
 @section('header')
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 d-inline mr-2">Products</h1>
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Products</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item">Products</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex d-md-none">
+                    <a href="javascript:void(0)" class="page-header-right-close-toggle">
+                        <i class="feather-arrow-left me-2"></i>
+                        <span>Back</span>
+                    </a>
+                </div>
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('products.import') }}" class="btn btn-light-brand">
+                        <i class="feather-upload me-2"></i>
+                        <span>Import</span>
+                    </a>
+                    <a href="{{ route('products.barcode.bulk-form') }}" class="btn btn-light-brand">
+                        <i class="feather-printer me-2"></i>
+                        <span>Print Barcodes</span>
+                    </a>
+                    <a href="{{ route('products.bulk-update.form') }}" class="btn btn-light-brand">
+                        <i class="feather-edit me-2"></i>
+                        <span>Bulk Update</span>
+                    </a>
                     @can('add products')
-                        <a href="{{ route('products.create') }}" class="btn btn-outline-primary btn-sm mb-3">Add Product</a>
+                    <a href="{{ route('products.create') }}" class="btn btn-primary">
+                        <i class="feather-plus me-2"></i>
+                        <span>Add Product</span>
+                    </a>
                     @endcan
-                    <a href="{{ route('products.import') }}" class="btn btn-outline-success btn-sm mb-3">Products Import</a>
-                    <a href="{{ route('products.barcode.bulk-form') }}" class="btn btn-outline-secondary btn-sm mb-3">Print Barcodes</a>
-                    <a href="{{ route('products.bulk-update.form') }}" class="btn btn-outline-warning btn-sm mb-3">Bulk Update</a>
-                </div><!-- /.col -->
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Products</li>
-                    </ol>
-                </div><!-- /.col -->
-            </div><!-- /.row -->
-        </div><!-- /.container-fluid -->
+                </div>
+            </div>
+            <div class="d-md-none d-flex align-items-center">
+                <a href="javascript:void(0)" class="page-header-right-open-toggle">
+                    <i class="feather-align-right fs-20"></i>
+                </a>
+            </div>
+        </div>
     </div>
-    <!-- /.content-header -->
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
     <!-- Filters Card -->
-    <div class="card card-outline card-primary mb-3">
-        <div class="card-header py-2">
-            <h3 class="card-title"><i class="fas fa-filter mr-2"></i>Filters</h3>
-            <div class="card-tools">
-                <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                    <i class="fas fa-minus"></i>
-                </button>
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h5 class="card-title"><i class="feather-filter me-2"></i>Filters</h5>
+                <a href="javascript:void(0);" class="avatar-text avatar-md text-primary" data-bs-toggle="collapse" data-bs-target="#filterCollapse">
+                    <i class="feather-minus toggle-icon"></i>
+                </a>
             </div>
-        </div>
-        <div class="card-body py-2">
-            <form action="{{ route('products.index') }}" method="GET" id="filterForm">
-                <div class="row">
-                    <div class="col-md-3 mb-2">
-                        <label class="small mb-1">Search</label>
-                        <input type="text" name="search" class="form-control form-control-sm" placeholder="Name, SKU, Barcode..." value="{{ request('search') }}">
-                    </div>
-                    <div class="col-md-2 mb-2">
-                        <label class="small mb-1">Category</label>
-                        <select name="category_id" class="form-control form-control-sm">
-                            <option value="">All Categories</option>
-                            @foreach($categories as $category)
-                                <option value="{{ $category->id }}" {{ request('category_id') == $category->id ? 'selected' : '' }}>{{ $category->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-2 mb-2">
-                        <label class="small mb-1">Brand</label>
-                        <select name="brand_id" class="form-control form-control-sm">
-                            <option value="">All Brands</option>
-                            @foreach($brands as $brand)
-                                <option value="{{ $brand->id }}" {{ request('brand_id') == $brand->id ? 'selected' : '' }}>{{ $brand->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-2 mb-2">
-                        <label class="small mb-1">Stock Status</label>
-                        <select name="stock_status" class="form-control form-control-sm">
-                            <option value="">All</option>
-                            <option value="in_stock" {{ request('stock_status') == 'in_stock' ? 'selected' : '' }}>In Stock</option>
-                            <option value="out_of_stock" {{ request('stock_status') == 'out_of_stock' ? 'selected' : '' }}>Out of Stock</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2 mb-2">
-                        <label class="small mb-1">Sales Channel</label>
-                        <select name="sales_channel_id" class="form-control form-control-sm">
-                            <option value="">All Channels</option>
-                            @foreach($salesChannels as $channel)
-                                <option value="{{ $channel->id }}" {{ request('sales_channel_id') == $channel->id ? 'selected' : '' }}>{{ $channel->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+            <div class="collapse show" id="filterCollapse">
+                <div class="card-body py-3">
+                    <form action="{{ route('products.index') }}" method="GET" id="filterForm">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Search</label>
+                                <input type="text" name="search" class="form-control form-control-sm" placeholder="Name, SKU, Barcode..." value="{{ request('search') }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Category</label>
+                                <select name="category_id" class="form-select form-select-sm">
+                                    <option value="">All Categories</option>
+                                    @foreach($categories as $category)
+                                        <option value="{{ $category->id }}" {{ request('category_id') == $category->id ? 'selected' : '' }}>{{ $category->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Brand</label>
+                                <select name="brand_id" class="form-select form-select-sm">
+                                    <option value="">All Brands</option>
+                                    @foreach($brands as $brand)
+                                        <option value="{{ $brand->id }}" {{ request('brand_id') == $brand->id ? 'selected' : '' }}>{{ $brand->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Stock Status</label>
+                                <select name="stock_status" class="form-select form-select-sm">
+                                    <option value="">All</option>
+                                    <option value="in_stock" {{ request('stock_status') == 'in_stock' ? 'selected' : '' }}>In Stock</option>
+                                    <option value="out_of_stock" {{ request('stock_status') == 'out_of_stock' ? 'selected' : '' }}>Out of Stock</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Sales Channel</label>
+                                <select name="sales_channel_id" class="form-select form-select-sm">
+                                    <option value="">All Channels</option>
+                                    @foreach($salesChannels as $channel)
+                                        <option value="{{ $channel->id }}" {{ request('sales_channel_id') == $channel->id ? 'selected' : '' }}>{{ $channel->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-2">
+                                <label class="form-label">Date From</label>
+                                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request('date_from') }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Date To</label>
+                                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}">
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="feather-search me-2"></i>Filter
+                                </button>
+                                <a href="{{ route('products.index') }}" class="btn btn-light-brand btn-sm">
+                                    <i class="feather-x me-2"></i>Clear
+                                </a>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end justify-content-end">
+                                <span class="text-muted fs-12">Showing {{ $products->firstItem() ?? 0 }} - {{ $products->lastItem() ?? 0 }} of {{ $products->total() }} results</span>
+                            </div>
+                        </div>
+                    </form>
                 </div>
-                <div class="row">
-                    <div class="col-md-2 mb-2">
-                        <label class="small mb-1">Date From</label>
-                        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request('date_from') }}">
-                    </div>
-                    <div class="col-md-2 mb-2">
-                        <label class="small mb-1">Date To</label>
-                        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}">
-                    </div>
-                    <div class="col-md-4 mb-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary btn-sm mr-2"><i class="fas fa-search mr-1"></i>Filter</button>
-                        <a href="{{ route('products.index') }}" class="btn btn-secondary btn-sm"><i class="fas fa-times mr-1"></i>Clear</a>
-                    </div>
-                    <div class="col-md-4 mb-2 d-flex align-items-end justify-content-end">
-                        <span class="text-muted small">Showing {{ $products->firstItem() ?? 0 }} - {{ $products->lastItem() ?? 0 }} of {{ $products->total() }} results</span>
-                    </div>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 
-    <div class="table-responsive">
-        <table class="table table-striped table-hover table-sm">
-            <thead>
-                <tr>
-                    <th style="width: 50px;">#</th>
-                    <th>Barcode</th>
-                    <th>Name</th>
-                    <th>Price</th>
-                    <th>Quantity</th>
-                    <th>Category</th>
-                    <th>Sales Channels</th>
-                    <th style="width: 150px;">Created at</th>
-                    <th style="width: 150px;">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse ($products as $product)
-                    <tr>
-                        <td>{{ $product->id }}</td>
-                        <td style="width: 100px;">
-                            <div style="max-width: 100px;">
-                                @php
-                                    // Make Barcode object of Code128 encoding.
-                                    $barcode = (new Picqer\Barcode\Types\TypeCode128())->getBarcode($product->barcode);
-                                    $renderer = new Picqer\Barcode\Renderers\SvgRenderer();
-                                    // $renderer->setSvgType($renderer::TYPE_SVG_INLINE); // Changes the output to be used inline inside HTML documents, instead of a standalone SVG image (default)
-                                    $renderer->setSvgType($renderer::TYPE_SVG_STANDALONE); // If you want to force the default, create a stand alone SVG image
-                                    // echo $renderer->render($barcode, 80, 40);
-                                @endphp
-                                {!! $renderer->render($barcode, 100, 40) !!}
-                                <br>
-                                {{ $product->barcode }}<br>
-                                <a href="{{ route('products.print-barcode', $product->id) }}" target="_blank">Print Barcode</a>
-                            </div>
-                        </td>
-                        <td>
-                            {{ $product->name }}
-                        </td>
-                        <td>{{ $product->price }}</td>
-                        <td>{{ $product->product_stocks->sum('quantity'); }}</td>
-                        <td>{{ $product->category->name ?? 'N/A' }}</td>
-                        <td>
-                            {{-- {{ $product->sales_channels->name ?? 'N/A' }} --}}
-                            {{-- {{ implode(', ', $product->sales_channels->name) }} --}}
-                            @foreach ($product->sales_channels as $sales_channel)
-                                {{-- {{ $sales_channel['name'] }} --}}
-                                <a href="{{ $sales_channel->pivot->listing_url }}" target="_blank">{{ $sales_channel['name'] }}</a>
-                            @endforeach
-                        </td>
-                        <td>{{ \Carbon\Carbon::parse($product->created_at)->format('d M, Y') }}</td>
-                        <td>
-                            <div class="btn-group">
-                                <a href="{{ route('products.show', $product->id) }}" class="btn btn-success btn-sm"><i class="fas fa-eye"></i></a>
-                                <a href="{{ route('products.edit', $product->id) }}" class="btn btn-primary btn-sm"><i class="fas fa-edit"></i></a>
-                                <form action="{{ route('products.destroy', $product->id) }}" method="POST" id="product-{{ $product->id }}-delete-form">
-                                    @csrf
-                                    @method('DELETE')
-                                </form>
-                                <a href="javascript:void(0)" data-id="{{ $product->id }}" class="btn btn-danger btn-sm delete-btn"><i class="fas fa-trash"></i></a>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="9" class="text-center">No Record Found.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-        {{ $products->links('pagination::bootstrap-5') }}
+    <!-- Products Table -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-top mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Barcode</th>
+                                <th>Name</th>
+                                <th>Price</th>
+                                <th>Quantity</th>
+                                <th>Category</th>
+                                <th>Sales Channels</th>
+                                <th>Created at</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($products as $product)
+                                <tr>
+                                    <td>{{ $product->id }}</td>
+                                    <td>
+                                        <div style="max-width: 100px;">
+                                            @php
+                                                $barcode = (new Picqer\Barcode\Types\TypeCode128())->getBarcode($product->barcode);
+                                                $renderer = new Picqer\Barcode\Renderers\SvgRenderer();
+                                                $renderer->setSvgType($renderer::TYPE_SVG_STANDALONE);
+                                            @endphp
+                                            {!! $renderer->render($barcode, 100, 40) !!}
+                                            <span class="d-block fs-11 text-muted mt-1">{{ $product->barcode }}</span>
+                                            <div class="hstack gap-2 justify-content-start">
+                                                <a href="{{ route('products.print-barcode', $product->id) }}" target="_blank" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="Print">
+                                                    <i class="feather feather-printer"></i>
+                                                </a>
+                                            </div>
+                                            {{-- <a href="{{ route('products.print-barcode', $product->id) }}" target="_blank" class="fs-11">Print</a> --}}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="fw-semibold">{{ $product->name }}</span>
+                                        <span class="d-block fs-11 text-muted">SKU: {{ $product->sku }}</span>
+                                    </td>
+                                    <td><span class="fw-semibold">${{ number_format($product->price, 2) }}</span></td>
+                                    <td>
+                                        @php $totalStock = $product->product_stocks->sum('quantity'); @endphp
+                                        @if($totalStock > 0)
+                                            <span class="badge bg-soft-success text-success">{{ $totalStock }}</span>
+                                        @else
+                                            <span class="badge bg-soft-danger text-danger">Out of Stock</span>
+                                        @endif
+                                    </td>
+                                    <td>{{ $product->category->name ?? 'N/A' }}</td>
+                                    <td>
+                                        @foreach ($product->sales_channels as $sales_channel)
+                                            <a href="{{ $sales_channel->pivot->listing_url }}" target="_blank" class="badge bg-soft-primary text-primary me-1">{{ $sales_channel['name'] }}</a>
+                                        @endforeach
+                                    </td>
+                                    <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($product->created_at)->format('d M, Y') }}</span></td>
+                                    <td>
+                                        <div class="hstack gap-2 justify-content-end">
+                                            <a href="{{ route('products.show', $product->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="View">
+                                                <i class="feather-eye"></i>
+                                            </a>
+                                            <div class="dropdown">
+                                                <a href="javascript:void(0)" class="avatar-text avatar-md" data-bs-toggle="dropdown" data-bs-offset="0,21" aria-expanded="false">
+                                                    <i class="feather feather-more-horizontal"></i>
+                                                </a>
+                                                <ul class="dropdown-menu">
+                                                    <li>
+                                                        <a href="{{ route('products.edit', $product->id) }}" class="dropdown-item">
+                                                            <i class="feather feather-edit-3 me-2"></i>
+                                                            <span>Edit</span>
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a href="{{ route('products.print-barcode', $product->id) }}" target="_blank" class="dropdown-item">
+                                                            <i class="feather feather-printer me-2"></i>
+                                                            <span>Print Barcode</span>
+                                                        </a>
+                                                    </li>
+                                                    <li class="dropdown-divider"></li>
+                                                    <li>
+                                                        <form action="{{ route('products.destroy', $product->id) }}" method="POST" id="product-{{ $product->id }}-delete-form">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                        </form>
+                                                        <a href="javascript:void(0)" data-id="{{ $product->id }}" class="dropdown-item delete-btn text-danger">
+                                                            <i class="feather feather-trash-2 me-2"></i>
+                                                            <span>Delete</span>
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                            {{-- <a href="{{ route('products.edit', $product->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="Edit">
+                                                <i class="feather-edit-3"></i>
+                                            </a>
+                                            <a href="javascript:void(0)" data-id="{{ $product->id }}" class="avatar-text avatar-md text-danger delete-btn" data-bs-toggle="tooltip" title="Delete">
+                                                <i class="feather-trash-2"></i>
+                                            </a> --}}
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="9" class="text-center py-4 text-muted">No products found.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            @if($products->hasPages())
+            <div class="card-footer">
+                {{ $products->links('pagination::bootstrap-5') }}
+            </div>
+            @endif
+        </div>
     </div>
 @endsection
 
 @push('scripts')
     <script>
-		$(document).ready(function(){
-			$(document).on('click', '.delete-btn', function(e){
+        $(document).ready(function(){
+            $(document).on('click', '.delete-btn', function(e){
                 var id = $(this).data('id');
-				if (confirm('Are you sure to delete the record?')) {
+                if (confirm('Are you sure to delete the record?')) {
                     $('#product-' + id + '-delete-form').submit();
-				} else {
+                } else {
                     e.preventDefault();
-					return false;
-				}
-			});
-		});
-	</script>
+                    return false;
+                }
+            });
+        });
+    </script>
 @endpush

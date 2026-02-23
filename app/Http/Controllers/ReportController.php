@@ -93,8 +93,8 @@ class ReportController extends Controller
             ->get()
             ->keyBy('id');
 
-        // Build grouped report data
-        $reportData = collect();
+        // Build grouped report data using array (not collection) to avoid indirect modification issues
+        $reportDataArray = [];
         foreach ($expenseItems as $item) {
             $account = $accounts->get($item->expense_account_id);
             if (!$account) continue;
@@ -102,29 +102,30 @@ class ReportController extends Controller
             $groupName = $account->parent?->name ?? 'Ungrouped';
             $groupCode = $account->parent?->code ?? '0000';
 
-            if (!$reportData->has($groupName)) {
-                $reportData[$groupName] = [
+            if (!isset($reportDataArray[$groupName])) {
+                $reportDataArray[$groupName] = [
                     'code' => $groupCode,
                     'name' => $groupName,
                     'total' => 0,
-                    'items' => collect(),
+                    'items' => [],
                 ];
             }
 
-            $reportData[$groupName]['total'] += $item->total_amount;
-            $reportData[$groupName]['items']->push([
+            $reportDataArray[$groupName]['total'] += $item->total_amount;
+            $reportDataArray[$groupName]['items'][] = [
                 'code' => $account->code,
                 'name' => $account->name,
                 'bill_count' => $item->bill_count,
                 'total_amount' => $item->total_amount,
-            ]);
+            ];
         }
 
-        // Sort groups by code, items by total descending
-        $reportData = $reportData->sortBy('code')->values();
-        foreach ($reportData as &$group) {
-            $group['items'] = $group['items']->sortByDesc('total_amount')->values();
-        }
+        // Convert to collection and sort groups by code, items by total descending
+        $reportData = collect($reportDataArray)->sortBy('code')->values();
+        $reportData = $reportData->map(function ($group) {
+            $group['items'] = collect($group['items'])->sortByDesc('total_amount')->values();
+            return $group;
+        });
 
         $grandTotal = $expenseItems->sum('total_amount');
 
@@ -193,7 +194,7 @@ class ReportController extends Controller
 
             // Calculate opening balance (bills - payments before date_from)
             if ($dateFrom) {
-                $billsBefore = Bill::where('supplier_id', $supplier_id)
+                $billsBefore = Bill::where('supplier_id', $supplierId)
                     ->whereIn('status', ['unpaid', 'partially_paid', 'paid'])
                     ->where('bill_date', '<', $dateFrom)
                     ->sum('total_amount');

@@ -1,21 +1,19 @@
 @extends('layouts.app')
 
 @section('header')
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0">Accounting Reports</h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Reports</li>
-                    </ol>
-                </div>
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Accounting Reports</h5>
             </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item">Reports</li>
+            </ul>
         </div>
     </div>
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
@@ -23,11 +21,13 @@
         <!-- Trial Balance -->
         <div class="col-lg-3 col-md-6">
             <a href="{{ route('reports.trial-balance') }}" class="text-decoration-none">
-                <div class="card mb-4 border-left-primary">
-                    <div class="card-body text-right py-4">
-                        <i class="fas fa-balance-scale fa-3x text-primary mb-3"></i>
-                        <h5 class="card-title mb-1">Trial Balance</h5>
-                        <p class="text-muted text-left small mb-0">View debit & credit balances for all accounts</p>
+                <div class="card mb-4">
+                    <div class="card-body text-center py-4">
+                        <div class="avatar-text avatar-xl bg-soft-primary text-primary rounded-circle mx-auto mb-3">
+                            <i class="feather-bar-chart-2" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <h5 class="card-title mb-1 fw-semibold">Trial Balance</h5>
+                        <p class="text-muted small mb-0">View debit & credit balances for all accounts</p>
                     </div>
                 </div>
             </a>
@@ -36,11 +36,13 @@
         <!-- Expense Report -->
         <div class="col-lg-3 col-md-6">
             <a href="{{ route('reports.expense') }}" class="text-decoration-none">
-                <div class="card mb-4 border-left-danger">
-                    <div class="card-body text-right py-4">
-                        <i class="fas fa-chart-pie fa-3x text-danger mb-3"></i>
-                        <h5 class="card-title mb-1">Expense Report</h5>
-                        <p class="text-muted text-left small mb-0">Expense breakdown by category & period</p>
+                <div class="card mb-4">
+                    <div class="card-body text-center py-4">
+                        <div class="avatar-text avatar-xl bg-soft-danger text-danger rounded-circle mx-auto mb-3">
+                            <i class="feather-pie-chart" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <h5 class="card-title mb-1 fw-semibold">Expense Report</h5>
+                        <p class="text-muted small mb-0">Expense breakdown by category & period</p>
                     </div>
                 </div>
             </a>
@@ -49,11 +51,13 @@
         <!-- Supplier Ledger -->
         <div class="col-lg-3 col-md-6">
             <a href="{{ route('reports.supplier-ledger') }}" class="text-decoration-none">
-                <div class="card mb-4 border-left-warning">
-                    <div class="card-body text-right py-4">
-                        <i class="fas fa-user-tie fa-3x text-warning mb-3"></i>
-                        <h5 class="card-title mb-1">Supplier Ledger</h5>
-                        <p class="text-muted text-left small mb-0">Bill & payment history per supplier</p>
+                <div class="card mb-4">
+                    <div class="card-body text-center py-4">
+                        <div class="avatar-text avatar-xl bg-soft-warning text-warning rounded-circle mx-auto mb-3">
+                            <i class="feather-users" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <h5 class="card-title mb-1 fw-semibold">Supplier Ledger</h5>
+                        <p class="text-muted small mb-0">Bill & payment history per supplier</p>
                     </div>
                 </div>
             </a>
@@ -62,11 +66,13 @@
         <!-- Bank & Cash Summary -->
         <div class="col-lg-3 col-md-6">
             <a href="{{ route('reports.bank-summary') }}" class="text-decoration-none">
-                <div class="card mb-4 border-left-success">
-                    <div class="card-body text-right py-4">
-                        <i class="fas fa-university fa-3x text-success mb-3"></i>
-                        <h5 class="card-title mb-1">Bank & Cash Summary</h5>
-                        <p class="text-muted text-left small mb-0">Inflows, outflows & balances for all accounts</p>
+                <div class="card mb-4">
+                    <div class="card-body text-center py-4">
+                        <div class="avatar-text avatar-xl bg-soft-success text-success rounded-circle mx-auto mb-3">
+                            <i class="feather-credit-card" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <h5 class="card-title mb-1 fw-semibold">Bank & Cash Summary</h5>
+                        <p class="text-muted small mb-0">Inflows, outflows & balances for all accounts</p>
                     </div>
                 </div>
             </a>

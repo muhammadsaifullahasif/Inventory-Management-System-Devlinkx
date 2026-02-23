@@ -1,159 +1,185 @@
 @extends('layouts.app')
 
 @section('header')
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 d-inline mr-2">Sales Channels</h1>
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Sales Channels</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item">Sales Channels</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
                     @can('add purchases')
-                        <a href="{{ route('sales-channels.create') }}" class="btn btn-outline-primary btn-sm mb-3">Add Sales Channel</a>
+                    <a href="{{ route('sales-channels.create') }}" class="btn btn-primary">
+                        <i class="feather-plus me-2"></i>
+                        <span>Add Sales Channel</span>
+                    </a>
                     @endcan
-                </div><!-- /.col -->
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Sales Channels</li>
-                    </ol>
-                </div><!-- /.col -->
-            </div><!-- /.row -->
-        </div><!-- /.container-fluid -->
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- /.content-header -->
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
     <!-- Filters Card -->
-    <div class="card card-outline card-primary mb-3">
-        <div class="card-header py-2">
-            <h3 class="card-title"><i class="fas fa-filter mr-2"></i>Filters</h3>
-            <div class="card-tools">
-                <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                    <i class="fas fa-minus"></i>
-                </button>
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h5 class="card-title"><i class="feather-filter me-2"></i>Filters</h5>
+                <a href="javascript:void(0);" class="avatar-text avatar-md text-primary" data-bs-toggle="collapse" data-bs-target="#filterCollapse">
+                    <i class="feather-minus toggle-icon"></i>
+                </a>
             </div>
-        </div>
-        <div class="card-body py-2">
-            <form action="{{ route('sales-channels.index') }}" method="GET">
-                <div class="row">
-                    <div class="col-md-4 mb-2">
-                        <label class="small mb-1">Search</label>
-                        <input type="text" name="search" class="form-control form-control-sm" placeholder="Channel name..." value="{{ request('search') }}">
-                    </div>
-                    <div class="col-md-3 mb-2">
-                        <label class="small mb-1">Status</label>
-                        <select name="status" class="form-control form-control-sm">
-                            <option value="">All</option>
-                            <option value="connected" {{ request('status') == 'connected' ? 'selected' : '' }}>Connected</option>
-                            <option value="disconnected" {{ request('status') == 'disconnected' ? 'selected' : '' }}>Disconnected</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3 mb-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary btn-sm mr-2"><i class="fas fa-search mr-1"></i>Filter</button>
-                        <a href="{{ route('sales-channels.index') }}" class="btn btn-secondary btn-sm"><i class="fas fa-times mr-1"></i>Clear</a>
-                    </div>
-                    <div class="col-md-2 mb-2 d-flex align-items-end justify-content-end">
-                        <span class="text-muted small">{{ $sales_channels->total() }} results</span>
-                    </div>
+            <div class="collapse show" id="filterCollapse">
+                <div class="card-body py-3">
+                    <form action="{{ route('sales-channels.index') }}" method="GET">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Search</label>
+                                <input type="text" name="search" class="form-control form-control-sm" placeholder="Channel name..." value="{{ request('search') }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Status</label>
+                                <select name="status" class="form-select form-select-sm">
+                                    <option value="">All</option>
+                                    <option value="connected" {{ request('status') == 'connected' ? 'selected' : '' }}>Connected</option>
+                                    <option value="disconnected" {{ request('status') == 'disconnected' ? 'selected' : '' }}>Disconnected</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="feather-search me-2"></i>Filter
+                                </button>
+                                <a href="{{ route('sales-channels.index') }}" class="btn btn-light-brand btn-sm">
+                                    <i class="feather-x me-2"></i>Clear
+                                </a>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end justify-content-end">
+                                <span class="text-muted fs-12">{{ $sales_channels->total() }} results</span>
+                            </div>
+                        </div>
+                    </form>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 
-    <div class="table-responsive">
-        <table class="table table-striped table-hover table-sm">
-            <thead>
-                <tr>
-                    <th style="width: 50px;">#</th>
-                    <th>Name</th>
-                    <th style="width: 150px;">Created at</th>
-                    <th style="width: 150px;">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse ($sales_channels as $sales_channel)
-                    <tr>
-                        <td>{{ $sales_channel->id }}</td>
-                        <td>
-                            {{ $sales_channel->name }}
-                            <!-- Import Progress Container -->
-                            <div class="import-progress-container mt-2" id="import-progress-{{ $sales_channel->id }}" style="display: none;">
-                                <div class="d-flex align-items-center mb-1">
-                                    <small class="text-muted mr-2">
-                                        <i class="fas fa-sync fa-spin mr-1"></i>
-                                        <span class="import-status-text">Importing...</span>
-                                    </small>
-                                    <small class="text-muted ml-auto import-progress-details"></small>
-                                </div>
-                                <div class="progress" style="height: 8px;">
-                                    <div class="progress-bar progress-bar-striped progress-bar-animated"
-                                         role="progressbar"
-                                         style="width: 0%;"
-                                         aria-valuenow="0"
-                                         aria-valuemin="0"
-                                         aria-valuemax="100">
-                                    </div>
-                                </div>
-                                <div class="import-stats mt-1" style="display: none;">
-                                    <small class="text-success mr-2"><i class="fas fa-plus-circle"></i> <span class="inserted-count">0</span> new</small>
-                                    <small class="text-info mr-2"><i class="fas fa-edit"></i> <span class="updated-count">0</span> updated</small>
-                                    <small class="text-danger"><i class="fas fa-exclamation-circle"></i> <span class="failed-count">0</span> failed</small>
-                                </div>
-                            </div>
-                            <!-- Import Complete Message -->
-                            <div class="import-complete-container mt-2" id="import-complete-{{ $sales_channel->id }}" style="display: none;">
-                                <div class="alert alert-success alert-sm py-1 px-2 mb-0" style="font-size: 0.85rem;">
-                                    <i class="fas fa-check-circle mr-1"></i>
-                                    <span class="complete-message">Import completed!</span>
-                                    <button type="button" class="close ml-2" style="font-size: 1rem;" onclick="hideCompleteMessage({{ $sales_channel->id }})">
-                                        <span>&times;</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </td>
-                        <td>{{ \Carbon\Carbon::parse($sales_channel->created_at)->format('d M, Y') }}</td>
-                        <td>
-                            <div class="btn-group">
-                                <a href="{{ route('ebay.listings-all.active', $sales_channel->id) }}"
-                                   class="btn btn-success btn-sm import-btn"
-                                   data-channel-id="{{ $sales_channel->id }}"
-                                   id="import-btn-{{ $sales_channel->id }}">
-                                    Import Products
-                                </a>
-                                <a href="{{ route('ebay.listings.sync', $sales_channel->id) }}"
-                                   class="btn btn-warning btn-sm sync-listings-btn"
-                                   data-channel-id="{{ $sales_channel->id }}"
-                                   id="sync-btn-{{ $sales_channel->id }}"
-                                   title="Sync new listings only - imports products from eBay that are not already in your system">
-                                    <i class="fas fa-sync-alt"></i> Sync Listings
-                                </a>
-                                <a href="{{ route('ebay.orders.sync', $sales_channel->id) }}"
-                                   class="btn btn-info btn-sm"
-                                   title="Sync orders from eBay">
-                                    <i class="fas fa-shopping-cart"></i> Sync Orders
-                                </a>
-                                @can('edit sales_channels')
-                                    <a href="{{ route('sales-channels.edit', $sales_channel->id) }}" class="btn btn-primary btn-sm"><i class="fas fa-edit"></i></a>
-                                @endcan
-                                @can('delete sales_channels')
-                                    <form action="{{ route('sales-channels.destroy', $sales_channel->id) }}" method="POST" id="sales-channel-{{ $sales_channel->id }}-delete-form">
-                                        @csrf
-                                        @method('DELETE')
-                                    </form>
-                                    <a href="javascript:void(0)" data-id="{{ $sales_channel->id }}" class="btn btn-danger btn-sm delete-btn"><i class="fas fa-trash"></i></a>
-                                @endcan
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="4" class="text-center">No Record Found.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-        {{ $sales_channels->links('pagination::bootstrap-5') }}
+    <!-- Sales Channels Table -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Name</th>
+                                <th>Created at</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($sales_channels as $sales_channel)
+                                <tr>
+                                    <td>{{ $sales_channel->id }}</td>
+                                    <td>
+                                        <span class="fw-semibold">{{ $sales_channel->name }}</span>
+                                        <!-- Import Progress Container -->
+                                        <div class="import-progress-container mt-2" id="import-progress-{{ $sales_channel->id }}" style="display: none;">
+                                            <div class="d-flex align-items-center mb-1">
+                                                <small class="text-muted me-2">
+                                                    <div class="spinner-border spinner-border-sm me-1" role="status"></div>
+                                                    <span class="import-status-text">Importing...</span>
+                                                </small>
+                                                <small class="text-muted ms-auto import-progress-details"></small>
+                                            </div>
+                                            <div class="progress" style="height: 8px;">
+                                                <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                                     role="progressbar"
+                                                     style="width: 0%;"
+                                                     aria-valuenow="0"
+                                                     aria-valuemin="0"
+                                                     aria-valuemax="100">
+                                                </div>
+                                            </div>
+                                            <div class="import-stats mt-1" style="display: none;">
+                                                <small class="text-success me-2"><i class="feather-plus-circle"></i> <span class="inserted-count">0</span> new</small>
+                                                <small class="text-info me-2"><i class="feather-edit"></i> <span class="updated-count">0</span> updated</small>
+                                                <small class="text-danger"><i class="feather-alert-circle"></i> <span class="failed-count">0</span> failed</small>
+                                            </div>
+                                        </div>
+                                        <!-- Import Complete Message -->
+                                        <div class="import-complete-container mt-2" id="import-complete-{{ $sales_channel->id }}" style="display: none;">
+                                            <div class="alert alert-success py-1 px-2 mb-0 d-flex align-items-center justify-content-between" style="font-size: 0.85rem;">
+                                                <span>
+                                                    <i class="feather-check-circle me-1"></i>
+                                                    <span class="complete-message">Import completed!</span>
+                                                </span>
+                                                <button type="button" class="btn-close" style="font-size: 0.75rem;" onclick="hideCompleteMessage({{ $sales_channel->id }})"></button>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($sales_channel->created_at)->format('d M, Y') }}</span></td>
+                                    <td>
+                                        <div class="hstack gap-2 justify-content-end flex-wrap">
+                                            <a href="{{ route('ebay.listings-all.active', $sales_channel->id) }}"
+                                               class="btn btn-sm btn-success import-btn"
+                                               data-channel-id="{{ $sales_channel->id }}"
+                                               id="import-btn-{{ $sales_channel->id }}">
+                                                <i class="feather-download me-1"></i>Import
+                                            </a>
+                                            <a href="{{ route('ebay.listings.sync', $sales_channel->id) }}"
+                                               class="btn btn-sm btn-warning sync-listings-btn"
+                                               data-channel-id="{{ $sales_channel->id }}"
+                                               id="sync-btn-{{ $sales_channel->id }}"
+                                               title="Sync new listings only">
+                                                <i class="feather-refresh-cw me-1"></i>Sync
+                                            </a>
+                                            <a href="{{ route('ebay.orders.sync', $sales_channel->id) }}"
+                                               class="btn btn-sm btn-info"
+                                               title="Sync orders from eBay">
+                                                <i class="feather-shopping-cart me-1"></i>Orders
+                                            </a>
+                                            @can('edit sales_channels')
+                                                <a href="{{ route('sales-channels.edit', $sales_channel->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="Edit">
+                                                    <i class="feather-edit-3"></i>
+                                                </a>
+                                            @endcan
+                                            @can('delete sales_channels')
+                                                <form action="{{ route('sales-channels.destroy', $sales_channel->id) }}" method="POST" id="sales-channel-{{ $sales_channel->id }}-delete-form">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                </form>
+                                                <a href="javascript:void(0)" data-id="{{ $sales_channel->id }}" class="avatar-text avatar-md text-danger delete-btn" data-bs-toggle="tooltip" title="Delete">
+                                                    <i class="feather-trash-2"></i>
+                                                </a>
+                                            @endcan
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">No sales channels found.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            @if($sales_channels->hasPages())
+            <div class="card-footer">
+                {{ $sales_channels->links('pagination::bootstrap-5') }}
+            </div>
+            @endif
+        </div>
     </div>
 @endsection
 
@@ -283,8 +309,8 @@
             const syncBtn = $('#sync-btn-' + channelId);
 
             container.show();
-            importBtn.addClass('disabled').text('Importing...');
-            syncBtn.addClass('disabled').html('<i class="fas fa-spinner fa-spin"></i> Syncing...');
+            importBtn.addClass('disabled').html('<div class="spinner-border spinner-border-sm me-1"></div>Importing...');
+            syncBtn.addClass('disabled').html('<div class="spinner-border spinner-border-sm me-1"></div>Syncing...');
 
             updateProgress(channelId, data);
         }
@@ -351,7 +377,7 @@
             const message = container.find('.complete-message');
 
             alert.removeClass('alert-success').addClass('alert-danger');
-            message.html('<i class="fas fa-times-circle mr-1"></i> Import failed. Check logs for details.');
+            message.html('<i class="feather-x-circle me-1"></i> Import failed. Check logs for details.');
             container.show();
         }
 
@@ -361,10 +387,10 @@
 
         function enableImportButton(channelId) {
             const btn = $('#import-btn-' + channelId);
-            btn.removeClass('disabled').text('Import Products');
+            btn.removeClass('disabled').html('<i class="feather-download me-1"></i>Import');
 
             const syncBtn = $('#sync-btn-' + channelId);
-            syncBtn.removeClass('disabled').html('<i class="fas fa-sync-alt"></i> Sync Listings');
+            syncBtn.removeClass('disabled').html('<i class="feather-refresh-cw me-1"></i>Sync');
         }
 
         // Handle sync listings button click
@@ -373,7 +399,7 @@
             const btn = $(this);
 
             // Show loading state
-            btn.addClass('disabled').html('<i class="fas fa-spinner fa-spin"></i> Syncing...');
+            btn.addClass('disabled').html('<div class="spinner-border spinner-border-sm me-1"></div>Syncing...');
             $('#import-btn-' + channelId).addClass('disabled');
         });
     </script>

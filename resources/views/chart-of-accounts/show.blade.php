@@ -1,26 +1,36 @@
 @extends('layouts.app')
 
 @section('header')
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 d-inline mr-2"> View Accounts</h1>
-                    @can('chart-of-accounts-add')
-                        <a href="{{ route('chart-of-accounts.create') }}" class="btn btn-outline-primary btn-sm mb-3">Add Account</a>
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">View Account</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('chart-of-accounts.index') }}">Chart of Accounts</a></li>
+                <li class="breadcrumb-item">{{ $chartOfAccount->name }}</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('chart-of-accounts.index') }}" class="btn btn-light-brand">
+                        <i class="feather-arrow-left me-2"></i>
+                        <span>Back to Accounts</span>
+                    </a>
+                    @can('chart-of-accounts-edit')
+                        <a href="{{ route('chart-of-accounts.edit', $chartOfAccount) }}" class="btn btn-primary">
+                            <i class="feather-edit me-2"></i>
+                            <span>Edit Account</span>
+                        </a>
                     @endcan
-                </div><!-- /.col -->
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item active">Chart of Accounts</li>
-                    </ol>
-                </div><!-- /.col -->
-            </div><!-- /.row -->
-        </div><!-- /.container-fluid -->
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- /.content-header -->
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
@@ -29,17 +39,17 @@
         <div class="col-lg-4">
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Account Details</h5>
+                    <h5 class="card-title"><i class="feather-file-text me-2"></i>Account Details</h5>
                 </div>
                 <div class="card-body">
-                    <table class="table table-striped table-hover table-sm">
+                    <table class="table table-sm">
                         <tr>
                             <th width="40%">Code:</th>
                             <td><code>{{ $chartOfAccount->code }}</code></td>
                         </tr>
                         <tr>
                             <th>Name:</th>
-                            <td>{{ $chartOfAccount->name }}</td>
+                            <td class="fw-semibold">{{ $chartOfAccount->name }}</td>
                         </tr>
                         <tr>
                             <th>Type:</th>
@@ -48,7 +58,7 @@
                         <tr>
                             <th>Nature:</th>
                             <td>
-                                <span class="badge bg-{{ $chartOfAccount->nature == 'asset' ? 'primary' : ($chartOfAccount->nature == 'liability' ? 'warning' : ($chartOfAccount->nature == 'expense' ? 'danger' : 'success')) }}">
+                                <span class="badge bg-soft-{{ $chartOfAccount->nature == 'asset' ? 'primary' : ($chartOfAccount->nature == 'liability' ? 'warning' : ($chartOfAccount->nature == 'expense' ? 'danger' : 'success')) }} text-{{ $chartOfAccount->nature == 'asset' ? 'primary' : ($chartOfAccount->nature == 'liability' ? 'warning' : ($chartOfAccount->nature == 'expense' ? 'danger' : 'success')) }}">
                                     {{ ucfirst($chartOfAccount->nature) }}
                                 </span>
                             </td>
@@ -61,15 +71,21 @@
                             <th>Status:</th>
                             <td>
                                 @if ($chartOfAccount->is_active)
-                                    <span class="badge bg-success">Active</span>
+                                    <span class="badge bg-soft-success text-success">Active</span>
                                 @else
-                                    <span class="badge bg-danger">Inactive</span>
+                                    <span class="badge bg-soft-danger text-danger">Inactive</span>
                                 @endif
                             </td>
                         </tr>
                         <tr>
                             <th>System account:</th>
-                            <td>{{ $chartOfAccount->is_system ? 'Yes' : 'No' }}</td>
+                            <td>
+                                @if ($chartOfAccount->is_system)
+                                    <span class="badge bg-soft-secondary text-secondary">Yes</span>
+                                @else
+                                    No
+                                @endif
+                            </td>
                         </tr>
                     </table>
 
@@ -84,7 +100,7 @@
             @if ($chartOfAccount->is_bank_cash)
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Bank Details</h5>
+                        <h5 class="card-title"><i class="feather-credit-card me-2"></i>Bank Details</h5>
                     </div>
                     <div class="card-body">
                         <table class="table table-sm">
@@ -97,7 +113,7 @@
                             @if ($chartOfAccount->account_number)
                                 <tr>
                                     <th>Account No:</th>
-                                    <td>{{ $chartOfAccount->account_number }}</td>
+                                    <td><code>{{ $chartOfAccount->account_number }}</code></td>
                                 </tr>
                             @endif
                             @if ($chartOfAccount->branch)
@@ -108,7 +124,7 @@
                             @endif
                             @if ($chartOfAccount->iban)
                                 <tr>
-                                    <th>IBAN</th>
+                                    <th>IBAN:</th>
                                     <td><code>{{ $chartOfAccount->iban }}</code></td>
                                 </tr>
                             @endif
@@ -130,7 +146,7 @@
             <!-- Balance Card -->
             <div class="card">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Balance Summary</h5>
+                    <h5 class="card-title"><i class="feather-dollar-sign me-2"></i>Balance Summary</h5>
                 </div>
                 <div class="card-body text-center">
                     <h2 class="{{ $balance >= 0 ? 'text-success' : 'text-danger' }}">
@@ -145,44 +161,46 @@
         <div class="col-lg-8">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">Recent Transactions</h5>
+                    <h5 class="card-title mb-0"><i class="feather-list me-2"></i>Recent Transactions</h5>
                     @if ($chartOfAccount->journalLines()->count() > 10)
-                        <a href="{{ route('general-ledger.account', $chartOfAccount) }}" class="btn btn-outline-primary btn-sm">View All</a>
+                        <a href="{{ route('general-ledger.account', $chartOfAccount) }}" class="btn btn-sm btn-light-brand">
+                            <i class="feather-external-link me-1"></i>View All
+                        </a>
                     @endif
                 </div>
-                <div class="card-body">
+                <div class="card-body p-0">
                     @if ($recentTransactions->count() > 0)
                         <div class="table-responsive">
-                            <table class="table table-hover">
+                            <table class="table table-hover mb-0">
                                 <thead>
                                     <tr>
                                         <th>Date</th>
                                         <th>Entry #</th>
                                         <th>Description</th>
-                                        <th class="text-right">Debit</th>
-                                        <th class="text-right">Credit</th>
+                                        <th class="text-end">Debit</th>
+                                        <th class="text-end">Credit</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach ($recentTransactions as $line)
                                         <tr>
-                                            <td>{{ $line->journalEntry->entry_date->format('M d, Y') }}</td>
+                                            <td><span class="fs-12 text-muted">{{ $line->journalEntry->entry_date->format('M d, Y') }}</span></td>
                                             <td>
-                                                <a href="{{ route('journal-entries.show', $line->journalEntry) }}">
+                                                <a href="{{ route('journal-entries.show', $line->journalEntry) }}" class="fw-semibold">
                                                     {{ $line->journalEntry->entry_number }}
                                                 </a>
                                             </td>
                                             <td>{{ $line->description ?? $line->journalEntry->narration }}</td>
-                                            <td class="text-right">
+                                            <td class="text-end">
                                                 @if ($line->debit > 0)
-                                                    {{ number_format($line->debit, 2) }}
+                                                    <span class="text-success">{{ number_format($line->debit, 2) }}</span>
                                                 @else
                                                     -
                                                 @endif
                                             </td>
-                                            <td class="text-right">
+                                            <td class="text-end">
                                                 @if ($line->credit > 0)
-                                                    {{ number_format($line->credit, 2) }}
+                                                    <span class="text-danger">{{ number_format($line->credit, 2) }}</span>
                                                 @else
                                                     -
                                                 @endif
@@ -193,9 +211,9 @@
                             </table>
                         </div>
                     @else
-                        <div class="text-center py-4">
-                            <i class="fas fa-book text-muted" style="font-size: 3rem;"></i>
-                            <p class="text-muted mt-2">No transactions found for this account.</p>
+                        <div class="text-center py-5">
+                            <i class="feather-book-open text-muted" style="font-size: 3rem;"></i>
+                            <p class="text-muted mt-3">No transactions found for this account.</p>
                         </div>
                     @endif
                 </div>
@@ -204,18 +222,18 @@
             @if ($chartOfAccount->isGroup() && $chartOfAccount->children->count() > 0)
                 <div class="card mt-4">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Child Accounts</h5>
+                        <h5 class="card-title"><i class="feather-layers me-2"></i>Child Accounts</h5>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body p-0">
                         <div class="table-responsive">
-                            <table class="table table-hover">
+                            <table class="table table-hover mb-0">
                                 <thead>
                                     <tr>
                                         <th>Code</th>
                                         <th>Name</th>
                                         <th>Status</th>
                                         <th>Balance</th>
-                                        <th>Actions</th>
+                                        <th class="text-end">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -223,29 +241,33 @@
                                         <tr>
                                             <td><code>{{ $child->code }}</code></td>
                                             <td>
-                                                {{ $child->name }}
+                                                <span class="fw-semibold">{{ $child->name }}</span>
                                                 @if ($child->is_bank_cash)
-                                                    <span class="badge bg-info">Bank/Cash</span>
+                                                    <span class="badge bg-soft-info text-info">Bank/Cash</span>
                                                 @endif
                                             </td>
                                             <td>
                                                 @if ($child->is_active)
-                                                    <span class="badge bg-success">Active</span>
+                                                    <span class="badge bg-soft-success text-success">Active</span>
                                                 @else
-                                                    <span class="badge bg-danger">Inactive</span>
+                                                    <span class="badge bg-soft-danger text-danger">Inactive</span>
                                                 @endif
                                             </td>
                                             <td>
                                                 @if ($child->is_bank_cash)
-                                                    {{ number_format($child->current_balance, 2) }}
+                                                    <span class="{{ $child->current_balance >= 0 ? 'text-success' : 'text-danger' }}">
+                                                        {{ number_format($child->current_balance, 2) }}
+                                                    </span>
                                                 @else
                                                     -
                                                 @endif
                                             </td>
                                             <td>
-                                                <a href="{{ route('chart-of-accounts.show', $child) }}" class="btn btn-outline-info btn-sm">
-                                                    <i class="fas fa-eye"></i>
-                                                </a>
+                                                <div class="hstack gap-2 justify-content-end">
+                                                    <a href="{{ route('chart-of-accounts.show', $child) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="View">
+                                                        <i class="feather-eye"></i>
+                                                    </a>
+                                                </div>
                                             </td>
                                         </tr>
                                     @endforeach

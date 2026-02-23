@@ -1,22 +1,47 @@
 @extends('layouts.app')
 
 @section('header')
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0">Bulk Print Barcodes</h1>
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Bulk Print Barcodes</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('products.index') }}">Products</a></li>
+                <li class="breadcrumb-item">Bulk Print Barcodes</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex d-md-none">
+                    <a href="javascript:void(0)" class="page-header-right-close-toggle">
+                        <i class="feather-arrow-left me-2"></i>
+                        <span>Back</span>
+                    </a>
                 </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('products.index') }}">Products</a></li>
-                        <li class="breadcrumb-item active">Bulk Print Barcodes</li>
-                    </ol>
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('products.import') }}" class="btn btn-light-brand">
+                        <i class="feather-upload me-2"></i>
+                        <span>Import</span>
+                    </a>
+                    @can('add products')
+                    <a href="{{ route('products.create') }}" class="btn btn-primary">
+                        <i class="feather-plus me-2"></i>
+                        <span>Add Product</span>
+                    </a>
+                    @endcan
                 </div>
+            </div>
+            <div class="d-md-none d-flex align-items-center">
+                <a href="javascript:void(0)" class="page-header-right-open-toggle">
+                    <i class="feather-align-right fs-20"></i>
+                </a>
             </div>
         </div>
     </div>
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
@@ -32,15 +57,15 @@
                 <div class="row mb-4">
                     <div class="col-md-4">
                         <label for="productSearch">Search/Filter:</label>
-                        <input type="text" id="productSearch" class="form-control" placeholder="Filter by name, SKU, or barcode...">
+                        <input type="text" id="productSearch" class="form-control form-control-sm" placeholder="Filter by name, SKU, or barcode...">
                     </div>
                     <div class="col-md-2">
                         <label for="defaultQuantity">Quantity per Product:</label>
-                        <input type="number" id="defaultQuantity" name="default_quantity" class="form-control" value="1" min="1" max="100">
+                        <input type="number" id="defaultQuantity" name="default_quantity" class="form-control form-control-sm" value="1" min="1" max="100">
                     </div>
                     <div class="col-md-2">
                         <label for="columns">Columns per Row:</label>
-                        <select id="columns" name="columns" class="form-control">
+                        <select id="columns" name="columns" class="form-select form-select-sm">
                             <option value="2">2 Columns</option>
                             <option value="3" selected>3 Columns</option>
                             <option value="4">4 Columns</option>
@@ -49,7 +74,7 @@
                     </div>
                     <div class="col-md-2">
                         <label for="perPage">Products per Page:</label>
-                        <select id="perPage" class="form-control">
+                        <select id="perPage" class="form-select form-select-sm">
                             <option value="10">10</option>
                             <option value="25" selected>25</option>
                             <option value="50">50</option>
@@ -58,8 +83,8 @@
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
                         <div class="btn-group w-100">
-                            <button type="button" class="btn btn-outline-secondary" id="selectAllBtn">Select All</button>
-                            <button type="button" class="btn btn-outline-secondary" id="deselectAllBtn">Deselect</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="selectAllBtn">Select All</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="deselectAllBtn">Deselect</button>
                         </div>
                     </div>
                 </div>
@@ -70,7 +95,13 @@
                         <thead class="thead-light">
                             <tr>
                                 <th style="width: 50px;">
-                                    <input type="checkbox" id="selectPageCheckbox" title="Select all on this page">
+                                    <div class="btn-group mb-1">
+                                        <div class="custom-control custom-checkbox ms-1">
+                                            <input type="checkbox" class="custom-control-input" id="selectPageCheckbox" title="Select all on this page">
+                                            <label for="selectPageCheckbox" class="custom-control-label"></label>
+                                        </div>
+                                    </div>
+                                    {{-- <input type="checkbox" id="selectPageCheckbox" title="Select all on this page"> --}}
                                 </th>
                                 <th>Product Name</th>
                                 <th>SKU</th>
@@ -86,9 +117,16 @@
                                     data-sku="{{ strtolower($product->sku) }}"
                                     data-barcode="{{ strtolower($product->barcode) }}">
                                     <td>
-                                        <input type="checkbox" class="product-checkbox"
+                                        {{-- <input type="checkbox" class="product-checkbox"
                                             name="products[{{ $product->id }}][id]"
-                                            value="{{ $product->id }}">
+                                            value="{{ $product->id }}"> --}}
+                                        
+                                        <div class="item-checkbox ms-1">
+                                            <div class="custom-control custom-checkbox">
+                                                <input type="checkbox" class="custom-control-input checkbox product-checkbox" id="product_{{ $product->id }}" name="products[{{ $product->id }}][id]" value="{{ $product->id }}" data-product-id="{{ $product->id }}">
+                                                <label for="product_{{ $product->id }}" class="custom-control-label"></label>
+                                            </div>
+                                        </div>
                                     </td>
                                     <td>{{ $product->name }}</td>
                                     <td>{{ $product->sku }}</td>
@@ -113,18 +151,16 @@
                     </div>
                     <div class="col-md-6">
                         <nav>
-                            <ul class="pagination justify-content-end mb-0" id="pagination"></ul>
+                            <ul class="pagination pagination-sm justify-content-end mb-0" id="pagination"></ul>
                         </nav>
                     </div>
                 </div>
 
-                <div class="mt-3">
+                <div class="d-flex gap-2 mt-2">
                     <button type="submit" class="btn btn-primary" id="printBtn" disabled>
-                        <i class="fas fa-print"></i> Print Selected Barcodes
+                        <i class="feather-printer me-2"></i>Print Selected Barcodes
                     </button>
-                    <a href="{{ route('products.index') }}" class="btn btn-secondary">
-                        <i class="fas fa-arrow-left"></i> Back to Products
-                    </a>
+                    <a href="{{ route('products.index') }}" class="btn btn-light-brand">Cancel</a>
                 </div>
             </form>
         </div>

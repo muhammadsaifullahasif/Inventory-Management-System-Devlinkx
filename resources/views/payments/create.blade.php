@@ -1,27 +1,30 @@
 @extends('layouts.app')
 
 @section('header')
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 d-inline mr-2">Record Payment</h1>
-                    @can('payments-add')
-                        <a href="{{ route('payments.create') }}" class="btn btn-outline-primary btn-sm mb-3">Add Payment</a>
-                    @endcan
-                </div><!-- /.col -->
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('payments.index') }}">Payments</a></li>
-                        <li class="breadcrumb-item active">New Payment</li>
-                    </ol>
-                </div><!-- /.col -->
-            </div><!-- /.row -->
-        </div><!-- /.container-fluid -->
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Record Payment</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('payments.index') }}">Payments</a></li>
+                <li class="breadcrumb-item">New Payment</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('payments.index') }}" class="btn btn-light-brand">
+                        <i class="feather-arrow-left me-2"></i>
+                        <span>Back to Payments</span>
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- /.content-header -->
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
@@ -33,12 +36,12 @@
                 <!-- Bill Selection Card -->
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Select Bill</h5>
+                        <h5 class="card-title">Select Bill</h5>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
                             <label for="bill_id" class="form-label">Bill <span class="text-danger">*</span></label>
-                            <select name="bill_id" id="bill_id" class="form-control @error('bill_id') is-invalid @enderror">
+                            <select name="bill_id" id="bill_id" class="form-select @error('bill_id') is-invalid @enderror">
                                 <option value="">Select a Bill</option>
                                 @foreach ($bills as $bill)
                                     <option value="{{ $bill->id }}"
@@ -63,7 +66,7 @@
                         <div id="billDetails" class="border rounded p-3" style="display: none;">
                             <div class="row">
                                 <div class="col-md-6">
-                                    <table class="table-table-sm table-borderless mb-0">
+                                    <table class="table table-sm table-borderless mb-0">
                                         <tr>
                                             <th>Supplier:</th>
                                             <td id="billSupplier"></td>
@@ -82,15 +85,15 @@
                                     <table class="table table-sm table-borderless mb-0">
                                         <tr>
                                             <th>Total Amount:</th>
-                                            <td id="billTotal" class="text-right"></td>
+                                            <td id="billTotal" class="text-end"></td>
                                         </tr>
                                         <tr>
                                             <th>Already Paid:</th>
-                                            <td id="billPaid" class="text-right text-success"></td>
+                                            <td id="billPaid" class="text-end text-success"></td>
                                         </tr>
                                         <tr class="table-warning">
                                             <th>Remaining:</th>
-                                            <td id="billRemaining" class="text-right fw-bold"></td>
+                                            <td id="billRemaining" class="text-end fw-bold"></td>
                                         </tr>
                                     </table>
                                 </div>
@@ -102,7 +105,7 @@
                 <!-- Payment Details Card -->
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Payment Details</h5>
+                        <h5 class="card-title">Payment Details</h5>
                     </div>
                     <div class="card-body">
                         <div class="row mb-3">
@@ -125,14 +128,14 @@
 
                         <div class="row mb-3">
                             <div class="col-md-6">
-                                <label for="" class="form-label">Payment Method <span class="text-danger">*</span></label>
+                                <label class="form-label">Payment Method <span class="text-danger">*</span></label>
                                 <div class="mt-2">
                                     <div class="form-check form-check-inline">
                                         <input type="radio" name="payment_method" id="method_bank" value="bank" class="form-check-input" {{ old('payment_method', 'bank') === 'bank' ? 'checked' : '' }}>
                                         <label for="method_bank" class="form-check-label">Bank</label>
                                     </div>
                                     <div class="form-check form-check-inline">
-                                        <input type="radio" name="payment_method" id="method_cash" value="cash" class="form-check-input" {{ old('payment_method' === 'cash' ? 'checked' : '') }}>
+                                        <input type="radio" name="payment_method" id="method_cash" value="cash" class="form-check-input" {{ old('payment_method') === 'cash' ? 'checked' : '' }}>
                                         <label for="method_cash" class="form-check-label">Cash</label>
                                     </div>
                                 </div>
@@ -142,7 +145,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label for="payment_account_id" class="form-label">Account <span class="text-danger">*</span></label>
-                                <select name="payment_account_id" id="payment_account_id" class="form-control @error('payment_account_id') is-invalid @enderror" required>
+                                <select name="payment_account_id" id="payment_account_id" class="form-select @error('payment_account_id') is-invalid @enderror" required>
                                     <option value="">Select Account</option>
                                 </select>
                                 @error('payment_account_id')
@@ -175,29 +178,29 @@
                 <!-- Payment Summary Card -->
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Payment Summary</h5>
+                        <h5 class="card-title"><i class="feather-file-text me-2"></i>Payment Summary</h5>
                     </div>
                     <div class="card-body">
                         <table class="table table-sm">
                             <tr>
                                 <th>Bill:</th>
-                                <td class="text-right"><span id="summaryBill">-</span></td>
+                                <td class="text-end"><span id="summaryBill">-</span></td>
                             </tr>
                             <tr>
-                                <th>Supplier</th>
-                                <td class="text-right"><span id="summarySupplier">-</span></td>
+                                <th>Supplier:</th>
+                                <td class="text-end"><span id="summarySupplier">-</span></td>
                             </tr>
                             <tr>
                                 <th>Remaining:</th>
-                                <td class="text-right"><span id="summaryRemaining">-</span></td>
+                                <td class="text-end"><span id="summaryRemaining">-</span></td>
                             </tr>
                             <tr class="table-light">
                                 <th>Paying:</th>
-                                <td class="text-right fs-5 fw-bold text-success"><span id="summaryAmount">0.00</span></td>
+                                <td class="text-end fs-5 fw-bold text-success"><span id="summaryAmount">0.00</span></td>
                             </tr>
                             <tr>
                                 <th>After Payment:</th>
-                                <td class="text-right"><span id="summaryAfter">-</span></td>
+                                <td class="text-end"><span id="summaryAfter">-</span></td>
                             </tr>
                         </table>
                     </div>
@@ -206,7 +209,7 @@
                 <!-- Actions Card -->
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Actions</h5>
+                        <h5 class="card-title"><i class="feather-settings me-2"></i>Actions</h5>
                     </div>
                     <div class="card-body">
                         <input type="hidden" name="status" id="statusField" value="posted">
@@ -214,16 +217,16 @@
 
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-primary" onclick="setAction('posted', 'save')">
-                                <i class="fas fa-check mr-1"></i>Save & Post
+                                <i class="feather-check me-2"></i>Save & Post
                             </button>
-                            <button type="submit" class="btn btn-outline-primary" onclick="setAction('posted', 'save_new')">
-                                <i class="fas fa-plus mr-1"></i>Save & New
+                            <button type="submit" class="btn btn-light-brand" onclick="setAction('posted', 'save_new')">
+                                <i class="feather-plus me-2"></i>Save & New
                             </button>
                             <button type="submit" class="btn btn-secondary" onclick="setAction('draft', 'save')">
-                                <i class="fas fa-file mr-1"></i>Save as Draft
+                                <i class="feather-file me-2"></i>Save as Draft
                             </button>
                             <a href="{{ route('payments.index') }}" class="btn btn-outline-secondary">
-                                <i class="fas fa-times mr-1"></i>Cancel
+                                <i class="feather-x me-2"></i>Cancel
                             </a>
                         </div>
                     </div>
@@ -234,7 +237,6 @@
 @endsection
 
 @php
-    // Group bank/cash accounts by parent (Banks vs Cash in Hand)
     $groupedAccounts = $bankCashAccounts->groupBy(function($account) {
         return $account->parent ? $account->parent->name : 'Other';
     });
@@ -261,22 +263,18 @@
             const amountInput = document.getElementById('amount');
             const methodRadios = document.querySelectorAll('input[name="payment_method"]');
 
-            // Bill selection change
             billSelect.addEventListener('change', function(){
                 updateBillDetails();
             });
 
-            // Payment method change
             methodRadios.forEach(radio => {
                 radio.addEventListener('change', function() {
                     updateAccountDropdown();
                 });
             });
 
-            // Account change
             amountInput.addEventListener('input', updateSummary);
 
-            // Account change
             document.getElementById('payment_account_id').addEventListener('change', function() {
                 const accountId = this.value;
                 const account = bankCashAccounts.find(a => a.id == accountId);
@@ -284,12 +282,10 @@
                 balanceSpan.textContent = account ? parseFloat(account.current_balance).toFixed(2) : '-';
             });
 
-            // Initialize if bill is pre-selected
             if (billSelect.value) {
                 updateBillDetails();
             }
 
-            // Initialize account dropdown
             updateAccountDropdown();
         });
 
@@ -315,7 +311,7 @@
 
             document.getElementById('billSupplier').textContent = supplier;
             document.getElementById('billDate').textContent = date;
-            document.getElementById('billDueDate').innerHTML = dueDate + (isOverdue ? '<span class="badge bg-danger">Overdue</span>' : '');
+            document.getElementById('billDueDate').innerHTML = dueDate + (isOverdue ? ' <span class="badge bg-soft-danger text-danger">Overdue</span>' : '');
             document.getElementById('billTotal').textContent = total.toFixed(2);
             document.getElementById('billPaid').textContent = paid.toFixed(2);
             document.getElementById('billRemaining').textContent = remaining.toFixed(2);
@@ -324,14 +320,12 @@
             document.getElementById('maxAmount').textContent = remaining.toFixed(2);
             document.getElementById('amount').max = remaining;
 
-            // Update summary
             document.getElementById('summaryBill').textContent = option.textContent.split(' - ')[0];
             document.getElementById('summarySupplier').textContent = supplier;
             document.getElementById('summaryRemaining').textContent = remaining.toFixed(2);
 
             detailsDiv.style.display = 'block';
 
-            // Auto-fill full remaining amount
             if (!document.getElementById('amount').value) {
                 document.getElementById('amount').value = remaining.toFixed(2);
             }
@@ -365,7 +359,6 @@
                 select.appendChild(option);
             });
 
-            // Reset balance display
             document.getElementById('accountBalance').textContent = '-';
         }
 
@@ -384,7 +377,6 @@
                 afterSpan.textContent = '-';
             }
 
-            // Warn if overpaying
             const amountInput = document.getElementById('amount');
             if (amount > currentRemaining && currentRemaining > 0) {
                 amountInput.classList.add('is-invalid');

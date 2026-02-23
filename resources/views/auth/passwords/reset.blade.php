@@ -1,61 +1,34 @@
 @extends('layouts.auth')
 
 @section('content')
-<div class="card">
-    <div class="card-body login-card-body">
-        <p class="login-box-msg">You forgot your password? Here you can easily retrieve a new password.</p>
-        
-        <form action="{{ route('password.update') }}" method="post">
+    <div class="creative-card-body card-body p-sm-5">
+        <h2 class="fs-20 fw-bolder mb-4">Reset</h2>
+        <h4 class="fs-13 fw-bold mb-2">Reset to your password</h4>
+        <p class="fs-12 fw-medium text-muted">You forgot your password? Here you can easily retrieve a new password.</p>
+        <form action="{{ route('password.update') }}" method="POST" class="w-100 mt-4 pt-2">
             @csrf
-            <div class="input-group mb-3">
-                <input type="email" class="form-control @error('email') is-invalid @enderror" id="email" name="email" value="{{ $email ?? old('email') }}" required placeholder="Email">
-                <div class="input-group-append">
-                    <div class="input-group-text">
-                        <span class="fas fa-envelope"></span>
-                    </div>
-                </div>
+            <div class="mb-4">
+                <input type="email" class="form-control @error('email') is-invaild @enderror" name="email" value="{{ $email ?? old('email') }}" placeholder="Email" required>
+                @error('email')
+                    <span class="invalid-feedback">{{ $message }}</span>
+                @enderror
             </div>
-            @error('email')
-                <span class="invalid-feedback" role="alert">
-                    <strong>{{ $message }}</strong>
-                </span>
-            @enderror
-            <div class="input-group mb-3">
-                <input type="password" class="form-control @error('password') is-invalid @enderror" name="password" id="password" required placeholder="Password">
-                <div class="input-group-append">
-                    <div class="input-group-text">
-                        <span class="fas fa-lock"></span>
-                    </div>
-                </div>
+            <div class="mb-4">
+                <input type="password" class="form-control @error('password') is-invalid @enderror" name="password" placeholder="Password" required>
+                @error('password')
+                    <span class="invalid-feedback">{{ $message }}</span>
+                @enderror
             </div>
-            @error('password')
-                <span class="invalid-feedback" role="alert">
-                    <strong>{{ $message }}</strong>
-                </span>
-            @enderror
-            <div class="input-group mb-3">
-                <input type="password" class="form-control" id="password-confirm" name="password_confirmation" placeholder="Retype password">
-                <div class="input-group-append">
-                    <div class="input-group-text">
-                        <span class="fas fa-lock"></span>
-                    </div>
-                </div>
+            <div class="mb-4">
+                <input type="password" class="form-control" id="password-confirm" name="password_confirmation" placeholder="Retype password" required>
             </div>
-            <div class="row">
-                <div class="col-12">
-                    <button type="submit" class="btn btn-primary btn-block">Reset Password</button>
-                </div>
-                <!-- /.col -->
+            <div class="mt-5">
+                <button type="submit" class="btn btn-lg btn-primary w-100">Reset Password</button>
             </div>
         </form>
-        
-        <p class="mt-3 mb-1">
-            <a href="login.html">Login</a>
-        </p>
-        <p class="mb-0">
-            <a href="register.html" class="text-center">Register a new membership</a>
-        </p>
+        <div class="mt-5 text-muted">
+            <span> Don't have an account?</span>
+            <a href="{{ route('register') }}" class="fw-bold">Create an Account</a>
+        </div>
     </div>
-    <!-- /.login-card-body -->
-</div>
 @endsection

@@ -1,47 +1,43 @@
 @extends('layouts.app')
 
 @section('header')
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 d-inline mr-2">Journal Entry: {{ $journalEntry->entry_number }}</h1>
-                </div><!-- /.col -->
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('journal-entries.index') }}">Journal Entries</a></li>
-                        <li class="breadcrumb-item active">{{ $journalEntry->entry_number }}</li>
-                    </ol>
-                </div><!-- /.col -->
-            </div><!-- /.row -->
-        </div><!-- /.container-fluid -->
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Journal Entry: {{ $journalEntry->entry_number }}</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('journal-entries.index') }}">Journal Entries</a></li>
+                <li class="breadcrumb-item">{{ $journalEntry->entry_number }}</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    @if ($reference)
+                        @if ($journalEntry->reference_type === 'bill')
+                            <a href="{{ route('bills.show', $reference) }}" class="btn btn-info">
+                                <i class="feather-file-text me-2"></i>View Bill
+                            </a>
+                        @elseif ($journalEntry->reference_type === 'payment')
+                            <a href="{{ route('payments.show', $reference) }}" class="btn btn-info">
+                                <i class="feather-credit-card me-2"></i>View Payment
+                            </a>
+                        @endif
+                    @endif
+                    <a href="{{ route('journal-entries.index') }}" class="btn btn-light-brand">
+                        <i class="feather-arrow-left me-2"></i>Back
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- /.content-header -->
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
-    <!-- Action Buttons -->
-    <div class="row mb-3">
-        <div class="col-12 text-right">
-            @if ($reference)
-                @if ($journalEntry->reference_type === 'bill')
-                    <a href="{{ route('bills.show', $reference) }}" class="btn btn-info">
-                        <i class="fas fa-file-invoice mr-1"></i>View Bill
-                    </a>
-                @elseif ($journalEntry->reference_type === 'payment')
-                    <a href="{{ route('payments.show', $reference) }}" class="btn btn-info">
-                        <i class="fas fa-money-check mr-1"></i>View Payment
-                    </a>
-                @endif
-            @endif
-            <a href="{{ route('journal-entries.index') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left mr-1"></i>Back
-            </a>
-        </div>
-    </div>
-
     <div class="row">
         <!-- Entry Details -->
         <div class="col-lg-8">
@@ -53,21 +49,21 @@
                             <table class="table table-sm table-borderless mb-0">
                                 <tr>
                                     <th width="40%">Entry Number:</th>
-                                    <td>{{ $journalEntry->entry_number }}</td>
+                                    <td class="fw-semibold">{{ $journalEntry->entry_number }}</td>
                                 </tr>
                                 <tr>
                                     <th>Entry Date:</th>
-                                    <td>{{ $journalEntry->entry_date->format('M d, Y') }}</td>
+                                    <td><span class="fs-12 text-muted">{{ $journalEntry->entry_date->format('M d, Y') }}</span></td>
                                 </tr>
                                 <tr>
                                     <th>Source Type:</th>
                                     <td>
                                         @if ($journalEntry->reference_type === 'bill')
-                                            <span class="badge bg-warning text-dark">Bill Entry</span>
+                                            <span class="badge bg-soft-warning text-warning">Bill Entry</span>
                                         @elseif ($journalEntry->reference_type === 'payment')
-                                            <span class="badge bg-success">Payment Entry</span>
+                                            <span class="badge bg-soft-success text-success">Payment Entry</span>
                                         @else
-                                            <span class="badge bg-secondary">{{ ucfirst($journalEntry->reference_type) }}</span>
+                                            <span class="badge bg-soft-secondary text-secondary">{{ ucfirst($journalEntry->reference_type) }}</span>
                                         @endif
                                     </td>
                                 </tr>
@@ -79,9 +75,9 @@
                                     <th width="40%">Status:</th>
                                     <td>
                                         @if ($journalEntry->is_posted)
-                                            <span class="badge bg-success">Posted</span>
+                                            <span class="badge bg-soft-success text-success">Posted</span>
                                         @else
-                                            <span class="badge bg-secondary">Draft</span>
+                                            <span class="badge bg-soft-secondary text-secondary">Draft</span>
                                         @endif
                                     </td>
                                 </tr>
@@ -91,7 +87,7 @@
                                 </tr>
                                 <tr>
                                     <th>Created At:</th>
-                                    <td>{{ $journalEntry->created_at->format('M d, Y H:i') }}</td>
+                                    <td><span class="fs-12 text-muted">{{ $journalEntry->created_at->format('M d, Y H:i') }}</span></td>
                                 </tr>
                             </table>
                         </div>
@@ -103,7 +99,7 @@
             @if ($journalEntry->narration)
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Narration</h5>
+                        <h5 class="card-title"><i class="feather-file-text me-2"></i>Narration</h5>
                     </div>
                     <div class="card-body">
                         <p class="mb-0">{{ $journalEntry->narration }}</p>
@@ -114,19 +110,19 @@
             <!-- Journal Lines Card -->
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Entry Lines</h5>
+                    <h5 class="card-title"><i class="feather-list me-2"></i>Entry Lines</h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-striped table-sm">
+                        <table class="table table-hover mb-0">
                             <thead>
                                 <tr>
                                     <th>#</th>
                                     <th>Account Code</th>
                                     <th>Account Name</th>
                                     <th>Description</th>
-                                    <th class="text-right">Debit</th>
-                                    <th class="text-right">Credit</th>
+                                    <th class="text-end">Debit</th>
+                                    <th class="text-end">Credit</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -140,16 +136,16 @@
                                             </a>
                                         </td>
                                         <td>{{ $line->description ?? '-' }}</td>
-                                        <td class="text-right">
+                                        <td class="text-end">
                                             @if ($line->debit > 0)
-                                                {{ number_format($line->debit, 2) }}
+                                                <span class="text-success">{{ number_format($line->debit, 2) }}</span>
                                             @else
                                                 -
                                             @endif
                                         </td>
-                                        <td class="text-right">
+                                        <td class="text-end">
                                             @if ($line->credit > 0)
-                                                {{ number_format($line->credit, 2) }}
+                                                <span class="text-danger">{{ number_format($line->credit, 2) }}</span>
                                             @else
                                                 -
                                             @endif
@@ -158,18 +154,18 @@
                                 @endforeach
                             </tbody>
                             <tfoot>
-                                <tr class="table-dark">
-                                    <td colspan="4" class="text-right fw-bold">Totals:s</td>
-                                    <td class="text-right fw-bold">{{ number_format($journalEntry->total_debit, 2) }}</td>
-                                    <td class="text-right fw-bold">{{ number_format($journalEntry->total_credit, 2) }}</td>
+                                <tr class="table-light">
+                                    <td colspan="4" class="text-end fw-bold">Totals:</td>
+                                    <td class="text-end fw-bold">{{ number_format($journalEntry->total_debit, 2) }}</td>
+                                    <td class="text-end fw-bold">{{ number_format($journalEntry->total_credit, 2) }}</td>
                                 </tr>
                             </tfoot>
                         </table>
                     </div>
 
                     @if (!$journalEntry->isBalanced())
-                        <div class="alert alert-danger mt-3 mb-0">
-                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                        <div class="alert alert-soft-danger m-3 mb-0">
+                            <i class="feather-alert-triangle me-2"></i>
                             <strong>Warning:</strong> This entry is not balanced. Total Debit ({{ number_format($journalEntry->total_debit, 2) }}) does not equal Total Credit ({{ number_format($journalEntry->total_credit, 2) }}).
                         </div>
                     @endif
@@ -180,7 +176,7 @@
             @if ($reference)
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Source Document</h5>
+                        <h5 class="card-title"><i class="feather-link me-2"></i>Source Document</h5>
                     </div>
                     <div class="card-body">
                         <table class="table table-sm">
@@ -188,7 +184,7 @@
                                 <tr>
                                     <th width="30%">Bill Number:</th>
                                     <td>
-                                        <a href="{{ route('bills.show', $reference) }}">
+                                        <a href="{{ route('bills.show', $reference) }}" class="fw-semibold">
                                             {{ $reference->bill_number }}
                                         </a>
                                     </td>
@@ -204,16 +200,20 @@
                                 <tr>
                                     <th>Bill Status:</th>
                                     <td>
-                                        <span class="badge bg-{{ $reference->status === 'paid' ? 'success' : ($reference->status === 'draft' ? 'secondary' : 'warnings') }}">
-                                            {{ ucfirst(str_replace('_', ' ', $reference->status)) }}
-                                        </span>
+                                        @if ($reference->status === 'paid')
+                                            <span class="badge bg-soft-success text-success">Paid</span>
+                                        @elseif ($reference->status === 'draft')
+                                            <span class="badge bg-soft-secondary text-secondary">Draft</span>
+                                        @else
+                                            <span class="badge bg-soft-warning text-warning">{{ ucfirst(str_replace('_', ' ', $reference->status)) }}</span>
+                                        @endif
                                     </td>
                                 </tr>
                             @elseif ($journalEntry->reference_type === 'payment')
                                 <tr>
                                     <th width="30%">Payment Number:</th>
                                     <td>
-                                        <a href="{{ route('payments.show', $reference) }}">
+                                        <a href="{{ route('payments.show', $reference) }}" class="fw-semibold">
                                             {{ $reference->payment_number }}
                                         </a>
                                     </td>
@@ -246,25 +246,25 @@
             <!-- Summary Card -->
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Entry Summary</h5>
+                    <h5 class="card-title"><i class="feather-bar-chart-2 me-2"></i>Entry Summary</h5>
                 </div>
                 <div class="card-body">
                     <table class="table table-sm">
                         <tr>
                             <th>Total Debit:</th>
-                            <td class="text-right fw-bold">{{ number_format($journalEntry->total_debit, 2) }}</td>
+                            <td class="text-end fw-bold text-success">{{ number_format($journalEntry->total_debit, 2) }}</td>
                         </tr>
                         <tr>
                             <th>Total Credit:</th>
-                            <td class="text-right fw-bold">{{ number_format($journalEntry->total_credit, 2) }}</td>
+                            <td class="text-end fw-bold text-danger">{{ number_format($journalEntry->total_credit, 2) }}</td>
                         </tr>
                         <tr class="{{ $journalEntry->isBalanced() ? 'table-success' : 'table-danger' }}">
                             <th>Balanced:</th>
-                            <td class="text-right">
+                            <td class="text-end">
                                 @if ($journalEntry->isBalanced())
-                                    <i class="fas fa-check-circle text-success mr-1"></i>Yes
+                                    <i class="feather-check-circle text-success me-1"></i>Yes
                                 @else
-                                    <i class="fas fa-times-circle text-danger mr-1"></i>No
+                                    <i class="feather-x-circle text-danger me-1"></i>No
                                 @endif
                             </td>
                         </tr>
@@ -275,21 +275,21 @@
             <!-- Accounts Affected Card -->
             <div class="card">
                 <div class="card-header">
-                    <h5 class="card-title mb-0">Accounts Affected</h5>
+                    <h5 class="card-title"><i class="feather-layers me-2"></i>Accounts Affected</h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-0">
                     <ul class="list-group list-group-flush">
                         @foreach ($journalEntry->lines as $line)
-                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
                                 <span>
                                     <code>{{ $line->account->code }}</code>
-                                    {{ $line->account->name }}
+                                    <span class="ms-1">{{ $line->account->name }}</span>
                                 </span>
                                 <span>
                                     @if ($line->debit > 0)
-                                        <span class="text-primary">Dr {{ number_format($line->debit, 2) }}</span>
+                                        <span class="badge bg-soft-success text-success">Dr {{ number_format($line->debit, 2) }}</span>
                                     @else
-                                        <span class="text-danger">Cr {{ number_format($line->credit, 2) }}</span>
+                                        <span class="badge bg-soft-danger text-danger">Cr {{ number_format($line->credit, 2) }}</span>
                                     @endif
                                 </span>
                             </li>

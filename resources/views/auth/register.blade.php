@@ -1,78 +1,51 @@
 @extends('layouts.auth')
 
 @section('content')
-<div class="card">
-    <div class="card-body register-card-body">
-        <p class="login-box-msg">Register a new membership</p>
-        
-        <form action="{{ route('register') }}" method="post">
+    <div class="creative-card-body card-body p-sm-5">
+        <h2 class="fs-20 fw-bolder mb-4">Register</h2>
+        <h4 class="fs-13 fw-bold mb-2">Register a new membership</h4>
+        {{-- <p class="fs-12 fw-medium text-muted">Thank you for get back <strong>Nelel</strong> web applications, let's access our the best recommendation for you.</p> --}}
+        <form action="{{ route('register') }}" method="POST" class="w-100 mt-4 pt-2">
             @csrf
-            <div class="input-group mb-3">
-                <input type="text" class="form-control @error('name') is-invalid @enderror" name="name" value="{{ old('name') }}" id="name" required placeholder="Full name">
-                <div class="input-group-append">
-                    <div class="input-group-text">
-                        <span class="fas fa-user"></span>
-                    </div>
-                </div>
+            <div class="mb-4">
+                <input type="text" name="name" id="name" value="{{ old('name') }}" class="form-control @error('name') is-invalid @enderror" placeholder="Full name" required>
+                @error('name')
+                    <span class="invalid-feedback">{{ $message }}</span>
+                @enderror
             </div>
-            @error('email')
-                <span class="invalid-feedback" role="alert">
-                    <strong>{{ $message }}</strong>
-                </span>
-            @enderror
-            <div class="input-group mb-3">
-                <input type="email" class="form-control @error('email') is-invalid @enderror" name="email" value="{{ old('email') }}" id="email" required placeholder="Email">
-                <div class="input-group-append">
-                    <div class="input-group-text">
-                        <span class="fas fa-envelope"></span>
-                    </div>
-                </div>
+            <div class="mb-4">
+                <input type="email" name="email" class="form-control @error('email') is-invalid @enderror" placeholder="Email or Username" value="{{ old('email') }}" required>
+                @error('email')
+                    <span class="invalid-feedback">{{ $message }}</span>
+                @enderror
             </div>
-            @error('email')
-                <span class="invalid-feedback" role="alert">
-                    <strong>{{ $message }}</strong>
-                </span>
-            @enderror
-            <div class="input-group mb-3">
-                <input type="password" class="form-control @error('password') is-invalid @enderror" name="password" id="password" required placeholder="Password">
-                <div class="input-group-append">
-                    <div class="input-group-text">
-                        <span class="fas fa-lock"></span>
-                    </div>
-                </div>
+            <div class="mb-3">
+                <input type="password" name="password" class="form-control @error('password') is-invalid @enderror" placeholder="Password" value="" required>
+                @error('password')
+                    <span class="invalid-feedback">{{ $message }}</span>
+                @enderror
             </div>
-            @error('password')
-                <span class="invalid-feedback" role="alert">
-                    <strong>{{ $message }}</strong>
-                </span>
-            @enderror
-            <div class="input-group mb-3">
-                <input type="password" class="form-control" id="password-confirm" name="password_confirmation" placeholder="Retype password">
-                <div class="input-group-append">
-                    <div class="input-group-text">
-                        <span class="fas fa-lock"></span>
-                    </div>
-                </div>
+            <div class="mb-4">
+                <input type="password" class="form-control" id="password-confirm" name="password_confirmation" placeholder="Retype password" required>
             </div>
-            <div class="row">
-                <div class="col-8">
-                    <div class="icheck-primary">
-                        <input type="checkbox" id="agreeTerms" name="terms" value="agree">
-                        <label for="agreeTerms">
-                            I agree to the <a href="#">terms</a>
-                        </label>
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" value="agree" class="custom-control-input" name="terms" id="agreeTerms" {{ old('terms') ? 'checked' : '' }}>
+                        <label class="custom-control-label c-pointer" for="agreeTerms">I agree to the <a href="#">terms</a></label>
                     </div>
                 </div>
-                <!-- /.col -->
-                <div class="col-4">
-                    <button type="submit" class="btn btn-primary btn-block">Register</button>
-                </div>
-                <!-- /.col -->
+                {{-- <div>
+                    <a href="{{ route('login') }}" class="fs-11 text-primary">I already have a membership.</a>
+                </div> --}}
+            </div>
+            <div class="mt-5">
+                <button type="submit" class="btn btn-lg btn-primary w-100">Register</button>
             </div>
         </form>
-        
-        <a href="{{ route('login') }}" class="text-center">I already have a membership</a>
+        <div class="mt-5 text-muted">
+            <span> Already have an account?</span>
+            <a href="{{ route('login') }}" class="fw-bold">Login.</a>
+        </div>
     </div>
-    <!-- /.form-box -->
-</div><!-- /.card -->
 @endsection
