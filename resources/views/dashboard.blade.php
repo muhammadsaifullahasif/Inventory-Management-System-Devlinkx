@@ -124,7 +124,7 @@
             @if($widgetSettings['orders_month']['enabled'] ?? true)
             <!-- Orders This Month -->
             <div class="col-xxl-3 col-md-6" data-widget="orders_month">
-                <div class="card stretch stretch-full">
+                <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between">
                             <div class="d-flex align-items-center gap-3">
@@ -163,7 +163,7 @@
             @if($widgetSettings['pending_orders']['enabled'] ?? true)
             <!-- Pending Orders -->
             <div class="col-xxl-3 col-md-6" data-widget="pending_orders">
-                <div class="card stretch stretch-full">
+                <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center gap-3">
                             <div class="avatar-text avatar-lg rounded bg-soft-warning text-warning">
@@ -182,7 +182,7 @@
             @if($widgetSettings['processing_orders']['enabled'] ?? true)
             <!-- Processing Orders -->
             <div class="col-xxl-3 col-md-6" data-widget="processing_orders">
-                <div class="card stretch stretch-full">
+                <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center gap-3">
                             <div class="avatar-text avatar-lg rounded bg-soft-info text-info">
@@ -201,7 +201,7 @@
             @if($widgetSettings['shipped_orders']['enabled'] ?? true)
             <!-- Shipped Orders -->
             <div class="col-xxl-3 col-md-6" data-widget="shipped_orders">
-                <div class="card stretch stretch-full">
+                <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center gap-3">
                             <div class="avatar-text avatar-lg rounded bg-soft-success text-success">
@@ -220,7 +220,7 @@
             @if($widgetSettings['stock_value']['enabled'] ?? true)
             <!-- Total Stock Value -->
             <div class="col-xxl-3 col-md-6" data-widget="stock_value">
-                <div class="card stretch stretch-full">
+                <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center gap-3">
                             <div class="avatar-text avatar-lg rounded bg-soft-primary text-primary">
@@ -246,7 +246,7 @@
             @if($widgetSettings['total_products']['enabled'] ?? true)
             <!-- Total Products -->
             <div class="col-xxl-3 col-md-6" data-widget="total_products">
-                <div class="card stretch stretch-full">
+                <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center gap-3">
                             <div class="avatar-text avatar-lg rounded">
@@ -265,7 +265,7 @@
             @if($widgetSettings['active_channels']['enabled'] ?? true)
             <!-- Active Sales Channels -->
             <div class="col-xxl-3 col-md-6" data-widget="active_channels">
-                <div class="card stretch stretch-full">
+                <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center gap-3">
                             <div class="avatar-text avatar-lg rounded">
@@ -284,7 +284,7 @@
             @if($widgetSettings['total_suppliers']['enabled'] ?? true)
             <!-- Total Suppliers -->
             <div class="col-xxl-3 col-md-6" data-widget="total_suppliers">
-                <div class="card stretch stretch-full">
+                <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center gap-3">
                             <div class="avatar-text avatar-lg rounded">
@@ -303,7 +303,7 @@
             @if($widgetSettings['purchases_month']['enabled'] ?? true)
             <!-- Purchases This Month -->
             <div class="col-xxl-3 col-md-6" data-widget="purchases_month">
-                <div class="card stretch stretch-full">
+                <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center gap-3">
                             <div class="avatar-text avatar-lg rounded">
@@ -325,7 +325,7 @@
     <!-- Charts Row -->
     @if($widgetSettings['sales_chart']['enabled'] ?? true)
     <div class="col-xxl-8" data-widget="sales_chart">
-        <div class="card stretch stretch-full">
+        <div class="card">
             <div class="card-header">
                 <h5 class="card-title">
                     <i class="feather-bar-chart-2 me-2"></i>Sales Overview (Last 30 Days)
@@ -340,7 +340,7 @@
 
     @if($widgetSettings['order_status_chart']['enabled'] ?? true)
     <div class="col-xxl-4" data-widget="order_status_chart">
-        <div class="card stretch stretch-full">
+        <div class="card">
             <div class="card-header">
                 <h5 class="card-title">
                     <i class="feather-pie-chart me-2"></i>Orders by Status
@@ -356,7 +356,7 @@
     @if($widgetSettings['monthly_chart']['enabled'] ?? true)
     <!-- Monthly Comparison Chart -->
     <div class="col-12" data-widget="monthly_chart">
-        <div class="card stretch stretch-full">
+        <div class="card">
             <div class="card-header">
                 <h5 class="card-title">
                     <i class="feather-bar-chart me-2"></i>Monthly Comparison (Last 6 Months)
@@ -372,7 +372,7 @@
     <!-- Tables Row -->
     @if($widgetSettings['top_products']['enabled'] ?? true)
     <div class="col-xxl-6" data-widget="top_products">
-        <div class="card stretch stretch-full">
+        <div class="card">
             <div class="card-header">
                 <h5 class="card-title">
                     <i class="feather-award text-warning me-2"></i>Top Selling Products (30 Days)
@@ -418,7 +418,7 @@
 
     @if($widgetSettings['low_stock']['enabled'] ?? true)
     <div class="col-xxl-6" data-widget="low_stock">
-        <div class="card stretch stretch-full">
+        <div class="card">
             <div class="card-header">
                 <h5 class="card-title">
                     <i class="feather-alert-triangle text-danger me-2"></i>Low Stock Alert
@@ -473,7 +473,7 @@
     <!-- Recent Orders & Sales by Channel -->
     @if($widgetSettings['recent_orders']['enabled'] ?? true)
     <div class="col-xxl-8" data-widget="recent_orders">
-        <div class="card stretch stretch-full">
+        <div class="card">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h5 class="card-title">
                     <i class="feather-shopping-bag me-2"></i>Recent Orders
@@ -548,7 +548,7 @@
     <!-- Sales by Channel & Recent Purchases Column -->
     <div class="col-xxl-4">
         @if($widgetSettings['sales_by_channel']['enabled'] ?? true)
-        <div class="card stretch stretch-full mb-4" data-widget="sales_by_channel">
+        <div class="card mb-4" data-widget="sales_by_channel">
             <div class="card-header">
                 <h5 class="card-title">
                     <i class="feather-shopping-bag me-2"></i>Sales by Channel (30 Days)
@@ -573,7 +573,7 @@
         @endif
 
         @if($widgetSettings['recent_purchases']['enabled'] ?? true)
-        <div class="card stretch stretch-full" data-widget="recent_purchases">
+        <div class="card" data-widget="recent_purchases">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h5 class="card-title">
                     <i class="feather-file-text me-2"></i>Recent Purchases
