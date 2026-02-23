@@ -314,6 +314,8 @@
     <!--! BEGIN: Vendors JS !-->
     <script src="{{ asset('vendors/js/vendors.min.js') }}"></script>
     <!-- vendors.min.js {always must need to be top} -->
+    <script src="{{ asset('vendors/js/bootstrap.min.js') }}"></script>
+    <!-- Bootstrap JS for modals, tooltips, popovers, etc. -->
     <script src="{{ asset('vendors/js/daterangepicker.min.js') }}"></script>
     <script src="{{ asset('vendors/js/apexcharts.min.js') }}"></script>
     <script src="{{ asset('vendors/js/circle-progress.min.js') }}"></script>
@@ -353,6 +355,18 @@
                     .removeClass('feather-minus')
                     .addClass('feather-plus');
             });
+
+			// Initialize Bootstrap tooltips
+			var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+			tooltipTriggerList.map(function (tooltipTriggerEl) {
+				return new bootstrap.Tooltip(tooltipTriggerEl);
+			});
+
+			// Initialize Bootstrap popovers
+			var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+			popoverTriggerList.map(function (popoverTriggerEl) {
+				return new bootstrap.Popover(popoverTriggerEl);
+			});
 		});
 	</script>
 	@stack('scripts')
