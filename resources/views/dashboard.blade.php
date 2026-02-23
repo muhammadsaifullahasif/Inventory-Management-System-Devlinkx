@@ -603,6 +603,13 @@
         @endif
     </div>
 
+    <!-- Hidden form for reset -->
+    <form id="reset-widgets-form" action="{{ route('dashboard.widgets.reset') }}" method="POST" style="display: none;">
+        @csrf
+    </form>
+@endsection
+
+@push('modals')
     <!-- Widget Settings Modal -->
     <div class="modal fade" id="widgetSettingsModal" tabindex="-1" aria-labelledby="widgetSettingsModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -672,12 +679,7 @@
             </div>
         </div>
     </div>
-
-    <!-- Hidden form for reset -->
-    <form id="reset-widgets-form" action="{{ route('dashboard.widgets.reset') }}" method="POST" style="display: none;">
-        @csrf
-    </form>
-@endsection
+@endpush
 
 @push('scripts')
 <script>

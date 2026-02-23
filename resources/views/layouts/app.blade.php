@@ -370,5 +370,8 @@
 		});
 	</script>
 	@stack('scripts')
+
+	<!-- Modals Section - placed outside of nxl-container for proper z-index stacking -->
+	@stack('modals')
 </body>
 </html>

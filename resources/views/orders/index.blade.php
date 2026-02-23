@@ -234,6 +234,9 @@
         </div>
     </div>
 
+@endsection
+
+@push('modals')
     <!-- Ship Order Modal -->
     <div class="modal fade" id="shipModal" tabindex="-1" aria-labelledby="shipModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
@@ -412,7 +415,7 @@
             </div>
         </div>
     </div>
-@endsection
+@endpush
 
 @push('scripts')
     <script>

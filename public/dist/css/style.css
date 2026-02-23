@@ -74,51 +74,88 @@ a {
     padding: .25rem .5rem;
 }
 
-/* Modal z-index fix for Duralux template */
+/* ============================================
+   Modal z-index fix for Duralux template
+   The issue: modal-backdrop blocks content because
+   the modal is inside .nxl-container which has
+   transform or other stacking context issues
+   ============================================ */
+
+/* Move modal to be a direct child of body via CSS isolation */
 .modal {
-    z-index: 1060 !important;
     position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 1055 !important;
+    width: 100% !important;
+    height: 100% !important;
+    outline: 0 !important;
+}
+
+.modal.show {
+    display: block !important;
 }
 
 .modal-backdrop {
-    z-index: 1040 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 1050 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background-color: #000 !important;
+}
+
+.modal-backdrop.show {
+    opacity: 0.5 !important;
 }
 
 .modal-dialog {
     position: relative !important;
-    z-index: 1061 !important;
+    margin: 1.75rem auto !important;
+    pointer-events: none !important;
 }
 
 .modal-content {
     position: relative !important;
-    z-index: 1062 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    pointer-events: auto !important;
+    background-color: #fff !important;
+    background-clip: padding-box !important;
+    border: 1px solid rgba(0,0,0,.2) !important;
+    border-radius: 0.5rem !important;
+    outline: 0 !important;
 }
 
-/* Ensure modal content is visible above backdrop */
-.modal.show .modal-dialog {
-    z-index: 1061 !important;
+/* Fix body scroll when modal is open */
+body.modal-open {
+    overflow: hidden !important;
+    padding-right: 0 !important;
 }
 
-/* Fix for nested modals or multiple modals */
-.modal-open .modal {
-    overflow-x: hidden;
-    overflow-y: auto;
+/* Reset z-index on Duralux containers when modal is open */
+body.modal-open .nxl-container,
+body.modal-open .nxl-navigation,
+body.modal-open .nxl-header,
+body.modal-open .nxl-content {
+    z-index: auto !important;
 }
 
-/* Ensure nxl-container doesn't interfere with modals */
-.nxl-container {
-    position: relative;
-    z-index: 1;
-}
-
-/* Fix modal appearing behind sidebar or header */
-.modal-open .nxl-navigation,
-.modal-open .nxl-header {
-    z-index: auto;
+/* Ensure theme customizer doesn't interfere */
+body.modal-open .theme-customizer {
+    z-index: 1 !important;
 }
 
 /* Make sure the modal body is scrollable */
 .modal-body {
-    max-height: calc(100vh - 200px);
+    max-height: calc(100vh - 210px);
     overflow-y: auto;
+}
+
+/* Fix for modal-xl on smaller screens */
+@media (min-width: 1200px) {
+    .modal-xl {
+        max-width: 1140px !important;
+    }
 }
