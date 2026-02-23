@@ -10,7 +10,7 @@
     <meta name="author" content="flexilecode" />
     <!--! The above 6 meta tags *must* come first in the head; any other head content must come *after* these tags !-->
     <!--! BEGIN: Apps Title-->
-    <title>{{ config('app.name', 'Laravel') }}</title>
+    <title>{{ config('app.name', 'Sigma Body Parts') }}</title>
     <!--! END:  Apps Title-->
 	<!-- CSRF Token -->
     <meta name="csrf-token" content="{{ csrf_token() }}">
