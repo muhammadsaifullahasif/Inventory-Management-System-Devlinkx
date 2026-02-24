@@ -23,7 +23,11 @@ class RackController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Rack::with('warehouse');
+        $query = Rack::with('warehouse')
+            ->withSum('rack_stock', 'quantity')
+            ->withCount(['rack_stock as products_count' => function ($query) {
+                $query->where('quantity', '>', 0);
+            }]);
 
         // Filter by search term (name)
         if ($request->filled('search')) {

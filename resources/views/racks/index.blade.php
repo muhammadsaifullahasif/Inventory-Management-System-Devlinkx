@@ -97,6 +97,8 @@
                                 <th>Name</th>
                                 <th>Warehouse</th>
                                 <th>Is Default</th>
+                                <th>Products</th>
+                                <th>Total Qty</th>
                                 <th>Created at</th>
                                 <th class="text-end">Actions</th>
                             </tr>
@@ -105,8 +107,16 @@
                             @forelse ($racks as $rack)
                                 <tr>
                                     <td>{{ $rack->id }}</td>
-                                    <td><span class="fw-semibold">{{ $rack->name }}</span></td>
-                                    <td><span class="badge bg-soft-secondary text-secondary">{{ $rack->warehouse->name }}</span></td>
+                                    <td>
+                                        <a href="{{ route('products.index', ['rack_id' => $rack->id]) }}" class="fw-semibold text-primary">
+                                            {{ $rack->name }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a href="{{ route('products.index', ['warehouse_id' => $rack->warehouse_id]) }}" class="badge bg-soft-secondary text-secondary">
+                                            {{ $rack->warehouse->name }}
+                                        </a>
+                                    </td>
                                     <td>
                                         @if ($rack->is_default)
                                             <span class="badge bg-soft-success text-success">Yes</span>
@@ -114,6 +124,12 @@
                                             <span class="badge bg-soft-secondary text-secondary">No</span>
                                         @endif
                                     </td>
+                                    <td>
+                                        <a href="{{ route('products.index', ['rack_id' => $rack->id]) }}" class="badge bg-soft-primary text-primary">
+                                            {{ $rack->products_count }}
+                                        </a>
+                                    </td>
+                                    <td><span class="badge bg-soft-info text-info">{{ (int) $rack->rack_stock_sum_quantity }}</span></td>
                                     <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($rack->created_at)->format('d M, Y') }}</span></td>
                                     <td>
                                         <div class="hstack gap-2 justify-content-end">
@@ -139,7 +155,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center py-4 text-muted">No racks found.</td>
+                                    <td colspan="8" class="text-center py-4 text-muted">No racks found.</td>
                                 </tr>
                             @endforelse
                         </tbody>

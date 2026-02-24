@@ -21,4 +21,9 @@ class Warehouse extends Model
     {
         return $this->hasMany(Rack::class);
     }
+
+    public function product_stocks()
+    {
+        return $this->hasMany(ProductStock::class);
+    }
 }

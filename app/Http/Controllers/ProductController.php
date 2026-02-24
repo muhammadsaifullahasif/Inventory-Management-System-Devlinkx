@@ -42,7 +42,7 @@ class ProductController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Product::with(['sales_channels', 'category', 'brand', 'product_stocks']);
+        $query = Product::with(['sales_channels', 'category', 'brand', 'product_stocks.warehouse', 'product_stocks.rack']);
 
         // Filter by search term (name, sku, barcode)
         if ($request->filled('search')) {
@@ -84,6 +84,20 @@ class ProductController extends Controller
             });
         }
 
+        // Filter by warehouse
+        if ($request->filled('warehouse_id')) {
+            $query->whereHas('product_stocks', function ($q) use ($request) {
+                $q->where('warehouse_id', $request->warehouse_id);
+            });
+        }
+
+        // Filter by rack
+        if ($request->filled('rack_id')) {
+            $query->whereHas('product_stocks', function ($q) use ($request) {
+                $q->where('rack_id', $request->rack_id);
+            });
+        }
+
         // Filter by date range
         if ($request->filled('date_from')) {
             $query->whereDate('created_at', '>=', $request->date_from);
@@ -98,8 +112,10 @@ class ProductController extends Controller
         $categories = Category::orderBy('name')->get();
         $brands = Brand::orderBy('name')->get();
         $salesChannels = SalesChannel::where('active_status', 1)->orderBy('name')->get();
+        $warehouses = Warehouse::orderBy('name')->get();
+        $racks = Rack::with('warehouse')->orderBy('name')->get();
 
-        return view('products.index', compact('products', 'categories', 'brands', 'salesChannels'));
+        return view('products.index', compact('products', 'categories', 'brands', 'salesChannels', 'warehouses', 'racks'));
     }
 
     /**

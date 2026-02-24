@@ -83,6 +83,8 @@
                                 <th>#</th>
                                 <th>Name</th>
                                 <th>Racks</th>
+                                <th>Products</th>
+                                <th>Total Qty</th>
                                 <th>Is Default</th>
                                 <th>Created at</th>
                                 <th class="text-end">Actions</th>
@@ -92,8 +94,18 @@
                             @forelse ($warehouses as $warehouse)
                                 <tr>
                                     <td>{{ $warehouse->id }}</td>
-                                    <td><span class="fw-semibold">{{ $warehouse->name }}</span></td>
+                                    <td>
+                                        <a href="{{ route('products.index', ['warehouse_id' => $warehouse->id]) }}" class="fw-semibold text-primary">
+                                            {{ $warehouse->name }}
+                                        </a>
+                                    </td>
                                     <td><span class="badge bg-soft-secondary text-secondary">{{ $warehouse->racks->count() }}</span></td>
+                                    <td>
+                                        <a href="{{ route('products.index', ['warehouse_id' => $warehouse->id]) }}" class="badge bg-soft-primary text-primary">
+                                            {{ $warehouse->products_count }}
+                                        </a>
+                                    </td>
+                                    <td><span class="badge bg-soft-info text-info">{{ (int) $warehouse->product_stocks_sum_quantity }}</span></td>
                                     <td>
                                         @if ($warehouse->is_default)
                                             <span class="badge bg-soft-success text-success">Yes</span>
@@ -123,7 +135,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center py-4 text-muted">No warehouses found.</td>
+                                    <td colspan="8" class="text-center py-4 text-muted">No warehouses found.</td>
                                 </tr>
                             @endforelse
                         </tbody>

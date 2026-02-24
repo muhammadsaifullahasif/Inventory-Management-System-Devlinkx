@@ -107,6 +107,24 @@
                         </div>
                         <div class="row g-3 mt-1">
                             <div class="col-md-2">
+                                <label class="form-label">Warehouse</label>
+                                <select name="warehouse_id" id="warehouse_id" class="form-select form-select-sm">
+                                    <option value="">All Warehouses</option>
+                                    @foreach($warehouses as $warehouse)
+                                        <option value="{{ $warehouse->id }}" {{ request('warehouse_id') == $warehouse->id ? 'selected' : '' }}>{{ $warehouse->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Rack</label>
+                                <select name="rack_id" id="rack_id" class="form-select form-select-sm">
+                                    <option value="">All Racks</option>
+                                    @foreach($racks as $rack)
+                                        <option value="{{ $rack->id }}" data-warehouse="{{ $rack->warehouse_id }}" {{ request('rack_id') == $rack->id ? 'selected' : '' }}>{{ $rack->name }} ({{ $rack->warehouse->name }})</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-2">
                                 <label class="form-label">Date From</label>
                                 <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request('date_from') }}">
                             </div>
@@ -114,7 +132,7 @@
                                 <label class="form-label">Date To</label>
                                 <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}">
                             </div>
-                            <div class="col-md-4 d-flex align-items-end gap-2">
+                            <div class="col-md-2 d-flex align-items-end gap-2">
                                 <button type="submit" class="btn btn-primary btn-sm">
                                     <i class="feather-search me-2"></i>Filter
                                 </button>
@@ -122,8 +140,8 @@
                                     <i class="feather-x me-2"></i>Clear
                                 </a>
                             </div>
-                            <div class="col-md-4 d-flex align-items-end justify-content-end">
-                                <span class="text-muted fs-12">Showing {{ $products->firstItem() ?? 0 }} - {{ $products->lastItem() ?? 0 }} of {{ $products->total() }} results</span>
+                            <div class="col-md-2 d-flex align-items-end justify-content-end">
+                                <span class="text-muted fs-12">{{ $products->total() }} results</span>
                             </div>
                         </div>
                     </form>
@@ -145,6 +163,7 @@
                                 <th>Name</th>
                                 <th>Price</th>
                                 <th>Quantity</th>
+                                <th>Location</th>
                                 <th>Category</th>
                                 <th>Sales Channels</th>
                                 <th>Created at</th>
@@ -184,6 +203,17 @@
                                         @else
                                             <span class="badge bg-soft-danger text-danger">Out of Stock</span>
                                         @endif
+                                    </td>
+                                    <td>
+                                        @forelse($product->product_stocks->where('quantity', '>', 0) as $stock)
+                                            <div class="mb-1">
+                                                <span class="badge bg-soft-info text-info">{{ $stock->warehouse->name ?? 'N/A' }}</span>
+                                                <span class="badge bg-soft-secondary text-secondary">{{ $stock->rack->name ?? 'N/A' }}</span>
+                                                <span class="text-muted fs-11">({{ $stock->quantity }})</span>
+                                            </div>
+                                        @empty
+                                            <span class="text-muted fs-12">-</span>
+                                        @endforelse
                                     </td>
                                     <td>{{ $product->category->name ?? 'N/A' }}</td>
                                     <td>
@@ -238,7 +268,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center py-4 text-muted">No products found.</td>
+                                    <td colspan="10" class="text-center py-4 text-muted">No products found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -266,6 +296,33 @@
                     return false;
                 }
             });
+
+            // Filter racks based on selected warehouse
+            $('#warehouse_id').on('change', function() {
+                var warehouseId = $(this).val();
+                var $rackSelect = $('#rack_id');
+                var currentRackId = '{{ request('rack_id') }}';
+
+                // Show all options first
+                $rackSelect.find('option').show();
+
+                if (warehouseId) {
+                    // Hide options that don't match the selected warehouse
+                    $rackSelect.find('option').each(function() {
+                        var optionWarehouse = $(this).data('warehouse');
+                        if (optionWarehouse && optionWarehouse != warehouseId) {
+                            $(this).hide();
+                            // If the currently selected rack is hidden, reset selection
+                            if ($(this).is(':selected')) {
+                                $rackSelect.val('');
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Trigger on page load to filter racks if warehouse is pre-selected
+            $('#warehouse_id').trigger('change');
         });
     </script>
 @endpush

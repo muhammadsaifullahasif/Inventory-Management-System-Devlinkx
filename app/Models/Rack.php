@@ -16,4 +16,9 @@ class Rack extends Model
     {
         return $this->belongsTo(Warehouse::class);
     }
+
+    public function rack_stock()
+    {
+        return $this->hasMany(ProductStock::class, 'rack_id');
+    }
 }
