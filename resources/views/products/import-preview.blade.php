@@ -127,7 +127,7 @@
                                     <input type="number" name="products[width][]" value="{{ $product['width'] }}" class="form-control form-control-sm">
                                 </td>
                                 <td>
-                                    <input type="number" name="products[height]" value="{{ $product['height'] }}" class="form-control form-control-sm">
+                                    <input type="number" name="products[height][]" value="{{ $product['height'] }}" class="form-control form-control-sm">
                                 </td>
                                 <td>
                                     <select name="products[rack][]" class="form-select form-control-sm" required>
