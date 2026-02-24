@@ -83,7 +83,9 @@
                                 <th>#</th>
                                 <th>Name</th>
                                 <th>Racks</th>
-                                <th>Products</th>
+                                <th>In Stock</th>
+                                <th>Out of Stock</th>
+                                <th>Total</th>
                                 <th>Total Qty</th>
                                 <th>Is Default</th>
                                 <th>Created at</th>
@@ -101,8 +103,18 @@
                                     </td>
                                     <td><span class="badge bg-soft-secondary text-secondary">{{ $warehouse->racks->count() }}</span></td>
                                     <td>
-                                        <a href="{{ route('products.index', ['warehouse_id' => $warehouse->id]) }}" class="badge bg-soft-primary text-primary">
+                                        <a href="{{ route('products.index', ['warehouse_id' => $warehouse->id, 'stock_status' => 'in_stock']) }}" class="badge bg-soft-success text-success">
                                             {{ $warehouse->products_count }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a href="{{ route('products.index', ['warehouse_id' => $warehouse->id, 'stock_status' => 'out_of_stock']) }}" class="badge bg-soft-danger text-danger">
+                                            {{ $warehouse->out_of_stock_count }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a href="{{ route('products.index', ['warehouse_id' => $warehouse->id]) }}" class="badge bg-soft-primary text-dark">
+                                            {{ $warehouse->products_count + $warehouse->out_of_stock_count }}
                                         </a>
                                     </td>
                                     <td><span class="badge bg-soft-info text-info">{{ (int) $warehouse->product_stocks_sum_quantity }}</span></td>
@@ -135,7 +147,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="text-center py-4 text-muted">No warehouses found.</td>
+                                    <td colspan="10" class="text-center py-4 text-muted">No warehouses found.</td>
                                 </tr>
                             @endforelse
                         </tbody>

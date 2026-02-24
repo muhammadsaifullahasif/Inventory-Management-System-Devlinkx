@@ -27,6 +27,9 @@ class RackController extends Controller
             ->withSum('rack_stock', 'quantity')
             ->withCount(['rack_stock as products_count' => function ($query) {
                 $query->where('quantity', '>', 0);
+            }])
+            ->withCount(['rack_stock as out_of_stock_count' => function ($query) {
+                $query->where('quantity', '<=', 0);
             }]);
 
         // Filter by search term (name)

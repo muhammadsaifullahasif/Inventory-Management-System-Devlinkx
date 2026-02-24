@@ -97,7 +97,9 @@
                                 <th>Name</th>
                                 <th>Warehouse</th>
                                 <th>Is Default</th>
-                                <th>Products</th>
+                                <th>In Stock</th>
+                                <th>Out of Stock</th>
+                                <th>Total</th>
                                 <th>Total Qty</th>
                                 <th>Created at</th>
                                 <th class="text-end">Actions</th>
@@ -125,8 +127,18 @@
                                         @endif
                                     </td>
                                     <td>
-                                        <a href="{{ route('products.index', ['rack_id' => $rack->id]) }}" class="badge bg-soft-primary text-primary">
+                                        <a href="{{ route('products.index', ['rack_id' => $rack->id, 'stock_status' => 'in_stock']) }}" class="badge bg-soft-success text-success">
                                             {{ $rack->products_count }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a href="{{ route('products.index', ['rack_id' => $rack->id, 'stock_status' => 'out_of_stock']) }}" class="badge bg-soft-danger text-danger">
+                                            {{ $rack->out_of_stock_count }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a href="{{ route('products.index', ['rack_id' => $rack->id]) }}" class="badge bg-soft-primary text-dark">
+                                            {{ $rack->products_count + $rack->out_of_stock_count }}
                                         </a>
                                     </td>
                                     <td><span class="badge bg-soft-info text-info">{{ (int) $rack->rack_stock_sum_quantity }}</span></td>
@@ -155,7 +167,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="text-center py-4 text-muted">No racks found.</td>
+                                    <td colspan="10" class="text-center py-4 text-muted">No racks found.</td>
                                 </tr>
                             @endforelse
                         </tbody>

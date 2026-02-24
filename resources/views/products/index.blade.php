@@ -205,7 +205,7 @@
                                         @endif
                                     </td>
                                     <td>
-                                        @forelse($product->product_stocks->where('quantity', '>', 0) as $stock)
+                                        @forelse($product->product_stocks as $stock)
                                             <div class="mb-1">
                                                 <span class="badge bg-soft-info text-info">{{ $stock->warehouse->name ?? 'N/A' }}</span>
                                                 <span class="badge bg-soft-secondary text-secondary">{{ $stock->rack->name ?? 'N/A' }}</span>

@@ -64,19 +64,6 @@ class ProductController extends Controller
             $query->where('brand_id', $request->brand_id);
         }
 
-        // Filter by stock status
-        if ($request->filled('stock_status')) {
-            if ($request->stock_status === 'in_stock') {
-                $query->whereHas('product_stocks', function ($q) {
-                    $q->where('quantity', '>', 0);
-                });
-            } elseif ($request->stock_status === 'out_of_stock') {
-                $query->whereDoesntHave('product_stocks', function ($q) {
-                    $q->where('quantity', '>', 0);
-                });
-            }
-        }
-
         // Filter by sales channel
         if ($request->filled('sales_channel_id')) {
             $query->whereHas('sales_channels', function ($q) use ($request) {
@@ -84,17 +71,30 @@ class ProductController extends Controller
             });
         }
 
-        // Filter by warehouse
-        if ($request->filled('warehouse_id')) {
-            $query->whereHas('product_stocks', function ($q) use ($request) {
-                $q->where('warehouse_id', $request->warehouse_id);
-            });
-        }
+        // Combined filter for stock status with warehouse/rack
+        // This ensures we check stock status within the specific warehouse/rack context
+        $warehouseId = $request->warehouse_id;
+        $rackId = $request->rack_id;
+        $stockStatus = $request->stock_status;
 
-        // Filter by rack
-        if ($request->filled('rack_id')) {
-            $query->whereHas('product_stocks', function ($q) use ($request) {
-                $q->where('rack_id', $request->rack_id);
+        if ($warehouseId || $rackId || $stockStatus) {
+            $query->whereHas('product_stocks', function ($q) use ($warehouseId, $rackId, $stockStatus) {
+                // Filter by warehouse
+                if ($warehouseId) {
+                    $q->where('warehouse_id', $warehouseId);
+                }
+
+                // Filter by rack
+                if ($rackId) {
+                    $q->where('rack_id', $rackId);
+                }
+
+                // Filter by stock status within the warehouse/rack context
+                if ($stockStatus === 'in_stock') {
+                    $q->where('quantity', '>', 0);
+                } elseif ($stockStatus === 'out_of_stock') {
+                    $q->where('quantity', '<=', 0);
+                }
             });
         }
 

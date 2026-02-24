@@ -25,6 +25,9 @@ class WarehouseController extends Controller
             ->withCount(['product_stocks as products_count' => function ($query) {
                 $query->where('quantity', '>', 0);
             }])
+            ->withCount(['product_stocks as out_of_stock_count' => function ($query) {
+                $query->where('quantity', '<=', 0);
+            }])
             ->withSum('product_stocks', 'quantity');
 
         // Filter by search term (name)
