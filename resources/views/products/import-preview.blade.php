@@ -133,7 +133,7 @@
                                     <select name="products[rack][]" class="form-select form-control-sm" required>
                                         <option value="">Select Rack</option>
                                         @foreach ($racks as $rack)
-                                            <option value="{{ $rack->id }}" @if($rack->id === $product['rack_id']) selected @elseif($rack->is_default) @endif>{{ $rack->name }}</option>
+                                            <option value="{{ $rack->id }}" @if($rack->id === $product['rack_id']) selected @elseif($rack->is_default) selected @endif>{{ $rack->name }}</option>
                                         @endforeach
                                     </select>
                                 </td>
