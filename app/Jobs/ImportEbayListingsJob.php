@@ -18,8 +18,6 @@ use App\Services\Ebay\EbayService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -249,10 +247,10 @@ class ImportEbayListingsJob implements ShouldQueue
             throw new Exception('No category found and unable to create a new one.');
         }
 
-        // Download and save the first image
+        // Store the first image URL directly (no download)
         $productImage = null;
         if (!empty($item['images'][0])) {
-            $productImage = $this->downloadAndSaveImage($item['images'][0], $sku);
+            $productImage = $item['images'][0];
         }
 
         // Create product
@@ -306,45 +304,6 @@ class ImportEbayListingsJob implements ShouldQueue
         ]);
 
         return $product;
-    }
-
-    /**
-     * Download image from URL and save to storage.
-     */
-    protected function downloadAndSaveImage(string $url, string $sku): ?string
-    {
-        try {
-            $response = Http::timeout(30)->get($url);
-
-            if (!$response->successful()) {
-                Log::warning('Failed to download eBay image', ['url' => $url, 'status' => $response->status()]);
-                return null;
-            }
-
-            $imageContent = $response->body();
-            $extension = $this->getImageExtension($response->header('Content-Type'));
-            $filename = 'products/' . Str::slug($sku) . '-' . time() . '.' . $extension;
-
-            Storage::disk('public')->put($filename, $imageContent);
-
-            return $filename;
-        } catch (Exception $e) {
-            Log::warning('Error downloading eBay image', ['url' => $url, 'error' => $e->getMessage()]);
-            return null;
-        }
-    }
-
-    /**
-     * Get file extension from content type.
-     */
-    protected function getImageExtension(?string $contentType): string
-    {
-        return match ($contentType) {
-            'image/png' => 'png',
-            'image/gif' => 'gif',
-            'image/webp' => 'webp',
-            default => 'jpg',
-        };
     }
 
     protected function updateImportLog(int $inserted, int $updated, int $failed, array $errors = []): void

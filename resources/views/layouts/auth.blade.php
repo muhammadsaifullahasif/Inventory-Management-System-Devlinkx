@@ -53,7 +53,7 @@
                     <div class="row flex-1 g-0">
                         <div class="col-lg-6 h-100 my-auto order-1 order-lg-0">
                             <div class="wd-50 bg-white p-2 rounded-circle shadow-lg position-absolute translate-middle top-50 start-50 d-none d-lg-block">
-                                <img src="{{ asset('images/sigma-body-parts-logo.png') }}" alt="" class="img-fluid">
+                                <img src="{{ asset('images/devlinkx-favicon.png') }}" alt="" class="img-fluid">
                             </div>
                             @yield('content')
                         </div>

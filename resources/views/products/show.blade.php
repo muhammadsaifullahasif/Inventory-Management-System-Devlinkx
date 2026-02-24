@@ -148,7 +148,7 @@
                 <h5 class="card-title">Product Image</h5>
             </div>
             <div class="card-body text-center">
-                <img src="{{ asset('uploads') }}/{{ $product->product_image }}" alt="{{ $product->name }}" class="img-fluid rounded" style="max-height: 300px;">
+                <img src="{{ $product->getImageUrl() }}" alt="{{ $product->name }}" class="img-fluid rounded" style="max-height: 300px;">
             </div>
         </div>
         @endif

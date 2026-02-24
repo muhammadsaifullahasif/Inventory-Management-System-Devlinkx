@@ -123,4 +123,28 @@ class Product extends Model
         $channel = $this->sales_channels()->where('sales_channel_id', $salesChannelId)->first();
         return $channel?->pivot?->listing_status;
     }
+
+    /**
+     * Get the product image URL
+     * Handles three sources: external URL, storage path, or uploads path
+     */
+    public function getImageUrl(): ?string
+    {
+        if (empty($this->product_image)) {
+            return null;
+        }
+
+        // If it's already a full URL, return as-is
+        if (filter_var($this->product_image, FILTER_VALIDATE_URL)) {
+            return $this->product_image;
+        }
+
+        // If it starts with 'products/', it's in storage
+        if (str_starts_with($this->product_image, 'products/')) {
+            return asset('storage/' . $this->product_image);
+        }
+
+        // Otherwise, it's in the uploads folder
+        return asset('uploads/' . $this->product_image);
+    }
 }

@@ -17,9 +17,9 @@
                 <button type="submit" class="btn btn-lg btn-primary w-100">Send Password Reset Link</button>
             </div>
         </form>
-        <div class="mt-5 text-muted">
+        {{-- <div class="mt-5 text-muted">
             <span> Don't have an account?</span>
             <a href="{{ route('register') }}" class="fw-bold">Create an Account</a>
-        </div>
+        </div> --}}
     </div>
 @endsection

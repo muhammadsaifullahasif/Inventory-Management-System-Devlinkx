@@ -1442,7 +1442,7 @@ class EbayController extends Controller
         }
 
         if (!empty($product->product_image)) {
-            $itemData['image_url'] = asset('storage/' . $product->product_image);
+            $itemData['image_url'] = $product->getImageUrl();
         }
 
         return $itemData;
