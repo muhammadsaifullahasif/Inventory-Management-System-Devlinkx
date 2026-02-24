@@ -1,29 +1,5 @@
 @extends('layouts.app')
 
-{{-- @section('header')
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 d-inline mr-2">Product Import</h1>
-                    @can('add products')
-                        <a href="{{ route('products.create') }}" class="btn btn-outline-primary btn-sm mb-3">Add Product</a>
-                    @endcan
-                </div><!-- /.col -->
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('products.index') }}">Products</a></li>
-                        <li class="breadcrumb-item active">Product Import</li>
-                    </ol>
-                </div><!-- /.col -->
-            </div><!-- /.row -->
-        </div><!-- /.container-fluid -->
-    </div>
-    <!-- /.content-header -->
-@endsection --}}
-
 @section('header')
     <!-- [ page-header ] start -->
     <div class="page-header">
@@ -157,7 +133,7 @@
                                     <select name="products[rack][]" class="form-select form-control-sm" required>
                                         <option value="">Select Rack</option>
                                         @foreach ($racks as $rack)
-                                            <option value="{{ $rack->id }}" @if($rack->is_default) selected @endif>{{ $rack->name }}</option>
+                                            <option value="{{ $rack->id }}" @if($rack->id === $product['rack_id']) selected @elseif($rack->is_default) @endif>{{ $rack->name }}</option>
                                         @endforeach
                                     </select>
                                 </td>

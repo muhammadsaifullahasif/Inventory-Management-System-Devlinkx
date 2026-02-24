@@ -25,7 +25,8 @@ class ProductController extends Controller
         'barcode' => ['barcode', 'ean', 'upc', 'code'],
         'regular_price' => ['regular_price', 'price', 'base_price'],
         'sale_price' => ['sale_price', 'discount_price', 'offer_price'],
-        'quantity' => ['qty', 'quantity', 'stock', 'stock_qty', 'stock_quantity']
+        'quantity' => ['qty', 'quantity', 'stock', 'stock_qty', 'stock_quantity'],
+        'rack' => ['racks', 'rack', 'racks_id', 'rack_id']
     ];
 
     public function __construct()
@@ -825,6 +826,7 @@ class ProductController extends Controller
                 'height' => $row['height'],
                 'category_id' => $row['category'] ?? '',
                 'brand_id' => $row['brand'] ?? '',
+                'rack_id' => $row['rack'] ?? ''
             ];
         }
 
