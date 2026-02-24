@@ -297,17 +297,23 @@
             </ul>
 
             <!-- Sidebar Info Card -->
-            <div class="card text-center">
-                <div class="card-body">
-                    <i class="feather-box fs-4 text-dark"></i>
-                    <h6 class="mt-4 text-dark fw-bolder">Inventory System</h6>
-                    <p class="fs-11 my-3 text-muted">Manage your products, orders, and warehouse efficiently.</p>
-                    <div class="d-flex gap-2">
-                        <a href="{{ route('products.index') }}" class="btn btn-sm btn-light-brand flex-fill">Products</a>
-                        <a href="{{ route('orders.index') }}" class="btn btn-sm btn-primary flex-fill">Orders</a>
+            @canany(['view orders', 'add orders', 'edit orders', 'delete orders', 'view products', 'add products', 'edit products', 'delete products'])
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="feather-box fs-4 text-dark"></i>
+                        <h6 class="mt-4 text-dark fw-bolder">Inventory System</h6>
+                        <p class="fs-11 my-3 text-muted">Manage your products, orders, and warehouse efficiently.</p>
+                        <div class="d-flex gap-2">
+                            @canany(['view products', 'add products', 'edit products', 'delete products'])
+                                <a href="{{ route('products.index') }}" class="btn btn-sm btn-light-brand flex-fill">Products</a>
+                            @endcan
+                            @canany(['view orders', 'add orders', 'edit orders', 'delete orders'])
+                                <a href="{{ route('orders.index') }}" class="btn btn-sm btn-primary flex-fill">Orders</a>
+                            @endcan
+                        </div>
                     </div>
                 </div>
-            </div>
+            @endcan
         </div>
     </div>
 </nav>
