@@ -198,7 +198,7 @@
                                                 <i class="feather-eye"></i>
                                             </a>
                                             <div class="dropdown">
-                                                <a href="javascript:void(0)" class="avatar-text avatar-md" data-bs-toggle="dropdown" data-bs-offset="0,21" aria-expanded="false">
+                                                <a href="#" role="button" class="avatar-text avatar-md" data-bs-toggle="dropdown" data-bs-offset="0,21" aria-expanded="false">
                                                     <i class="feather feather-more-horizontal"></i>
                                                 </a>
                                                 <ul class="dropdown-menu">

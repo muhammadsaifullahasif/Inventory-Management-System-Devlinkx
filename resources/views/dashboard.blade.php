@@ -53,7 +53,7 @@
                                 </div>
                                 <div>
                                     <span class="text-muted fw-medium d-block">Revenue Today</span>
-                                    <span class="fs-24 fw-bolder d-block">${{ number_format($stats['revenue_today'], 2) }}</span>
+                                    <span class="fs-16 fw-bolder d-block">${{ number_format($stats['revenue_today'], 2) }}</span>
                                 </div>
                             </div>
                             <a href="{{ route('orders.index') }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="View Orders">
@@ -77,7 +77,7 @@
                                 </div>
                                 <div>
                                     <span class="text-muted fw-medium d-block">Revenue This Month</span>
-                                    <span class="fs-24 fw-bolder d-block">${{ number_format($stats['revenue_this_month'], 2) }}</span>
+                                    <span class="fs-16 fw-bolder d-block">${{ number_format($stats['revenue_this_month'], 2) }}</span>
                                 </div>
                             </div>
                             @if($stats['revenue_growth'] > 0)
@@ -109,7 +109,7 @@
                                 </div>
                                 <div>
                                     <span class="text-muted fw-medium d-block">Orders Today</span>
-                                    <span class="fs-24 fw-bolder d-block">{{ $stats['orders_today'] }}</span>
+                                    <span class="fs-16 fw-bolder d-block">{{ $stats['orders_today'] }}</span>
                                 </div>
                             </div>
                             <a href="{{ route('orders.index') }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="View Orders">
@@ -133,7 +133,7 @@
                                 </div>
                                 <div>
                                     <span class="text-muted fw-medium d-block">Orders This Month</span>
-                                    <span class="fs-24 fw-bolder d-block">{{ $stats['orders_this_month'] }}</span>
+                                    <span class="fs-16 fw-bolder d-block">{{ $stats['orders_this_month'] }}</span>
                                 </div>
                             </div>
                             @if($stats['orders_growth'] > 0)

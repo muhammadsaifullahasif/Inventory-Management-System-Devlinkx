@@ -159,3 +159,52 @@ body.modal-open .theme-customizer {
         max-width: 1140px !important;
     }
 }
+
+/* ============================================
+   Dropdown visibility fix for table-responsive
+   The issue: dropdowns inside table-responsive
+   are clipped due to overflow: auto/hidden
+   ============================================ */
+
+/* Allow dropdown menus to overflow the table container */
+.table-responsive {
+    overflow: visible !important;
+}
+
+/* For horizontal scrolling when needed, use wrapper approach */
+.table-responsive-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+}
+
+/* Ensure dropdown menu appears above other content */
+.table-responsive .dropdown-menu {
+    position: absolute;
+    z-index: 1021;
+}
+
+/* Alternative: Use fixed positioning for dropdowns in tables */
+.table .dropdown-menu.show {
+    position: absolute !important;
+    z-index: 1050 !important;
+}
+
+/* ============================================
+   Dropdown display fix
+   Ensure Bootstrap dropdown-menu shows correctly
+   ============================================ */
+
+/* Default hidden state for dropdown menus */
+.dropdown-menu {
+    display: none;
+}
+
+/* Show dropdown when .show class is added */
+.dropdown-menu.show {
+    display: block !important;
+}
+
+/* Ensure dropdown toggle has correct cursor */
+[data-bs-toggle="dropdown"] {
+    cursor: pointer;
+}

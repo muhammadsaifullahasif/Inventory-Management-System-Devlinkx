@@ -289,7 +289,7 @@
     <script src="{{ asset('vendors/js/vendors.min.js') }}"></script>
     <!-- vendors.min.js {always must need to be top} -->
     <script src="{{ asset('vendors/js/bootstrap.min.js') }}"></script>
-    <!-- Bootstrap JS for modals, tooltips, popovers, etc. -->
+    <!-- Bootstrap JS for modals, tooltips, popovers, dropdowns, etc. -->
     <script src="{{ asset('vendors/js/daterangepicker.min.js') }}"></script>
     <script src="{{ asset('vendors/js/apexcharts.min.js') }}"></script>
     <script src="{{ asset('vendors/js/circle-progress.min.js') }}"></script>
@@ -340,6 +340,35 @@
 			var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
 			popoverTriggerList.map(function (popoverTriggerEl) {
 				return new bootstrap.Popover(popoverTriggerEl);
+			});
+
+			// Initialize Bootstrap dropdowns
+			var dropdownTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="dropdown"]'));
+			dropdownTriggerList.map(function (dropdownTriggerEl) {
+				return new bootstrap.Dropdown(dropdownTriggerEl);
+			});
+
+			// Fallback: Manual dropdown toggle for table dropdowns
+			$(document).on('click', '.table [data-bs-toggle="dropdown"]', function(e) {
+				e.preventDefault();
+				e.stopPropagation();
+				var $menu = $(this).next('.dropdown-menu');
+
+				// Close all other dropdowns first
+				$('.dropdown-menu.show').not($menu).removeClass('show');
+				$('[data-bs-toggle="dropdown"]').not(this).attr('aria-expanded', 'false');
+
+				// Toggle this dropdown
+				$menu.toggleClass('show');
+				$(this).attr('aria-expanded', $menu.hasClass('show'));
+			});
+
+			// Close dropdown when clicking outside
+			$(document).on('click', function(e) {
+				if (!$(e.target).closest('.dropdown').length) {
+					$('.dropdown-menu.show').removeClass('show');
+					$('[data-bs-toggle="dropdown"]').attr('aria-expanded', 'false');
+				}
 			});
 		});
 	</script>
