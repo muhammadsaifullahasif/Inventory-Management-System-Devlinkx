@@ -203,35 +203,35 @@
                             <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
                         </a>
                         <ul class="nxl-submenu">
-                            @can('chart-of-accounts-view')
-                            <li class="nxl-item {{ request()->routeIs('chart-of-accounts.*') ? 'active' : '' }}">
-                                <a class="nxl-link" href="{{ route('chart-of-accounts.index') }}">Chart of Accounts</a>
-                            </li>
+                            @canany(['chart-of-accounts-view', 'chart-of-accounts-add', 'chart-of-accounts-edit', 'chart-of-accounts-delete'])
+                                <li class="nxl-item {{ request()->routeIs('chart-of-accounts.*') ? 'active' : '' }}">
+                                    <a class="nxl-link" href="{{ route('chart-of-accounts.index') }}">Chart of Accounts</a>
+                                </li>
                             @endcan
-                            @can('bills-view')
-                            <li class="nxl-item {{ request()->routeIs('bills.*') ? 'active' : '' }}">
-                                <a class="nxl-link" href="{{ route('bills.index') }}">Bills</a>
-                            </li>
+                            @canany(['bills-view', 'bills-add', 'bills-edit', 'bill-delete', 'bill-post'])
+                                <li class="nxl-item {{ request()->routeIs('bills.*') ? 'active' : '' }}">
+                                    <a class="nxl-link" href="{{ route('bills.index') }}">Bills</a>
+                                </li>
                             @endcan
-                            @can('payments-view')
-                            <li class="nxl-item {{ request()->routeIs('payments.*') ? 'active' : '' }}">
-                                <a class="nxl-link" href="{{ route('payments.index') }}">Payments</a>
-                            </li>
+                            @canany(['payments-view', 'payments-add', 'payments-delete'])
+                                <li class="nxl-item {{ request()->routeIs('payments.*') ? 'active' : '' }}">
+                                    <a class="nxl-link" href="{{ route('payments.index') }}">Payments</a>
+                                </li>
                             @endcan
                             @can('journal-entries-view')
-                            <li class="nxl-item {{ request()->routeIs('journal-entries.*') ? 'active' : '' }}">
-                                <a class="nxl-link" href="{{ route('journal-entries.index') }}">Journal Entries</a>
-                            </li>
+                                <li class="nxl-item {{ request()->routeIs('journal-entries.*') ? 'active' : '' }}">
+                                    <a class="nxl-link" href="{{ route('journal-entries.index') }}">Journal Entries</a>
+                                </li>
                             @endcan
                             @can('general-ledger-view')
-                            <li class="nxl-item {{ request()->routeIs('general-ledger.*') ? 'active' : '' }}">
-                                <a class="nxl-link" href="{{ route('general-ledger.index') }}">General Ledger</a>
-                            </li>
+                                <li class="nxl-item {{ request()->routeIs('general-ledger.*') ? 'active' : '' }}">
+                                    <a class="nxl-link" href="{{ route('general-ledger.index') }}">General Ledger</a>
+                                </li>
                             @endcan
                             @can('accounting-reports-view')
-                            <li class="nxl-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
-                                <a class="nxl-link" href="{{ route('reports.index') }}">Reports</a>
-                            </li>
+                                <li class="nxl-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
+                                    <a class="nxl-link" href="{{ route('reports.index') }}">Reports</a>
+                                </li>
                             @endcan
                         </ul>
                     </li>
@@ -245,53 +245,53 @@
 
                     <!-- Users -->
                     @canany(['view users', 'add users', 'edit users', 'delete users'])
-                    <li class="nxl-item nxl-hasmenu {{ request()->routeIs('users.*') ? 'active nxl-trigger' : '' }}">
-                        <a href="javascript:void(0);" class="nxl-link">
-                            <span class="nxl-micon"><i class="feather-users"></i></span>
-                            <span class="nxl-mtext">Users</span>
-                            <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
-                        </a>
-                        <ul class="nxl-submenu">
-                            @canany(['view users', 'edit users', 'delete users'])
-                            <li class="nxl-item {{ request()->routeIs(['users.index', 'users.edit']) ? 'active' : '' }}">
-                                <a class="nxl-link" href="{{ route('users.index') }}">All Users</a>
-                            </li>
-                            @endcan
-                            @can('add users')
-                            <li class="nxl-item {{ request()->routeIs('users.create') ? 'active' : '' }}">
-                                <a class="nxl-link" href="{{ route('users.create') }}">Add User</a>
-                            </li>
-                            @endcan
-                        </ul>
-                    </li>
+                        <li class="nxl-item nxl-hasmenu {{ request()->routeIs('users.*') ? 'active nxl-trigger' : '' }}">
+                            <a href="javascript:void(0);" class="nxl-link">
+                                <span class="nxl-micon"><i class="feather-users"></i></span>
+                                <span class="nxl-mtext">Users</span>
+                                <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                            </a>
+                            <ul class="nxl-submenu">
+                                @canany(['view users', 'edit users', 'delete users'])
+                                    <li class="nxl-item {{ request()->routeIs(['users.index', 'users.edit']) ? 'active' : '' }}">
+                                        <a class="nxl-link" href="{{ route('users.index') }}">All Users</a>
+                                    </li>
+                                @endcan
+                                @can('add users')
+                                    <li class="nxl-item {{ request()->routeIs('users.create') ? 'active' : '' }}">
+                                        <a class="nxl-link" href="{{ route('users.create') }}">Add User</a>
+                                    </li>
+                                @endcan
+                            </ul>
+                        </li>
                     @endcan
 
                     <!-- Roles & Permissions -->
                     @canany(['view roles', 'add roles', 'edit roles', 'delete roles', 'view permissions', 'add permissions', 'edit permissions', 'delete permissions'])
-                    <li class="nxl-item nxl-hasmenu {{ request()->routeIs(['roles.*', 'permissions.*']) ? 'active nxl-trigger' : '' }}">
-                        <a href="javascript:void(0);" class="nxl-link">
-                            <span class="nxl-micon"><i class="feather-shield"></i></span>
-                            <span class="nxl-mtext">Roles & Permissions</span>
-                            <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
-                        </a>
-                        <ul class="nxl-submenu">
-                            @canany(['view roles', 'edit roles', 'delete roles'])
-                            <li class="nxl-item {{ request()->routeIs(['roles.index', 'roles.edit']) ? 'active' : '' }}">
-                                <a class="nxl-link" href="{{ route('roles.index') }}">All Roles</a>
-                            </li>
-                            @endcan
-                            @can('add roles')
-                            <li class="nxl-item {{ request()->routeIs('roles.create') ? 'active' : '' }}">
-                                <a class="nxl-link" href="{{ route('roles.create') }}">Add Role</a>
-                            </li>
-                            @endcan
-                            @canany(['view permissions', 'add permissions', 'edit permissions', 'delete permissions'])
-                            <li class="nxl-item {{ request()->routeIs('permissions.*') ? 'active' : '' }}">
-                                <a class="nxl-link" href="{{ route('permissions.index') }}">Permissions</a>
-                            </li>
-                            @endcan
-                        </ul>
-                    </li>
+                        <li class="nxl-item nxl-hasmenu {{ request()->routeIs(['roles.*', 'permissions.*']) ? 'active nxl-trigger' : '' }}">
+                            <a href="javascript:void(0);" class="nxl-link">
+                                <span class="nxl-micon"><i class="feather-shield"></i></span>
+                                <span class="nxl-mtext">Roles & Permissions</span>
+                                <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                            </a>
+                            <ul class="nxl-submenu">
+                                @canany(['view roles', 'edit roles', 'delete roles'])
+                                    <li class="nxl-item {{ request()->routeIs(['roles.index', 'roles.edit']) ? 'active' : '' }}">
+                                        <a class="nxl-link" href="{{ route('roles.index') }}">All Roles</a>
+                                    </li>
+                                @endcan
+                                @can('add roles')
+                                    <li class="nxl-item {{ request()->routeIs('roles.create') ? 'active' : '' }}">
+                                        <a class="nxl-link" href="{{ route('roles.create') }}">Add Role</a>
+                                    </li>
+                                @endcan
+                                @canany(['view permissions', 'add permissions', 'edit permissions', 'delete permissions'])
+                                    <li class="nxl-item {{ request()->routeIs('permissions.*') ? 'active' : '' }}">
+                                        <a class="nxl-link" href="{{ route('permissions.index') }}">Permissions</a>
+                                    </li>
+                                @endcan
+                            </ul>
+                        </li>
                     @endcan
                 @endcan
             </ul>
