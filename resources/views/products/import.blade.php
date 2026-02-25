@@ -50,18 +50,6 @@
                 <form action="{{ route('products.import.preview') }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     <div class="mb-4">
-                        <label for="warehouse" class="form-label">Warehouse: <span class="text-danger">*</span></label>
-                        <select name="warehouse" id="warehouse" class="form-select @error('warehouse') is-invalid @enderror">
-                            <option value="">Select Warehouse</option>
-                            @foreach ($warehouses as $warehouse)
-                                <option value="{{ $warehouse->id }}">{{ $warehouse->name }}</option>
-                            @endforeach
-                        </select>
-                        @error('warehouse')
-                            <span class="invalid-feedback">{{ $message }}</span>
-                        @enderror
-                    </div>
-                    <div class="mb-4">
                         <label for="upload" class="form-label">Upload File: <span class="text-danger">*</span></label>
                         <input type="file" class="form-control @error('upload') is-invalid @enderror" id="upload" name="upload" required>
                         @error('upload')
@@ -73,6 +61,9 @@
                             <i class="feather-upload me-2"></i>Upload Products
                         </button>
                         <a href="{{ route('products.index') }}" class="btn btn-light-brand">Cancel</a>
+                        <a href="{{ asset('Products.csv') }}" download class="btn btn-outline-secondary">
+                            <i class="feather-download me-2"></i>Download Template
+                        </a>
                     </div>
                     {{-- <button type="submit" class="btn btn-primary">Upload</button> --}}
                 </form>

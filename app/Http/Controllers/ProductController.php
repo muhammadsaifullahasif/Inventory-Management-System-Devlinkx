@@ -765,8 +765,7 @@ class ProductController extends Controller
 
     public function import_products()
     {
-        $warehouses = Warehouse::get();
-        return view('products.import', compact('warehouses'));
+        return view('products.import');
     }
 
     protected function normalizedHeader($header)
@@ -777,15 +776,8 @@ class ProductController extends Controller
     public function import_products_preview(Request $request)
     {
         $request->validate([
-            'warehouse' => 'required|exists:warehouses,id',
             'upload' => 'required|file|mimes:csv,txt',
         ]);
-
-        $warehouse = $request->warehouse;
-
-        $warehouses = Warehouse::where('active_status', '1')->get();
-
-        $racks = Rack::where('warehouse_id', $warehouse)->where('active_status', 1)->get();
 
         $categories = Category::where('active_status', 1)->get();
 
@@ -835,71 +827,112 @@ class ProductController extends Controller
                 'description' => $row['description'],
                 'regular_price' => $row['regular_price'],
                 'sale_price' => $row['sale_price'],
-                'quantity' => $row['quantity'],
                 'weight' => $row['weight'],
                 'length' => $row['length'],
                 'width' => $row['width'],
                 'height' => $row['height'],
                 'category_id' => $row['category'] ?? '',
                 'brand_id' => $row['brand'] ?? '',
-                'rack_id' => $row['rack'] ?? ''
             ];
         }
 
         // dd($products);
 
-        return view('products.import-preview', compact('products', 'warehouses', 'racks', 'warehouse', 'categories', 'brands'));
+        // Store products in session for validation failure redirect
+        session(['import_products' => $products]);
+
+        return view('products.import-preview', compact('products', 'categories', 'brands'));
+    }
+
+    /**
+     * Show import preview page (GET route for validation failure redirect)
+     */
+    public function import_products_preview_show()
+    {
+        $products = session('import_products', []);
+
+        if (empty($products)) {
+            return redirect()->route('products.import')
+                ->with('error', 'No import data found. Please upload a file first.');
+        }
+
+        $categories = Category::where('active_status', 1)->get();
+        $brands = Brand::where('active_status', 1)->get();
+
+        return view('products.import-preview', compact('products', 'categories', 'brands'));
     }
 
     public function import_products_store(Request $request)
     {
-        // $request->validate([
+        // Validate the request
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'products' => 'required|array',
+            'products.name' => 'required|array|min:1',
+            'products.name.*' => 'required|string|max:255',
+            'products.sku' => 'required|array|min:1',
+            'products.sku.*' => 'required|string|max:100',
+            'products.barcode' => 'required|array|min:1',
+            'products.barcode.*' => 'required|string|max:100',
+            'products.category' => 'required|array|min:1',
+            'products.category.*' => 'required|exists:categories,id',
+            'products.regular_price' => 'required|array|min:1',
+            'products.regular_price.*' => 'required|numeric|min:0',
+            'products.sale_price' => 'nullable|array',
+            'products.sale_price.*' => 'nullable|numeric|min:0',
+            'products.brand' => 'nullable|array',
+            'products.brand.*' => 'nullable|exists:brands,id',
+            'products.description' => 'nullable|array',
+            'products.description.*' => 'nullable|string',
+            'products.weight' => 'nullable|array',
+            'products.weight.*' => 'nullable|numeric|min:0',
+            'products.length' => 'nullable|array',
+            'products.length.*' => 'nullable|numeric|min:0',
+            'products.width' => 'nullable|array',
+            'products.width.*' => 'nullable|numeric|min:0',
+            'products.height' => 'nullable|array',
+            'products.height.*' => 'nullable|numeric|min:0',
+        ], [
+            'products.name.*.required' => 'Product name is required for row :position.',
+            'products.sku.*.required' => 'SKU is required for row :position.',
+            'products.barcode.*.required' => 'Barcode is required for row :position.',
+            'products.category.*.required' => 'Category is required for row :position.',
+            'products.category.*.exists' => 'Invalid category selected for row :position.',
+            'products.regular_price.*.required' => 'Regular price is required for row :position.',
+            'products.regular_price.*.numeric' => 'Regular price must be a number for row :position.',
+            'products.regular_price.*.min' => 'Regular price must be at least 0 for row :position.',
+            'products.sale_price.*.numeric' => 'Sale price must be a number for row :position.',
+            'products.brand.*.exists' => 'Invalid brand selected for row :position.',
+        ]);
 
-        //     'warehouse_id' => 'required|exists:warehouses,id',
+        if ($validator->fails()) {
+            // Rebuild products array from request for session storage
+            $productsColumn = $request->products;
+            $productCount = count($productsColumn['name'] ?? []);
+            $products = [];
 
-        //     'products' => 'required|array|min:1',
+            for ($i = 0; $i < $productCount; $i++) {
+                $products[] = [
+                    'name' => $productsColumn['name'][$i] ?? null,
+                    'description' => $productsColumn['description'][$i] ?? null,
+                    'category_id' => $productsColumn['category'][$i] ?? null,
+                    'brand_id' => $productsColumn['brand'][$i] ?? null,
+                    'sku' => $productsColumn['sku'][$i] ?? null,
+                    'barcode' => $productsColumn['barcode'][$i] ?? null,
+                    'regular_price' => $productsColumn['regular_price'][$i] ?? null,
+                    'sale_price' => $productsColumn['sale_price'][$i] ?? null,
+                    'weight' => $productsColumn['weight'][$i] ?? null,
+                    'length' => $productsColumn['length'][$i] ?? null,
+                    'width' => $productsColumn['width'][$i] ?? null,
+                    'height' => $productsColumn['height'][$i] ?? null,
+                ];
+            }
 
-        //     'products.name' => 'required|array|min:1',
-        //     'products.name.*' => 'required|string|max:255',
+            // Store in session so the GET route can display the form again
+            session(['import_products' => $products]);
 
-        //     'products.description' => 'required|array|min:1',
-        //     'products.description.*' => 'nullable|string',
-
-        //     'products.category' => 'required|array|min:1',
-        //     'products.category.*' => 'required|exists:categories,id',
-
-        //     'products.brand' => 'required|array|min:1',
-        //     'products.brand.*' => 'required|exists:brands,id',
-
-        //     'products.sku' => 'required|array|min:1',
-        //     'products.sku.*' => 'required|string|max:100|distinct|unique:products,sku',
-
-        //     'products.barcode' => 'required|array|min:1',
-        //     'products.barcode.*' => 'required|string|max:100|distinct|unique:products,barcode',
-
-        //     'products.regular_price' => 'required|array|min:1',
-        //     'products.regular_price.*' => 'required|numeric|min:0',
-
-        //     'products.sale_price' => 'required|array|min:1',
-        //     'products.sale_price.*' => 'nullable|numeric|min:0',
-
-        //     'products.quantity' => 'required|array|min:1',
-        //     'products.quantity.*' => 'nullable|numeric|min:0',
-
-        //     'products.weight' => 'required|array|min:1',
-        //     'products.weight.*' => 'nullable|numeric',
-
-        //     'products.length' => 'required|array|min:1',
-        //     'products.length.*' => 'nullable|numeric',
-
-        //     'products.width' => 'required|array|min:1',
-        //     'products.width.*' => 'nullable|numeric',
-
-        //     'products.height' => 'required|array|min:1',
-        //     'products.height.*' => 'nullable|numeric',
-        // ]);
-
-        // dd($request->all());
+            return redirect()->route('products.import.preview.show')
+                ->withErrors($validator);
+        }
 
         $productsColumn = $request->products;
 
@@ -919,12 +952,10 @@ class ProductController extends Controller
                 'barcode' => $productsColumn['barcode'][$i] ?? null,
                 'regular_price' => $productsColumn['regular_price'][$i] ?? null,
                 'sale_price' => $productsColumn['sale_price'][$i] ?? null,
-                'quantity' => $productsColumn['quantity'][$i] ?? null,
                 'weight' => $productsColumn['weight'][$i] ?? null,
                 'length' => $productsColumn['length'][$i] ?? null,
                 'width' => $productsColumn['width'][$i] ?? null,
                 'height' => $productsColumn['height'][$i] ?? null,
-                'rack' => $productsColumn['rack'][$i] ?? null,
             ];
         }
 
@@ -979,17 +1010,17 @@ class ProductController extends Controller
                 }
 
                 // Add stock using update with DB::raw or create
-                $productExists->product_stocks()
-                    ->where('product_id', $productExists->id)
-                    ->where('warehouse_id', $request->warehouse_id)
-                    ->where('rack_id', $product['rack'])
-                    ->update(['quantity' => DB::raw('quantity + ' . $product['quantity'])])
-                    ?: $productExists->product_stocks()->create([
-                        'product_id' => $productExists->id,
-                        'warehouse_id' => $request->warehouse_id,
-                        'rack_id' => $product['rack'],
-                        'quantity' => $product['quantity']
-                    ]);
+                // $productExists->product_stocks()
+                //     ->where('product_id', $productExists->id)
+                //     ->where('warehouse_id', $request->warehouse_id)
+                //     ->where('rack_id', $product['rack'])
+                //     ->update(['quantity' => DB::raw('quantity + ' . $product['quantity'])])
+                //     ?: $productExists->product_stocks()->create([
+                //         'product_id' => $productExists->id,
+                //         'warehouse_id' => $request->warehouse_id,
+                //         'rack_id' => $product['rack'],
+                //         'quantity' => $product['quantity']
+                //     ]);
             }
 
             DB::commit();

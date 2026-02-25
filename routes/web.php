@@ -168,6 +168,7 @@ Route::middleware(['auth'])->group(function () {
     // Products
     Route::get('/products/import', [ProductController::class, 'import_products'])->name('products.import');
     Route::post('/products/import/preview', [ProductController::class, 'import_products_preview'])->name('products.import.preview');
+    Route::get('/products/import/preview', [ProductController::class, 'import_products_preview_show'])->name('products.import.preview.show');
     Route::post('/products/import/store', [ProductController::class, 'import_products_store'])->name('products.import.store');
     Route::get('/products/bulk-update', [ProductController::class, 'bulkUpdateForm'])->name('products.bulk-update.form');
     Route::post('/products/bulk-update', [ProductController::class, 'bulkUpdate'])->name('products.bulk-update');

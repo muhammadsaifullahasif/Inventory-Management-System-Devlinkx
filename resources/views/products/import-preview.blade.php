@@ -50,9 +50,19 @@
 @endpush
 
 @section('content')
+    @if ($errors->any())
+        <div class="alert alert-danger mb-3">
+            <h6 class="alert-heading fw-bold mb-2"><i class="feather-alert-circle me-2"></i>Validation Errors</h6>
+            <ul class="mb-0 ps-3">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     <form action="{{ route('products.import.store') }}" class="card" method="POST">
         @csrf
-        <input type="hidden" name="warehouse_id" value="{{ $warehouse }}">
         <div class="card-header px-2">
             <h5 class="card-title">Products Import Preview</h5>
         </div>
@@ -61,6 +71,7 @@
                 <table class="table table-striped table-hover table-sm">
                     <thead>
                         <tr>
+                            <th>#</th>
                             <th style="width: 15rem;">Name</th>
                             <th style="width: 15rem;">Description</th>
                             <th style="width: 8rem;">Category</th>
@@ -69,36 +80,36 @@
                             <th style="width: 8rem;">Barcode</th>
                             <th style="width: 5rem;">Regular Price</th>
                             <th style="width: 5rem;">Sale Price</th>
-                            <th style="width: 5rem;">Qty</th>
                             <th style="width: 5rem;">Weight</th>
                             <th style="width: 5rem;">Length</th>
                             <th style="width: 5rem;">Width</th>
                             <th style="width: 5rem;">Height</th>
-                            <th style="width: 8rem;">Rack</th>
+                            <th></th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="importPreviewTable">
                         @forelse ($products as $product)
                             <tr>
+                                <td>{{ $loop->index + 1 }}</td>
                                 <td>
                                     <input type="text" name="products[name][]" value="{{ $product['name'] }}" class="form-control form-control-sm" required>
                                 </td>
                                 <td>
-                                    <textarea name="products[description][]" rows="3" class="form-control form-control-sm" required>{{ $product['description'] }}</textarea>
+                                    <textarea name="products[description][]" rows="3" class="form-control form-control-sm">{{ $product['description'] }}</textarea>
                                 </td>
                                 <td>
                                     <select name="products[category][]" class="form-select form-control-sm" required>
                                         <option value="">Select Category</option>
                                         @foreach ($categories as $category)
-                                            <option value="{{ $category->id }}" @if($category->id === $product['category_id']) selected @endif>{{ $category->name }}</option>
+                                            <option value="{{ $category->id }}" @if($category->id == $product['category_id']) selected @endif>{{ $category->name }}</option>
                                         @endforeach
                                     </select>
                                 </td>
                                 <td>
-                                    <select name="products[brand][]" class="form-select form-control-sm" required>
+                                    <select name="products[brand][]" class="form-select form-control-sm">
                                         <option value="">Select Brand</option>
                                         @foreach ($brands as $brand)
-                                            <option value="{{ $brand->id }}" @if($brand->id === $product['brand_id']) selected @endif>{{ $brand->name }}</option>
+                                            <option value="{{ $brand->id }}" @if($brand->id == $product['brand_id']) selected @endif>{{ $brand->name }}</option>
                                         @endforeach
                                     </select>
                                 </td>
@@ -109,13 +120,10 @@
                                     <input type="text" name="products[barcode][]" value="{{ $product['barcode'] }}" class="form-control form-control-sm" required>
                                 </td>
                                 <td>
-                                    <input type="text" name="products[regular_price][]" value="{{ $product['regular_price'] }}" class="form-control form-control-sm" required>
+                                    <input type="text" name="products[regular_price][]" value="{{ $product['regular_price'] }}" class="form-control form-control-sm">
                                 </td>
                                 <td>
                                     <input type="text" name="products[sale_price][]" value="{{ $product['sale_price'] }}" class="form-control form-control-sm">
-                                </td>
-                                <td>
-                                    <input type="number" name="products[quantity][]" value="{{ $product['quantity'] }}" class="form-control form-control-sm" required>
                                 </td>
                                 <td>
                                     <input type="number" name="products[weight][]" value="{{ $product['weight'] }}" class="form-control form-control-sm">
@@ -129,18 +137,17 @@
                                 <td>
                                     <input type="number" name="products[height][]" value="{{ $product['height'] }}" class="form-control form-control-sm">
                                 </td>
-                                <td>
-                                    <select name="products[rack][]" class="form-select form-control-sm" required>
-                                        <option value="">Select Rack</option>
-                                        @foreach ($racks as $rack)
-                                            <option value="{{ $rack->id }}" @if($rack->id === $product['rack_id']) selected @elseif($rack->is_default) selected @endif>{{ $rack->name }}</option>
-                                        @endforeach
-                                    </select>
+                                <td class="text-end">
+                                    <div class="hstack gap-2 justify-content-center">
+                                        <a href="javascript:void(0)" class="avatar-text avatar-md text-danger delete-btn" data-bs-toggle="tooltip" title data-bs-original-title="Remove Item">
+                                            <i class="feather-trash-2"></i>
+                                        </a>
+                                    </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="12" class="text-center">No Product Found.</td>
+                                <td colspan="11" class="text-center">No Product Found.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -157,3 +164,13 @@
         </div>
     </form>
 @endsection
+
+@push('scripts')
+    <script>
+        $(document).ready(function(){
+            $(document).on('click', '.delete-btn', function(){
+                $(this).closest('tr').remove();
+            });
+        });
+    </script>
+@endpush
