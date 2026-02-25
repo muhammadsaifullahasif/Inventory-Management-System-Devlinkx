@@ -768,6 +768,19 @@ class ProductController extends Controller
         return view('products.import');
     }
 
+    public function downloadImportTemplate()
+    {
+        $filePath = public_path('Products.csv');
+
+        if (!file_exists($filePath)) {
+            abort(404, 'Template file not found.');
+        }
+
+        return response()->download($filePath, 'Products.csv', [
+            'Content-Type' => 'text/csv',
+        ]);
+    }
+
     protected function normalizedHeader($header)
     {
         return strtolower(trim(str_replace([' ', '#'], ['_', ''], $header)));
