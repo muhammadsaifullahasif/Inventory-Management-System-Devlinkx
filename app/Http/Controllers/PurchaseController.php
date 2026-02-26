@@ -2,22 +2,38 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\ProductController;
+use App\Imports\PurchaseImport;
 use App\Models\Product;
 use App\Models\Purchase;
+use App\Models\Rack;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class PurchaseController extends Controller
 {
+    protected $aliases = [
+        'purchase_number' => ['purchase_number', 'po_number', 'po', 'purchase_no', 'purchaseno'],
+        'supplier' => ['supplier', 'supplier_id', 'supplier_name', 'vendor', 'vendor_name'],
+        'warehouse' => ['warehouse', 'warehouse_id', 'warehouse_name', 'wh', 'wh_name'],
+        'rack' => ['rack', 'rack_id', 'rack_name'],
+        'sku' => ['sku', 'product_sku', 'item_sku'],
+        'quantity' => ['quantity', 'qty', 'amount'],
+        'price' => ['price', 'unit_price', 'cost', 'unit_cost'],
+        'note' => ['note', 'notes', 'product_note', 'item_note'],
+        'purchase_note' => ['purchase_note', 'po_note', 'po_notes'],
+    ];
+
     public function __construct()
     {
-        $this->middleware(PermissionMiddleware::using('view purchases'), ['only' => ['index']]);
-        $this->middleware(PermissionMiddleware::using('add purchases'), ['only' => ['create', 'store']]);
-        $this->middleware(PermissionMiddleware::using('edit purchases'), ['only' => ['edit', 'update']]);
+        $this->middleware(PermissionMiddleware::using('view purchases'), ['only' => ['index', 'show']]);
+        $this->middleware(PermissionMiddleware::using('add purchases'), ['only' => ['create', 'store', 'import_purchases', 'import_purchase_preview', 'import_purchases_store']]);
+        $this->middleware(PermissionMiddleware::using('edit purchases'), ['only' => ['edit', 'update', 'receiveStock', 'processReceiveStock']]);
         $this->middleware(PermissionMiddleware::using('delete purchases'), ['only' => ['destroy']]);
     }
 
@@ -78,6 +94,7 @@ class PurchaseController extends Controller
 
     /**
      * Store a newly created resource in storage.
+     * Note: Stock is NOT added here. Stock is added when items are received via receiveStock().
      */
     public function store(Request $request)
     {
@@ -94,82 +111,40 @@ class PurchaseController extends Controller
         ]);
 
         try {
-            // Create the purchase
+            DB::beginTransaction();
+
+            // Create the purchase with pending status
             $purchase = Purchase::create([
                 'purchase_number' => $request->purchase_number,
-                'supplier_id' => $request->supplier_id,
-                'warehouse_id' => $request->warehouse_id,
-                'purchase_note' => $request->purchase_note ?? null,
-                'purchase_status' => 'received',
+                'supplier_id'     => $request->supplier_id,
+                'warehouse_id'    => $request->warehouse_id,
+                'purchase_note'   => $request->purchase_note ?? null,
+                'purchase_status' => 'pending',
             ]);
 
-            // Create purchase items
+            // Create purchase items (no stock added yet - will be added on receive)
             foreach ($request->products as $productInput) {
                 $product = Product::find($productInput['id']);
 
-                $incomingQty  = (float) $productInput['quantity'];
-                $purchasePrice = (float) $productInput['price'];
-                $warehouseId  = $request->warehouse_id;
-                $rackId       = $productInput['rack'];
-
-                // Snapshot current stock record BEFORE modifying it
-                $existingStock = $product->product_stocks()
-                    ->where('warehouse_id', $warehouseId)
-                    ->where('rack_id', $rackId)
-                    ->first();
-
-                $prevQty     = $existingStock ? (float) $existingStock->quantity : 0;
-                $prevAvgCost = $existingStock ? (float) $existingStock->avg_cost  : 0;
-
-                // Weighted average cost: (old_qty * old_avg + new_qty * purchase_price) / (old_qty + new_qty)
-                $newTotalQty = $prevQty + $incomingQty;
-                $newAvgCost  = $newTotalQty > 0
-                    ? (($prevQty * $prevAvgCost) + ($incomingQty * $purchasePrice)) / $newTotalQty
-                    : $purchasePrice;
-
                 $purchase->purchase_items()->create([
                     'product_id'        => $product->id,
-                    'barcode'           => $product->barcode,
-                    'sku'               => $product->sku,
+                    'barcode'           => $product->barcode ?? '',
+                    'sku'               => $product->sku ?? '',
                     'name'              => $product->name,
-                    'quantity'          => $incomingQty,
-                    'previous_quantity' => $prevQty,
-                    'avg_cost'          => round($newAvgCost, 4),
-                    'price'             => $purchasePrice,
+                    'quantity'          => (float) $productInput['quantity'],
+                    'received_quantity' => 0,
+                    'price'             => (float) $productInput['price'],
                     'note'              => $productInput['note'] ?? null,
-                    'rack_id'           => $rackId,
+                    'rack_id'           => $productInput['rack'],
                 ]);
-
-                // Add stock and persist previous_quantity + avg_cost
-                if ($existingStock) {
-                    $existingStock->previous_quantity = $prevQty;
-                    $existingStock->quantity          = $prevQty + $incomingQty;
-                    $existingStock->avg_cost          = round($newAvgCost, 4);
-                    $existingStock->save();
-                } else {
-                    $product->product_stocks()->create([
-                        'product_id'        => $product->id,
-                        'warehouse_id'      => $warehouseId,
-                        'rack_id'           => $rackId,
-                        'quantity'          => $incomingQty,
-                        'previous_quantity' => 0,
-                        'avg_cost'          => round($newAvgCost, 4),
-                        'active_status'     => '1',
-                        'delete_status'     => '0',
-                    ]);
-                }
-
-                // Sync inventory to all linked sales channels
-                Log::info('Triggering inventory sync after purchase creation', [
-                    'product_id' => $product->id,
-                    'product_sku' => $product->sku,
-                    'quantity_added' => $productInput['quantity'],
-                ]);
-                ProductController::syncProductInventoryToChannels($product);
             }
 
-            return redirect()->route('purchases.index')->with('success', 'Purchase created successfully.');
+            DB::commit();
+
+            return redirect()->route('purchases.index')->with('success', 'Purchase created successfully. Use "Receive Stock" to add items to inventory.');
         } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Purchase creation failed', ['error' => $e->getMessage()]);
             return redirect()->back()->with('error', 'An error occurred while creating the purchase: ' . $e->getMessage())->withInput();
         }
     }
@@ -197,6 +172,8 @@ class PurchaseController extends Controller
 
     /**
      * Update the specified resource in storage.
+     * Note: Items that have been received (received_quantity > 0) cannot be modified.
+     * Stock adjustments only happen via receive/unreceive operations.
      */
     public function update(Request $request, string $id)
     {
@@ -216,12 +193,18 @@ class PurchaseController extends Controller
         try {
             DB::beginTransaction();
 
-            // Update the purchase
-            $purchase = Purchase::findOrFail($id);
+            $purchase = Purchase::with('purchase_items')->findOrFail($id);
 
-            // Store old warehouse ID before updating
-            $oldPurchaseWarehouseId = $purchase->warehouse_id;
+            // Check if any items have been received - prevent warehouse change if so
+            $hasReceivedItems = $purchase->purchase_items->where('received_quantity', '>', 0)->count() > 0;
 
+            if ($hasReceivedItems && $purchase->warehouse_id != $request->warehouse_id) {
+                return redirect()->back()
+                    ->with('error', 'Cannot change warehouse after items have been received.')
+                    ->withInput();
+            }
+
+            // Update the purchase details
             $purchase->purchase_number = $request->purchase_number;
             $purchase->supplier_id = $request->supplier_id;
             $purchase->warehouse_id = $request->warehouse_id;
@@ -229,7 +212,6 @@ class PurchaseController extends Controller
             $purchase->save();
 
             $existingItemIds = [];
-            $productsToSync = [];
 
             foreach ($request->products as $productInput) {
                 $product = Product::find($productInput['id']);
@@ -238,186 +220,96 @@ class PurchaseController extends Controller
                 if ($itemId && $itemId != '') {
                     // Update existing purchase item
                     $purchaseItem = $purchase->purchase_items()->find($itemId);
+
                     if ($purchaseItem) {
-                        $oldQuantity    = (float) $purchaseItem->quantity;
-                        $oldRackId      = $purchaseItem->rack_id;
-                        $oldWarehouseId = $oldPurchaseWarehouseId;
+                        $receivedQty = (float) $purchaseItem->received_quantity;
+                        $newQuantity = (float) $productInput['quantity'];
 
-                        $newQuantity    = (float) $productInput['quantity'];
-                        $newRackId      = $productInput['rack'];
-                        $newWarehouseId = $request->warehouse_id;
-                        $purchasePrice  = (float) $productInput['price'];
+                        // Cannot reduce quantity below what's already received
+                        if ($newQuantity < $receivedQty) {
+                            DB::rollBack();
+                            return redirect()->back()
+                                ->with('error', "Cannot reduce quantity for '{$product->name}' below received amount ({$receivedQty}).")
+                                ->withInput();
+                        }
 
-                        // Step 1: Subtract old quantity from old location and recalculate avg_cost
-                        $oldStock = $product->product_stocks()
-                            ->where('warehouse_id', $oldWarehouseId)
-                            ->where('rack_id', $oldRackId)
-                            ->first();
-
-                        if ($oldStock) {
-                            $prevQtyOld = (float) $oldStock->quantity;
-                            $oldStock->quantity -= $oldQuantity;
-                            if ($oldStock->quantity <= 0) {
-                                $oldStock->delete();
-                                $oldStock = null;
-                            } else {
-                                $oldStock->previous_quantity = $prevQtyOld;
-                                $oldStock->save();
+                        // Cannot change product or rack if already received
+                        if ($receivedQty > 0) {
+                            if ($purchaseItem->product_id != $product->id) {
+                                DB::rollBack();
+                                return redirect()->back()
+                                    ->with('error', "Cannot change product for items already received.")
+                                    ->withInput();
+                            }
+                            if ($purchaseItem->rack_id != $productInput['rack']) {
+                                DB::rollBack();
+                                return redirect()->back()
+                                    ->with('error', "Cannot change rack for '{$product->name}' after items received. Received: {$receivedQty}")
+                                    ->withInput();
                             }
                         }
 
-                        // Step 2: Add new quantity to new location and recalculate avg_cost
-                        $newStock = $product->product_stocks()
-                            ->where('warehouse_id', $newWarehouseId)
-                            ->where('rack_id', $newRackId)
-                            ->first();
-
-                        $prevQtyNew     = $newStock ? (float) $newStock->quantity : 0;
-                        $prevAvgCostNew = $newStock ? (float) $newStock->avg_cost  : 0;
-                        $newTotalQty    = $prevQtyNew + $newQuantity;
-                        $newAvgCost     = $newTotalQty > 0
-                            ? (($prevQtyNew * $prevAvgCostNew) + ($newQuantity * $purchasePrice)) / $newTotalQty
-                            : $purchasePrice;
-
-                        if ($newStock) {
-                            $newStock->previous_quantity = $prevQtyNew;
-                            $newStock->quantity          = $prevQtyNew + $newQuantity;
-                            $newStock->avg_cost          = round($newAvgCost, 4);
-                            $newStock->save();
-                        } else {
-                            $product->product_stocks()->create([
-                                'product_id'        => $product->id,
-                                'warehouse_id'      => $newWarehouseId,
-                                'rack_id'           => $newRackId,
-                                'quantity'          => $newQuantity,
-                                'previous_quantity' => 0,
-                                'avg_cost'          => round($newAvgCost, 4),
-                                'active_status'     => '1',
-                                'delete_status'     => '0',
-                            ]);
-                        }
-
                         $purchaseItem->update([
-                            'product_id'        => $product->id,
-                            'barcode'           => $product->barcode,
-                            'sku'               => $product->sku,
-                            'name'              => $product->name,
-                            'quantity'          => $newQuantity,
-                            'previous_quantity' => $prevQtyNew,
-                            'avg_cost'          => round($newAvgCost, 4),
-                            'price'             => $purchasePrice,
-                            'note'              => $productInput['note'] ?? null,
-                            'rack_id'           => $newRackId,
+                            'product_id' => $product->id,
+                            'barcode'    => $product->barcode ?? '',
+                            'sku'        => $product->sku ?? '',
+                            'name'       => $product->name,
+                            'quantity'   => $newQuantity,
+                            'price'      => (float) $productInput['price'],
+                            'note'       => $productInput['note'] ?? null,
+                            'rack_id'    => $productInput['rack'],
                         ]);
 
-                        $productsToSync[$product->id] = $product;
                         $existingItemIds[] = $itemId;
                     }
                 } else {
                     // Create new purchase item
-                    $incomingQty   = (float) $productInput['quantity'];
-                    $purchasePrice = (float) $productInput['price'];
-                    $warehouseId   = $request->warehouse_id;
-                    $rackId        = $productInput['rack'];
-
-                    $existingStock = $product->product_stocks()
-                        ->where('warehouse_id', $warehouseId)
-                        ->where('rack_id', $rackId)
-                        ->first();
-
-                    $prevQty     = $existingStock ? (float) $existingStock->quantity : 0;
-                    $prevAvgCost = $existingStock ? (float) $existingStock->avg_cost  : 0;
-
-                    $newTotalQty = $prevQty + $incomingQty;
-                    $newAvgCost  = $newTotalQty > 0
-                        ? (($prevQty * $prevAvgCost) + ($incomingQty * $purchasePrice)) / $newTotalQty
-                        : $purchasePrice;
-
                     $newItem = $purchase->purchase_items()->create([
                         'product_id'        => $product->id,
-                        'barcode'           => $product->barcode,
-                        'sku'               => $product->sku,
+                        'barcode'           => $product->barcode ?? '',
+                        'sku'               => $product->sku ?? '',
                         'name'              => $product->name,
-                        'quantity'          => $incomingQty,
-                        'previous_quantity' => $prevQty,
-                        'avg_cost'          => round($newAvgCost, 4),
-                        'price'             => $purchasePrice,
+                        'quantity'          => (float) $productInput['quantity'],
+                        'received_quantity' => 0,
+                        'price'             => (float) $productInput['price'],
                         'note'              => $productInput['note'] ?? null,
-                        'rack_id'           => $rackId,
+                        'rack_id'           => $productInput['rack'],
                     ]);
 
-                    if ($existingStock) {
-                        $existingStock->previous_quantity = $prevQty;
-                        $existingStock->quantity          = $prevQty + $incomingQty;
-                        $existingStock->avg_cost          = round($newAvgCost, 4);
-                        $existingStock->save();
-                    } else {
-                        $product->product_stocks()->create([
-                            'product_id'        => $product->id,
-                            'warehouse_id'      => $warehouseId,
-                            'rack_id'           => $rackId,
-                            'quantity'          => $incomingQty,
-                            'previous_quantity' => 0,
-                            'avg_cost'          => round($newAvgCost, 4),
-                            'active_status'     => '1',
-                            'delete_status'     => '0',
-                        ]);
-                    }
-
-                    $productsToSync[$product->id] = $product;
                     $existingItemIds[] = $newItem->id;
                 }
             }
 
-            // Handle removed purchase items - decrease stock before deleting
+            // Handle removed purchase items - only allow if not received
             $removedItems = $purchase->purchase_items()->whereNotIn('id', $existingItemIds)->get();
+
             foreach ($removedItems as $removedItem) {
-                $removedProduct = Product::find($removedItem->product_id);
-                if ($removedProduct) {
-                    $stock = $removedProduct->product_stocks()
-                        ->where('warehouse_id', $oldPurchaseWarehouseId)
-                        ->where('rack_id', $removedItem->rack_id)
-                        ->first();
-
-                    if ($stock) {
-                        $stock->quantity -= $removedItem->quantity;
-                        if ($stock->quantity <= 0) {
-                            $stock->delete();
-                        } else {
-                            $stock->save();
-                        }
-                    }
-
-                    $productsToSync[$removedProduct->id] = $removedProduct;
-
-                    Log::info('Stock decreased for removed purchase item', [
-                        'product_id' => $removedProduct->id,
-                        'product_sku' => $removedProduct->sku,
-                        'quantity_removed' => $removedItem->quantity,
-                        'warehouse_id' => $oldPurchaseWarehouseId,
-                        'rack_id' => $removedItem->rack_id,
-                    ]);
+                if ((float) $removedItem->received_quantity > 0) {
+                    DB::rollBack();
+                    return redirect()->back()
+                        ->with('error', "Cannot remove '{$removedItem->name}' - {$removedItem->received_quantity} units already received.")
+                        ->withInput();
                 }
             }
 
-            // Delete the removed purchase items
+            // Delete the removed purchase items (only unreceived items reach here)
             $purchase->purchase_items()->whereNotIn('id', $existingItemIds)->delete();
 
-            // Sync inventory to all linked sales channels for affected products
-            foreach ($productsToSync as $productToSync) {
-                ProductController::syncProductInventoryToChannels($productToSync);
-            }
+            // Update purchase status
+            $this->updatePurchaseStatus($purchase);
 
             DB::commit();
             return redirect()->route('purchases.index')->with('success', 'Purchase updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Purchase update failed', ['error' => $e->getMessage()]);
             return redirect()->back()->with('error', 'An error occurred while updating the purchase: ' . $e->getMessage())->withInput();
         }
     }
 
     /**
      * Remove the specified resource from storage.
+     * Only subtracts RECEIVED quantities from stock (not ordered quantities).
      */
     public function destroy(string $id)
     {
@@ -427,8 +319,15 @@ class PurchaseController extends Controller
             $purchase = Purchase::with('purchase_items')->findOrFail($id);
             $productsToSync = [];
 
-            // Decrease stock for all purchase items before deleting
+            // Only decrease stock for RECEIVED quantities
             foreach ($purchase->purchase_items as $purchaseItem) {
+                $receivedQty = (float) $purchaseItem->received_quantity;
+
+                // Skip if nothing was received
+                if ($receivedQty <= 0) {
+                    continue;
+                }
+
                 $product = Product::find($purchaseItem->product_id);
                 if ($product) {
                     // Decrease stock from the corresponding warehouse and rack
@@ -438,7 +337,7 @@ class PurchaseController extends Controller
                         ->first();
 
                     if ($stock) {
-                        $stock->quantity -= $purchaseItem->quantity;
+                        $stock->quantity = max(0, (float) $stock->quantity - $receivedQty);
                         if ($stock->quantity <= 0) {
                             $stock->delete();
                         } else {
@@ -450,17 +349,17 @@ class PurchaseController extends Controller
                     $productsToSync[$product->id] = $product;
 
                     Log::info('Stock decreased for deleted purchase', [
-                        'purchase_id' => $purchase->id,
-                        'product_id' => $product->id,
-                        'product_sku' => $product->sku,
-                        'quantity_removed' => $purchaseItem->quantity,
-                        'warehouse_id' => $purchase->warehouse_id,
-                        'rack_id' => $purchaseItem->rack_id,
+                        'purchase_id'      => $purchase->id,
+                        'product_id'       => $product->id,
+                        'product_sku'      => $product->sku,
+                        'received_removed' => $receivedQty,
+                        'warehouse_id'     => $purchase->warehouse_id,
+                        'rack_id'          => $purchaseItem->rack_id,
                     ]);
                 }
             }
 
-            // Delete the purchase (this will cascade delete purchase_items if configured)
+            // Delete the purchase (this will cascade delete purchase_items)
             $purchase->delete();
 
             DB::commit();
@@ -470,52 +369,423 @@ class PurchaseController extends Controller
                 ProductController::syncProductInventoryToChannels($productToSync);
             }
 
-            return redirect()->route('purchases.index')->with('success', 'Purchase deleted successfully and stock updated.');
+            return redirect()->route('purchases.index')->with('success', 'Purchase deleted successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Purchase deletion failed', ['error' => $e->getMessage()]);
             return redirect()->back()->with('error', 'An error occurred while deleting the purchase: ' . $e->getMessage());
         }
     }
 
-    public function purchase_receive_stock(Request $request, string $id)
+    /**
+     * Show the receive stock form for a purchase.
+     */
+    public function receiveStock(string $id)
+    {
+        $purchase = Purchase::with(['supplier', 'warehouse', 'purchase_items.product', 'purchase_items.rack'])
+            ->findOrFail($id);
+
+        // Get racks for the purchase's warehouse
+        $racks = Rack::where('warehouse_id', $purchase->warehouse_id)
+            ->where('active_status', '1')
+            ->where('delete_status', '0')
+            ->get();
+
+        return view('purchases.receive', compact('purchase', 'racks'));
+    }
+
+    /**
+     * Process the receive stock form.
+     */
+    public function processReceiveStock(Request $request, string $id)
     {
         $request->validate([
-            'product_id' => 'required|array|min:1',
-            'product_id.*' => 'required|exists:products,id',
-            'quantity' => 'required|array|min:1',
-            'quantity.*' => 'required|numeric|min:1',
-            'rack_id' => 'required|array',
-            'rack_id.*' => 'required|exists:racks,id',
+            'items' => 'required|array|min:1',
+            'items.*.item_id' => 'required|exists:purchase_items,id',
+            'items.*.receive_quantity' => 'nullable|numeric|min:0',
+            'items.*.rack_id' => 'nullable|exists:racks,id',
         ]);
 
         try {
-            $purchase = Purchase::findOrFail($id);
+            DB::beginTransaction();
 
+            $purchase = Purchase::with('purchase_items')->findOrFail($id);
             $productsToSync = [];
+            $itemsReceived = 0;
 
-            foreach ($request->product_id as $index => $product_id) {
-                $product = Product::find($product_id);
-                $rack_id = $request->rack_id[$index];
+            foreach ($request->items as $itemData) {
+                $receiveQty = (float) $itemData['receive_quantity'];
 
-                $product->product_stocks()->upsert(
-                    [
-                        ['product_id' => $product->id,'warehouse_id' => $purchase->warehouse_id, 'rack_id' => $rack_id, 'quantity' => $request->quantity[$index]],
-                    ],
-                    ['product_id', 'warehouse_id', 'rack_id'],
-                    ['quantity' => DB::raw("product_stocks.quantity + VALUES(quantity)")]
-                );
+                // Skip items with 0 receive quantity
+                if ($receiveQty <= 0) {
+                    continue;
+                }
 
-                $productsToSync[$product->id] = $product;
+                $purchaseItem = $purchase->purchase_items->find($itemData['item_id']);
+                if (!$purchaseItem) {
+                    continue;
+                }
+
+                // Calculate how much can still be received
+                $pendingQty = (float) $purchaseItem->quantity - (float) $purchaseItem->received_quantity;
+                $actualReceiveQty = min($receiveQty, $pendingQty);
+
+                if ($actualReceiveQty <= 0) {
+                    continue;
+                }
+
+                // Use the specified rack or fall back to the original rack
+                $rackId = $itemData['rack_id'] ?? $purchaseItem->rack_id;
+
+                // Update purchase item received quantity
+                $purchaseItem->received_quantity = (float) $purchaseItem->received_quantity + $actualReceiveQty;
+                $purchaseItem->received_at = now();
+                $purchaseItem->save();
+
+                // Update product stock
+                $product = Product::find($purchaseItem->product_id);
+                if ($product) {
+                    $existingStock = $product->product_stocks()
+                        ->where('warehouse_id', $purchase->warehouse_id)
+                        ->where('rack_id', $rackId)
+                        ->first();
+
+                    if ($existingStock) {
+                        $existingStock->quantity = (float) $existingStock->quantity + $actualReceiveQty;
+                        $existingStock->save();
+                    } else {
+                        $product->product_stocks()->create([
+                            'warehouse_id'  => $purchase->warehouse_id,
+                            'rack_id'       => $rackId,
+                            'quantity'      => $actualReceiveQty,
+                            'active_status' => '1',
+                            'delete_status' => '0',
+                        ]);
+                    }
+
+                    $productsToSync[$product->id] = $product;
+                }
+
+                $itemsReceived++;
             }
+
+            // Update purchase status based on received quantities
+            $this->updatePurchaseStatus($purchase);
+
+            DB::commit();
 
             // Sync inventory to all linked sales channels
             foreach ($productsToSync as $productToSync) {
                 ProductController::syncProductInventoryToChannels($productToSync);
             }
 
-            return redirect()->route('purchases.index')->with('success', 'Stock received successfully.');
+            if ($itemsReceived > 0) {
+                return redirect()->route('purchases.show', $purchase->id)
+                    ->with('success', "Stock received successfully. {$itemsReceived} item(s) updated.");
+            } else {
+                return redirect()->back()->with('warning', 'No items were received. Please enter quantities to receive.');
+            }
+
         } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Receive stock failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return redirect()->back()->with('error', 'An error occurred while receiving stock: ' . $e->getMessage())->withInput();
+        }
+    }
+
+    /**
+     * Update purchase status based on received quantities.
+     */
+    protected function updatePurchaseStatus(Purchase $purchase): void
+    {
+        $purchase->refresh();
+
+        $totalOrdered = $purchase->purchase_items->sum('quantity');
+        $totalReceived = $purchase->purchase_items->sum('received_quantity');
+
+        if ($totalReceived <= 0) {
+            $purchase->purchase_status = 'pending';
+        } elseif ($totalReceived >= $totalOrdered) {
+            $purchase->purchase_status = 'received';
+        } else {
+            $purchase->purchase_status = 'partial';
+        }
+
+        $purchase->save();
+    }
+
+    public function import_purchases()
+    {
+        return view('purchases.import');
+    }
+
+    protected function normalizedHeader($header)
+    {
+        return strtolower(trim(str_replace([' ', '#'], ['_', ''], $header)));
+    }
+
+    public function import_purchase_preview(Request $request)
+    {
+        $request->validate([
+            'upload' => 'required|file|mimes:csv,txt',
+        ]);
+
+        $data = Excel::toArray(new PurchaseImport, $request->file('upload'));
+
+        $headers = $data[0][0] ?? [];
+        $normalizedHeaders = [];
+
+        foreach ($headers as $header) {
+            $clean = $this->normalizedHeader($header);
+            $mapped = $clean;
+            foreach ($this->aliases as $dbField => $words) {
+                foreach ($words as $word) {
+                    if ($clean === $this->normalizedHeader($word)) {
+                        $mapped = $dbField;
+                        break 2;
+                    }
+                }
+            }
+            $normalizedHeaders[] = $mapped;
+        }
+
+        $rows = array_slice($data[0], 1);
+        $importErrors = [];
+
+        // Map rows to associative arrays
+        $mapped = [];
+        foreach ($rows as $rowIndex => $row) {
+            // Skip empty rows
+            if (empty(array_filter($row))) {
+                continue;
+            }
+            if (count($normalizedHeaders) === count($row)) {
+                $mapped[] = array_combine($normalizedHeaders, $row);
+            } else {
+                $importErrors[] = "Row " . ($rowIndex + 2) . " has mismatched column count.";
+            }
+        }
+
+        // Group rows by purchase_number
+        $groupedPurchases = [];
+        foreach ($mapped as $row) {
+            $purchaseNumber = $row['purchase_number'] ?? '';
+            if (empty($purchaseNumber)) {
+                $importErrors[] = "A row is missing purchase_number.";
+                continue;
+            }
+
+            if (!isset($groupedPurchases[$purchaseNumber])) {
+                $groupedPurchases[$purchaseNumber] = [
+                    'purchase_number' => $purchaseNumber,
+                    'supplier_id' => $row['supplier'] ?? null,
+                    'warehouse_id' => $row['warehouse'] ?? null,
+                    'purchase_note' => $row['purchase_note'] ?? '',
+                    'products' => [],
+                ];
+            }
+
+            // Add product to this purchase
+            $groupedPurchases[$purchaseNumber]['products'][] = [
+                'sku' => $row['sku'] ?? '',
+                'rack_id' => $row['rack'] ?? null,
+                'quantity' => $row['quantity'] ?? 1,
+                'price' => $row['price'] ?? 0,
+                'note' => $row['note'] ?? '',
+            ];
+        }
+
+        // Validate IDs and look up product info
+        $purchases = [];
+        foreach ($groupedPurchases as $purchaseData) {
+            // Validate supplier ID
+            $supplierId = $purchaseData['supplier_id'];
+            $supplier = $supplierId ? Supplier::find($supplierId) : null;
+
+            // Validate warehouse ID
+            $warehouseId = $purchaseData['warehouse_id'];
+            $warehouse = $warehouseId ? Warehouse::find($warehouseId) : null;
+
+            $purchaseEntry = [
+                'purchase_number' => $purchaseData['purchase_number'],
+                'supplier_id' => $supplier->id ?? null,
+                'supplier_name' => $supplier ? ($supplier->last_name ? $supplier->first_name . ' ' . $supplier->last_name : $supplier->first_name) : 'Unknown Supplier',
+                'warehouse_id' => $warehouse->id ?? null,
+                'warehouse_name' => $warehouse->name ?? 'Unknown Warehouse',
+                'purchase_note' => $purchaseData['purchase_note'],
+                'products' => [],
+            ];
+
+            if (empty($supplier)) {
+                $importErrors[] = "Supplier ID not found for purchase {$purchaseData['purchase_number']}: {$supplierId}";
+            }
+            if (empty($warehouse)) {
+                $importErrors[] = "Warehouse ID not found for purchase {$purchaseData['purchase_number']}: {$warehouseId}";
+            }
+
+            // Look up product IDs by SKU and validate rack IDs
+            foreach ($purchaseData['products'] as $productData) {
+                $sku = $productData['sku'];
+                $product = Product::where('sku', $sku)->first();
+
+                $rackId = $productData['rack_id'];
+                $rack = $rackId ? Rack::find($rackId) : null;
+
+                $purchaseEntry['products'][] = [
+                    'sku' => $sku,
+                    'product_id' => $product->id ?? null,
+                    'product_name' => $product->name ?? 'Unknown Product',
+                    'rack_id' => $rack->id ?? null,
+                    'quantity' => $productData['quantity'],
+                    'price' => $productData['price'],
+                    'note' => $productData['note'],
+                ];
+
+                if (empty($product)) {
+                    $importErrors[] = "SKU not found in purchase {$purchaseData['purchase_number']}: {$sku}";
+                }
+                if ($rackId && empty($rack)) {
+                    $importErrors[] = "Rack ID not found in purchase {$purchaseData['purchase_number']}: {$rackId}";
+                }
+            }
+
+            $purchases[] = $purchaseEntry;
+        }
+
+        // Get all suppliers and warehouses for dropdowns
+        $suppliers = Supplier::orderBy('first_name')->get();
+        $warehouses = Warehouse::orderBy('name')->get();
+
+        // Get racks grouped by warehouse_id
+        $allRacks = Rack::orderBy('name')->get();
+        $racks = [];
+        foreach ($allRacks as $rack) {
+            if (!isset($racks[$rack->warehouse_id])) {
+                $racks[$rack->warehouse_id] = [];
+            }
+            $racks[$rack->warehouse_id][] = $rack;
+        }
+
+        // Store purchases in session for validation failure redirect
+        session(['import_purchases' => $purchases]);
+
+        return view('purchases.import-preview', compact('purchases', 'suppliers', 'warehouses', 'racks', 'importErrors'));
+    }
+
+    /**
+     * Store imported purchases.
+     * Imported purchases are marked as fully received and stock is added immediately.
+     */
+    public function import_purchases_store(Request $request)
+    {
+        try {
+            DB::beginTransaction();
+
+            $purchases = $request->input('purchases', []);
+
+            if (empty($purchases)) {
+                return redirect()->route('purchases.import')->with('error', 'No purchases to import.');
+            }
+
+            $productsToSync = [];
+
+            foreach ($purchases as $purchase_row) {
+                // Skip if no supplier or warehouse selected
+                if (empty($purchase_row['supplier_id']) || empty($purchase_row['warehouse_id'])) {
+                    continue;
+                }
+
+                // Create the purchase with 'received' status (imported = already received)
+                $purchase = Purchase::create([
+                    'purchase_number' => $purchase_row['purchase_number'],
+                    'supplier_id'     => $purchase_row['supplier_id'],
+                    'warehouse_id'    => $purchase_row['warehouse_id'],
+                    'purchase_note'   => $purchase_row['purchase_note'] ?? null,
+                    'purchase_status' => 'received',
+                ]);
+
+                // Create purchase items
+                $products = $purchase_row['products'] ?? [];
+
+                foreach ($products as $productInput) {
+                    // Skip products without valid product_id
+                    if (empty($productInput['product_id'])) {
+                        continue;
+                    }
+
+                    $product = Product::find($productInput['product_id']);
+                    if (!$product) {
+                        continue;
+                    }
+
+                    $incomingQty   = (float) ($productInput['quantity'] ?? 1);
+                    $purchasePrice = (float) ($productInput['price'] ?? 0);
+                    $warehouseId   = $purchase_row['warehouse_id'];
+                    $rackId        = $productInput['rack_id'] ?? null;
+
+                    // Create purchase item - mark as fully received
+                    $purchase->purchase_items()->create([
+                        'product_id'        => $product->id,
+                        'barcode'           => $product->barcode ?? '',
+                        'sku'               => $product->sku ?? '',
+                        'name'              => $product->name,
+                        'quantity'          => $incomingQty,
+                        'received_quantity' => $incomingQty, // Fully received
+                        'received_at'       => now(),
+                        'price'             => $purchasePrice,
+                        'note'              => $productInput['note'] ?? null,
+                        'rack_id'           => $rackId,
+                    ]);
+
+                    // Add to stock
+                    $stockQuery = $product->product_stocks()
+                        ->where('warehouse_id', $warehouseId);
+
+                    if ($rackId) {
+                        $stockQuery->where('rack_id', $rackId);
+                    } else {
+                        $stockQuery->whereNull('rack_id');
+                    }
+
+                    $existingStock = $stockQuery->first();
+
+                    if ($existingStock) {
+                        $existingStock->quantity = (float) $existingStock->quantity + $incomingQty;
+                        $existingStock->save();
+                    } else {
+                        $product->product_stocks()->create([
+                            'warehouse_id'  => $warehouseId,
+                            'rack_id'       => $rackId,
+                            'quantity'      => $incomingQty,
+                            'active_status' => '1',
+                            'delete_status' => '0',
+                        ]);
+                    }
+
+                    $productsToSync[$product->id] = $product;
+                }
+            }
+
+            DB::commit();
+
+            // Sync inventory to all linked sales channels
+            foreach ($productsToSync as $productToSync) {
+                Log::info('Triggering inventory sync after purchase import', [
+                    'product_id'  => $productToSync->id,
+                    'product_sku' => $productToSync->sku,
+                ]);
+                ProductController::syncProductInventoryToChannels($productToSync);
+            }
+
+            return redirect()->route('purchases.index')->with('success', 'Purchase(s) imported and received successfully.');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Purchase import failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return redirect()->route('purchases.import')->with('error', 'An error occurred while importing the purchase(s): ' . $e->getMessage());
         }
     }
 }

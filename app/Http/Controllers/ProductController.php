@@ -14,6 +14,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
@@ -878,7 +879,7 @@ class ProductController extends Controller
     public function import_products_store(Request $request)
     {
         // Validate the request
-        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+        $validator = Validator::make($request->all(), [
             'products' => 'required|array',
             'products.name' => 'required|array|min:1',
             'products.name.*' => 'required|string|max:255',

@@ -182,8 +182,12 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('/products', ProductController::class);
 
     // Purchases
+    Route::get('/purchases/import', [PurchaseController::class, 'import_purchases'])->name('purchases.import');
+    Route::post('/purchases/import/preview', [PurchaseController::class, 'import_purchase_preview'])->name('purchases.import.preview');
+    Route::post('/purchases/import/store', [PurchaseController::class, 'import_purchases_store'])->name('purchases.import.store');
     Route::resource('/purchases', PurchaseController::class);
-    Route::post('/purchases/{id}/receive-stock', [PurchaseController::class, 'purchase_receive_stock'])->name('purchases.receive.stock');
+    Route::get('/purchases/{id}/receive', [PurchaseController::class, 'receiveStock'])->name('purchases.receive');
+    Route::post('/purchases/{id}/receive', [PurchaseController::class, 'processReceiveStock'])->name('purchases.receive.store');
 
     // Sales Channel
     Route::resource('/sales-channels', SalesChannelController::class);

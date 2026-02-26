@@ -15,6 +15,10 @@
         <div class="page-header-right ms-auto">
             <div class="page-header-right-items">
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('purchases.import') }}" class="btn btn-light-brand">
+                        <i class="feather-upload me-2"></i>
+                        <span>Import</span>
+                    </a>
                     @can('add purchases')
                     <a href="{{ route('purchases.create') }}" class="btn btn-primary">
                         <i class="feather-plus me-2"></i>
@@ -115,24 +119,44 @@
                                 <th>Purchase Number</th>
                                 <th>Supplier</th>
                                 <th>Warehouse</th>
+                                <th>Status</th>
                                 <th>Total</th>
-                                <th>Total Products</th>
+                                <th>Received</th>
                                 <th>Created at</th>
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse ($purchases as $purchase)
+                                @php
+                                    $totalOrdered = $purchase->purchase_items->sum('quantity');
+                                    $totalReceived = $purchase->purchase_items->sum('received_quantity');
+                                    $statusColors = [
+                                        'pending' => 'warning',
+                                        'partial' => 'info',
+                                        'received' => 'success',
+                                        'cancelled' => 'danger',
+                                    ];
+                                    $statusColor = $statusColors[$purchase->purchase_status] ?? 'secondary';
+                                @endphp
                                 <tr>
                                     <td>{{ $purchase->id }}</td>
                                     <td><span class="fw-semibold">{{ $purchase->purchase_number }}</span></td>
                                     <td>{{ (($purchase->supplier->last_name != '') ? $purchase->supplier->first_name . ' ' . $purchase->supplier->last_name : $purchase->supplier->first_name) }}</td>
                                     <td><span class="badge bg-soft-info text-info">{{ $purchase->warehouse->name }}</span></td>
+                                    <td><span class="badge bg-{{ $statusColor }}">{{ ucfirst($purchase->purchase_status ?? 'pending') }}</span></td>
                                     <td><span class="fw-semibold">${{ number_format($purchase->purchase_items->sum(function($item) { return $item->quantity * $item->price; }), 2) }}</span></td>
-                                    <td><span class="badge bg-soft-primary text-primary">{{ $purchase->purchase_items->sum('quantity') }}</span></td>
+                                    <td>
+                                        <span class="badge bg-soft-primary text-primary">{{ number_format($totalReceived, 0) }} / {{ number_format($totalOrdered, 0) }}</span>
+                                    </td>
                                     <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($purchase->created_at)->format('M d, Y') }}</span></td>
                                     <td>
                                         <div class="hstack gap-2 justify-content-end">
+                                            @if($purchase->purchase_status !== 'received')
+                                                <a href="{{ route('purchases.receive', $purchase->id) }}" class="avatar-text avatar-md text-success" data-bs-toggle="tooltip" title="Receive Stock">
+                                                    <i class="feather-download"></i>
+                                                </a>
+                                            @endif
                                             <a href="{{ route('purchases.show', $purchase->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="View">
                                                 <i class="feather-eye"></i>
                                             </a>
@@ -151,7 +175,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="text-center py-4 text-muted">No purchases found.</td>
+                                    <td colspan="9" class="text-center py-4 text-muted">No purchases found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
