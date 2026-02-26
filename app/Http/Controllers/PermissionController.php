@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Permission;
 use Illuminate\Http\Request;
-use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class PermissionController extends Controller
@@ -28,8 +28,21 @@ class PermissionController extends Controller
             $query->where('name', 'like', "%{$request->search}%");
         }
 
-        $permissions = $query->orderBy('id', 'DESC')->paginate(25)->withQueryString();
-        return view('permissions.index', compact('permissions'));
+        // Filter by category
+        if ($request->filled('category')) {
+            if ($request->category === 'uncategorized') {
+                $query->whereNull('category')->orWhere('category', '');
+            } else {
+                $query->where('category', $request->category);
+            }
+        }
+
+        $permissions = $query->orderBy('category')->orderBy('name')->paginate(25)->withQueryString();
+
+        // Get predefined categories from model
+        $categories = Permission::getCategories();
+
+        return view('permissions.index', compact('permissions', 'categories'));
     }
 
     /**
@@ -37,7 +50,10 @@ class PermissionController extends Controller
      */
     public function create()
     {
-        return view('permissions.new');
+        // Get predefined categories from model
+        $categories = Permission::getCategories();
+
+        return view('permissions.new', compact('categories'));
     }
 
     /**
@@ -46,12 +62,14 @@ class PermissionController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|unique:permissions,name'
+            'name' => 'required|unique:permissions,name',
+            'category' => 'nullable|string|max:255'
         ]);
 
         try {
             Permission::create([
-                'name' => $request->name
+                'name' => $request->name,
+                'category' => $request->category ?: null
             ]);
 
             return redirect()->route('permissions.index')->with('success', 'Permission added successfully.');
@@ -74,7 +92,11 @@ class PermissionController extends Controller
     public function edit(string $id)
     {
         $permission = Permission::findOrFail($id);
-        return view('permissions.edit', compact('permission'));
+
+        // Get predefined categories from model
+        $categories = Permission::getCategories();
+
+        return view('permissions.edit', compact('permission', 'categories'));
     }
 
     /**
@@ -83,12 +105,14 @@ class PermissionController extends Controller
     public function update(Request $request, string $id)
     {
         $request->validate([
-            'name' => 'required|unique:permissions,name,' . $id
+            'name' => 'required|unique:permissions,name,' . $id,
+            'category' => 'nullable|string|max:255'
         ]);
 
         try {
             $permission = Permission::findOrFail($id);
             $permission->name = $request->name;
+            $permission->category = $request->category ?: null;
             $permission->save();
 
             return redirect()->route('permissions.index')->with('success', 'Permission updated successfully.');

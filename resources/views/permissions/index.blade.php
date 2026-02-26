@@ -42,11 +42,21 @@
                 <div class="card-body py-3">
                     <form action="{{ route('permissions.index') }}" method="GET">
                         <div class="row g-3">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label class="form-label">Search</label>
                                 <input type="text" name="search" class="form-control form-control-sm" placeholder="Permission name..." value="{{ request('search') }}">
                             </div>
-                            <div class="col-md-4 d-flex align-items-end gap-2">
+                            <div class="col-md-3">
+                                <label class="form-label">Category</label>
+                                <select name="category" class="form-select form-select-sm">
+                                    <option value="">All Categories</option>
+                                    <option value="uncategorized" {{ request('category') === 'uncategorized' ? 'selected' : '' }}>Uncategorized</option>
+                                    @foreach($categories as $key => $label)
+                                        <option value="{{ $key }}" {{ request('category') === $key ? 'selected' : '' }}>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end gap-2">
                                 <button type="submit" class="btn btn-primary btn-sm">
                                     <i class="feather-search me-2"></i>Filter
                                 </button>
@@ -74,6 +84,7 @@
                             <tr>
                                 <th>#</th>
                                 <th>Name</th>
+                                <th>Category</th>
                                 <th>Created at</th>
                                 <th class="text-end">Actions</th>
                             </tr>
@@ -83,6 +94,13 @@
                                 <tr>
                                     <td>{{ $permission->id }}</td>
                                     <td><span class="fw-semibold">{{ $permission->name }}</span></td>
+                                    <td>
+                                        @if($permission->category)
+                                            <span class="badge bg-soft-primary text-primary">{{ $permission->category }}</span>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    </td>
                                     <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($permission->created_at)->format('d M, Y') }}</span></td>
                                     <td>
                                         <div class="hstack gap-2 justify-content-end">
@@ -105,7 +123,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" class="text-center py-4 text-muted">No permissions found.</td>
+                                    <td colspan="5" class="text-center py-4 text-muted">No permissions found.</td>
                                 </tr>
                             @endforelse
                         </tbody>

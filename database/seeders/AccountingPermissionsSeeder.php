@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Permission;
+use App\Models\Permission;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 
 class AccountingPermissionsSeeder extends Seeder
@@ -15,36 +15,39 @@ class AccountingPermissionsSeeder extends Seeder
     {
         $permissions = [
             // Chart of Accounts
-            'chart-of-accounts-view',
-            'chart-of-accounts-add',
-            'chart-of-accounts-edit',
-            'chart-of-accounts-delete',
-            
+            ['name' => 'chart-of-accounts-view', 'category' => 'Accounting'],
+            ['name' => 'chart-of-accounts-add', 'category' => 'Accounting'],
+            ['name' => 'chart-of-accounts-edit', 'category' => 'Accounting'],
+            ['name' => 'chart-of-accounts-delete', 'category' => 'Accounting'],
+
             // Bills
-            'bills-view',
-            'bills-add',
-            'bills-edit',
-            'bills-delete',
-            'bills-post',
+            ['name' => 'bills-view', 'category' => 'Accounting'],
+            ['name' => 'bills-add', 'category' => 'Accounting'],
+            ['name' => 'bills-edit', 'category' => 'Accounting'],
+            ['name' => 'bills-delete', 'category' => 'Accounting'],
+            ['name' => 'bills-post', 'category' => 'Accounting'],
 
             // Payments
-            'payments-view',
-            'payments-add',
-            'payments-delete',
+            ['name' => 'payments-view', 'category' => 'Accounting'],
+            ['name' => 'payments-add', 'category' => 'Accounting'],
+            ['name' => 'payments-delete', 'category' => 'Accounting'],
 
             // Journal Entries
-            'journal-entries-view',
+            ['name' => 'journal-entries-view', 'category' => 'Accounting'],
 
             // General Ledger
-            'general-ledger-view',
+            ['name' => 'general-ledger-view', 'category' => 'Accounting'],
 
             // Reports
-            'accounting-reports-view',
-            'accounting-reports-export',
+            ['name' => 'accounting-reports-view', 'category' => 'Accounting'],
+            ['name' => 'accounting-reports-export', 'category' => 'Accounting'],
         ];
 
         foreach ($permissions as $permission) {
-            Permission::firstOrCreate(['name' => $permission]);
+            Permission::firstOrCreate(
+                ['name' => $permission['name']],
+                ['category' => $permission['category']]
+            );
         }
     }
 }

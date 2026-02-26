@@ -9,7 +9,7 @@ use App\Models\Warehouse;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Spatie\Permission\Models\Permission;
+use App\Models\Permission;
 use Spatie\Permission\Models\Role;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 
@@ -22,93 +22,96 @@ class BasicSeeder extends Seeder
     {
         $permissions = [
             // Orders
-            'view orders',
-            'add orders',
-            'edit orders',
-            'delete orders',
-            
+            ['name' => 'view orders', 'category' => 'Orders'],
+            ['name' => 'add orders', 'category' => 'Orders'],
+            ['name' => 'edit orders', 'category' => 'Orders'],
+            ['name' => 'delete orders', 'category' => 'Orders'],
+
             // Products
-            'view products',
-            'add products',
-            'edit products',
-            'delete products',
+            ['name' => 'view products', 'category' => 'Products'],
+            ['name' => 'add products', 'category' => 'Products'],
+            ['name' => 'edit products', 'category' => 'Products'],
+            ['name' => 'delete products', 'category' => 'Products'],
 
             // Categories
-            'view categories',
-            'add categories',
-            'edit categories',
-            'delete categories',
+            ['name' => 'view categories', 'category' => 'Products'],
+            ['name' => 'add categories', 'category' => 'Products'],
+            ['name' => 'edit categories', 'category' => 'Products'],
+            ['name' => 'delete categories', 'category' => 'Products'],
 
             // Brands
-            'view brands',
-            'add brands',
-            'edit brands',
-            'delete brands',
+            ['name' => 'view brands', 'category' => 'Products'],
+            ['name' => 'add brands', 'category' => 'Products'],
+            ['name' => 'edit brands', 'category' => 'Products'],
+            ['name' => 'delete brands', 'category' => 'Products'],
 
             // Purchases
-            'view purchases',
-            'add purchases',
-            'edit purchases',
-            'delete purchases',
+            ['name' => 'view purchases', 'category' => 'Purchases'],
+            ['name' => 'add purchases', 'category' => 'Purchases'],
+            ['name' => 'edit purchases', 'category' => 'Purchases'],
+            ['name' => 'delete purchases', 'category' => 'Purchases'],
 
             // Warehouses
-            'view warehouses',
-            'add warehouses',
-            'edit warehouses',
-            'delete warehouses',
+            ['name' => 'view warehouses', 'category' => 'Warehouses'],
+            ['name' => 'add warehouses', 'category' => 'Warehouses'],
+            ['name' => 'edit warehouses', 'category' => 'Warehouses'],
+            ['name' => 'delete warehouses', 'category' => 'Warehouses'],
 
             // Racks
-            'view racks',
-            'add racks',
-            'edit racks',
-            'delete racks',
+            ['name' => 'view racks', 'category' => 'Warehouses'],
+            ['name' => 'add racks', 'category' => 'Warehouses'],
+            ['name' => 'edit racks', 'category' => 'Warehouses'],
+            ['name' => 'delete racks', 'category' => 'Warehouses'],
 
             // Sales Channels
-            'view sales-channels',
-            'add sales-channels',
-            'edit sales-channels',
-            'delete sales-channels',
+            ['name' => 'view sales-channels', 'category' => 'Sales Channels'],
+            ['name' => 'add sales-channels', 'category' => 'Sales Channels'],
+            ['name' => 'edit sales-channels', 'category' => 'Sales Channels'],
+            ['name' => 'delete sales-channels', 'category' => 'Sales Channels'],
 
             // Suppliers
-            'view suppliers',
-            'add suppliers',
-            'edit suppliers',
-            'delete suppliers',
+            ['name' => 'view suppliers', 'category' => 'Suppliers'],
+            ['name' => 'add suppliers', 'category' => 'Suppliers'],
+            ['name' => 'edit suppliers', 'category' => 'Suppliers'],
+            ['name' => 'delete suppliers', 'category' => 'Suppliers'],
 
             // Shipping
-            'view shipping',
-            'add shipping',
-            'edit shipping',
-            'delete shipping',
+            ['name' => 'view shipping', 'category' => 'Shipping'],
+            ['name' => 'add shipping', 'category' => 'Shipping'],
+            ['name' => 'edit shipping', 'category' => 'Shipping'],
+            ['name' => 'delete shipping', 'category' => 'Shipping'],
 
-            // Payments
-            'view users',
-            'add users',
-            'edit users',
-            'delete users',
+            // Users
+            ['name' => 'view users', 'category' => 'Users & Access'],
+            ['name' => 'add users', 'category' => 'Users & Access'],
+            ['name' => 'edit users', 'category' => 'Users & Access'],
+            ['name' => 'delete users', 'category' => 'Users & Access'],
 
             // Roles
-            'view roles',
-            'add roles',
-            'edit roles',
-            'delete roles',
+            ['name' => 'view roles', 'category' => 'Users & Access'],
+            ['name' => 'add roles', 'category' => 'Users & Access'],
+            ['name' => 'edit roles', 'category' => 'Users & Access'],
+            ['name' => 'delete roles', 'category' => 'Users & Access'],
 
             // Permissions
-            'view permissions',
-            'add permissions',
-            'edit permissions',
-            'delete permissions',
+            ['name' => 'view permissions', 'category' => 'Users & Access'],
+            ['name' => 'add permissions', 'category' => 'Users & Access'],
+            ['name' => 'edit permissions', 'category' => 'Users & Access'],
+            ['name' => 'delete permissions', 'category' => 'Users & Access'],
         ];
 
         foreach ($permissions as $permission) {
-            Permission::firstOrCreate(['name' => $permission]);
+            Permission::firstOrCreate(
+                ['name' => $permission['name']],
+                ['category' => $permission['category']]
+            );
         }
 
         $role = Role::create(['name' => 'superadmin']);
         $roleAdmin = Role::create(['name' => 'Admin']);
 
         foreach ($permissions as $permission) {
-            $roleAdmin->givePermissionTo($permission);
+            $roleAdmin->givePermissionTo($permission['name']);
         }
 
         $user = new User();

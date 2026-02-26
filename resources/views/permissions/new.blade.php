@@ -33,12 +33,28 @@
         <div class="card-body">
             <form action="{{ route('permissions.store') }}" method="post">
                 @csrf
-                <div class="mb-3">
-                    <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
-                    <input type="text" id="name" name="name" value="{{ old('name') }}" class="form-control @error('name') is-invalid @enderror" placeholder="Permission Name" required>
-                    @error('name')
-                        <span class="invalid-feedback">{{ $message }}</span>
-                    @enderror
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
+                        <input type="text" id="name" name="name" value="{{ old('name') }}" class="form-control @error('name') is-invalid @enderror" placeholder="Permission Name (e.g., view products)" required>
+                        @error('name')
+                            <span class="invalid-feedback">{{ $message }}</span>
+                        @enderror
+                        <small class="text-muted">Use format: action + module (e.g., "view products", "add users", "bills-view")</small>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="category" class="form-label">Category</label>
+                        <select id="category" name="category" class="form-select @error('category') is-invalid @enderror">
+                            <option value="">-- Select Category --</option>
+                            @foreach($categories as $key => $label)
+                                <option value="{{ $key }}" {{ old('category') === $key ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                        @error('category')
+                            <span class="invalid-feedback">{{ $message }}</span>
+                        @enderror
+                        <small class="text-muted">Group permissions by category for easier management in roles</small>
+                    </div>
                 </div>
                 <div class="d-flex gap-2 mt-3">
                     <button type="submit" class="btn btn-primary">
