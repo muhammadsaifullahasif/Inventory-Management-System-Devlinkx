@@ -415,9 +415,11 @@
                                         @endif
                                     </td>
                                     <td class="text-center">
-                                        <a href="{{ route('orders.show', $order->id) }}" class="btn btn-sm btn-light-brand" title="View">
-                                            <i class="feather-eye"></i>
-                                        </a>
+                                        <div class="hstack gap-2 justify-content-center">
+                                            <a href="{{ route('orders.show', $order->id) }}" class="avatar-text avatar-md" title="View">
+                                                <i class="feather-eye"></i>
+                                            </a>
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
