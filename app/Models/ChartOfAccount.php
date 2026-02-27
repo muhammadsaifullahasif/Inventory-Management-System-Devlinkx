@@ -181,9 +181,15 @@ class ChartOfAccount extends Model
 
     /**
      * Calculate current balance from journal entries
+     * For group accounts, returns the sum of all children balances
      */
     public function getCalculatedBalance(?string $asOfDate = null): float
     {
+        // For group accounts, sum up all children balances
+        if ($this->isGroup()) {
+            return $this->getGroupBalance($asOfDate);
+        }
+
         $query = $this->journalLines();
 
         if ($asOfDate) {
@@ -204,6 +210,46 @@ class ChartOfAccount extends Model
         }
 
         return $this->opening_balance + ($credit - $debit);
+    }
+
+    /**
+     * Calculate total balance for a group account (sum of all children)
+     */
+    public function getGroupBalance(?string $asOfDate = null): float
+    {
+        $total = 0;
+
+        // Load children if not already loaded
+        $children = $this->relationLoaded('children') ? $this->children : $this->children()->get();
+
+        foreach ($children as $child) {
+            if ($child->isGroup()) {
+                // Recursive call for nested groups
+                $total += $child->getGroupBalance($asOfDate);
+            } else {
+                // Get balance for account (non-group)
+                $query = $child->journalLines();
+
+                if ($asOfDate) {
+                    $query->whereHas('journalEntry', function ($q) use ($asOfDate) {
+                        $q->where('entry_date', '<=', $asOfDate);
+                    });
+                }
+
+                $totals = $query->selectRaw('SUM(debit) as total_debit, SUM(credit) as total_credit')->first();
+
+                $debit = $totals->total_debit ?? 0;
+                $credit = $totals->total_credit ?? 0;
+
+                if (in_array($child->nature, ['asset', 'expense'])) {
+                    $total += $child->opening_balance + ($debit - $credit);
+                } else {
+                    $total += $child->opening_balance + ($credit - $debit);
+                }
+            }
+        }
+
+        return $total;
     }
 
     /**

@@ -17,6 +17,12 @@ class ProductStock extends Model
         'delete_status',
     ];
 
+    protected $casts = [
+        'quantity' => 'decimal:4',
+        'previous_quantity' => 'decimal:4',
+        'avg_cost' => 'decimal:4',
+    ];
+
     public function product()
     {
         return $this->belongsTo(Product::class);
@@ -30,5 +36,13 @@ class ProductStock extends Model
     public function rack()
     {
         return $this->belongsTo(Rack::class);
+    }
+
+    /**
+     * Get total stock value for this stock record
+     */
+    public function getTotalValueAttribute(): float
+    {
+        return round((float) $this->quantity * (float) $this->avg_cost, 2);
     }
 }

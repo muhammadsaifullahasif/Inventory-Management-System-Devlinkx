@@ -273,6 +273,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports/expense', [ReportController::class, 'expenseReport'])->name('reports.expense');
     Route::get('reports/supplier-ledger', [ReportController::class, 'supplierLedger'])->name('reports.supplier-ledger');
     Route::get('reports/bank-summary', [ReportController::class, 'bankSummary'])->name('reports.bank-summary');
+    Route::get('reports/purchase', [ReportController::class, 'purchaseReport'])->name('reports.purchase');
+    Route::get('reports/sales', [ReportController::class, 'salesReport'])->name('reports.sales');
+    Route::get('reports/inventory-valuation', [ReportController::class, 'inventoryValuation'])->name('reports.inventory-valuation');
 });
 
 

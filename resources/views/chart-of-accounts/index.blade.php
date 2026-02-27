@@ -163,7 +163,12 @@
                                                 {{ ucfirst($group->nature) }}
                                             </span>
                                         </td>
-                                        <td>-</td>
+                                        <td>
+                                            @php $groupBalance = $group->getCalculatedBalance(); @endphp
+                                            <span class="fw-bold {{ $groupBalance >= 0 ? 'text-success' : 'text-danger' }}">
+                                                {{ number_format($groupBalance, 2) }}
+                                            </span>
+                                        </td>
                                         <td>
                                             @if ($group->is_active)
                                                 <span class="badge bg-soft-success text-success">Active</span>
@@ -199,13 +204,10 @@
                                             </td>
                                             <td>-</td>
                                             <td>
-                                                @if ($account->is_bank_cash)
-                                                    <span class="{{ $account->current_balance >= 0 ? 'text-success' : 'text-danger' }}">
-                                                        {{ number_format($account->current_balance, 2) }}
-                                                    </span>
-                                                @else
-                                                    -
-                                                @endif
+                                                @php $accountBalance = $account->getCalculatedBalance(); @endphp
+                                                <span class="{{ $accountBalance >= 0 ? 'text-success' : 'text-danger' }}">
+                                                    {{ number_format($accountBalance, 2) }}
+                                                </span>
                                             </td>
                                             <td>
                                                 @if ($account->is_active)

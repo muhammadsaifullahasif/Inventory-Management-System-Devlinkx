@@ -86,6 +86,29 @@
                         @enderror
                     </div>
 
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <label for="duties_customs" class="form-label">Duties & Customs</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" id="duties_customs" name="duties_customs" value="{{ old('duties_customs', $purchase->duties_customs ?? 0) }}" class="form-control @error('duties_customs') is-invalid @enderror" placeholder="0.00" min="0" step="0.01">
+                            </div>
+                            @error('duties_customs')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <label for="freight_charges" class="form-label">Freight Charges</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" id="freight_charges" name="freight_charges" value="{{ old('freight_charges', $purchase->freight_charges ?? 0) }}" class="form-control @error('freight_charges') is-invalid @enderror" placeholder="0.00" min="0" step="0.01">
+                            </div>
+                            @error('freight_charges')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+
                     <hr class="my-4">
                     <h6 class="mb-3"><i class="feather-package me-2"></i>Select Products</h6>
 
@@ -113,7 +136,26 @@
                         <div class="col-md-3 d-flex align-items-end justify-content-end">
                             <div>
                                 <span id="selectedCount" class="text-primary fw-bold"></span>
-                                <span class="ms-3"><strong>Total: $<span id="grandTotal">0.00</span></strong></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Totals Summary Row -->
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <div class="d-flex justify-content-end gap-4 text-end">
+                                <div>
+                                    <small class="text-muted d-block">Items Total</small>
+                                    <strong>$<span id="itemsTotal">0.00</span></strong>
+                                </div>
+                                <div>
+                                    <small class="text-muted d-block">Duties & Freight</small>
+                                    <strong>$<span id="dutiesFreightTotal">0.00</span></strong>
+                                </div>
+                                <div class="border-start ps-4">
+                                    <small class="text-muted d-block">Grand Total</small>
+                                    <strong class="text-primary fs-5">$<span id="grandTotal">0.00</span></strong>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -379,6 +421,11 @@ $(document).ready(function(){
         calculateGrandTotal();
     });
 
+    // Calculate grand total on duties/freight change
+    $(document).on('input', '#duties_customs, #freight_charges', function(){
+        calculateGrandTotal();
+    });
+
     function toggleRowInputs(row, enabled) {
         const inputs = row.querySelectorAll('.rack-select, .quantity-input, .price-input, .note-input');
         inputs.forEach(input => input.disabled = !enabled);
@@ -392,12 +439,20 @@ $(document).ready(function(){
     }
 
     function calculateGrandTotal() {
-        var total = 0;
+        var itemsTotal = 0;
         document.querySelectorAll('.product-checkbox:checked').forEach(cb => {
             var row = cb.closest('tr');
-            total += parseFloat(row.querySelector('.subtotal-input').value) || 0;
+            itemsTotal += parseFloat(row.querySelector('.subtotal-input').value) || 0;
         });
-        document.getElementById('grandTotal').textContent = total.toFixed(2);
+
+        var dutiesCustoms = parseFloat(document.getElementById('duties_customs').value) || 0;
+        var freightCharges = parseFloat(document.getElementById('freight_charges').value) || 0;
+        var dutiesFreightTotal = dutiesCustoms + freightCharges;
+        var grandTotal = itemsTotal + dutiesFreightTotal;
+
+        document.getElementById('itemsTotal').textContent = itemsTotal.toFixed(2);
+        document.getElementById('dutiesFreightTotal').textContent = dutiesFreightTotal.toFixed(2);
+        document.getElementById('grandTotal').textContent = grandTotal.toFixed(2);
     }
 
     function getVisibleRows() {

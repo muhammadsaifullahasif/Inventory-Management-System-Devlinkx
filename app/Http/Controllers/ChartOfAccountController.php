@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\ChartOfAccount;
+use App\Models\JournalEntryLine;
 use Illuminate\Support\Facades\DB;
 
 class ChartOfAccountController extends Controller
@@ -140,16 +141,64 @@ class ChartOfAccountController extends Controller
     {
         $chartOfAccount->load(['parent', 'children', 'journalLines.journalEntry']);
 
-        // Get recent transactions
-        $recentTransactions = $chartOfAccount->journalLines()
-            ->with('journalEntry')
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get();
+        // Get recent transactions - for groups, include all child account transactions
+        if ($chartOfAccount->isGroup()) {
+            // Get all child account IDs (including nested children)
+            $childAccountIds = $this->getAllChildAccountIds($chartOfAccount);
+
+            $recentTransactions = JournalEntryLine::whereIn('account_id', $childAccountIds)
+                ->with(['journalEntry', 'account'])
+                ->whereHas('journalEntry', function ($q) {
+                    $q->where('is_posted', true);
+                })
+                ->orderBy('created_at', 'desc')
+                ->limit(15)
+                ->get();
+
+            $totalTransactionCount = JournalEntryLine::whereIn('account_id', $childAccountIds)
+                ->whereHas('journalEntry', function ($q) {
+                    $q->where('is_posted', true);
+                })
+                ->count();
+        } else {
+            $recentTransactions = $chartOfAccount->journalLines()
+                ->with('journalEntry')
+                ->whereHas('journalEntry', function ($q) {
+                    $q->where('is_posted', true);
+                })
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get();
+
+            $totalTransactionCount = $chartOfAccount->journalLines()
+                ->whereHas('journalEntry', function ($q) {
+                    $q->where('is_posted', true);
+                })
+                ->count();
+        }
 
         $balance = $chartOfAccount->getCalculatedBalance();
 
-        return view('chart-of-accounts.show', compact('chartOfAccount', 'recentTransactions', 'balance'));
+        return view('chart-of-accounts.show', compact('chartOfAccount', 'recentTransactions', 'balance', 'totalTransactionCount'));
+    }
+
+    /**
+     * Get all child account IDs recursively (for groups)
+     */
+    private function getAllChildAccountIds(ChartOfAccount $account): array
+    {
+        $ids = [];
+
+        foreach ($account->children as $child) {
+            if ($child->isGroup()) {
+                // Recursively get nested children
+                $ids = array_merge($ids, $this->getAllChildAccountIds($child));
+            } else {
+                $ids[] = $child->id;
+            }
+        }
+
+        return $ids;
     }
 
     /**

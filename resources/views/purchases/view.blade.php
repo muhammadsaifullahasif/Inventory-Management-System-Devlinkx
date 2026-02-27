@@ -79,18 +79,28 @@
                             <p class="fw-semibold mb-0"><span class="badge bg-soft-info text-info">{{ $purchase->warehouse->name }}</span></p>
                         </div>
                     </div>
-                    <div class="row">
+                    <div class="row mb-4">
                         <div class="col-md-4">
                             <label class="form-label text-muted">Created Date</label>
                             <p class="mb-0">{{ $purchase->created_at->format('M d, Y H:i') }}</p>
                         </div>
-                        @if($purchase->purchase_note)
-                        <div class="col-md-8">
+                        <div class="col-md-4">
+                            <label class="form-label text-muted">Duties & Customs</label>
+                            <p class="fw-semibold mb-0">${{ number_format($purchase->duties_customs ?? 0, 2) }}</p>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-muted">Freight Charges</label>
+                            <p class="fw-semibold mb-0">${{ number_format($purchase->freight_charges ?? 0, 2) }}</p>
+                        </div>
+                    </div>
+                    @if($purchase->purchase_note)
+                    <div class="row">
+                        <div class="col-md-12">
                             <label class="form-label text-muted">Purchase Note</label>
                             <p class="mb-0">{{ $purchase->purchase_note }}</p>
                         </div>
-                        @endif
                     </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -107,7 +117,9 @@
                         $totalReceived = $purchase->purchase_items->sum('received_quantity');
                         $totalPending = $totalOrdered - $totalReceived;
                         $percentReceived = $totalOrdered > 0 ? round(($totalReceived / $totalOrdered) * 100) : 0;
-                        $totalValue = $purchase->purchase_items->sum(function($item) { return $item->quantity * $item->price; });
+                        $itemsTotal = $purchase->purchase_items->sum(function($item) { return $item->quantity * $item->price; });
+                        $dutiesFreight = (float) ($purchase->duties_customs ?? 0) + (float) ($purchase->freight_charges ?? 0);
+                        $grandTotal = $itemsTotal + $dutiesFreight;
                     @endphp
                     <div class="mb-3">
                         <div class="d-flex justify-content-between mb-1">
@@ -135,8 +147,18 @@
                             <td colspan="2"><hr class="my-2"></td>
                         </tr>
                         <tr>
-                            <td class="text-muted">Total Value:</td>
-                            <td class="text-end fw-semibold text-primary">${{ number_format($totalValue, 2) }}</td>
+                            <td class="text-muted">Items Value:</td>
+                            <td class="text-end fw-semibold">${{ number_format($itemsTotal, 2) }}</td>
+                        </tr>
+                        @if($dutiesFreight > 0)
+                        <tr>
+                            <td class="text-muted">Duties + Freight:</td>
+                            <td class="text-end fw-semibold">${{ number_format($dutiesFreight, 2) }}</td>
+                        </tr>
+                        @endif
+                        <tr>
+                            <td class="text-muted"><strong>Grand Total:</strong></td>
+                            <td class="text-end fw-semibold text-primary">${{ number_format($grandTotal, 2) }}</td>
                         </tr>
                     </table>
                 </div>
@@ -216,10 +238,31 @@
                     </tbody>
                     <tfoot class="bg-light">
                         <tr>
-                            <td colspan="7" class="text-end"><strong>Total:</strong></td>
-                            <td class="text-end"><strong class="text-primary">${{ number_format($totalValue, 2) }}</strong></td>
+                            <td colspan="7" class="text-end"><strong>Items Total:</strong></td>
+                            <td class="text-end"><strong>${{ number_format($itemsTotal, 2) }}</strong></td>
                             <td colspan="2"></td>
                         </tr>
+                        @if($purchase->duties_customs > 0)
+                        <tr>
+                            <td colspan="7" class="text-end">Duties & Customs:</td>
+                            <td class="text-end">${{ number_format($purchase->duties_customs, 2) }}</td>
+                            <td colspan="2"></td>
+                        </tr>
+                        @endif
+                        @if($purchase->freight_charges > 0)
+                        <tr>
+                            <td colspan="7" class="text-end">Freight Charges:</td>
+                            <td class="text-end">${{ number_format($purchase->freight_charges, 2) }}</td>
+                            <td colspan="2"></td>
+                        </tr>
+                        @endif
+                        @if($dutiesFreight > 0)
+                        <tr>
+                            <td colspan="7" class="text-end"><strong>Grand Total:</strong></td>
+                            <td class="text-end"><strong class="text-primary">${{ number_format($grandTotal, 2) }}</strong></td>
+                            <td colspan="2"></td>
+                        </tr>
+                        @endif
                     </tfoot>
                 </table>
             </div>

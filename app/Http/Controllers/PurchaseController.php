@@ -9,6 +9,7 @@ use App\Models\Purchase;
 use App\Models\Rack;
 use App\Models\Supplier;
 use App\Models\Warehouse;
+use App\Services\InventoryAccountingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -102,6 +103,8 @@ class PurchaseController extends Controller
             'purchase_number' => 'required|string|unique:purchases,purchase_number',
             'supplier_id' => 'required|exists:suppliers,id',
             'warehouse_id' => 'required|exists:warehouses,id',
+            'duties_customs' => 'nullable|numeric|min:0',
+            'freight_charges' => 'nullable|numeric|min:0',
             'products' => 'required|array|min:1',
             'products.*.id' => 'required|exists:products,id',
             'products.*.rack' => 'required|exists:racks,id',
@@ -119,6 +122,8 @@ class PurchaseController extends Controller
                 'supplier_id'     => $request->supplier_id,
                 'warehouse_id'    => $request->warehouse_id,
                 'purchase_note'   => $request->purchase_note ?? null,
+                'duties_customs'  => $request->duties_customs ?? 0,
+                'freight_charges' => $request->freight_charges ?? 0,
                 'purchase_status' => 'pending',
             ]);
 
@@ -181,6 +186,8 @@ class PurchaseController extends Controller
             'purchase_number' => 'required|string|unique:purchases,purchase_number,' . $id,
             'supplier_id' => 'required|exists:suppliers,id',
             'warehouse_id' => 'required|exists:warehouses,id',
+            'duties_customs' => 'nullable|numeric|min:0',
+            'freight_charges' => 'nullable|numeric|min:0',
             'products' => 'required|array|min:1',
             'products.*.id' => 'required|exists:products,id',
             'products.*.rack' => 'required|exists:racks,id',
@@ -209,6 +216,8 @@ class PurchaseController extends Controller
             $purchase->supplier_id = $request->supplier_id;
             $purchase->warehouse_id = $request->warehouse_id;
             $purchase->purchase_note = $request->purchase_note ?? null;
+            $purchase->duties_customs = $request->duties_customs ?? 0;
+            $purchase->freight_charges = $request->freight_charges ?? 0;
             $purchase->save();
 
             $existingItemIds = [];
@@ -316,8 +325,11 @@ class PurchaseController extends Controller
         try {
             DB::beginTransaction();
 
-            $purchase = Purchase::with('purchase_items')->findOrFail($id);
+            $purchase = Purchase::with(['purchase_items', 'supplier'])->findOrFail($id);
             $productsToSync = [];
+
+            // Initialize inventory accounting service
+            $inventoryAccountingService = new InventoryAccountingService();
 
             // Only decrease stock for RECEIVED quantities
             foreach ($purchase->purchase_items as $purchaseItem) {
@@ -345,6 +357,15 @@ class PurchaseController extends Controller
                         }
                     }
 
+                    // Reverse the accounting journal entry for this receipt
+                    $unitCost = (float) $purchaseItem->price;
+                    $inventoryAccountingService->reversePurchaseReceipt(
+                        $purchase,
+                        $purchaseItem,
+                        $receivedQty,
+                        $unitCost
+                    );
+
                     // Track for eBay sync
                     $productsToSync[$product->id] = $product;
 
@@ -369,7 +390,7 @@ class PurchaseController extends Controller
                 ProductController::syncProductInventoryToChannels($productToSync);
             }
 
-            return redirect()->route('purchases.index')->with('success', 'Purchase deleted successfully.');
+            return redirect()->route('purchases.index')->with('success', 'Purchase deleted successfully. Accounting entries reversed.');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Purchase deletion failed', ['error' => $e->getMessage()]);
@@ -409,9 +430,12 @@ class PurchaseController extends Controller
         try {
             DB::beginTransaction();
 
-            $purchase = Purchase::with('purchase_items')->findOrFail($id);
+            $purchase = Purchase::with(['purchase_items', 'supplier'])->findOrFail($id);
             $productsToSync = [];
             $itemsReceived = 0;
+
+            // Initialize inventory accounting service
+            $inventoryAccountingService = new InventoryAccountingService();
 
             foreach ($request->items as $itemData) {
                 $receiveQty = (float) $itemData['receive_quantity'];
@@ -437,6 +461,9 @@ class PurchaseController extends Controller
                 // Use the specified rack or fall back to the original rack
                 $rackId = $itemData['rack_id'] ?? $purchaseItem->rack_id;
 
+                // Get purchase unit cost for this item
+                $unitCost = (float) $purchaseItem->price;
+
                 // Update purchase item received quantity
                 $purchaseItem->received_quantity = (float) $purchaseItem->received_quantity + $actualReceiveQty;
                 $purchaseItem->received_at = now();
@@ -445,6 +472,13 @@ class PurchaseController extends Controller
                 // Update product stock
                 $product = Product::find($purchaseItem->product_id);
                 if ($product) {
+                    // Calculate new weighted average cost before updating stock
+                    $newAvgCost = $inventoryAccountingService->calculateWeightedAverageCost(
+                        $product->id,
+                        $actualReceiveQty,
+                        $unitCost
+                    );
+
                     $existingStock = $product->product_stocks()
                         ->where('warehouse_id', $purchase->warehouse_id)
                         ->where('rack_id', $rackId)
@@ -452,16 +486,30 @@ class PurchaseController extends Controller
 
                     if ($existingStock) {
                         $existingStock->quantity = (float) $existingStock->quantity + $actualReceiveQty;
+                        $existingStock->avg_cost = $newAvgCost;
                         $existingStock->save();
                     } else {
                         $product->product_stocks()->create([
                             'warehouse_id'  => $purchase->warehouse_id,
                             'rack_id'       => $rackId,
                             'quantity'      => $actualReceiveQty,
+                            'avg_cost'      => $newAvgCost,
                             'active_status' => '1',
                             'delete_status' => '0',
                         ]);
                     }
+
+                    // Update avg_cost on all ProductStock records for this product
+                    $inventoryAccountingService->updateProductStockCost($product->id, $newAvgCost);
+
+                    // Record journal entry for inventory receipt
+                    // DEBIT: Inventory Asset, CREDIT: Accounts Payable
+                    $inventoryAccountingService->recordPurchaseReceipt(
+                        $purchase,
+                        $purchaseItem,
+                        $actualReceiveQty,
+                        $unitCost
+                    );
 
                     $productsToSync[$product->id] = $product;
                 }
@@ -472,6 +520,20 @@ class PurchaseController extends Controller
             // Update purchase status based on received quantities
             $this->updatePurchaseStatus($purchase);
 
+            // Record duties and freight charges as journal entries (only once when purchase is fully received)
+            $purchase->refresh();
+            if ($purchase->purchase_status === 'received') {
+                // Record duties & customs if any
+                if ((float) $purchase->duties_customs > 0) {
+                    $inventoryAccountingService->recordPurchaseCharges($purchase, 'duties', (float) $purchase->duties_customs);
+                }
+
+                // Record freight charges if any
+                if ((float) $purchase->freight_charges > 0) {
+                    $inventoryAccountingService->recordPurchaseCharges($purchase, 'freight', (float) $purchase->freight_charges);
+                }
+            }
+
             DB::commit();
 
             // Sync inventory to all linked sales channels
@@ -481,7 +543,7 @@ class PurchaseController extends Controller
 
             if ($itemsReceived > 0) {
                 return redirect()->route('purchases.show', $purchase->id)
-                    ->with('success', "Stock received successfully. {$itemsReceived} item(s) updated.");
+                    ->with('success', "Stock received successfully. {$itemsReceived} item(s) updated. Accounting entries recorded.");
             } else {
                 return redirect()->back()->with('warning', 'No items were received. Please enter quantities to receive.');
             }
@@ -689,6 +751,9 @@ class PurchaseController extends Controller
 
             $productsToSync = [];
 
+            // Initialize inventory accounting service
+            $inventoryAccountingService = new InventoryAccountingService();
+
             foreach ($purchases as $purchase_row) {
                 // Skip if no supplier or warehouse selected
                 if (empty($purchase_row['supplier_id']) || empty($purchase_row['warehouse_id'])) {
@@ -701,8 +766,13 @@ class PurchaseController extends Controller
                     'supplier_id'     => $purchase_row['supplier_id'],
                     'warehouse_id'    => $purchase_row['warehouse_id'],
                     'purchase_note'   => $purchase_row['purchase_note'] ?? null,
+                    'duties_customs'  => $purchase_row['duties_customs'] ?? 0,
+                    'freight_charges' => $purchase_row['freight_charges'] ?? 0,
                     'purchase_status' => 'received',
                 ]);
+
+                // Load supplier for accounting
+                $purchase->load('supplier');
 
                 // Create purchase items
                 $products = $purchase_row['products'] ?? [];
@@ -724,7 +794,7 @@ class PurchaseController extends Controller
                     $rackId        = $productInput['rack_id'] ?? null;
 
                     // Create purchase item - mark as fully received
-                    $purchase->purchase_items()->create([
+                    $purchaseItem = $purchase->purchase_items()->create([
                         'product_id'        => $product->id,
                         'barcode'           => $product->barcode ?? '',
                         'sku'               => $product->sku ?? '',
@@ -736,6 +806,13 @@ class PurchaseController extends Controller
                         'note'              => $productInput['note'] ?? null,
                         'rack_id'           => $rackId,
                     ]);
+
+                    // Calculate new weighted average cost
+                    $newAvgCost = $inventoryAccountingService->calculateWeightedAverageCost(
+                        $product->id,
+                        $incomingQty,
+                        $purchasePrice
+                    );
 
                     // Add to stock
                     $stockQuery = $product->product_stocks()
@@ -751,18 +828,41 @@ class PurchaseController extends Controller
 
                     if ($existingStock) {
                         $existingStock->quantity = (float) $existingStock->quantity + $incomingQty;
+                        $existingStock->avg_cost = $newAvgCost;
                         $existingStock->save();
                     } else {
                         $product->product_stocks()->create([
                             'warehouse_id'  => $warehouseId,
                             'rack_id'       => $rackId,
                             'quantity'      => $incomingQty,
+                            'avg_cost'      => $newAvgCost,
                             'active_status' => '1',
                             'delete_status' => '0',
                         ]);
                     }
 
+                    // Update avg_cost on all ProductStock records for this product
+                    $inventoryAccountingService->updateProductStockCost($product->id, $newAvgCost);
+
+                    // Record journal entry for inventory receipt
+                    $inventoryAccountingService->recordPurchaseReceipt(
+                        $purchase,
+                        $purchaseItem,
+                        $incomingQty,
+                        $purchasePrice
+                    );
+
                     $productsToSync[$product->id] = $product;
+                }
+
+                // Record duties & customs if any
+                if ((float) ($purchase_row['duties_customs'] ?? 0) > 0) {
+                    $inventoryAccountingService->recordPurchaseCharges($purchase, 'duties', (float) $purchase_row['duties_customs']);
+                }
+
+                // Record freight charges if any
+                if ((float) ($purchase_row['freight_charges'] ?? 0) > 0) {
+                    $inventoryAccountingService->recordPurchaseCharges($purchase, 'freight', (float) $purchase_row['freight_charges']);
                 }
             }
 
@@ -777,7 +877,7 @@ class PurchaseController extends Controller
                 ProductController::syncProductInventoryToChannels($productToSync);
             }
 
-            return redirect()->route('purchases.index')->with('success', 'Purchase(s) imported and received successfully.');
+            return redirect()->route('purchases.index')->with('success', 'Purchase(s) imported and received successfully. Accounting entries recorded.');
 
         } catch (\Exception $e) {
             DB::rollBack();

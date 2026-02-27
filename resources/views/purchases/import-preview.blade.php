@@ -165,9 +165,23 @@
                     </div>
 
                     <div class="row mb-3">
-                        <div class="col-md-12">
+                        <div class="col-md-6">
                             <label class="form-label">Purchase Note</label>
                             <input type="text" name="purchases[{{ $index }}][purchase_note]" class="form-control form-control-sm" value="{{ $purchase['purchase_note'] ?? '' }}" placeholder="Optional notes">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Duties & Customs</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="purchases[{{ $index }}][duties_customs]" class="form-control form-control-sm duties-input" value="{{ $purchase['duties_customs'] ?? 0 }}" min="0" step="0.01" placeholder="0.00">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Freight Charges</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="purchases[{{ $index }}][freight_charges]" class="form-control form-control-sm freight-input" value="{{ $purchase['freight_charges'] ?? 0 }}" min="0" step="0.01" placeholder="0.00">
+                            </div>
                         </div>
                     </div>
 
@@ -234,10 +248,26 @@
                             </tbody>
                             <tfoot class="table-light">
                                 <tr>
+                                    <td colspan="7" class="text-end">Items Total:</td>
+                                    <td colspan="2">
+                                        <span class="items-total fw-semibold">
+                                            ${{ number_format(collect($purchase['products'])->sum(fn($p) => ($p['quantity'] ?? 1) * ($p['price'] ?? 0)), 2) }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colspan="7" class="text-end">Duties & Freight:</td>
+                                    <td colspan="2">
+                                        <span class="duties-freight-total fw-semibold">
+                                            ${{ number_format(($purchase['duties_customs'] ?? 0) + ($purchase['freight_charges'] ?? 0), 2) }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
                                     <td colspan="7" class="text-end fw-bold">Purchase Total:</td>
                                     <td colspan="2">
                                         <span class="purchase-total fw-bold text-primary">
-                                            ${{ number_format(collect($purchase['products'])->sum(fn($p) => ($p['quantity'] ?? 1) * ($p['price'] ?? 0)), 2) }}
+                                            ${{ number_format(collect($purchase['products'])->sum(fn($p) => ($p['quantity'] ?? 1) * ($p['price'] ?? 0)) + ($purchase['duties_customs'] ?? 0) + ($purchase['freight_charges'] ?? 0), 2) }}
                                         </span>
                                     </td>
                                 </tr>
@@ -316,6 +346,12 @@ $(document).ready(function(){
         calculateGrandTotal();
     });
 
+    // Calculate totals on duties/freight change
+    $(document).on('input', '.duties-input, .freight-input', function(){
+        calculatePurchaseTotal($(this).closest('.card'));
+        calculateGrandTotal();
+    });
+
     // Warehouse change - update rack options
     $(document).on('change', '.warehouse-select', function(){
         var warehouseId = $(this).val();
@@ -364,11 +400,19 @@ $(document).ready(function(){
     }
 
     function calculatePurchaseTotal(card) {
-        var total = 0;
+        var itemsTotal = 0;
         card.find('.subtotal').each(function(){
-            total += parseFloat($(this).text()) || 0;
+            itemsTotal += parseFloat($(this).text()) || 0;
         });
-        card.find('.purchase-total').text('$' + total.toFixed(2));
+
+        var dutiesCustoms = parseFloat(card.find('.duties-input').val()) || 0;
+        var freightCharges = parseFloat(card.find('.freight-input').val()) || 0;
+        var dutiesFreightTotal = dutiesCustoms + freightCharges;
+        var purchaseTotal = itemsTotal + dutiesFreightTotal;
+
+        card.find('.items-total').text('$' + itemsTotal.toFixed(2));
+        card.find('.duties-freight-total').text('$' + dutiesFreightTotal.toFixed(2));
+        card.find('.purchase-total').text('$' + purchaseTotal.toFixed(2));
     }
 
     function calculateGrandTotal() {
