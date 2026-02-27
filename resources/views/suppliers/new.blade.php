@@ -45,7 +45,7 @@
                             @enderror
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="last_name" class="form-label">Last Name <span class="text-danger">*</span></label>
+                            <label for="last_name" class="form-label">Last Name</label>
                             <input type="text" id="last_name" name="last_name" value="{{ old('last_name') }}" class="form-control @error('last_name') is-invalid @enderror" placeholder="Last Name">
                             @error('last_name')
                                 <span class="invalid-feedback">{{ $message }}</span>
@@ -86,7 +86,7 @@
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="address_line_1" class="form-label">Address Line 1 <span class="text-danger">*</span></label>
+                            <label for="address_line_1" class="form-label">Address Line 1</label>
                             <input type="text" id="address_line_1" name="address_line_1" value="{{ old('address_line_1') }}" class="form-control @error('address_line_1') is-invalid @enderror" placeholder="Address Line 1">
                             @error('address_line_1')
                                 <span class="invalid-feedback">{{ $message }}</span>

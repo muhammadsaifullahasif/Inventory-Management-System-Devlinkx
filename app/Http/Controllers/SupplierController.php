@@ -64,10 +64,8 @@ class SupplierController extends Controller
     {
         $request->validate([
             'first_name' => 'required',
-            'last_name' => 'required',
             'email' => 'required|email',
             'phone' => 'required',
-            'address_line_1' => 'required',
             'active_status' => 'required',
         ]);
 
@@ -119,10 +117,8 @@ class SupplierController extends Controller
     {
         $request->validate([
             'first_name' => 'required',
-            'last_name' => 'required',
             'email' => 'required|email',
             'phone' => 'required',
-            'address_line_1' => 'required',
             'active_status' => 'required',
         ]);
 
