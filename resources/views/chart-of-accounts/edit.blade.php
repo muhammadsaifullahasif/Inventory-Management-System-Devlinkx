@@ -126,17 +126,8 @@
                         </div>
 
                         @if(!$chartOfAccount->is_system)
-                        <!-- Bank/Cash Account Fields -->
-                        <div class="mb-3">
-                            <div class="form-check form-switch">
-                                <input type="checkbox" name="is_bank_cash" id="is_bank_cash"
-                                       class="form-check-input" value="1"
-                                       {{ old('is_bank_cash', $chartOfAccount->is_bank_cash) ? 'checked' : '' }}>
-                                <label for="is_bank_cash" class="form-check-label">
-                                    This is a Bank or Cash account
-                                </label>
-                            </div>
-                        </div>
+                        <!-- Bank/Cash Account Fields (Auto-show when Banks group is selected) -->
+                        <input type="hidden" name="is_bank_cash" id="is_bank_cash" value="{{ $chartOfAccount->is_bank_cash ? '1' : '0' }}">
 
                         <div id="bank-fields" class="border rounded p-3 mb-3"
                              style="display: {{ $chartOfAccount->is_bank_cash ? 'block' : 'none' }};">
@@ -275,19 +266,24 @@
             const isBankCash = document.getElementById('is_bank_cash');
             const bankFields = document.getElementById('bank-fields');
 
-            // Update nature display when parent changes
+            // Update nature display and bank fields visibility when parent changes
             if (parentSelect) {
                 parentSelect.addEventListener('change', function() {
                     const selected = this.options[this.selectedIndex];
                     const nature = selected.dataset.nature || '';
-                    natureDisplay.value = nature.charAt(0).toUpperCase() + nature.slice(1);
-                });
-            }
+                    const groupName = selected.text.toLowerCase();
 
-            // Toggle bank fields
-            if (isBankCash) {
-                isBankCash.addEventListener('change', function() {
-                    bankFields.style.display = this.checked ? 'block' : 'none';
+                    natureDisplay.value = nature.charAt(0).toUpperCase() + nature.slice(1);
+
+                    // Show bank fields when "Banks" or "Cash" group is selected
+                    const isBankGroup = groupName.includes('bank') || groupName.includes('cash');
+                    if (isBankGroup) {
+                        bankFields.style.display = 'block';
+                        isBankCash.value = '1';
+                    } else {
+                        bankFields.style.display = 'none';
+                        isBankCash.value = '0';
+                    }
                 });
             }
         });

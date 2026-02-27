@@ -348,4 +348,45 @@ class ChartOfAccountController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get next available code for a parent group (AJAX)
+     */
+    public function getNextCode(ChartOfAccount $parent)
+    {
+        // Get the last child account under this parent, ordered by code descending
+        $lastChild = ChartOfAccount::where('parent_id', $parent->id)
+            ->orderBy('code', 'DESC')
+            ->first();
+
+        if ($lastChild) {
+            // Increment the last code
+            $lastCode = $lastChild->code;
+
+            // Handle numeric codes (e.g., 5001 → 5002)
+            if (is_numeric($lastCode)) {
+                $newCode = str_pad((int) $lastCode + 1, strlen($lastCode), '0', STR_PAD_LEFT);
+            } else {
+                // Handle alphanumeric - extract trailing number
+                preg_match('/^(.*?)(\d+)$/', $lastCode, $matches);
+                if (isset($matches[2])) {
+                    $prefix = $matches[1];
+                    $number = (int) $matches[2] + 1;
+                    $newCode = $prefix . str_pad($number, strlen($matches[2]), '0', STR_PAD_LEFT);
+                } else {
+                    // Fallback: parent code + 01
+                    $newCode = $parent->code . '01';
+                }
+            }
+        } else {
+            // No children yet — use parent code + "01"
+            $newCode = $parent->code . '01';
+        }
+
+        return response()->json([
+            'success' => true,
+            'code' => $newCode,
+            'nature' => $parent->nature,
+        ]);
+    }
 }

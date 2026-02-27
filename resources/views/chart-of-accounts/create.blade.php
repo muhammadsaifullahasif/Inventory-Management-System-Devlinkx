@@ -62,11 +62,15 @@
 
                         <div class="row mb-3">
                             <div class="col-md-4">
-                                <label for="code" class="form-label">Account Code <span class="text-danger">*</span></label>
-                                <input type="text" name="code" id="code" class="form-control @error('code') is-invalid @enderror" value="{{ old('code') }}" placeholder="e.g., 6008" required>
+                                <label for="code" class="form-label">
+                                    Account Code <span class="text-danger">*</span>
+                                    <small class="text-muted">(auto-generated)</small>
+                                </label>
+                                <input type="text" name="code" id="code" class="form-control @error('code') is-invalid @enderror" value="{{ old('code') }}" placeholder="Select a group first" required>
                                 @error('code')
                                     <span class="invalid-feedback">{{ $message }}</span>
                                 @enderror
+                                <small class="text-muted">You can modify if needed</small>
                             </div>
                             <div class="col-md-8">
                                 <label for="name" class="form-label">Account Name <span class="text-danger">*</span></label>
@@ -85,13 +89,8 @@
                             @enderror
                         </div>
 
-                        <!-- Bank/Cash Account Fields -->
-                        <div class="mb-3">
-                            <div class="form-check form-switch">
-                                <input type="checkbox" name="is_bank_cash" id="is_bank_cash" class="form-check-input" value="1" {{ old('is_bank_cash') ? 'checked' : '' }}>
-                                <label for="is_bank_cash" class="form-check-label">This is a Bank or Cash account</label>
-                            </div>
-                        </div>
+                        <!-- Bank/Cash Account Fields (Auto-show when Banks group is selected) -->
+                        <input type="hidden" name="is_bank_cash" id="is_bank_cash" value="0">
 
                         <div id="bank-fields" class="border rounded p-3 mb-3" style="display: none;">
                             <h6 class="mb-3"><i class="feather-credit-card me-2"></i>Bank Account Details</h6>
@@ -185,30 +184,70 @@
         document.addEventListener('DOMContentLoaded', function() {
             const parentSelect = document.getElementById('parent_id');
             const natureDisplay = document.getElementById('nature_display');
+            const codeInput = document.getElementById('code');
             const isBankCash = document.getElementById('is_bank_cash');
             const bankFields = document.getElementById('bank-fields');
 
-            // Update nature display when parent changes
+            // Update nature display and auto-generate code when parent changes
             parentSelect.addEventListener('change', function() {
+                const parentId = this.value;
                 const selected = this.options[this.selectedIndex];
                 const nature = selected.dataset.nature || '';
+                const groupName = selected.text.toLowerCase();
+
+                // Update nature display
                 natureDisplay.value = nature.charAt(0).toUpperCase() + nature.slice(1);
+
+                // Show bank fields when "Banks" or "Cash" group is selected
+                const isBankGroup = groupName.includes('bank') || groupName.includes('cash');
+                if (isBankGroup) {
+                    bankFields.style.display = 'block';
+                    isBankCash.value = '1';
+                } else {
+                    bankFields.style.display = 'none';
+                    isBankCash.value = '0';
+                }
+
+                // Fetch next code if parent is selected
+                if (parentId) {
+                    fetchNextCode(parentId);
+                } else {
+                    codeInput.value = '';
+                }
             });
 
-            // Trigger on page load
+            // Fetch next available code via AJAX
+            function fetchNextCode(parentId) {
+                codeInput.classList.add('is-loading');
+                codeInput.placeholder = 'Generating...';
+
+                fetch(`{{ url('chart-of-accounts-next-code') }}/${parentId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        codeInput.value = data.code;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching next code:', error);
+                })
+                .finally(() => {
+                    codeInput.classList.remove('is-loading');
+                    codeInput.placeholder = 'e.g., 6008';
+                });
+            }
+
+            // Trigger on page load if parent is pre-selected
             if (parentSelect.value) {
                 parentSelect.dispatchEvent(new Event('change'));
             }
 
-            // Toggle bank fields
-            isBankCash.addEventListener('change', function() {
-                bankFields.style.display = this.checked ? 'block' : 'none';
-            });
-
-            // Trigger on page load
-            if (isBankCash.checked) {
-                bankFields.style.display = 'block';
-            }
         });
     </script>
 @endpush

@@ -244,6 +244,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Chart of Accounts
     Route::resource('chart-of-accounts', ChartOfAccountController::class);
+    Route::get('chart-of-accounts-next-code/{parent}', [ChartOfAccountController::class, 'getNextCode'])->name('chart-of-accounts.next-code');
     Route::get('chart-of-accounts-by-group/{group}', [ChartOfAccountController::class, 'getByGroup'])->name('chart-of-accounts.by-group');
     Route::get('chart-of-accounts-expense', [ChartOfAccountController::class, 'getExpenseAccounts'])->name('chart-of-accounts.expense');
     Route::get('chart-of-accounts-bank-cash', [ChartOfAccountController::class, 'getBankCashAccounts'])->name('chart-of-accounts.bank-cash');
