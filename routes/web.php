@@ -183,6 +183,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Purchases
     Route::get('/purchases/import', [PurchaseController::class, 'import_purchases'])->name('purchases.import');
+    Route::get('/purchases/import/template', [PurchaseController::class, 'downloadImportTemplate'])->name('purchases.import.template');
     Route::post('/purchases/import/preview', [PurchaseController::class, 'import_purchase_preview'])->name('purchases.import.preview');
     Route::post('/purchases/import/store', [PurchaseController::class, 'import_purchases_store'])->name('purchases.import.store');
     Route::resource('/purchases', PurchaseController::class);

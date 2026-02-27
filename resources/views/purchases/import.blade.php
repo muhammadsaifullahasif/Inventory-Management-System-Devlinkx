@@ -61,7 +61,7 @@
                             <i class="feather-upload me-2"></i>Upload Purchase
                         </button>
                         <a href="{{ route('products.index') }}" class="btn btn-light-brand">Cancel</a>
-                        <a href="{{ route('products.import.template') }}" class="btn btn-outline-secondary">
+                        <a href="{{ route('purchases.import.template') }}" class="btn btn-outline-secondary">
                             <i class="feather-download me-2"></i>Download Template
                         </a>
                     </div>

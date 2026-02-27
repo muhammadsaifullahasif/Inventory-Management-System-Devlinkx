@@ -888,4 +888,17 @@ class PurchaseController extends Controller
             return redirect()->route('purchases.import')->with('error', 'An error occurred while importing the purchase(s): ' . $e->getMessage());
         }
     }
+
+    public function downloadImportTemplate()
+    {
+        $filePath = public_path('Purchases.csv');
+
+        if (!file_exists($filePath)) {
+            abort(404, 'Template file not found.');
+        }
+
+        return response()->download($filePath, 'Purchases.csv', [
+            'Content-Type' => 'text/csv',
+        ]);
+    }
 }
