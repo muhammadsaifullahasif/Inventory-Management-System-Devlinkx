@@ -28,20 +28,11 @@
 
                 <!-- Orders -->
                 @canany(['view orders', 'add orders', 'edit orders', 'delete orders'])
-                    <li class="nxl-item nxl-hasmenu {{ request()->routeIs('orders.*') ? 'active nxl-trigger' : '' }}">
-                        <a href="javascript:void(0);" class="nxl-link">
+                    <li class="nxl-item {{ request()->routeIs('orders.*') ? 'active' : '' }}">
+                        <a href="{{ route('orders.index') }}" class="nxl-link">
                             <span class="nxl-micon"><i class="feather-shopping-cart"></i></span>
                             <span class="nxl-mtext">Orders</span>
-                            <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
                         </a>
-                        <ul class="nxl-submenu">
-                            <li class="nxl-item {{ request()->routeIs(['orders.index', 'orders.show', 'orders.edit']) && !request()->routeIs('orders.returns-refunds') ? 'active' : '' }}">
-                                <a class="nxl-link" href="{{ route('orders.index') }}">All Orders</a>
-                            </li>
-                            <li class="nxl-item {{ request()->routeIs('orders.returns-refunds') ? 'active' : '' }}">
-                                <a class="nxl-link" href="{{ route('orders.returns-refunds') }}">Returns & Refunds</a>
-                            </li>
-                        </ul>
                     </li>
                 @endcan
 

@@ -147,10 +147,14 @@
                                                             || in_array($order->order_status, ['shipped', 'delivered', 'ready_for_pickup']);
                                             $isCancelled  = in_array($order->order_status, ['cancelled', 'cancellation_requested']);
                                             $isRefunded   = $order->order_status === 'refunded' || $order->payment_status === 'refunded';
+                                            $isPartiallyRefunded = $order->isPartiallyRefunded();
 
                                             if ($isRefunded) {
                                                 $statusLabel = 'Refunded';
                                                 $statusColor = 'secondary';
+                                            } elseif ($isPartiallyRefunded) {
+                                                $statusLabel = 'Partial Refund';
+                                                $statusColor = 'info';
                                             } elseif ($isCancelled) {
                                                 $statusLabel = ucfirst(str_replace('_', ' ', $order->order_status));
                                                 $statusColor = 'danger';
@@ -166,6 +170,9 @@
                                             }
                                         @endphp
                                         <span class="badge bg-soft-{{ $statusColor }} text-{{ $statusColor }}">{{ $statusLabel }}</span>
+                                        @if($isPartiallyRefunded)
+                                            <span class="d-block fs-11 text-muted">{{ $order->currency ?? 'USD' }} {{ number_format($order->total_refunded, 2) }} refunded</span>
+                                        @endif
                                     </td>
                                     <td>
                                         @php
@@ -218,7 +225,25 @@
                                                     <i class="feather-truck"></i>
                                                 </a>
                                             @endif
-                                            @if($order->order_status !== 'cancelled')
+                                            {{-- Refund Button --}}
+                                            @if($order->canBeRefunded() && !$order->isRefunded())
+                                                <a href="javascript:void(0);"
+                                                    class="avatar-text avatar-md text-success refund-btn"
+                                                    data-order-id="{{ $order->id }}"
+                                                    data-order-number="{{ $order->order_number }}"
+                                                    data-order-total="{{ $order->total }}"
+                                                    data-total-refunded="{{ $order->total_refunded ?? 0 }}"
+                                                    data-refundable="{{ $order->getRefundableAmount() }}"
+                                                    data-currency="{{ $order->currency ?? 'USD' }}"
+                                                    data-is-ebay="{{ $order->isEbayOrder() ? '1' : '0' }}"
+                                                    data-ebay-order-id="{{ $order->ebay_order_id }}"
+                                                    data-sales-channel-id="{{ $order->sales_channel_id }}"
+                                                    data-bs-toggle="tooltip"
+                                                    title="Issue Refund">
+                                                    <i class="feather-dollar-sign"></i>
+                                                </a>
+                                            @endif
+                                            @if($order->order_status !== 'cancelled' && $order->order_status !== 'refunded')
                                                 <a href="javascript:void(0);" class="avatar-text avatar-md text-danger cancel-btn" data-id="{{ $order->id }}" data-bs-toggle="tooltip" title="Cancel Order">
                                                     <i class="feather-x"></i>
                                                 </a>
@@ -246,6 +271,97 @@
 @endsection
 
 @push('modals')
+    <!-- Refund Modal -->
+    <div class="modal fade" id="refundModal" tabindex="-1" aria-labelledby="refundModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="refundModalLabel">Issue Refund</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Order</label>
+                        <p class="mb-0" id="refundOrderNumber"></p>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label text-muted small">Order Total</label>
+                            <p class="mb-0 fw-semibold" id="refundOrderTotal"></p>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small">Already Refunded</label>
+                            <p class="mb-0 fw-semibold text-info" id="refundAlreadyRefunded"></p>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">Refundable Amount</label>
+                        <p class="mb-0 fw-bold text-success fs-5" id="refundableAmount"></p>
+                    </div>
+
+                    <hr>
+
+                    <form id="refundForm">
+                        <input type="hidden" name="order_id" id="refundOrderId">
+                        <input type="hidden" name="is_ebay" id="refundIsEbay">
+                        <input type="hidden" name="ebay_order_id" id="refundEbayOrderId">
+                        <input type="hidden" name="sales_channel_id" id="refundSalesChannelId">
+
+                        <div class="mb-3">
+                            <label class="form-label">Refund Type</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="refund_type" id="refundTypeFull" value="full" checked>
+                                <label class="form-check-label" for="refundTypeFull">
+                                    Full Refund
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="refund_type" id="refundTypePartial" value="partial">
+                                <label class="form-check-label" for="refundTypePartial">
+                                    Partial Refund
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3" id="partialAmountWrap" style="display:none;">
+                            <label for="refundAmount" class="form-label">Refund Amount <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text" id="refundCurrency">USD</span>
+                                <input type="number" class="form-control" id="refundAmount" name="amount" step="0.01" min="0.01" placeholder="0.00">
+                            </div>
+                            <small class="text-muted">Maximum: <span id="maxRefundAmount"></span></small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="refundReason" class="form-label">Reason</label>
+                            <select class="form-select" id="refundReason" name="reason">
+                                <option value="BUYER_CANCEL">Buyer Requested Cancellation</option>
+                                <option value="ITEM_NOT_RECEIVED">Item Not Received</option>
+                                <option value="ITEM_NOT_AS_DESCRIBED">Item Not As Described</option>
+                                <option value="DEFECTIVE_ITEM">Defective Item</option>
+                                <option value="WRONG_ITEM">Wrong Item Sent</option>
+                                <option value="OTHER">Other</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="refundComment" class="form-label">Comment (Optional)</label>
+                            <textarea class="form-control" id="refundComment" name="comment" rows="2" placeholder="Additional notes..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light-brand" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" id="submitRefundBtn">
+                        <i class="feather-dollar-sign me-1"></i> Issue Refund
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Ship Order Modal -->
     <div class="modal fade" id="shipModal" tabindex="-1" aria-labelledby="shipModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
@@ -449,6 +565,123 @@
 @push('scripts')
     <script>
         $(document).ready(function() {
+
+            // ----------------------------------------------------------------
+            // Refund Modal
+            // ----------------------------------------------------------------
+            $(document).on('click', '.refund-btn', function() {
+                var $btn = $(this);
+
+                $('#refundOrderId').val($btn.data('order-id'));
+                $('#refundOrderNumber').text($btn.data('order-number'));
+                $('#refundOrderTotal').text($btn.data('currency') + ' ' + parseFloat($btn.data('order-total')).toFixed(2));
+                $('#refundAlreadyRefunded').text($btn.data('currency') + ' ' + parseFloat($btn.data('total-refunded')).toFixed(2));
+                $('#refundableAmount').text($btn.data('currency') + ' ' + parseFloat($btn.data('refundable')).toFixed(2));
+                $('#refundCurrency').text($btn.data('currency'));
+                $('#maxRefundAmount').text($btn.data('currency') + ' ' + parseFloat($btn.data('refundable')).toFixed(2));
+                $('#refundAmount').attr('max', $btn.data('refundable'));
+                $('#refundIsEbay').val($btn.data('is-ebay'));
+                $('#refundEbayOrderId').val($btn.data('ebay-order-id'));
+                $('#refundSalesChannelId').val($btn.data('sales-channel-id'));
+
+                // Reset form
+                $('#refundForm')[0].reset();
+                $('#refundTypeFull').prop('checked', true);
+                $('#partialAmountWrap').hide();
+
+                var refundModal = new bootstrap.Modal(document.getElementById('refundModal'));
+                refundModal.show();
+            });
+
+            // Toggle partial amount field
+            $('input[name="refund_type"]').on('change', function() {
+                if ($(this).val() === 'partial') {
+                    $('#partialAmountWrap').show();
+                    $('#refundAmount').prop('required', true);
+                } else {
+                    $('#partialAmountWrap').hide();
+                    $('#refundAmount').prop('required', false);
+                }
+            });
+
+            // Submit refund
+            $('#submitRefundBtn').on('click', function() {
+                var orderId = $('#refundOrderId').val();
+                var isEbay = $('#refundIsEbay').val() === '1';
+                var refundType = $('input[name="refund_type"]:checked').val();
+                var amount = refundType === 'partial' ? parseFloat($('#refundAmount').val()) : null;
+                var reason = $('#refundReason').val();
+                var comment = $('#refundComment').val();
+
+                if (refundType === 'partial' && (!amount || amount <= 0)) {
+                    alert('Please enter a valid refund amount.');
+                    return;
+                }
+
+                var $btn = $(this);
+                $btn.prop('disabled', true).html('<i class="spinner-border spinner-border-sm me-1"></i> Processing...');
+
+                var url, data;
+
+                if (isEbay) {
+                    var salesChannelId = $('#refundSalesChannelId').val();
+                    var ebayOrderId = $('#refundEbayOrderId').val();
+
+                    if (refundType === 'partial') {
+                        url = '/api/ebay/refunds/' + salesChannelId + '/' + ebayOrderId + '/partial';
+                        data = {
+                            _token: '{{ csrf_token() }}',
+                            line_items: [],
+                            reason: reason,
+                            comment: comment
+                        };
+                    } else {
+                        url = '/api/ebay/refunds/' + salesChannelId + '/' + ebayOrderId;
+                        data = {
+                            _token: '{{ csrf_token() }}',
+                            reason: reason,
+                            comment: comment
+                        };
+                    }
+                } else {
+                    // Local order refund (using web routes)
+                    if (refundType === 'partial') {
+                        url = '/orders/' + orderId + '/refund/partial';
+                        data = {
+                            _token: '{{ csrf_token() }}',
+                            amount: amount,
+                            reason: reason,
+                            comment: comment
+                        };
+                    } else {
+                        url = '/orders/' + orderId + '/refund';
+                        data = {
+                            _token: '{{ csrf_token() }}',
+                            reason: reason,
+                            comment: comment
+                        };
+                    }
+                }
+
+                $.ajax({
+                    url: url,
+                    type: 'POST',
+                    data: data,
+                    success: function(response) {
+                        if (response.success) {
+                            bootstrap.Modal.getInstance(document.getElementById('refundModal')).hide();
+                            location.reload();
+                        } else {
+                            alert(response.message || 'Failed to process refund');
+                            $btn.prop('disabled', false).html('<i class="feather-dollar-sign me-1"></i> Issue Refund');
+                        }
+                    },
+                    error: function(xhr) {
+                        alert('Failed to process refund: ' + (xhr.responseJSON?.message || 'Unknown error'));
+                        $btn.prop('disabled', false).html('<i class="feather-dollar-sign me-1"></i> Issue Refund');
+                    }
+                });
+            });
 
             // ----------------------------------------------------------------
             // Unit label updates when unit selectors change

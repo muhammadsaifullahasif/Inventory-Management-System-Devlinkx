@@ -226,7 +226,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ebay/orders/import/{id}', [EbayController::class, 'getEbayOrders'])->name('ebay.orders.import');
 
     // Orders Management
-    Route::get('/orders/returns-refunds', [OrderController::class, 'returnsRefunds'])->name('orders.returns-refunds');
     Route::post('/orders/shipping-rates', [OrderController::class, 'getShippingRates'])->name('orders.shipping-rates');
     Route::get('/orders/{id}/rate-info', [OrderController::class, 'rateInfo'])->name('orders.rate-info');
     Route::resource('/orders', OrderController::class);
