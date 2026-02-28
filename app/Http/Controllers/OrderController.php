@@ -646,6 +646,145 @@ class OrderController extends Controller
     }
 
     /**
+     * Display returns, cancellations, and refunds management page
+     */
+    public function returnsRefunds(Request $request)
+    {
+        $query = Order::with(['items', 'salesChannel'])
+            ->where(function ($q) {
+                // Orders with return status
+                $q->whereNotNull('return_status')
+                    // Or orders with cancellation
+                    ->orWhere('order_status', 'cancelled')
+                    ->orWhereNotNull('cancel_status')
+                    // Or orders that have been refunded (full or partial)
+                    ->orWhereNotNull('refund_status')
+                    ->orWhere('payment_status', 'refunded')
+                    ->orWhere('total_refunded', '>', 0);
+            });
+
+        // Filter by sales channel
+        if ($request->filled('sales_channel_id')) {
+            $query->where('sales_channel_id', $request->sales_channel_id);
+        }
+
+        // Filter by type
+        if ($request->filled('type')) {
+            switch ($request->type) {
+                case 'return':
+                    $query->whereNotNull('return_status');
+                    break;
+                case 'cancellation':
+                    $query->where(function ($q) {
+                        $q->where('order_status', 'cancelled')
+                            ->orWhereNotNull('cancel_status');
+                    });
+                    break;
+                case 'refund':
+                    $query->where(function ($q) {
+                        $q->where('refund_status', 'completed')
+                            ->orWhere('payment_status', 'refunded');
+                    })->where(function ($q) {
+                        $q->whereRaw('total_refunded >= total')
+                            ->orWhere('total_refunded', 0)
+                            ->orWhereNull('total_refunded');
+                    });
+                    break;
+                case 'partial_refund':
+                    $query->where('refund_status', 'partial')
+                        ->orWhere(function ($q) {
+                            $q->where('total_refunded', '>', 0)
+                                ->whereRaw('total_refunded < total');
+                        });
+                    break;
+            }
+        }
+
+        // Filter by status
+        if ($request->filled('status')) {
+            switch ($request->status) {
+                case 'pending':
+                    $query->where(function ($q) {
+                        $q->whereIn('return_status', ['open', 'pending', 'awaiting', 'requested'])
+                            ->orWhereIn('cancel_status', ['CancelRequested', 'CancelPending', 'cancellation_requested'])
+                            ->orWhere('refund_status', 'pending');
+                    });
+                    break;
+                case 'processing':
+                    $query->where(function ($q) {
+                        $q->whereIn('return_status', ['processing', 'in_progress', 'shipped'])
+                            ->orWhere('refund_status', 'processing');
+                    });
+                    break;
+                case 'completed':
+                    $query->where(function ($q) {
+                        $q->whereIn('return_status', ['closed', 'completed'])
+                            ->orWhere('order_status', 'cancelled')
+                            ->orWhere('refund_status', 'completed')
+                            ->orWhere('payment_status', 'refunded');
+                    });
+                    break;
+                case 'cancelled':
+                    $query->where(function ($q) {
+                        $q->whereIn('return_status', ['cancelled', 'declined'])
+                            ->orWhereIn('cancel_status', ['CancelRejected', 'CancelDeclined']);
+                    });
+                    break;
+            }
+        }
+
+        // Filter by date range
+        if ($request->filled('date_from')) {
+            $query->where(function ($q) use ($request) {
+                $q->whereDate('return_requested_at', '>=', $request->date_from)
+                    ->orWhereDate('cancellation_requested_at', '>=', $request->date_from)
+                    ->orWhereDate('refund_initiated_at', '>=', $request->date_from)
+                    ->orWhereDate('updated_at', '>=', $request->date_from);
+            });
+        }
+
+        // Search
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('order_number', 'like', "%{$search}%")
+                    ->orWhere('ebay_order_id', 'like', "%{$search}%")
+                    ->orWhere('buyer_email', 'like', "%{$search}%")
+                    ->orWhere('buyer_name', 'like', "%{$search}%");
+            });
+        }
+
+        // Sort by most recent activity
+        $query->orderByRaw('COALESCE(return_requested_at, cancellation_requested_at, refund_initiated_at, updated_at) DESC');
+
+        $perPage = $request->input('per_page', 20);
+        $orders = $query->paginate($perPage);
+
+        // Get sales channels for filter dropdown
+        $salesChannels = SalesChannel::all();
+
+        // Calculate statistics
+        $stats = [
+            'active_returns' => Order::whereNotNull('return_status')
+                ->whereNotIn('return_status', ['closed', 'cancelled', 'completed'])
+                ->count(),
+            'pending_cancellations' => Order::whereNotNull('cancel_status')
+                ->whereIn('cancel_status', ['CancelRequested', 'CancelPending', 'cancellation_requested'])
+                ->where('order_status', '!=', 'cancelled')
+                ->count(),
+            'total_refunded' => Order::where('total_refunded', '>', 0)->sum('total_refunded')
+                + Order::whereNull('total_refunded')->where('refund_amount', '>', 0)->sum('refund_amount'),
+            'refunded_orders' => Order::where(function ($q) {
+                    $q->where('payment_status', 'refunded')
+                        ->orWhere('refund_status', 'completed');
+                })->count(),
+            'currency' => 'USD', // Default currency for display
+        ];
+
+        return view('orders.returns-refunds', compact('orders', 'salesChannels', 'stats'));
+    }
+
+    /**
      * Get order statistics
      */
     public function statistics(Request $request): JsonResponse
@@ -827,5 +966,166 @@ class OrderController extends Controller
         $filename = "label-{$order->order_number}.pdf";
 
         return Storage::download($order->shipping_label_path, $filename);
+    }
+
+    /**
+     * Issue a full refund for a local (non-eBay) order.
+     */
+    public function refund(Request $request, string $id): JsonResponse
+    {
+        $order = Order::find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        if ($order->isEbayOrder()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Use the eBay API endpoints for eBay orders',
+            ], 400);
+        }
+
+        if (!$order->canBeRefunded()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order cannot be refunded. It may already be refunded or not paid.',
+            ], 400);
+        }
+
+        $validated = $request->validate([
+            'reason' => 'nullable|string|max:500',
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $refundAmount = $order->getRefundableAmount();
+
+            $order->update([
+                'refund_status' => 'completed',
+                'refund_amount' => $order->total,
+                'total_refunded' => $order->total,
+                'refund_initiated_at' => now(),
+                'refund_completed_at' => now(),
+                'payment_status' => 'refunded',
+            ]);
+
+            // Log the refund
+            $order->setMeta('refund_log_' . time(), [
+                'type' => 'full_refund',
+                'amount' => $refundAmount,
+                'reason' => $validated['reason'] ?? null,
+                'comment' => $validated['comment'] ?? null,
+                'timestamp' => now()->toIso8601String(),
+                'processed_by' => auth()->user()?->name ?? 'System',
+            ]);
+
+            Log::info('Local order refunded', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'refund_amount' => $refundAmount,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order refunded successfully',
+                'refund_amount' => $refundAmount,
+                'data' => $order->fresh(),
+            ]);
+
+        } catch (Exception $e) {
+            Log::error('Failed to refund local order', [
+                'order_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to refund order: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Issue a partial refund for a local (non-eBay) order.
+     */
+    public function partialRefund(Request $request, string $id): JsonResponse
+    {
+        $order = Order::find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        if ($order->isEbayOrder()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Use the eBay API endpoints for eBay orders',
+            ], 400);
+        }
+
+        $maxRefundable = $order->getRefundableAmount();
+
+        if ($maxRefundable <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order has already been fully refunded',
+            ], 400);
+        }
+
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01', "max:{$maxRefundable}"],
+            'reason' => 'nullable|string|max:500',
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $amount = (float) $validated['amount'];
+
+            // Record the partial refund
+            $order->recordPartialRefund($amount);
+
+            // Log the refund
+            $order->setMeta('refund_log_' . time(), [
+                'type' => 'partial_refund',
+                'amount' => $amount,
+                'reason' => $validated['reason'] ?? null,
+                'comment' => $validated['comment'] ?? null,
+                'timestamp' => now()->toIso8601String(),
+                'processed_by' => auth()->user()?->name ?? 'System',
+            ]);
+
+            Log::info('Local order partially refunded', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'refund_amount' => $amount,
+                'total_refunded' => $order->fresh()->total_refunded,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Partial refund issued successfully',
+                'refund_amount' => $amount,
+                'total_refunded' => $order->fresh()->total_refunded,
+                'data' => $order->fresh(),
+            ]);
+
+        } catch (Exception $e) {
+            Log::error('Failed to issue partial refund for local order', [
+                'order_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to issue partial refund: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

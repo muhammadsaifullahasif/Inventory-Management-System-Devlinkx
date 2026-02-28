@@ -226,6 +226,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ebay/orders/import/{id}', [EbayController::class, 'getEbayOrders'])->name('ebay.orders.import');
 
     // Orders Management
+    Route::get('/orders/returns-refunds', [OrderController::class, 'returnsRefunds'])->name('orders.returns-refunds');
     Route::post('/orders/shipping-rates', [OrderController::class, 'getShippingRates'])->name('orders.shipping-rates');
     Route::get('/orders/{id}/rate-info', [OrderController::class, 'rateInfo'])->name('orders.rate-info');
     Route::resource('/orders', OrderController::class);
@@ -234,6 +235,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/orders/{id}/generate-label', [OrderController::class, 'generateShippingLabel'])->name('orders.generate-label');
     Route::get('/orders/{id}/label', [OrderController::class, 'downloadLabel'])->name('orders.label');
     Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
+    Route::post('/orders/{id}/refund', [OrderController::class, 'refund'])->name('orders.refund');
+    Route::post('/orders/{id}/refund/partial', [OrderController::class, 'partialRefund'])->name('orders.refund.partial');
     Route::get('/orders-statistics', [OrderController::class, 'statistics'])->name('orders.statistics');
 
 
