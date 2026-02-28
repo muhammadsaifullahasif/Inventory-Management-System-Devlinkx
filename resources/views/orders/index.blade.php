@@ -283,7 +283,27 @@
                             <h6 class="card-title mb-0"><i class="feather-package me-2"></i>Items & Dimensions</h6>
                             <small class="text-muted">Edit weight/dims to override product defaults</small>
                         </div>
-                        <div class="card-body p-0">
+                        <div class="card-body py-2">
+                            <!-- Unit Selectors -->
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-6">
+                                    <label class="form-label small mb-1">Weight Unit</label>
+                                    <select id="indexWeightUnit" class="form-select form-select-sm">
+                                        <option value="lbs" selected>Pounds (lbs)</option>
+                                        <option value="kg">Kilograms (kg)</option>
+                                        <option value="oz">Ounces (oz)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small mb-1">Dimension Unit</label>
+                                    <select id="indexDimensionUnit" class="form-select form-select-sm">
+                                        <option value="in" selected>Inches (in)</option>
+                                        <option value="cm">Centimeters (cm)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body p-0 pt-0">
                             <div id="itemsLoading" class="text-center py-3">
                                 <div class="spinner-border spinner-border-sm me-2" role="status"></div> Loading items...
                             </div>
@@ -294,10 +314,10 @@
                                             <tr>
                                                 <th>Item</th>
                                                 <th class="text-center" style="width:40px;">Qty</th>
-                                                <th class="text-center" style="width:90px;">Weight</th>
-                                                <th class="text-center" style="width:90px;">L</th>
-                                                <th class="text-center" style="width:90px;">W</th>
-                                                <th class="text-center" style="width:90px;">H</th>
+                                                <th class="text-center" style="width:90px;">Weight <span class="text-muted unit-label" id="indexWeightUnitLabel">(lbs)</span></th>
+                                                <th class="text-center" style="width:90px;">L <span class="text-muted unit-label" id="indexDimUnitLabelL">(in)</span></th>
+                                                <th class="text-center" style="width:90px;">W <span class="text-muted unit-label" id="indexDimUnitLabelW">(in)</span></th>
+                                                <th class="text-center" style="width:90px;">H <span class="text-muted unit-label" id="indexDimUnitLabelH">(in)</span></th>
                                             </tr>
                                         </thead>
                                         <tbody id="itemsDimTbody"></tbody>
@@ -422,6 +442,19 @@
         $(document).ready(function() {
 
             // ----------------------------------------------------------------
+            // Unit label updates when unit selectors change
+            // ----------------------------------------------------------------
+            $('#indexWeightUnit').on('change', function() {
+                var unit = $(this).val();
+                $('#indexWeightUnitLabel').text('(' + unit + ')');
+            });
+
+            $('#indexDimensionUnit').on('change', function() {
+                var unit = $(this).val();
+                $('#indexDimUnitLabelL, #indexDimUnitLabelW, #indexDimUnitLabelH').text('(' + unit + ')');
+            });
+
+            // ----------------------------------------------------------------
             // Open ship modal — populate order details from data attributes
             // then load items/dimensions via AJAX
             // ----------------------------------------------------------------
@@ -541,14 +574,20 @@
                 $('#generateLabelBtn').hide().prop('disabled', true);
                 $('#labelResult').hide();
 
+                // Get selected units
+                var weightUnit = $('#indexWeightUnit').val();
+                var dimensionUnit = $('#indexDimensionUnit').val();
+
                 $.ajax({
                     url: '{{ route('orders.shipping-rates') }}',
                     type: 'POST',
                     data: {
-                        _token:     '{{ csrf_token() }}',
-                        order_id:   orderId,
-                        carrier_id: carrierId,
-                        items:      itemOverrides
+                        _token:       '{{ csrf_token() }}',
+                        order_id:     orderId,
+                        carrier_id:   carrierId,
+                        items:        itemOverrides,
+                        weight_unit:  weightUnit,
+                        dimension_unit: dimensionUnit
                     },
                     success: function(response) {
                         $('#ratesLoading').hide();
@@ -652,6 +691,10 @@
                     itemOverrides.push(entry);
                 });
 
+                // Get selected units
+                var weightUnit = $('#indexWeightUnit').val();
+                var dimensionUnit = $('#indexDimensionUnit').val();
+
                 var $btn = $(this);
                 $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generating Label...');
 
@@ -659,10 +702,12 @@
                     url: '/orders/' + orderId + '/generate-label',
                     type: 'POST',
                     data: {
-                        _token:       '{{ csrf_token() }}',
-                        carrier_id:   carrierId,
-                        service_code: serviceCode,
-                        items:        itemOverrides
+                        _token:         '{{ csrf_token() }}',
+                        carrier_id:     carrierId,
+                        service_code:   serviceCode,
+                        items:          itemOverrides,
+                        weight_unit:    weightUnit,
+                        dimension_unit: dimensionUnit
                     },
                     success: function(response) {
                         if (response.success) {
