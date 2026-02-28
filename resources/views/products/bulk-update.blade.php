@@ -1,5 +1,27 @@
 @extends('layouts.app')
 
+@push('styles')
+<style>
+    #productsTable {
+        min-width: 1000px;
+    }
+    #productsTable th,
+    #productsTable td {
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    #productsTable .form-control-sm {
+        min-width: 90px;
+    }
+    #productsTable input[type="number"].form-control-sm {
+        min-width: 100px;
+    }
+    #productsTable input[type="text"].form-control-sm {
+        min-width: 110px;
+    }
+</style>
+@endpush
+
 @section('header')
     <!-- [ page-header ] start -->
     <div class="page-header">
@@ -138,22 +160,21 @@
                         <table class="table table-bordered table-sm mb-0" id="productsTable">
                             <thead class="thead-light">
                                 <tr>
-                                    <th style="width:40px;">
+                                    <th style="width: 40px;">
                                         <div class="btn-group mb-1">
                                             <div class="custom-control custom-checkbox ms-1">
                                                 <input type="checkbox" class="custom-control-input" id="selectPageCheckbox" title="Select all on this page">
                                                 <label for="selectPageCheckbox" class="custom-control-label"></label>
                                             </div>
                                         </div>
-                                        {{-- <input type="checkbox" id="selectPageCheckbox" title="Select / deselect all visible"> --}}
                                     </th>
-                                    <th style="width:200px;">Product</th>
-                                    <th style="width:130px;">SKU</th>
-                                    <th style="width:130px;">Barcode</th>
-                                    <th style="width:100px;">Weight (lbs)</th>
-                                    <th style="width:100px;">Length (in)</th>
-                                    <th style="width:100px;">Width (in)</th>
-                                    <th style="width:100px;">Height (in)</th>
+                                    <th style="min-width: 200px;">Product</th>
+                                    <th style="min-width: 130px;">SKU</th>
+                                    <th style="min-width: 130px;">Barcode</th>
+                                    <th style="min-width: 110px;">Weight (lbs)</th>
+                                    <th style="min-width: 110px;">Length (in)</th>
+                                    <th style="min-width: 110px;">Width (in)</th>
+                                    <th style="min-width: 110px;">Height (in)</th>
                                 </tr>
                             </thead>
                             <tbody id="productsTableBody">

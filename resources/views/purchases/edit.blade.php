@@ -8,6 +8,34 @@
     }
 @endphp
 
+@push('styles')
+<style>
+    #productsTable {
+        min-width: 1200px;
+    }
+    #productsTable th,
+    #productsTable td {
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    #productsTable .form-control-sm,
+    #productsTable .form-select-sm {
+        min-width: 80px;
+    }
+    #productsTable input[type="number"].form-control-sm {
+        min-width: 90px;
+    }
+    #productsTable input[type="text"].note-input {
+        min-width: 120px;
+    }
+    #productsTable .subtotal-input {
+        min-width: 100px;
+        text-align: right;
+        font-weight: 600;
+    }
+</style>
+@endpush
+
 @section('header')
     <!-- [ page-header ] start -->
     <div class="page-header">
@@ -174,15 +202,15 @@
                                         </div>
                                         {{-- <input type="checkbox" class="form-check-input" id="selectPageCheckbox" title="Select all on this page"> --}}
                                     </th>
-                                    <th>SKU</th>
-                                    <th>Name</th>
-                                    <th>Barcode</th>
-                                    <th style="width: 80px;">Stock</th>
-                                    <th style="width: 140px;">Rack</th>
-                                    <th style="width: 100px;">Qty</th>
-                                    <th style="width: 100px;">Price</th>
-                                    <th style="width: 200px;">Note</th>
-                                    <th style="width: 150px;">SubTotal</th>
+                                    <th style="min-width: 100px;">SKU</th>
+                                    <th style="min-width: 180px;">Name</th>
+                                    <th style="min-width: 120px;">Barcode</th>
+                                    <th style="width: 70px;">Stock</th>
+                                    <th style="min-width: 150px;">Rack</th>
+                                    <th style="min-width: 100px;">Qty</th>
+                                    <th style="min-width: 110px;">Price</th>
+                                    <th style="min-width: 150px;">Note</th>
+                                    <th style="min-width: 120px;">SubTotal</th>
                                 </tr>
                             </thead>
                             <tbody id="productsTableBody">
