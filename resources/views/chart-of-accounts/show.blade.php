@@ -161,10 +161,15 @@
         <div class="col-lg-8">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0"><i class="feather-list me-2"></i>Recent Transactions</h5>
-                    @if ($chartOfAccount->journalLines()->count() > 10)
+                    <h5 class="card-title mb-0">
+                        <i class="feather-list me-2"></i>Recent Transactions
+                        @if ($chartOfAccount->isGroup())
+                            <span class="badge bg-soft-info text-info fs-11 ms-2">Includes all child accounts</span>
+                        @endif
+                    </h5>
+                    @if ($totalTransactionCount > 10)
                         <a href="{{ route('general-ledger.account', $chartOfAccount) }}" class="btn btn-sm btn-light-brand">
-                            <i class="feather-external-link me-1"></i>View All
+                            <i class="feather-external-link me-1"></i>View All ({{ $totalTransactionCount }})
                         </a>
                     @endif
                 </div>
@@ -176,6 +181,9 @@
                                     <tr>
                                         <th>Date</th>
                                         <th>Entry #</th>
+                                        @if ($chartOfAccount->isGroup())
+                                            <th>Account</th>
+                                        @endif
                                         <th>Description</th>
                                         <th class="text-end">Debit</th>
                                         <th class="text-end">Credit</th>
@@ -190,6 +198,13 @@
                                                     {{ $line->journalEntry->entry_number }}
                                                 </a>
                                             </td>
+                                            @if ($chartOfAccount->isGroup())
+                                                <td>
+                                                    <a href="{{ route('chart-of-accounts.show', $line->account) }}" class="text-primary">
+                                                        <code>{{ $line->account->code }}</code> {{ $line->account->name }}
+                                                    </a>
+                                                </td>
+                                            @endif
                                             <td>{{ $line->description ?? $line->journalEntry->narration }}</td>
                                             <td class="text-end">
                                                 @if ($line->debit > 0)
@@ -254,13 +269,10 @@
                                                 @endif
                                             </td>
                                             <td>
-                                                @if ($child->is_bank_cash)
-                                                    <span class="{{ $child->current_balance >= 0 ? 'text-success' : 'text-danger' }}">
-                                                        {{ number_format($child->current_balance, 2) }}
-                                                    </span>
-                                                @else
-                                                    -
-                                                @endif
+                                                @php $childBalance = $child->getCalculatedBalance(); @endphp
+                                                <span class="{{ $childBalance >= 0 ? 'text-success' : 'text-danger' }}">
+                                                    {{ number_format($childBalance, 2) }}
+                                                </span>
                                             </td>
                                             <td>
                                                 <div class="hstack gap-2 justify-content-end">
