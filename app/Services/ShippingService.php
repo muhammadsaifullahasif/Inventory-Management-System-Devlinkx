@@ -148,9 +148,14 @@ class ShippingService
      * Get estimated shipping rates for an order from a specific carrier.
      * Returns an array of rate options: [['service' => ..., 'amount' => ..., 'currency' => ..., 'transit_days' => ...], ...]
      *
+     * @param Order    $order         The order to get rates for
+     * @param Shipping $carrier       The shipping carrier to use
+     * @param array    $itemOverrides Optional weight/dimension overrides per item
+     * @param array    $unitOverrides Optional unit overrides ['weight_unit' => 'lbs|kg|oz', 'dimension_unit' => 'in|cm']
+     *
      * @throws \RuntimeException if the carrier type is unsupported or token is unavailable
      */
-    public function getRatesForOrder(Order $order, Shipping $carrier, array $itemOverrides = []): array
+    public function getRatesForOrder(Order $order, Shipping $carrier, array $itemOverrides = [], array $unitOverrides = []): array
     {
         $service = $this->resolveCarrierService($carrier);
 
@@ -205,8 +210,21 @@ class ShippingService
         if ($maxWidth  <= 0) { $maxWidth  = 12.0; }
         if ($maxHeight <= 0) { $maxHeight = 12.0; }
 
+        // Use unit overrides if provided, otherwise fall back to carrier settings
+        $weightUnit    = $unitOverrides['weight_unit']    ?? $carrier->weight_unit    ?? 'lbs';
+        $dimensionUnit = $unitOverrides['dimension_unit'] ?? $carrier->dimension_unit ?? 'in';
+
+        // Convert weight if user selected a different unit than carrier default
+        $totalWeight = $this->convertWeightToCarrierUnit($totalWeight, $weightUnit, $carrier->weight_unit ?? 'lbs');
+
+        // Convert dimensions if user selected a different unit than carrier default
+        $maxLength = $this->convertDimensionToCarrierUnit($maxLength, $dimensionUnit, $carrier->dimension_unit ?? 'in');
+        $maxWidth  = $this->convertDimensionToCarrierUnit($maxWidth,  $dimensionUnit, $carrier->dimension_unit ?? 'in');
+        $maxHeight = $this->convertDimensionToCarrierUnit($maxHeight, $dimensionUnit, $carrier->dimension_unit ?? 'in');
+
+        // Use carrier's configured unit for the API call
         $weightUnit    = $carrier->weight_unit    ?? 'lbs';
-        $dimensionUnit = $carrier->dimension_unit ?? 'inches';
+        $dimensionUnit = $carrier->dimension_unit ?? 'in';
 
         // FedEx accepts only 'LB' or 'KG' — not 'LBS', 'KGS', etc.
         $fedexWeightUnit = in_array(strtolower($weightUnit), ['kg', 'kgs', 'kilogram', 'kilograms']) ? 'KG' : 'LB';
@@ -255,6 +273,74 @@ class ShippingService
         $rawRates = $service->getRates($shipmentDetails);
 
         return $this->normalizeRates($rawRates, $carrier->type);
+    }
+
+    /**
+     * Convert weight from user-selected unit to carrier's expected unit.
+     *
+     * @param float  $weight   The weight value
+     * @param string $fromUnit The user-selected unit (lbs, kg, oz)
+     * @param string $toUnit   The carrier's expected unit (lbs, kg)
+     * @return float The converted weight
+     */
+    protected function convertWeightToCarrierUnit(float $weight, string $fromUnit, string $toUnit): float
+    {
+        $fromUnit = strtolower($fromUnit);
+        $toUnit   = strtolower($toUnit);
+
+        if ($fromUnit === $toUnit) {
+            return $weight;
+        }
+
+        // Convert to grams first (base unit)
+        $grams = match ($fromUnit) {
+            'lbs', 'lb' => $weight * 453.592,
+            'kg'        => $weight * 1000,
+            'oz'        => $weight * 28.3495,
+            default     => $weight * 453.592, // assume lbs
+        };
+
+        // Convert from grams to target unit
+        return match ($toUnit) {
+            'lbs', 'lb' => $grams / 453.592,
+            'kg'        => $grams / 1000,
+            'oz'        => $grams / 28.3495,
+            default     => $grams / 453.592, // assume lbs
+        };
+    }
+
+    /**
+     * Convert dimension from user-selected unit to carrier's expected unit.
+     *
+     * @param float  $dimension The dimension value
+     * @param string $fromUnit  The user-selected unit (in, cm)
+     * @param string $toUnit    The carrier's expected unit (in, cm, inches)
+     * @return float The converted dimension
+     */
+    protected function convertDimensionToCarrierUnit(float $dimension, string $fromUnit, string $toUnit): float
+    {
+        $fromUnit = strtolower($fromUnit);
+        $toUnit   = strtolower($toUnit);
+
+        // Normalize 'inches' to 'in'
+        if ($toUnit === 'inches') {
+            $toUnit = 'in';
+        }
+
+        if ($fromUnit === $toUnit) {
+            return $dimension;
+        }
+
+        // Convert between in and cm
+        if ($fromUnit === 'in' && $toUnit === 'cm') {
+            return $dimension * 2.54;
+        }
+
+        if ($fromUnit === 'cm' && $toUnit === 'in') {
+            return $dimension / 2.54;
+        }
+
+        return $dimension;
     }
 
     /**
@@ -320,10 +406,11 @@ class ShippingService
      * @param Shipping $carrier The carrier to use
      * @param string $serviceCode The service type code (e.g., 'FEDEX_GROUND')
      * @param array $itemOverrides Optional weight/dimension overrides keyed by order_item_id
+     * @param array $unitOverrides Optional unit overrides ['weight_unit' => 'lbs|kg|oz', 'dimension_unit' => 'in|cm']
      * @return array ['tracking_number' => string, 'label_path' => string, 'carrier_name' => string]
      * @throws \RuntimeException on failure
      */
-    public function generateLabelForOrder(Order $order, Shipping $carrier, string $serviceCode, array $itemOverrides = []): array
+    public function generateLabelForOrder(Order $order, Shipping $carrier, string $serviceCode, array $itemOverrides = [], array $unitOverrides = []): array
     {
         $service = $this->resolveCarrierService($carrier);
 
@@ -377,6 +464,19 @@ class ShippingService
         if ($maxWidth  <= 0) { $maxWidth  = 12.0; }
         if ($maxHeight <= 0) { $maxHeight = 12.0; }
 
+        // Use unit overrides if provided, otherwise fall back to carrier settings
+        $userWeightUnit    = $unitOverrides['weight_unit']    ?? $carrier->weight_unit    ?? 'lbs';
+        $userDimensionUnit = $unitOverrides['dimension_unit'] ?? $carrier->dimension_unit ?? 'in';
+
+        // Convert weight if user selected a different unit than carrier default
+        $totalWeight = $this->convertWeightToCarrierUnit($totalWeight, $userWeightUnit, $carrier->weight_unit ?? 'lbs');
+
+        // Convert dimensions if user selected a different unit than carrier default
+        $maxLength = $this->convertDimensionToCarrierUnit($maxLength, $userDimensionUnit, $carrier->dimension_unit ?? 'in');
+        $maxWidth  = $this->convertDimensionToCarrierUnit($maxWidth,  $userDimensionUnit, $carrier->dimension_unit ?? 'in');
+        $maxHeight = $this->convertDimensionToCarrierUnit($maxHeight, $userDimensionUnit, $carrier->dimension_unit ?? 'in');
+
+        // Use carrier's configured unit for the API call
         $weightUnit    = $carrier->weight_unit    ?? 'lbs';
         $dimensionUnit = $carrier->dimension_unit ?? 'inches';
 

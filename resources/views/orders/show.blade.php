@@ -493,17 +493,37 @@
                             <h6 class="card-title mb-0"><i class="feather-package me-2"></i>Items & Dimensions</h6>
                             <small class="text-muted">Edit weight/dims to override product defaults</small>
                         </div>
-                        <div class="card-body p-0">
+                        <div class="card-body py-2">
+                            <!-- Unit Selectors -->
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-6">
+                                    <label class="form-label small mb-1">Weight Unit</label>
+                                    <select id="showWeightUnit" class="form-select form-select-sm">
+                                        <option value="lbs" selected>Pounds (lbs)</option>
+                                        <option value="kg">Kilograms (kg)</option>
+                                        <option value="oz">Ounces (oz)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small mb-1">Dimension Unit</label>
+                                    <select id="showDimensionUnit" class="form-select form-select-sm">
+                                        <option value="in" selected>Inches (in)</option>
+                                        <option value="cm">Centimeters (cm)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body p-0 pt-0">
                             <div class="table-responsive">
                                 <table class="table table-sm mb-0" style="font-size:12px;">
                                     <thead class="bg-light">
                                         <tr>
                                             <th>Item</th>
                                             <th class="text-center" style="width:40px;">Qty</th>
-                                            <th class="text-center" style="width:90px;">Weight</th>
-                                            <th class="text-center" style="width:90px;">L</th>
-                                            <th class="text-center" style="width:90px;">W</th>
-                                            <th class="text-center" style="width:90px;">H</th>
+                                            <th class="text-center" style="width:90px;">Weight <span class="text-muted unit-label" id="weightUnitLabel">(lbs)</span></th>
+                                            <th class="text-center" style="width:90px;">L <span class="text-muted unit-label" id="dimUnitLabelL">(in)</span></th>
+                                            <th class="text-center" style="width:90px;">W <span class="text-muted unit-label" id="dimUnitLabelW">(in)</span></th>
+                                            <th class="text-center" style="width:90px;">H <span class="text-muted unit-label" id="dimUnitLabelH">(in)</span></th>
                                         </tr>
                                     </thead>
                                     <tbody id="showItemsDimTbody">
@@ -658,6 +678,19 @@
         $(document).ready(function() {
 
             // ----------------------------------------------------------------
+            // Unit label updates when unit selectors change
+            // ----------------------------------------------------------------
+            $('#showWeightUnit').on('change', function() {
+                var unit = $(this).val();
+                $('#weightUnitLabel').text('(' + unit + ')');
+            });
+
+            $('#showDimensionUnit').on('change', function() {
+                var unit = $(this).val();
+                $('#dimUnitLabelL, #dimUnitLabelW, #dimUnitLabelH').text('(' + unit + ')');
+            });
+
+            // ----------------------------------------------------------------
             // Get Rates — collect dimension overrides, populate service dropdown
             // ----------------------------------------------------------------
             $('#showGetRatesBtn').on('click', function() {
@@ -685,14 +718,20 @@
                 $('#showRatesTableBody').empty();
                 $('#showShipperInfo').hide();
 
+                // Get selected units
+                var weightUnit = $('#showWeightUnit').val();
+                var dimensionUnit = $('#showDimensionUnit').val();
+
                 $.ajax({
                     url: '{{ route('orders.shipping-rates') }}',
                     type: 'POST',
                     data: {
-                        _token:     '{{ csrf_token() }}',
-                        order_id:   {{ $order->id }},
-                        carrier_id: carrierId,
-                        items:      itemOverrides
+                        _token:       '{{ csrf_token() }}',
+                        order_id:     {{ $order->id }},
+                        carrier_id:   carrierId,
+                        items:        itemOverrides,
+                        weight_unit:  weightUnit,
+                        dimension_unit: dimensionUnit
                     },
                     success: function(response) {
                         $('#showRatesLoading').hide();
@@ -795,6 +834,10 @@
                     itemOverrides.push(entry);
                 });
 
+                // Get selected units
+                var weightUnit = $('#showWeightUnit').val();
+                var dimensionUnit = $('#showDimensionUnit').val();
+
                 var $btn = $(this);
                 $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generating Label...');
 
@@ -805,7 +848,9 @@
                         _token:       '{{ csrf_token() }}',
                         carrier_id:   carrierId,
                         service_code: serviceCode,
-                        items:        itemOverrides
+                        items:        itemOverrides,
+                        weight_unit:  weightUnit,
+                        dimension_unit: dimensionUnit
                     },
                     success: function(response) {
                         if (response.success) {

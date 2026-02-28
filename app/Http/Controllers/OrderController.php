@@ -413,14 +413,22 @@ class OrderController extends Controller
             'items.*.length'            => 'nullable|numeric|min:0',
             'items.*.width'             => 'nullable|numeric|min:0',
             'items.*.height'            => 'nullable|numeric|min:0',
+            'weight_unit'               => 'nullable|string|in:lbs,kg,oz',
+            'dimension_unit'            => 'nullable|string|in:in,cm',
         ]);
 
         $order        = Order::with(['items.product.product_meta'])->findOrFail($request->order_id);
         $carrier      = Shipping::findOrFail($request->carrier_id);
         $itemOverrides = $request->input('items', []);
 
+        // Get unit overrides (defaults to carrier settings if not provided)
+        $unitOverrides = [
+            'weight_unit'    => $request->input('weight_unit'),
+            'dimension_unit' => $request->input('dimension_unit'),
+        ];
+
         try {
-            $rates = $this->shippingService->getRatesForOrder($order, $carrier, $itemOverrides);
+            $rates = $this->shippingService->getRatesForOrder($order, $carrier, $itemOverrides, $unitOverrides);
 
             $shipperAddress = implode(', ', array_filter([
                 $carrier->shipper_name,
@@ -701,11 +709,19 @@ class OrderController extends Controller
             'items.*.length'            => 'nullable|numeric|min:0',
             'items.*.width'             => 'nullable|numeric|min:0',
             'items.*.height'            => 'nullable|numeric|min:0',
+            'weight_unit'               => 'nullable|string|in:lbs,kg,oz',
+            'dimension_unit'            => 'nullable|string|in:in,cm',
         ]);
 
         $carrier      = Shipping::findOrFail($validated['carrier_id']);
         $serviceCode  = $validated['service_code'];
         $itemOverrides = $validated['items'] ?? [];
+
+        // Get unit overrides (defaults to carrier settings if not provided)
+        $unitOverrides = [
+            'weight_unit'    => $request->input('weight_unit'),
+            'dimension_unit' => $request->input('dimension_unit'),
+        ];
 
         try {
             DB::beginTransaction();
@@ -715,7 +731,8 @@ class OrderController extends Controller
                 $order,
                 $carrier,
                 $serviceCode,
-                $itemOverrides
+                $itemOverrides,
+                $unitOverrides
             );
 
             $trackingNumber = $labelResult['tracking_number'];
