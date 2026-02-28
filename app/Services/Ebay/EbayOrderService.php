@@ -403,10 +403,21 @@ class EbayOrderService
             'ItemPickedUp',
             'BuyerCancelRequested',
             'OrderCancelled',
+            'CancelRequestApproved',
+            'CancelRequestRejected',
             'CheckoutBuyerRequestsTotal',
             'PaymentReminder',
             'RefundInitiated',
             'RefundCompleted',
+            // Return notifications
+            'ReturnCreated',
+            'ReturnShipped',
+            'ReturnDelivered',
+            'ReturnClosed',
+            'ReturnEscalated',
+            'ReturnRefundOverdue',
+            'ReturnSellerInfoOverdue',
+            'ReturnWaitingForSellerInfo',
         ]);
     }
 
@@ -451,8 +462,21 @@ class EbayOrderService
             'BuyerCancelRequested',
             'OrderCancelled' => $this->handleBuyerCancelRequested($data, $channel, $notificationType, $timestamp),
 
+            'CancelRequestApproved' => $this->handleCancelRequestApproved($data, $channel, $notificationType, $timestamp),
+            'CancelRequestRejected' => $this->handleCancelRequestRejected($data, $channel, $notificationType, $timestamp),
+
             'RefundInitiated',
             'RefundCompleted' => $this->handleRefund($data, $channel, $notificationType, $timestamp),
+
+            // Return notifications
+            'ReturnCreated' => $this->handleReturnCreated($data, $channel, $notificationType, $timestamp),
+            'ReturnShipped' => $this->handleReturnShipped($data, $channel, $notificationType, $timestamp),
+            'ReturnDelivered' => $this->handleReturnDelivered($data, $channel, $notificationType, $timestamp),
+            'ReturnClosed' => $this->handleReturnClosed($data, $channel, $notificationType, $timestamp),
+            'ReturnEscalated' => $this->handleReturnEscalated($data, $channel, $notificationType, $timestamp),
+            'ReturnRefundOverdue',
+            'ReturnSellerInfoOverdue',
+            'ReturnWaitingForSellerInfo' => $this->handleReturnActionRequired($data, $channel, $notificationType, $timestamp),
 
             'CheckoutBuyerRequestsTotal' => $this->handleCheckoutBuyerRequestsTotal($data, $channel, $notificationType, $timestamp),
             'PaymentReminder' => $this->handlePaymentReminder($data, $channel, $notificationType, $timestamp),
@@ -1047,6 +1071,488 @@ class EbayOrderService
                 'ebay_order_id' => $ebayOrderId,
                 'notification_type' => $notificationType,
                 'refund_amount' => $refundAmount,
+            ]);
+
+            return $order;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle CancelRequestApproved notification.
+     */
+    protected function handleCancelRequestApproved(array $data, SalesChannel $channel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($data);
+        $transaction = $this->extractTransaction($response);
+
+        if (!$transaction) {
+            return null;
+        }
+
+        $ebayOrderId = $this->extractOrderId($transaction);
+        if (empty($ebayOrderId)) {
+            return null;
+        }
+
+        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        if (!$order) {
+            return null;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $order->update([
+                'order_status' => 'cancelled',
+                'cancel_status' => 'CancelComplete',
+                'cancellation_closed_at' => now(),
+            ]);
+
+            // Restore inventory for cancelled orders
+            foreach ($order->items as $item) {
+                if ($item->inventory_updated) {
+                    $item->restoreInventory();
+                }
+            }
+
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'CancelRequestApproved',
+                'timestamp' => $timestamp,
+            ]);
+
+            DB::commit();
+
+            Log::channel('ebay')->info('Cancellation approved and order cancelled', [
+                'order_id' => $order->id,
+                'ebay_order_id' => $ebayOrderId,
+            ]);
+
+            return $order;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle CancelRequestRejected notification.
+     */
+    protected function handleCancelRequestRejected(array $data, SalesChannel $channel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($data);
+        $transaction = $this->extractTransaction($response);
+
+        if (!$transaction) {
+            return null;
+        }
+
+        $ebayOrderId = $this->extractOrderId($transaction);
+        if (empty($ebayOrderId)) {
+            return null;
+        }
+
+        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        if (!$order) {
+            return null;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Revert to processing status if cancellation was rejected
+            $previousStatus = $order->payment_status === 'paid' ? 'processing' : 'pending';
+
+            $order->update([
+                'order_status' => $previousStatus,
+                'cancel_status' => 'CancelRejected',
+                'cancellation_closed_at' => now(),
+            ]);
+
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'CancelRequestRejected',
+                'timestamp' => $timestamp,
+            ]);
+
+            DB::commit();
+
+            Log::channel('ebay')->info('Cancellation rejected, order reverted', [
+                'order_id' => $order->id,
+                'ebay_order_id' => $ebayOrderId,
+                'new_status' => $previousStatus,
+            ]);
+
+            return $order;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle ReturnCreated notification.
+     */
+    protected function handleReturnCreated(array $data, SalesChannel $channel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($data);
+        $returnData = $response['ReturnId'] ?? $response;
+
+        // Try to find order by various identifiers
+        $orderId = $returnData['OrderId'] ?? $returnData['orderId'] ?? '';
+        $returnId = $returnData['ReturnId'] ?? $returnData['returnId'] ?? '';
+        $itemId = $returnData['ItemId'] ?? $returnData['itemId'] ?? '';
+
+        $order = null;
+        if (!empty($orderId)) {
+            $order = Order::where('ebay_order_id', $orderId)->first();
+        }
+        if (!$order && !empty($itemId)) {
+            $order = Order::whereHas('items', function ($q) use ($itemId) {
+                $q->where('ebay_item_id', $itemId);
+            })->first();
+        }
+
+        if (!$order) {
+            Log::channel('ebay')->warning('Order not found for ReturnCreated', [
+                'order_id' => $orderId,
+                'item_id' => $itemId,
+                'return_id' => $returnId,
+            ]);
+            return null;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $returnReason = $returnData['ReturnReason'] ?? $returnData['returnReason'] ?? '';
+
+            $order->update([
+                'return_status' => 'return_requested',
+                'return_id' => $returnId,
+                'return_reason' => $returnReason,
+                'return_requested_at' => now(),
+            ]);
+
+            $order->setMeta('return_details', [
+                'return_id' => $returnId,
+                'reason' => $returnReason,
+                'buyer_comments' => $returnData['BuyerComments'] ?? $returnData['buyerComments'] ?? '',
+                'item_id' => $itemId,
+                'created_at' => $timestamp,
+            ]);
+
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'ReturnCreated',
+                'timestamp' => $timestamp,
+                'return_id' => $returnId,
+                'return_reason' => $returnReason,
+            ]);
+
+            DB::commit();
+
+            Log::channel('ebay')->info('Return request created', [
+                'order_id' => $order->id,
+                'ebay_order_id' => $order->ebay_order_id,
+                'return_id' => $returnId,
+                'return_reason' => $returnReason,
+            ]);
+
+            return $order;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle ReturnShipped notification (buyer shipped the return).
+     */
+    protected function handleReturnShipped(array $data, SalesChannel $channel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($data);
+        $returnData = $response['ReturnId'] ?? $response;
+
+        $returnId = $returnData['ReturnId'] ?? $returnData['returnId'] ?? '';
+        $orderId = $returnData['OrderId'] ?? $returnData['orderId'] ?? '';
+
+        $order = null;
+        if (!empty($returnId)) {
+            $order = Order::where('return_id', $returnId)->first();
+        }
+        if (!$order && !empty($orderId)) {
+            $order = Order::where('ebay_order_id', $orderId)->first();
+        }
+
+        if (!$order) {
+            Log::channel('ebay')->warning('Order not found for ReturnShipped', [
+                'return_id' => $returnId,
+                'order_id' => $orderId,
+            ]);
+            return null;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $trackingNumber = $returnData['TrackingNumber'] ?? $returnData['trackingNumber'] ?? '';
+            $shippingCarrier = $returnData['ShippingCarrier'] ?? $returnData['shippingCarrier'] ?? '';
+
+            $order->update([
+                'return_status' => 'return_shipped',
+            ]);
+
+            $order->setMeta('return_shipping', [
+                'tracking_number' => $trackingNumber,
+                'shipping_carrier' => $shippingCarrier,
+                'shipped_at' => $timestamp,
+            ]);
+
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'ReturnShipped',
+                'timestamp' => $timestamp,
+                'tracking_number' => $trackingNumber,
+            ]);
+
+            DB::commit();
+
+            Log::channel('ebay')->info('Return shipped by buyer', [
+                'order_id' => $order->id,
+                'return_id' => $returnId,
+                'tracking_number' => $trackingNumber,
+            ]);
+
+            return $order;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle ReturnDelivered notification (return received by seller).
+     */
+    protected function handleReturnDelivered(array $data, SalesChannel $channel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($data);
+        $returnData = $response['ReturnId'] ?? $response;
+
+        $returnId = $returnData['ReturnId'] ?? $returnData['returnId'] ?? '';
+        $orderId = $returnData['OrderId'] ?? $returnData['orderId'] ?? '';
+
+        $order = null;
+        if (!empty($returnId)) {
+            $order = Order::where('return_id', $returnId)->first();
+        }
+        if (!$order && !empty($orderId)) {
+            $order = Order::where('ebay_order_id', $orderId)->first();
+        }
+
+        if (!$order) {
+            return null;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $order->update([
+                'return_status' => 'return_delivered',
+            ]);
+
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'ReturnDelivered',
+                'timestamp' => $timestamp,
+            ]);
+
+            DB::commit();
+
+            Log::channel('ebay')->info('Return delivered to seller', [
+                'order_id' => $order->id,
+                'return_id' => $returnId,
+            ]);
+
+            return $order;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle ReturnClosed notification.
+     */
+    protected function handleReturnClosed(array $data, SalesChannel $channel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($data);
+        $returnData = $response['ReturnId'] ?? $response;
+
+        $returnId = $returnData['ReturnId'] ?? $returnData['returnId'] ?? '';
+        $orderId = $returnData['OrderId'] ?? $returnData['orderId'] ?? '';
+
+        $order = null;
+        if (!empty($returnId)) {
+            $order = Order::where('return_id', $returnId)->first();
+        }
+        if (!$order && !empty($orderId)) {
+            $order = Order::where('ebay_order_id', $orderId)->first();
+        }
+
+        if (!$order) {
+            return null;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $closeReason = $returnData['CloseReason'] ?? $returnData['closeReason'] ?? '';
+
+            $order->update([
+                'return_status' => 'closed',
+                'return_closed_at' => now(),
+            ]);
+
+            // If return resulted in refund, update refund status
+            $refundStatus = $returnData['RefundStatus'] ?? $returnData['refundStatus'] ?? '';
+            if (in_array(strtolower($refundStatus), ['refunded', 'successful', 'completed'])) {
+                $refundAmount = EbayService::priceValue($returnData['RefundAmount'] ?? null);
+                $order->update([
+                    'refund_status' => 'completed',
+                    'refund_amount' => $refundAmount > 0 ? $refundAmount : $order->total,
+                    'refund_completed_at' => now(),
+                    'payment_status' => 'refunded',
+                ]);
+
+                // Restore inventory for refunded returns
+                foreach ($order->items as $item) {
+                    if ($item->inventory_updated) {
+                        $item->restoreInventory();
+                    }
+                }
+            }
+
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'ReturnClosed',
+                'timestamp' => $timestamp,
+                'close_reason' => $closeReason,
+                'refund_status' => $refundStatus,
+            ]);
+
+            DB::commit();
+
+            Log::channel('ebay')->info('Return closed', [
+                'order_id' => $order->id,
+                'return_id' => $returnId,
+                'close_reason' => $closeReason,
+            ]);
+
+            return $order;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle ReturnEscalated notification.
+     */
+    protected function handleReturnEscalated(array $data, SalesChannel $channel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($data);
+        $returnData = $response['ReturnId'] ?? $response;
+
+        $returnId = $returnData['ReturnId'] ?? $returnData['returnId'] ?? '';
+        $orderId = $returnData['OrderId'] ?? $returnData['orderId'] ?? '';
+
+        $order = null;
+        if (!empty($returnId)) {
+            $order = Order::where('return_id', $returnId)->first();
+        }
+        if (!$order && !empty($orderId)) {
+            $order = Order::where('ebay_order_id', $orderId)->first();
+        }
+
+        if (!$order) {
+            return null;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $order->update([
+                'return_status' => 'escalated',
+            ]);
+
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'ReturnEscalated',
+                'timestamp' => $timestamp,
+                'escalation_reason' => $returnData['EscalationReason'] ?? '',
+            ]);
+
+            DB::commit();
+
+            Log::channel('ebay')->warning('Return escalated to eBay', [
+                'order_id' => $order->id,
+                'return_id' => $returnId,
+            ]);
+
+            return $order;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle return action required notifications (RefundOverdue, SellerInfoOverdue, WaitingForSellerInfo).
+     */
+    protected function handleReturnActionRequired(array $data, SalesChannel $channel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($data);
+        $returnData = $response['ReturnId'] ?? $response;
+
+        $returnId = $returnData['ReturnId'] ?? $returnData['returnId'] ?? '';
+        $orderId = $returnData['OrderId'] ?? $returnData['orderId'] ?? '';
+
+        $order = null;
+        if (!empty($returnId)) {
+            $order = Order::where('return_id', $returnId)->first();
+        }
+        if (!$order && !empty($orderId)) {
+            $order = Order::where('ebay_order_id', $orderId)->first();
+        }
+
+        if (!$order) {
+            return null;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $order->update([
+                'return_status' => 'action_required',
+            ]);
+
+            $order->setMeta('event_log_' . time(), [
+                'event' => $notificationType,
+                'timestamp' => $timestamp,
+                'action_required' => true,
+            ]);
+
+            DB::commit();
+
+            Log::channel('ebay')->warning('Return action required', [
+                'order_id' => $order->id,
+                'return_id' => $returnId,
+                'notification_type' => $notificationType,
             ]);
 
             return $order;

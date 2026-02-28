@@ -57,6 +57,24 @@ class Order extends Model
         'paid_at',
         'address_type',
         'address_validated_at',
+        // Return tracking fields
+        'return_status',
+        'return_id',
+        'return_reason',
+        'return_requested_at',
+        'return_closed_at',
+        // Refund tracking fields
+        'refund_status',
+        'refund_amount',
+        'total_refunded',
+        'refund_initiated_at',
+        'refund_completed_at',
+        // Cancellation tracking fields
+        'cancellation_id',
+        'cancellation_reason',
+        'cancellation_initiated_by',
+        'cancellation_requested_at',
+        'cancellation_closed_at',
     ];
 
     protected $casts = [
@@ -68,12 +86,20 @@ class Order extends Model
         'tracking_last_checked_at' => 'datetime',
         'label_generated_at' => 'datetime',
         'notification_received_at' => 'datetime',
-        'address_validated_at'    => 'datetime',
+        'address_validated_at' => 'datetime',
+        'return_requested_at' => 'datetime',
+        'return_closed_at' => 'datetime',
+        'refund_initiated_at' => 'datetime',
+        'refund_completed_at' => 'datetime',
+        'cancellation_requested_at' => 'datetime',
+        'cancellation_closed_at' => 'datetime',
         'subtotal' => 'decimal:2',
         'shipping_cost' => 'decimal:2',
         'tax' => 'decimal:2',
         'discount' => 'decimal:2',
         'total' => 'decimal:2',
+        'refund_amount' => 'decimal:2',
+        'total_refunded' => 'decimal:2',
     ];
 
     /**
@@ -179,6 +205,120 @@ class Order extends Model
     }
 
     /**
+     * Check if order has an active return request
+     */
+    public function hasActiveReturn(): bool
+    {
+        return !empty($this->return_status) &&
+            !in_array($this->return_status, ['closed', 'cancelled', 'completed']);
+    }
+
+    /**
+     * Check if order has a pending cancellation
+     */
+    public function hasPendingCancellation(): bool
+    {
+        return !empty($this->cancel_status) &&
+            in_array(strtolower($this->cancel_status), ['cancelrequested', 'cancelpending', 'cancellation_requested']);
+    }
+
+    /**
+     * Check if order is cancelled
+     */
+    public function isCancelled(): bool
+    {
+        return $this->order_status === 'cancelled' ||
+            (!empty($this->cancel_status) && in_array(strtolower($this->cancel_status), ['cancelled', 'cancelcomplete', 'cancelcompleted']));
+    }
+
+    /**
+     * Check if order is refunded
+     */
+    public function isRefunded(): bool
+    {
+        return $this->payment_status === 'refunded' ||
+            $this->refund_status === 'completed';
+    }
+
+    /**
+     * Check if order can be cancelled
+     */
+    public function canBeCancelled(): bool
+    {
+        return !$this->isCancelled() &&
+            !$this->isRefunded() &&
+            $this->fulfillment_status !== 'fulfilled' &&
+            $this->order_status !== 'shipped' &&
+            $this->order_status !== 'delivered';
+    }
+
+    /**
+     * Check if order can be refunded
+     */
+    public function canBeRefunded(): bool
+    {
+        return !$this->isRefunded() &&
+            $this->payment_status === 'paid';
+    }
+
+    /**
+     * Check if order is partially refunded
+     */
+    public function isPartiallyRefunded(): bool
+    {
+        return $this->refund_status === 'partial' ||
+            ($this->total_refunded > 0 && $this->total_refunded < $this->total);
+    }
+
+    /**
+     * Get remaining refundable amount
+     */
+    public function getRefundableAmount(): float
+    {
+        return max(0, (float) $this->total - (float) ($this->total_refunded ?? 0));
+    }
+
+    /**
+     * Check if order is a local sale (non-eBay)
+     */
+    public function isLocalSale(): bool
+    {
+        return empty($this->ebay_order_id);
+    }
+
+    /**
+     * Record a partial refund
+     */
+    public function recordPartialRefund(float $amount, ?string $refundId = null): void
+    {
+        $newTotalRefunded = (float) ($this->total_refunded ?? 0) + $amount;
+
+        $updateData = [
+            'total_refunded' => $newTotalRefunded,
+            'refund_initiated_at' => $this->refund_initiated_at ?? now(),
+        ];
+
+        // Check if fully refunded
+        if ($newTotalRefunded >= $this->total) {
+            $updateData['refund_status'] = 'completed';
+            $updateData['refund_completed_at'] = now();
+            $updateData['payment_status'] = 'refunded';
+        } else {
+            $updateData['refund_status'] = 'partial';
+        }
+
+        $this->update($updateData);
+
+        // Log the refund
+        $this->setMeta('refund_log_' . time(), [
+            'amount' => $amount,
+            'refund_id' => $refundId,
+            'total_refunded' => $newTotalRefunded,
+            'timestamp' => now()->toIso8601String(),
+        ]);
+    }
+
+    /**
      * Scope for pending orders
      */
     public function scopePending($query)
@@ -208,6 +348,43 @@ class Order extends Model
     public function scopeFromChannel($query, $channelId)
     {
         return $query->where('sales_channel_id', $channelId);
+    }
+
+    /**
+     * Scope for orders with active returns
+     */
+    public function scopeWithActiveReturns($query)
+    {
+        return $query->whereNotNull('return_status')
+            ->whereNotIn('return_status', ['closed', 'cancelled', 'completed']);
+    }
+
+    /**
+     * Scope for orders with pending cancellations
+     */
+    public function scopeWithPendingCancellations($query)
+    {
+        return $query->whereNotNull('cancel_status')
+            ->whereIn('cancel_status', ['CancelRequested', 'CancelPending', 'cancellation_requested']);
+    }
+
+    /**
+     * Scope for cancelled orders
+     */
+    public function scopeCancelled($query)
+    {
+        return $query->where('order_status', 'cancelled');
+    }
+
+    /**
+     * Scope for refunded orders
+     */
+    public function scopeRefunded($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('payment_status', 'refunded')
+                ->orWhere('refund_status', 'completed');
+        });
     }
 
     /**

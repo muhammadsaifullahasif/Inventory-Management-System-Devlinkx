@@ -16,6 +16,8 @@ use App\Services\Ebay\EbayApiClient;
 use App\Services\Ebay\EbayService;
 use App\Services\Ebay\EbayOrderService;
 use App\Services\Ebay\EbayNotificationService;
+use App\Services\Ebay\EbayPostOrderApiClient;
+use App\Models\Order;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Jobs\ImportEbayListingsJob;
@@ -30,6 +32,7 @@ class EbayController extends Controller
         protected EbayService $ebayService,
         protected EbayOrderService $orderService,
         protected EbayNotificationService $notificationService,
+        protected EbayPostOrderApiClient $postOrderClient,
     ) {}
 
     // =========================================
@@ -1384,6 +1387,916 @@ class EbayController extends Controller
                 'success' => false,
                 'message' => $e->getMessage(),
             ];
+        }
+    }
+
+    // =========================================
+    // RETURNS MANAGEMENT
+    // =========================================
+
+    /**
+     * Get all return requests from eBay for a sales channel.
+     */
+    public function getReturns(Request $request, string $id)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $limit = (int) $request->input('limit', 50);
+            $offset = (int) $request->input('offset', 0);
+            $returnState = $request->input('return_state');
+
+            $result = $this->postOrderClient->getReturns($salesChannel, $limit, $offset, $returnState);
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Get details of a specific return request.
+     */
+    public function getReturnDetails(string $id, string $returnId)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $result = $this->postOrderClient->getReturn($salesChannel, $returnId);
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Approve a return request.
+     */
+    public function approveReturn(Request $request, string $id, string $returnId)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $comments = $request->input('comments');
+            $result = $this->postOrderClient->approveReturn($salesChannel, $returnId, $comments);
+
+            if ($result['success']) {
+                // Update local order
+                $order = Order::where('return_id', $returnId)->first();
+                if ($order) {
+                    $order->update(['return_status' => 'approved']);
+                    $order->setMeta('event_log_' . time(), [
+                        'event' => 'ReturnApprovedBySeller',
+                        'timestamp' => now()->toIso8601String(),
+                    ]);
+                }
+            }
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Decline a return request.
+     */
+    public function declineReturn(Request $request, string $id, string $returnId)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $reason = $request->input('reason', 'ITEM_NOT_RETURNED');
+            $comments = $request->input('comments');
+            $result = $this->postOrderClient->declineReturn($salesChannel, $returnId, $reason, $comments);
+
+            if ($result['success']) {
+                // Update local order
+                $order = Order::where('return_id', $returnId)->first();
+                if ($order) {
+                    $order->update(['return_status' => 'declined']);
+                    $order->setMeta('event_log_' . time(), [
+                        'event' => 'ReturnDeclinedBySeller',
+                        'timestamp' => now()->toIso8601String(),
+                        'reason' => $reason,
+                    ]);
+                }
+            }
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Provide return shipping label to buyer.
+     */
+    public function provideReturnShippingLabel(Request $request, string $id, string $returnId)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $trackingNumber = $request->input('tracking_number');
+            $shippingCarrier = $request->input('shipping_carrier');
+            $labelUrl = $request->input('label_url');
+
+            if (!$trackingNumber || !$shippingCarrier) {
+                return $this->errorResponse('tracking_number and shipping_carrier are required', 400);
+            }
+
+            $result = $this->postOrderClient->provideReturnShippingLabel(
+                $salesChannel,
+                $returnId,
+                $trackingNumber,
+                $shippingCarrier,
+                $labelUrl
+            );
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Mark return item as received.
+     */
+    public function markReturnReceived(Request $request, string $id, string $returnId)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $comments = $request->input('comments');
+            $result = $this->postOrderClient->markReturnReceived($salesChannel, $returnId, $comments);
+
+            if ($result['success']) {
+                // Update local order
+                $order = Order::where('return_id', $returnId)->first();
+                if ($order) {
+                    $order->update(['return_status' => 'return_received']);
+                    $order->setMeta('event_log_' . time(), [
+                        'event' => 'ReturnReceivedBySeller',
+                        'timestamp' => now()->toIso8601String(),
+                    ]);
+                }
+            }
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Issue refund for a return.
+     */
+    public function issueReturnRefund(Request $request, string $id, string $returnId)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $amount = (float) $request->input('amount');
+            $comments = $request->input('comments');
+
+            if ($amount <= 0) {
+                return $this->errorResponse('amount is required and must be greater than 0', 400);
+            }
+
+            $result = $this->postOrderClient->issueReturnRefund($salesChannel, $returnId, $amount, $comments);
+
+            if ($result['success']) {
+                // Update local order
+                $order = Order::where('return_id', $returnId)->first();
+                if ($order) {
+                    $order->update([
+                        'refund_status' => 'completed',
+                        'refund_amount' => $amount,
+                        'refund_completed_at' => now(),
+                        'payment_status' => 'refunded',
+                        'return_status' => 'refunded',
+                    ]);
+                    $order->setMeta('event_log_' . time(), [
+                        'event' => 'ReturnRefundIssued',
+                        'timestamp' => now()->toIso8601String(),
+                        'amount' => $amount,
+                    ]);
+
+                    // Restore inventory
+                    foreach ($order->items as $item) {
+                        if ($item->inventory_updated) {
+                            $item->restoreInventory();
+                        }
+                    }
+                }
+            }
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Close a return case.
+     */
+    public function closeReturn(Request $request, string $id, string $returnId)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $closeReason = $request->input('close_reason', 'BUYER_RETURNED_ITEM');
+            $comments = $request->input('comments');
+
+            $result = $this->postOrderClient->closeReturn($salesChannel, $returnId, $closeReason, $comments);
+
+            if ($result['success']) {
+                // Update local order
+                $order = Order::where('return_id', $returnId)->first();
+                if ($order) {
+                    $order->update([
+                        'return_status' => 'closed',
+                        'return_closed_at' => now(),
+                    ]);
+                    $order->setMeta('event_log_' . time(), [
+                        'event' => 'ReturnClosedBySeller',
+                        'timestamp' => now()->toIso8601String(),
+                        'close_reason' => $closeReason,
+                    ]);
+                }
+            }
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    // =========================================
+    // CANCELLATIONS MANAGEMENT
+    // =========================================
+
+    /**
+     * Get cancellation requests from eBay.
+     */
+    public function getCancellations(Request $request, string $id)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $limit = (int) $request->input('limit', 50);
+            $offset = (int) $request->input('offset', 0);
+
+            $result = $this->postOrderClient->getCancellations($salesChannel, $limit, $offset);
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Approve a buyer cancellation request.
+     */
+    public function approveCancellation(Request $request, string $id, string $orderId)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $result = $this->postOrderClient->approveCancellation($salesChannel, $orderId);
+
+            if ($result['success']) {
+                // Update local order
+                $order = Order::where('ebay_order_id', $orderId)->first();
+                if ($order) {
+                    $order->update([
+                        'order_status' => 'cancelled',
+                        'cancel_status' => 'CancelComplete',
+                        'cancellation_closed_at' => now(),
+                    ]);
+                    $order->setMeta('event_log_' . time(), [
+                        'event' => 'CancellationApprovedBySeller',
+                        'timestamp' => now()->toIso8601String(),
+                    ]);
+
+                    // Restore inventory
+                    foreach ($order->items as $item) {
+                        if ($item->inventory_updated) {
+                            $item->restoreInventory();
+                        }
+                    }
+                }
+            }
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Reject a buyer cancellation request.
+     */
+    public function rejectCancellation(Request $request, string $id, string $orderId)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $reason = $request->input('reason', '');
+            $result = $this->postOrderClient->rejectCancellation($salesChannel, $orderId, $reason);
+
+            if ($result['success']) {
+                // Update local order
+                $order = Order::where('ebay_order_id', $orderId)->first();
+                if ($order) {
+                    // Revert to previous status
+                    $previousStatus = $order->payment_status === 'paid' ? 'processing' : 'pending';
+                    $order->update([
+                        'order_status' => $previousStatus,
+                        'cancel_status' => 'CancelRejected',
+                        'cancellation_closed_at' => now(),
+                    ]);
+                    $order->setMeta('event_log_' . time(), [
+                        'event' => 'CancellationRejectedBySeller',
+                        'timestamp' => now()->toIso8601String(),
+                        'reason' => $reason,
+                    ]);
+                }
+            }
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Create a seller-initiated cancellation.
+     */
+    public function createCancellation(Request $request, string $id, string $orderId)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $reason = $request->input('reason', 'OUT_OF_STOCK');
+            $buyerNote = $request->input('buyer_note');
+
+            $result = $this->postOrderClient->createCancellation($salesChannel, $orderId, $reason, $buyerNote);
+
+            if ($result['success']) {
+                // Update local order
+                $order = Order::where('ebay_order_id', $orderId)->first();
+                if ($order) {
+                    $order->update([
+                        'order_status' => 'cancellation_requested',
+                        'cancel_status' => 'CancelRequested',
+                        'cancellation_id' => $result['cancellation_id'] ?? null,
+                        'cancellation_reason' => $reason,
+                        'cancellation_initiated_by' => 'seller',
+                        'cancellation_requested_at' => now(),
+                    ]);
+                    $order->setMeta('event_log_' . time(), [
+                        'event' => 'CancellationCreatedBySeller',
+                        'timestamp' => now()->toIso8601String(),
+                        'reason' => $reason,
+                    ]);
+                }
+            }
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    // =========================================
+    // REFUNDS MANAGEMENT
+    // =========================================
+
+    /**
+     * Issue a refund for an order.
+     */
+    public function issueRefund(Request $request, string $id, string $orderId)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $amount = (float) $request->input('amount');
+            $reason = $request->input('reason', 'BUYER_CANCEL');
+            $comment = $request->input('comment');
+
+            if ($amount <= 0) {
+                return $this->errorResponse('amount is required and must be greater than 0', 400);
+            }
+
+            $result = $this->postOrderClient->issueRefund($salesChannel, $orderId, $amount, $reason, $comment);
+
+            if ($result['success']) {
+                // Update local order
+                $order = Order::where('ebay_order_id', $orderId)->first();
+                if ($order) {
+                    $order->update([
+                        'refund_status' => 'completed',
+                        'refund_amount' => $amount,
+                        'refund_initiated_at' => now(),
+                        'refund_completed_at' => now(),
+                        'payment_status' => 'refunded',
+                        'order_status' => 'refunded',
+                    ]);
+                    $order->setMeta('event_log_' . time(), [
+                        'event' => 'RefundIssued',
+                        'timestamp' => now()->toIso8601String(),
+                        'amount' => $amount,
+                        'reason' => $reason,
+                        'refund_id' => $result['refund_id'] ?? '',
+                    ]);
+
+                    // Restore inventory
+                    foreach ($order->items as $item) {
+                        if ($item->inventory_updated) {
+                            $item->restoreInventory();
+                        }
+                    }
+                }
+            }
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Issue a partial refund for specific line items.
+     */
+    public function issuePartialRefund(Request $request, string $id, string $orderId)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $lineItems = $request->input('line_items', []);
+            $reason = $request->input('reason', 'BUYER_CANCEL');
+            $comment = $request->input('comment');
+            $currency = $request->input('currency', 'USD');
+
+            if (empty($lineItems)) {
+                return $this->errorResponse('line_items is required', 400);
+            }
+
+            $result = $this->postOrderClient->issuePartialRefund(
+                $salesChannel,
+                $orderId,
+                $lineItems,
+                $reason,
+                $comment,
+                $currency
+            );
+
+            if ($result['success']) {
+                // Update local order
+                $order = Order::where('ebay_order_id', $orderId)->first();
+                if ($order) {
+                    $totalRefunded = $result['total_refunded'] ?? array_sum(array_column($lineItems, 'amount'));
+                    $order->recordPartialRefund($totalRefunded, $result['refund_id'] ?? null);
+
+                    $order->setMeta('event_log_' . time(), [
+                        'event' => 'PartialRefundIssued',
+                        'timestamp' => now()->toIso8601String(),
+                        'line_items' => $lineItems,
+                        'total_refunded' => $totalRefunded,
+                        'reason' => $reason,
+                        'refund_id' => $result['refund_id'] ?? '',
+                    ]);
+                }
+            }
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    // =========================================
+    // LOCAL SALES MANAGEMENT (Non-eBay Orders)
+    // =========================================
+
+    /**
+     * Cancel a local (non-eBay) order.
+     */
+    public function cancelLocalOrder(Request $request, int $orderId)
+    {
+        try {
+            $order = Order::findOrFail($orderId);
+
+            // Verify this is a local order
+            if ($order->isEbayOrder()) {
+                return $this->errorResponse('This is an eBay order. Use the eBay cancellation endpoint.', 400);
+            }
+
+            if ($order->isCancelled()) {
+                return $this->errorResponse('Order is already cancelled.', 400);
+            }
+
+            if (!$order->canBeCancelled()) {
+                return $this->errorResponse('Order cannot be cancelled in its current state.', 400);
+            }
+
+            $reason = $request->input('reason', 'Cancelled by seller');
+
+            DB::beginTransaction();
+
+            $order->update([
+                'order_status' => 'cancelled',
+                'cancel_status' => 'CancelComplete',
+                'cancellation_reason' => $reason,
+                'cancellation_initiated_by' => 'seller',
+                'cancellation_requested_at' => now(),
+                'cancellation_closed_at' => now(),
+            ]);
+
+            // Restore inventory
+            foreach ($order->items as $item) {
+                if ($item->inventory_updated) {
+                    $item->restoreInventory();
+                }
+            }
+
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'LocalOrderCancelled',
+                'timestamp' => now()->toIso8601String(),
+                'reason' => $reason,
+            ]);
+
+            DB::commit();
+
+            Log::info('Local order cancelled', [
+                'order_id' => $order->id,
+                'reason' => $reason,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order cancelled successfully',
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Issue a refund for a local (non-eBay) order.
+     */
+    public function refundLocalOrder(Request $request, int $orderId)
+    {
+        try {
+            $order = Order::findOrFail($orderId);
+
+            // Verify this is a local order
+            if ($order->isEbayOrder()) {
+                return $this->errorResponse('This is an eBay order. Use the eBay refund endpoint.', 400);
+            }
+
+            $amount = (float) $request->input('amount');
+            $reason = $request->input('reason', 'Refund issued by seller');
+            $isPartial = $request->input('is_partial', false);
+
+            if ($amount <= 0) {
+                return $this->errorResponse('amount is required and must be greater than 0', 400);
+            }
+
+            $refundableAmount = $order->getRefundableAmount();
+            if ($amount > $refundableAmount) {
+                return $this->errorResponse("Amount exceeds refundable amount ({$refundableAmount})", 400);
+            }
+
+            DB::beginTransaction();
+
+            // Record the refund
+            $order->recordPartialRefund($amount);
+
+            // If full refund, restore inventory
+            if (!$isPartial || $order->isRefunded()) {
+                foreach ($order->items as $item) {
+                    if ($item->inventory_updated) {
+                        $item->restoreInventory();
+                    }
+                }
+
+                $order->update(['order_status' => 'refunded']);
+            }
+
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'LocalOrderRefunded',
+                'timestamp' => now()->toIso8601String(),
+                'amount' => $amount,
+                'reason' => $reason,
+                'is_partial' => $isPartial,
+                'total_refunded' => $order->fresh()->total_refunded,
+            ]);
+
+            DB::commit();
+
+            Log::info('Local order refunded', [
+                'order_id' => $order->id,
+                'amount' => $amount,
+                'is_partial' => $isPartial,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => $isPartial ? 'Partial refund issued successfully' : 'Refund issued successfully',
+                'total_refunded' => $order->fresh()->total_refunded,
+                'refundable_remaining' => $order->fresh()->getRefundableAmount(),
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Issue a partial refund for a local order (refund specific line items).
+     */
+    public function partialRefundLocalOrder(Request $request, int $orderId)
+    {
+        try {
+            $order = Order::findOrFail($orderId);
+
+            // Verify this is a local order
+            if ($order->isEbayOrder()) {
+                return $this->errorResponse('This is an eBay order. Use the eBay refund endpoint.', 400);
+            }
+
+            $lineItems = $request->input('line_items', []);
+            $reason = $request->input('reason', 'Partial refund issued by seller');
+
+            if (empty($lineItems)) {
+                return $this->errorResponse('line_items is required', 400);
+            }
+
+            $totalAmount = array_sum(array_column($lineItems, 'amount'));
+            $refundableAmount = $order->getRefundableAmount();
+
+            if ($totalAmount > $refundableAmount) {
+                return $this->errorResponse("Total amount exceeds refundable amount ({$refundableAmount})", 400);
+            }
+
+            DB::beginTransaction();
+
+            // Record the refund
+            $refundId = 'LOCAL-' . uniqid();
+            $order->recordPartialRefund($totalAmount, $refundId);
+
+            // Restore inventory for refunded items
+            foreach ($lineItems as $lineItem) {
+                if (!empty($lineItem['order_item_id']) && !empty($lineItem['quantity'])) {
+                    $orderItem = $order->items()->find($lineItem['order_item_id']);
+                    if ($orderItem && $orderItem->inventory_updated) {
+                        $orderItem->restoreInventory($lineItem['quantity']);
+                    }
+                }
+            }
+
+            $order->setMeta('event_log_' . time(), [
+                'event' => 'LocalOrderPartialRefund',
+                'timestamp' => now()->toIso8601String(),
+                'line_items' => $lineItems,
+                'total_amount' => $totalAmount,
+                'reason' => $reason,
+                'refund_id' => $refundId,
+            ]);
+
+            DB::commit();
+
+            Log::info('Local order partial refund issued', [
+                'order_id' => $order->id,
+                'line_items_count' => count($lineItems),
+                'total_amount' => $totalAmount,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Partial refund issued successfully',
+                'refund_id' => $refundId,
+                'total_refunded' => $order->fresh()->total_refunded,
+                'refundable_remaining' => $order->fresh()->getRefundableAmount(),
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    // =========================================
+    // INQUIRIES MANAGEMENT (INR - Item Not Received)
+    // =========================================
+
+    /**
+     * Get inquiry cases from eBay.
+     */
+    public function getInquiries(Request $request, string $id)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $limit = (int) $request->input('limit', 50);
+            $offset = (int) $request->input('offset', 0);
+
+            $result = $this->postOrderClient->getInquiries($salesChannel, $limit, $offset);
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Provide shipment info for an inquiry.
+     */
+    public function provideInquiryShipmentInfo(Request $request, string $id, string $inquiryId)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $trackingNumber = $request->input('tracking_number');
+            $shippingCarrier = $request->input('shipping_carrier');
+            $shippedDate = $request->input('shipped_date', gmdate('Y-m-d\TH:i:s\Z'));
+
+            if (!$trackingNumber || !$shippingCarrier) {
+                return $this->errorResponse('tracking_number and shipping_carrier are required', 400);
+            }
+
+            $result = $this->postOrderClient->provideInquiryShipmentInfo(
+                $salesChannel,
+                $inquiryId,
+                $trackingNumber,
+                $shippingCarrier,
+                $shippedDate
+            );
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Issue refund for an inquiry (INR resolution).
+     */
+    public function issueInquiryRefund(Request $request, string $id, string $inquiryId)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $comments = $request->input('comments');
+            $result = $this->postOrderClient->issueInquiryRefund($salesChannel, $inquiryId, $comments);
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    // =========================================
+    // NOTIFICATION SUBSCRIPTION MANAGEMENT
+    // =========================================
+
+    /**
+     * Subscribe to complete order management events (including returns and cancellations).
+     */
+    public function subscribeToCompleteOrderEvents(string $id)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $result = $this->notificationService->subscribeToCompleteOrderEvents($salesChannel);
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Subscribe to return events only.
+     */
+    public function subscribeToReturnEvents(string $id)
+    {
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $result = $this->notificationService->subscribeToReturnEvents($salesChannel);
+
+            return response()->json($result);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    // =========================================
+    // LOCAL ORDER STATUS VIEWS
+    // =========================================
+
+    /**
+     * Get orders with active returns.
+     */
+    public function getOrdersWithReturns(Request $request, string $id)
+    {
+        try {
+            $query = Order::where('sales_channel_id', $id)
+                ->whereNotNull('return_status')
+                ->with('items');
+
+            if ($request->has('status')) {
+                $query->where('return_status', $request->status);
+            }
+
+            $orders = $query->orderBy('return_requested_at', 'desc')
+                ->paginate($request->input('per_page', 20));
+
+            return response()->json([
+                'success' => true,
+                'data' => $orders,
+            ]);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Get orders with pending cancellations.
+     */
+    public function getOrdersWithCancellations(Request $request, string $id)
+    {
+        try {
+            $query = Order::where('sales_channel_id', $id)
+                ->whereNotNull('cancel_status')
+                ->with('items');
+
+            if ($request->has('status')) {
+                $query->where('cancel_status', $request->status);
+            }
+
+            $orders = $query->orderBy('cancellation_requested_at', 'desc')
+                ->paginate($request->input('per_page', 20));
+
+            return response()->json([
+                'success' => true,
+                'data' => $orders,
+            ]);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
+     * Get refunded orders.
+     */
+    public function getRefundedOrders(Request $request, string $id)
+    {
+        try {
+            $orders = Order::where('sales_channel_id', $id)
+                ->where(function ($q) {
+                    $q->where('payment_status', 'refunded')
+                        ->orWhere('refund_status', 'completed');
+                })
+                ->with('items')
+                ->orderBy('refund_completed_at', 'desc')
+                ->paginate($request->input('per_page', 20));
+
+            return response()->json([
+                'success' => true,
+                'data' => $orders,
+            ]);
+
+        } catch (Exception $e) {
+            return $this->errorResponse($e->getMessage());
         }
     }
 

@@ -148,6 +148,13 @@
                                                title="Sync orders from eBay">
                                                 <i class="feather-shopping-cart me-1"></i>Orders
                                             </a>
+                                            <button type="button"
+                                               class="btn btn-sm btn-secondary subscribe-events-btn"
+                                               data-channel-id="{{ $sales_channel->id }}"
+                                               id="subscribe-btn-{{ $sales_channel->id }}"
+                                               title="Subscribe to eBay notifications (orders, returns, cancellations)">
+                                                <i class="feather-bell me-1"></i>Subscribe
+                                            </button>
                                             @can('edit sales_channels')
                                                 <a href="{{ route('sales-channels.edit', $sales_channel->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="Edit">
                                                     <i class="feather-edit-3"></i>
@@ -402,5 +409,61 @@
             btn.addClass('disabled').html('<div class="spinner-border spinner-border-sm me-1"></div>Syncing...');
             $('#import-btn-' + channelId).addClass('disabled');
         });
+
+        // Handle subscribe events button click
+        $(document).on('click', '.subscribe-events-btn', function(e) {
+            e.preventDefault();
+            const channelId = $(this).data('channel-id');
+            const btn = $(this);
+
+            // Show loading state
+            btn.addClass('disabled').html('<div class="spinner-border spinner-border-sm me-1"></div>Subscribing...');
+
+            $.ajax({
+                url: '/api/ebay/notifications/' + channelId + '/subscribe-complete',
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Show success
+                        btn.removeClass('btn-secondary').addClass('btn-success');
+                        btn.html('<i class="feather-check me-1"></i>Subscribed');
+
+                        // Show success message
+                        showToast('success', 'Successfully subscribed to eBay notifications!');
+
+                        // Reset button after 3 seconds
+                        setTimeout(function() {
+                            btn.removeClass('btn-success disabled').addClass('btn-secondary');
+                            btn.html('<i class="feather-bell me-1"></i>Subscribe');
+                        }, 3000);
+                    } else {
+                        // Show error
+                        btn.removeClass('disabled').html('<i class="feather-bell me-1"></i>Subscribe');
+                        showToast('error', response.message || 'Failed to subscribe to notifications');
+                    }
+                },
+                error: function(xhr) {
+                    btn.removeClass('disabled').html('<i class="feather-bell me-1"></i>Subscribe');
+                    const errorMsg = xhr.responseJSON?.message || 'Failed to subscribe to notifications';
+                    showToast('error', errorMsg);
+                }
+            });
+        });
+
+        // Toast notification helper
+        function showToast(type, message) {
+            // Check if toastr is available
+            if (typeof toastr !== 'undefined') {
+                toastr[type](message);
+            } else {
+                // Fallback to alert
+                alert(message);
+            }
+        }
     </script>
 @endpush

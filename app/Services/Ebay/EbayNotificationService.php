@@ -120,6 +120,59 @@ class EbayNotificationService
         'PaymentReminder',
     ];
 
+    /**
+     * Return-related notification events
+     */
+    public const RETURN_EVENTS = [
+        'ReturnCreated',
+        'ReturnShipped',
+        'ReturnDelivered',
+        'ReturnClosed',
+        'ReturnEscalated',
+        'ReturnRefundOverdue',
+        'ReturnSellerInfoOverdue',
+        'ReturnWaitingForSellerInfo',
+    ];
+
+    /**
+     * Cancellation and refund events
+     */
+    public const CANCEL_REFUND_EVENTS = [
+        'BuyerCancelRequested',
+        'CancelRequestApproved',
+        'CancelRequestRejected',
+        'RefundInitiated',
+        'RefundCompleted',
+    ];
+
+    /**
+     * Complete order management events (orders + returns + cancellations)
+     */
+    public const COMPLETE_ORDER_EVENTS = [
+        'FixedPriceTransaction',
+        'AuctionCheckoutComplete',
+        'ItemSold',
+        'ItemMarkedShipped',
+        'ItemMarkedPaid',
+        'ItemReadyForPickup',
+        'ItemDelivered',
+        'BuyerCancelRequested',
+        'CancelRequestApproved',
+        'CancelRequestRejected',
+        'CheckoutBuyerRequestsTotal',
+        'PaymentReminder',
+        'RefundInitiated',
+        'RefundCompleted',
+        'ReturnCreated',
+        'ReturnShipped',
+        'ReturnDelivered',
+        'ReturnClosed',
+        'ReturnEscalated',
+        'ReturnRefundOverdue',
+        'ReturnSellerInfoOverdue',
+        'ReturnWaitingForSellerInfo',
+    ];
+
     public function __construct(
         private EbayApiClient $client,
     ) {}
@@ -171,6 +224,30 @@ class EbayNotificationService
     public function subscribeToOrderEvents(SalesChannel $channel): array
     {
         return $this->subscribeToPlatformNotifications($channel, self::ORDER_EVENTS);
+    }
+
+    /**
+     * Subscribe to return-related events only.
+     */
+    public function subscribeToReturnEvents(SalesChannel $channel): array
+    {
+        return $this->subscribeToPlatformNotifications($channel, self::RETURN_EVENTS);
+    }
+
+    /**
+     * Subscribe to cancellation and refund events only.
+     */
+    public function subscribeToCancelRefundEvents(SalesChannel $channel): array
+    {
+        return $this->subscribeToPlatformNotifications($channel, self::CANCEL_REFUND_EVENTS);
+    }
+
+    /**
+     * Subscribe to complete order management events (orders + returns + cancellations).
+     */
+    public function subscribeToCompleteOrderEvents(SalesChannel $channel): array
+    {
+        return $this->subscribeToPlatformNotifications($channel, self::COMPLETE_ORDER_EVENTS);
     }
 
     /**
