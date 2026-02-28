@@ -121,32 +121,35 @@ class EbayNotificationService
     ];
 
     /**
-     * Return-related notification events
+     * Return-related notification events (eBay Money Back Guarantee / INR)
+     * Note: ReturnCreated, ReturnShipped, etc. are Commerce Notification API events,
+     * not Platform Notification events. Use EBP* events for dispute tracking.
      */
     public const RETURN_EVENTS = [
-        'ReturnCreated',
-        'ReturnShipped',
-        'ReturnDelivered',
-        'ReturnClosed',
-        'ReturnEscalated',
-        'ReturnRefundOverdue',
-        'ReturnSellerInfoOverdue',
-        'ReturnWaitingForSellerInfo',
+        'EBPClosedCase',
+        'EBPEscalatedCase',
+        'EBPMyResponseDue',
+        'EBPOtherPartyResponseDue',
+        'EBPAppealedCase',
+        'EBPClosedAppeal',
+        'EBPOnHoldCase',
+        'EBPMyPaymentDue',
+        'EBPPaymentDone',
+        'INRBuyerRespondedToDispute',
+        'OrderInquiryReminderForEscalation',
     ];
 
     /**
-     * Cancellation and refund events
+     * Cancellation events (valid Platform Notification events)
      */
     public const CANCEL_REFUND_EVENTS = [
         'BuyerCancelRequested',
-        'CancelRequestApproved',
-        'CancelRequestRejected',
-        'RefundInitiated',
-        'RefundCompleted',
     ];
 
     /**
-     * Complete order management events (orders + returns + cancellations)
+     * Complete order management events (valid Platform Notification events only)
+     * Note: Return and refund status updates come via Commerce Notification API webhooks,
+     * not Platform Notifications. This subscribes to what's available via Trading API.
      */
     public const COMPLETE_ORDER_EVENTS = [
         'FixedPriceTransaction',
@@ -155,22 +158,16 @@ class EbayNotificationService
         'ItemMarkedShipped',
         'ItemMarkedPaid',
         'ItemReadyForPickup',
-        'ItemDelivered',
         'BuyerCancelRequested',
-        'CancelRequestApproved',
-        'CancelRequestRejected',
         'CheckoutBuyerRequestsTotal',
         'PaymentReminder',
-        'RefundInitiated',
-        'RefundCompleted',
-        'ReturnCreated',
-        'ReturnShipped',
-        'ReturnDelivered',
-        'ReturnClosed',
-        'ReturnEscalated',
-        'ReturnRefundOverdue',
-        'ReturnSellerInfoOverdue',
-        'ReturnWaitingForSellerInfo',
+        // eBay Money Back Guarantee / Dispute events
+        'EBPClosedCase',
+        'EBPEscalatedCase',
+        'EBPMyResponseDue',
+        'EBPOtherPartyResponseDue',
+        'INRBuyerRespondedToDispute',
+        'OrderInquiryReminderForEscalation',
     ];
 
     public function __construct(

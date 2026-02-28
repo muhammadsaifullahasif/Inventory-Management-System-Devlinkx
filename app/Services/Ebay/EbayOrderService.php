@@ -388,6 +388,7 @@ class EbayOrderService
     public static function isOrderNotification(string $notificationType): bool
     {
         return in_array($notificationType, [
+            // Order/Transaction events (Platform Notifications)
             'FixedPriceTransaction',
             'AuctionCheckoutComplete',
             'ItemSold',
@@ -403,13 +404,25 @@ class EbayOrderService
             'ItemPickedUp',
             'BuyerCancelRequested',
             'OrderCancelled',
-            'CancelRequestApproved',
-            'CancelRequestRejected',
             'CheckoutBuyerRequestsTotal',
             'PaymentReminder',
+            // eBay Money Back Guarantee events (Platform Notifications)
+            'EBPClosedCase',
+            'EBPEscalatedCase',
+            'EBPMyResponseDue',
+            'EBPOtherPartyResponseDue',
+            'EBPAppealedCase',
+            'EBPClosedAppeal',
+            'EBPOnHoldCase',
+            'EBPMyPaymentDue',
+            'EBPPaymentDone',
+            'INRBuyerRespondedToDispute',
+            'OrderInquiryReminderForEscalation',
+            // Commerce Notification API events (JSON webhooks)
+            'CancelRequestApproved',
+            'CancelRequestRejected',
             'RefundInitiated',
             'RefundCompleted',
-            // Return notifications
             'ReturnCreated',
             'ReturnShipped',
             'ReturnDelivered',
@@ -480,6 +493,19 @@ class EbayOrderService
 
             'CheckoutBuyerRequestsTotal' => $this->handleCheckoutBuyerRequestsTotal($data, $channel, $notificationType, $timestamp),
             'PaymentReminder' => $this->handlePaymentReminder($data, $channel, $notificationType, $timestamp),
+
+            // eBay Money Back Guarantee / INR events
+            'EBPClosedCase',
+            'EBPEscalatedCase',
+            'EBPMyResponseDue',
+            'EBPOtherPartyResponseDue',
+            'EBPAppealedCase',
+            'EBPClosedAppeal',
+            'EBPOnHoldCase',
+            'EBPMyPaymentDue',
+            'EBPPaymentDone',
+            'INRBuyerRespondedToDispute',
+            'OrderInquiryReminderForEscalation' => $this->handleDisputeNotification($data, $channel, $notificationType, $timestamp),
 
             default => null,
         };
@@ -1553,6 +1579,101 @@ class EbayOrderService
                 'order_id' => $order->id,
                 'return_id' => $returnId,
                 'notification_type' => $notificationType,
+            ]);
+
+            return $order;
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle eBay Money Back Guarantee / INR dispute notifications.
+     */
+    protected function handleDisputeNotification(array $data, SalesChannel $channel, string $notificationType, $timestamp): ?Order
+    {
+        $response = $this->extractResponseFromEnvelope($data);
+
+        // Try to extract order/item information from dispute data
+        $disputeData = $response['DisputeID'] ?? $response['Dispute'] ?? $response;
+        $itemId = $disputeData['ItemId'] ?? $disputeData['Item']['ItemID'] ?? '';
+        $transactionId = $disputeData['TransactionId'] ?? $disputeData['TransactionID'] ?? '';
+        $disputeId = $disputeData['DisputeID'] ?? $disputeData['CaseId'] ?? '';
+
+        $order = null;
+
+        // Try to find order by item + transaction
+        if (!empty($itemId) && !empty($transactionId)) {
+            $order = Order::whereHas('items', function ($q) use ($itemId, $transactionId) {
+                $q->where('ebay_item_id', $itemId)
+                  ->where('ebay_transaction_id', $transactionId);
+            })->first();
+        }
+
+        // Fallback: find by item ID only
+        if (!$order && !empty($itemId)) {
+            $order = Order::whereHas('items', function ($q) use ($itemId) {
+                $q->where('ebay_item_id', $itemId);
+            })->first();
+        }
+
+        if (!$order) {
+            Log::channel('ebay')->warning('Order not found for dispute notification', [
+                'notification_type' => $notificationType,
+                'dispute_id' => $disputeId,
+                'item_id' => $itemId,
+            ]);
+            return null;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Determine status based on notification type
+            $disputeStatus = match ($notificationType) {
+                'EBPClosedCase' => 'dispute_closed',
+                'EBPEscalatedCase' => 'dispute_escalated',
+                'EBPMyResponseDue' => 'dispute_response_due',
+                'EBPOtherPartyResponseDue' => 'dispute_waiting',
+                'EBPAppealedCase' => 'dispute_appealed',
+                'EBPClosedAppeal' => 'dispute_appeal_closed',
+                'EBPOnHoldCase' => 'dispute_on_hold',
+                'EBPMyPaymentDue' => 'dispute_payment_due',
+                'EBPPaymentDone' => 'dispute_payment_done',
+                'INRBuyerRespondedToDispute' => 'inr_buyer_responded',
+                'OrderInquiryReminderForEscalation' => 'inr_escalation_reminder',
+                default => 'dispute_active',
+            };
+
+            // Update return_status to track dispute
+            $order->update([
+                'return_status' => $disputeStatus,
+            ]);
+
+            $order->setMeta('dispute_' . $disputeId, [
+                'dispute_id' => $disputeId,
+                'notification_type' => $notificationType,
+                'status' => $disputeStatus,
+                'item_id' => $itemId,
+                'timestamp' => $timestamp,
+            ]);
+
+            $order->setMeta('event_log_' . time(), [
+                'event' => $notificationType,
+                'timestamp' => $timestamp,
+                'dispute_id' => $disputeId,
+                'dispute_status' => $disputeStatus,
+            ]);
+
+            DB::commit();
+
+            Log::channel('ebay')->info('Dispute notification processed', [
+                'order_id' => $order->id,
+                'notification_type' => $notificationType,
+                'dispute_id' => $disputeId,
+                'dispute_status' => $disputeStatus,
             ]);
 
             return $order;
