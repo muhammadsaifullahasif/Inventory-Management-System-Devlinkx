@@ -770,6 +770,42 @@ class EbayService
             $trackingDetails = $trackingDetails[0]; // Use first tracking entry
         }
 
+        // Calculate shipment deadline from handling time (DispatchTimeMax)
+        // DispatchTimeMax is the number of business days the seller has to ship
+        $handlingTimeDays = null;
+        $shipmentDeadline = null;
+
+        // Try to get DispatchTimeMax from transactions or shipping details
+        foreach ($transactions as $tx) {
+            if (isset($tx['ShippingDetails']['ShipmentTrackingDetails'])) {
+                continue; // Already shipped
+            }
+            // Check item's dispatch time
+            if (isset($tx['Item']['DispatchTimeMax'])) {
+                $handlingTimeDays = (int) $tx['Item']['DispatchTimeMax'];
+                break;
+            }
+        }
+
+        // Fallback: Check shipping service selected
+        if ($handlingTimeDays === null && isset($order['ShippingServiceSelected']['ShippingTimeMin'])) {
+            // Use max shipping time as handling estimate
+            $handlingTimeDays = (int) ($order['ShippingServiceSelected']['ShippingTimeMax'] ?? 3);
+        }
+
+        // Calculate deadline: from paid time (or created time) + handling days
+        if ($handlingTimeDays !== null) {
+            $baseTime = !empty($order['PaidTime']) ? $order['PaidTime'] : ($order['CreatedTime'] ?? '');
+            if (!empty($baseTime)) {
+                try {
+                    $deadline = \Carbon\Carbon::parse($baseTime)->addWeekdays($handlingTimeDays);
+                    $shipmentDeadline = $deadline->toIso8601String();
+                } catch (\Exception $e) {
+                    // Ignore parse errors
+                }
+            }
+        }
+
         return [
             'order_id' => $order['OrderID'] ?? '',
             'order_status' => $order['OrderStatus'] ?? '',
@@ -789,6 +825,8 @@ class EbayService
             'tracking_number' => $trackingDetails['ShipmentTrackingNumber'] ?? '',
             'shipping_carrier' => $trackingDetails['ShippingCarrierUsed'] ?? '',
             'pickup_status' => $order['PickupDetails']['PickupStatus'] ?? '',
+            'handling_time_days' => $handlingTimeDays,
+            'shipment_deadline' => $shipmentDeadline,
             'raw_data' => $order,
         ];
     }

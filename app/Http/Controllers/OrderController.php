@@ -72,6 +72,37 @@ class OrderController extends Controller
             });
         }
 
+        // Filter by shipment deadline
+        if ($request->filled('shipment_deadline')) {
+            $deadlineFilter = $request->shipment_deadline;
+
+            // Exclude already shipped/cancelled/refunded orders from deadline filters
+            $query->whereNotIn('order_status', ['shipped', 'delivered', 'cancelled', 'refunded']);
+
+            switch ($deadlineFilter) {
+                case 'overdue':
+                    $query->whereNotNull('shipment_deadline')
+                        ->where('shipment_deadline', '<', now());
+                    break;
+
+                case 'today':
+                    $query->whereNotNull('shipment_deadline')
+                        ->whereDate('shipment_deadline', today());
+                    break;
+
+                case 'tomorrow':
+                    $query->whereNotNull('shipment_deadline')
+                        ->whereDate('shipment_deadline', today()->addDay());
+                    break;
+
+                case 'this_week':
+                    $query->whereNotNull('shipment_deadline')
+                        ->where('shipment_deadline', '>=', now())
+                        ->where('shipment_deadline', '<=', now()->endOfWeek());
+                    break;
+            }
+        }
+
         // Sort
         $sortBy = $request->input('sort_by', 'created_at');
         $sortOrder = $request->input('sort_order', 'desc');

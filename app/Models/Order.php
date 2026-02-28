@@ -75,6 +75,9 @@ class Order extends Model
         'cancellation_initiated_by',
         'cancellation_requested_at',
         'cancellation_closed_at',
+        // Shipment deadline fields
+        'shipment_deadline',
+        'handling_time_days',
     ];
 
     protected $casts = [
@@ -93,6 +96,7 @@ class Order extends Model
         'refund_completed_at' => 'datetime',
         'cancellation_requested_at' => 'datetime',
         'cancellation_closed_at' => 'datetime',
+        'shipment_deadline' => 'datetime',
         'subtotal' => 'decimal:2',
         'shipping_cost' => 'decimal:2',
         'tax' => 'decimal:2',
@@ -385,6 +389,85 @@ class Order extends Model
             $q->where('payment_status', 'refunded')
                 ->orWhere('refund_status', 'completed');
         });
+    }
+
+    /**
+     * Scope for orders with shipment deadline approaching (within X days)
+     */
+    public function scopeDeadlineWithin($query, int $days = 1)
+    {
+        return $query->whereNotNull('shipment_deadline')
+            ->where('shipment_deadline', '<=', now()->addDays($days))
+            ->where('shipment_deadline', '>=', now())
+            ->whereNotIn('order_status', ['shipped', 'delivered', 'cancelled', 'refunded']);
+    }
+
+    /**
+     * Scope for overdue shipments (deadline passed)
+     */
+    public function scopeOverdue($query)
+    {
+        return $query->whereNotNull('shipment_deadline')
+            ->where('shipment_deadline', '<', now())
+            ->whereNotIn('order_status', ['shipped', 'delivered', 'cancelled', 'refunded']);
+    }
+
+    /**
+     * Check if shipment is overdue
+     */
+    public function isShipmentOverdue(): bool
+    {
+        if (!$this->shipment_deadline) {
+            return false;
+        }
+
+        return $this->shipment_deadline->isPast() &&
+            !in_array($this->order_status, ['shipped', 'delivered', 'cancelled', 'refunded']);
+    }
+
+    /**
+     * Check if shipment deadline is approaching (within 24 hours)
+     */
+    public function isShipmentDeadlineApproaching(): bool
+    {
+        if (!$this->shipment_deadline) {
+            return false;
+        }
+
+        return $this->shipment_deadline->isFuture() &&
+            $this->shipment_deadline->diffInHours(now()) <= 24 &&
+            !in_array($this->order_status, ['shipped', 'delivered', 'cancelled', 'refunded']);
+    }
+
+    /**
+     * Get shipment deadline status
+     * Returns: 'overdue', 'urgent', 'upcoming', 'ok', or null
+     */
+    public function getShipmentDeadlineStatus(): ?string
+    {
+        if (!$this->shipment_deadline) {
+            return null;
+        }
+
+        if (in_array($this->order_status, ['shipped', 'delivered', 'cancelled', 'refunded'])) {
+            return null;
+        }
+
+        if ($this->shipment_deadline->isPast()) {
+            return 'overdue';
+        }
+
+        $hoursRemaining = $this->shipment_deadline->diffInHours(now());
+
+        if ($hoursRemaining <= 24) {
+            return 'urgent';
+        }
+
+        if ($hoursRemaining <= 48) {
+            return 'upcoming';
+        }
+
+        return 'ok';
     }
 
     /**

@@ -285,6 +285,14 @@ class EbayOrderService
                 $updateData['shipping_carrier'] = $ebayOrder['shipping_carrier'];
             }
 
+            // Update shipment deadline if not already set
+            if (!empty($ebayOrder['shipment_deadline']) && empty($existingOrder->shipment_deadline)) {
+                $updateData['shipment_deadline'] = new \DateTime($ebayOrder['shipment_deadline']);
+            }
+            if (!empty($ebayOrder['handling_time_days']) && empty($existingOrder->handling_time_days)) {
+                $updateData['handling_time_days'] = $ebayOrder['handling_time_days'];
+            }
+
             $existingOrder->update($updateData);
 
             // Update inventory for items that weren't updated yet
@@ -331,6 +339,8 @@ class EbayOrderService
                 'shipped_at' => !empty($ebayOrder['shipped_time']) ? new \DateTime($ebayOrder['shipped_time']) : null,
                 'tracking_number' => $ebayOrder['tracking_number'] ?? null,
                 'shipping_carrier' => $ebayOrder['shipping_carrier'] ?? null,
+                'shipment_deadline' => !empty($ebayOrder['shipment_deadline']) ? new \DateTime($ebayOrder['shipment_deadline']) : null,
+                'handling_time_days' => $ebayOrder['handling_time_days'] ?? null,
             ]);
 
             foreach ($ebayOrder['line_items'] as $lineItem) {
@@ -560,6 +570,34 @@ class EbayOrderService
         // Get item data
         $item = $response['Item'] ?? [];
 
+        // Calculate shipment deadline from DispatchTimeMax (handling time)
+        $handlingTimeDays = null;
+        $shipmentDeadline = null;
+
+        // Try to get DispatchTimeMax from item
+        if (isset($item['DispatchTimeMax'])) {
+            $handlingTimeDays = (int) $item['DispatchTimeMax'];
+        } elseif (isset($transaction['Item']['DispatchTimeMax'])) {
+            $handlingTimeDays = (int) $transaction['Item']['DispatchTimeMax'];
+        } elseif (isset($transaction['ShippingDetails']['ShippingTimeMax'])) {
+            $handlingTimeDays = (int) $transaction['ShippingDetails']['ShippingTimeMax'];
+        }
+
+        // Calculate deadline: from paid time (or created time) + handling days (as business days)
+        if ($handlingTimeDays !== null) {
+            $paidTime = $transaction['PaidTime'] ?? '';
+            $createdDate = $transaction['CreatedDate'] ?? '';
+            $baseTime = !empty($paidTime) ? $paidTime : $createdDate;
+
+            if (!empty($baseTime)) {
+                try {
+                    $shipmentDeadline = Carbon::parse($baseTime)->addWeekdays($handlingTimeDays);
+                } catch (\Exception $e) {
+                    // Ignore parse errors
+                }
+            }
+        }
+
         $orderData = [
             'sales_channel_id' => $channel->id,
             'ebay_order_id' => $ebayOrderId,
@@ -605,6 +643,9 @@ class EbayOrderService
 
             'tracking_number' => $transaction['ShippingDetails']['ShipmentTrackingDetails']['ShipmentTrackingNumber'] ?? '',
             'shipping_carrier' => $transaction['ShippingDetails']['ShipmentTrackingDetails']['ShippingCarrierUsed'] ?? '',
+
+            'shipment_deadline' => $shipmentDeadline,
+            'handling_time_days' => $handlingTimeDays,
 
             'ebay_raw_data' => $data,
         ];

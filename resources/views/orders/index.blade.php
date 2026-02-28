@@ -65,6 +65,16 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
+                                <label class="form-label">Ship By Deadline</label>
+                                <select name="shipment_deadline" class="form-select form-select-sm">
+                                    <option value="">All</option>
+                                    <option value="overdue" {{ request('shipment_deadline') == 'overdue' ? 'selected' : '' }}>Overdue</option>
+                                    <option value="today" {{ request('shipment_deadline') == 'today' ? 'selected' : '' }}>Due Today</option>
+                                    <option value="tomorrow" {{ request('shipment_deadline') == 'tomorrow' ? 'selected' : '' }}>Due Tomorrow</option>
+                                    <option value="this_week" {{ request('shipment_deadline') == 'this_week' ? 'selected' : '' }}>Due This Week</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
                                 <label class="form-label">From Date</label>
                                 <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request('date_from') }}">
                             </div>
@@ -104,6 +114,7 @@
                                 <th>Status</th>
                                 <th>Address Type</th>
                                 <th>Order Date</th>
+                                <th>Ship By</th>
                                 <th>Shipped Date</th>
                                 <th class="text-end">Actions</th>
                             </tr>
@@ -200,6 +211,41 @@
                                         @endif
                                     </td>
                                     <td>
+                                        @php
+                                            $deadlineStatus = $order->getShipmentDeadlineStatus();
+                                            $deadlineColors = [
+                                                'overdue' => 'danger',
+                                                'urgent' => 'warning',
+                                                'upcoming' => 'info',
+                                                'ok' => 'success',
+                                            ];
+                                            $deadlineLabels = [
+                                                'overdue' => 'OVERDUE',
+                                                'urgent' => 'URGENT',
+                                                'upcoming' => 'Soon',
+                                                'ok' => '',
+                                            ];
+                                        @endphp
+                                        @if($order->shipment_deadline && $deadlineStatus)
+                                            <span class="fs-12 {{ $deadlineStatus === 'overdue' ? 'text-danger fw-bold' : ($deadlineStatus === 'urgent' ? 'text-warning fw-semibold' : '') }}">
+                                                {{ $order->shipment_deadline->format('d M, Y') }}
+                                            </span>
+                                            @if($deadlineLabels[$deadlineStatus])
+                                                <span class="d-block">
+                                                    <span class="badge bg-soft-{{ $deadlineColors[$deadlineStatus] }} text-{{ $deadlineColors[$deadlineStatus] }} fs-10">
+                                                        {{ $deadlineLabels[$deadlineStatus] }}
+                                                    </span>
+                                                </span>
+                                            @else
+                                                <span class="d-block fs-11 text-muted">{{ $order->shipment_deadline->diffForHumans() }}</span>
+                                            @endif
+                                        @elseif($order->shipment_deadline)
+                                            <span class="fs-12 text-muted">{{ $order->shipment_deadline->format('d M, Y') }}</span>
+                                        @else
+                                            <span class="text-muted fs-12">-</span>
+                                        @endif
+                                    </td>
+                                    <td>
                                         @if($order->shipped_at)
                                             <span class="fs-12 text-success">{{ $order->shipped_at->format('d M, Y') }}</span>
                                             <span class="d-block fs-11 text-muted">{{ $order->shipped_at->format('H:i') }}</span>
@@ -253,7 +299,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="11" class="text-center py-4 text-muted">No orders found.</td>
+                                    <td colspan="12" class="text-center py-4 text-muted">No orders found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
