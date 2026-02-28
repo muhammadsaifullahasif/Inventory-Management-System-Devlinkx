@@ -104,6 +104,7 @@
                                 <th>Status</th>
                                 <th>Address Type</th>
                                 <th>Order Date</th>
+                                <th>Shipped Date</th>
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -192,6 +193,14 @@
                                         @endif
                                     </td>
                                     <td>
+                                        @if($order->shipped_at)
+                                            <span class="fs-12 text-success">{{ $order->shipped_at->format('d M, Y') }}</span>
+                                            <span class="d-block fs-11 text-muted">{{ $order->shipped_at->format('H:i') }}</span>
+                                        @else
+                                            <span class="text-muted fs-12">-</span>
+                                        @endif
+                                    </td>
+                                    <td>
                                         <div class="hstack gap-2 justify-content-end">
                                             <a href="{{ route('orders.show', $order->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="View">
                                                 <i class="feather-eye"></i>
@@ -219,7 +228,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="text-center py-4 text-muted">No orders found.</td>
+                                    <td colspan="11" class="text-center py-4 text-muted">No orders found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
