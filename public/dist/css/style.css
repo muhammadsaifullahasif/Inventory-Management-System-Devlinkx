@@ -168,7 +168,7 @@ body.modal-open .theme-customizer {
 
 /* Allow dropdown menus to overflow the table container */
 .table-responsive {
-    overflow: visible !important;
+    overflow: scroll !important;
 }
 
 /* For horizontal scrolling when needed, use wrapper approach */
