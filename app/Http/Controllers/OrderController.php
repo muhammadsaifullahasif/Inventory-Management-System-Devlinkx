@@ -109,7 +109,7 @@ class OrderController extends Controller
         $query->orderBy($sortBy, $sortOrder);
 
         // Paginate
-        $perPage = $request->input('per_page', 20);
+        $perPage = $request->input('per_page', 25);
         $orders = $query->paginate($perPage);
 
         // Get sales channels for filter dropdown
