@@ -75,11 +75,22 @@
     <!-- Warehouses Table -->
     <div class="col-12">
         <div class="card">
+            <div class="card-body pb-0">
+                @include('partials.bulk-actions-bar', ['itemName' => 'warehouses'])
+            </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
+                                <th class="ps-3" style="width: 40px;">
+                                    <div class="btn-group mb-1">
+                                        <div class="custom-control custom-checkbox ms-1">
+                                            <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
+                                            <label for="selectAll" class="custom-control-label"></label>
+                                        </div>
+                                    </div>
+                                </th>
                                 <th>#</th>
                                 <th>Name</th>
                                 <th>Racks</th>
@@ -95,6 +106,16 @@
                         <tbody>
                             @forelse ($warehouses as $warehouse)
                                 <tr>
+                                    <td class="ps-3">
+                                        <div class="item-checkbox ms-1">
+                                            <div class="custom-control custom-checkbox">
+                                                <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $warehouse->id }}" data-warehouse-id="{{ $warehouse->id }}">
+                                                <label for="{{ $warehouse->id }}" class="custom-control-label"></label>
+                                                <input type="hidden" class="warehouse-id-input" value="{{ $warehouse->id }}" disabled>
+                                            </div>
+                                        </div>
+                                        {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $warehouse->id }}"> --}}
+                                    </td>
                                     <td>{{ $warehouse->id }}</td>
                                     <td>
                                         <a href="{{ route('products.index', ['warehouse_id' => $warehouse->id]) }}" class="fw-semibold text-primary">
@@ -147,18 +168,21 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="text-center py-4 text-muted">No warehouses found.</td>
+                                    <td colspan="11" class="text-center py-4 text-muted">No warehouses found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
             </div>
-            @if($warehouses->hasPages())
-            <div class="card-footer">
-                {{ $warehouses->links('pagination::bootstrap-5') }}
+            <div class="card-footer d-flex align-items-center justify-content-between">
+                <div>
+                    @include('partials.per-page-dropdown', ['perPage' => $perPage])
+                </div>
+                <div>
+                    {{ $warehouses->links('pagination::bootstrap-5') }}
+                </div>
             </div>
-            @endif
         </div>
     </div>
 @endsection
@@ -177,4 +201,6 @@
             });
         });
     </script>
+
+    @include('partials.bulk-delete-scripts', ['routeName' => 'warehouses.bulk-delete', 'itemName' => 'warehouses'])
 @endpush

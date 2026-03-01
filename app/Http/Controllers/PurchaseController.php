@@ -73,13 +73,14 @@ class PurchaseController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
-        $purchases = $query->orderBy('created_at', 'desc')->paginate(25)->withQueryString();
+        $perPage = $request->input('per_page', 25);
+        $purchases = $query->orderBy('created_at', 'desc')->paginate($perPage)->withQueryString();
 
         // Get filter options
         $suppliers = Supplier::orderBy('first_name')->get();
         $warehouses = Warehouse::orderBy('name')->get();
 
-        return view('purchases.index', compact('purchases', 'suppliers', 'warehouses'));
+        return view('purchases.index', compact('purchases', 'suppliers', 'warehouses', 'perPage'));
     }
 
     /**
@@ -900,5 +901,87 @@ class PurchaseController extends Controller
         return response()->download($filePath, 'Purchases.csv', [
             'Content-Type' => 'text/csv',
         ]);
+    }
+
+    /**
+     * Bulk delete purchases
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:purchases,id',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $purchases = Purchase::with(['purchase_items', 'supplier'])->whereIn('id', $request->ids)->get();
+            $count = 0;
+            $inventoryAccountingService = new InventoryAccountingService();
+
+            foreach ($purchases as $purchase) {
+                $productsToSync = [];
+
+                // Only decrease stock for RECEIVED quantities
+                foreach ($purchase->purchase_items as $purchaseItem) {
+                    $receivedQty = (float) $purchaseItem->received_quantity;
+
+                    if ($receivedQty <= 0) {
+                        continue;
+                    }
+
+                    $product = Product::find($purchaseItem->product_id);
+                    if ($product) {
+                        $stock = $product->product_stocks()
+                            ->where('warehouse_id', $purchase->warehouse_id)
+                            ->where('rack_id', $purchaseItem->rack_id)
+                            ->first();
+
+                        if ($stock) {
+                            $stock->quantity = max(0, (float) $stock->quantity - $receivedQty);
+                            if ($stock->quantity <= 0) {
+                                $stock->delete();
+                            } else {
+                                $stock->save();
+                            }
+                        }
+
+                        $unitCost = (float) $purchaseItem->price;
+                        $inventoryAccountingService->reversePurchaseReceipt(
+                            $purchase,
+                            $purchaseItem,
+                            $receivedQty,
+                            $unitCost
+                        );
+
+                        $productsToSync[$product->id] = $product;
+                    }
+                }
+
+                $purchase->delete();
+                $count++;
+
+                // Sync inventory to all linked sales channels for affected products
+                foreach ($productsToSync as $productToSync) {
+                    ProductController::syncProductInventoryToChannels($productToSync);
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' purchase(s) deleted successfully.',
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to bulk delete purchases', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting purchases: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

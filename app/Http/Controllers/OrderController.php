@@ -130,7 +130,7 @@ class OrderController extends Controller
             ]);
         }
 
-        return view('orders.index', compact('orders', 'salesChannels', 'shippingCarriers'));
+        return view('orders.index', compact('orders', 'salesChannels', 'shippingCarriers', 'perPage'));
     }
 
     /**
@@ -1076,6 +1076,45 @@ class OrderController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to refund order: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Bulk delete orders
+     */
+    public function bulkDelete(Request $request): JsonResponse
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:orders,id',
+        ]);
+
+        try {
+            $orders = Order::whereIn('id', $request->ids)->get();
+            $count = 0;
+
+            foreach ($orders as $order) {
+                // Restore inventory if items were deducted
+                foreach ($order->items as $item) {
+                    if ($item->inventory_updated) {
+                        $item->restoreInventory();
+                    }
+                }
+                $order->delete();
+                $count++;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' order(s) deleted successfully.',
+            ]);
+        } catch (Exception $e) {
+            Log::error('Failed to bulk delete orders', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting orders: ' . $e->getMessage(),
             ], 500);
         }
     }

@@ -107,7 +107,8 @@ class ProductController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
-        $products = $query->orderBy('id', 'DESC')->paginate(25)->withQueryString();
+        $perPage = $request->input('per_page', 25);
+        $products = $query->orderBy('id', 'DESC')->paginate($perPage)->withQueryString();
 
         // Get filter options
         $categories = Category::orderBy('name')->get();
@@ -116,7 +117,7 @@ class ProductController extends Controller
         $warehouses = Warehouse::orderBy('name')->get();
         $racks = Rack::with('warehouse')->orderBy('name')->get();
 
-        return view('products.index', compact('products', 'categories', 'brands', 'salesChannels', 'warehouses', 'racks'));
+        return view('products.index', compact('products', 'categories', 'brands', 'salesChannels', 'warehouses', 'racks', 'perPage'));
     }
 
     /**
@@ -353,6 +354,31 @@ class ProductController extends Controller
             return redirect()->route('products.index')->with('success', 'Product deleted successfully.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'An error occurred while deleting the product: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Bulk delete products.
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:products,id',
+        ]);
+
+        try {
+            $count = Product::whereIn('id', $request->ids)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' product(s) deleted successfully.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting products: ' . $e->getMessage(),
+            ], 500);
         }
     }
 

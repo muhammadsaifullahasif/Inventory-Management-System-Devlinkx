@@ -40,8 +40,9 @@ class WarehouseController extends Controller
             $query->where('is_default', $request->is_default);
         }
 
-        $warehouses = $query->orderBy('created_at', 'DESC')->paginate(25)->withQueryString();
-        return view('warehouses.index', compact('warehouses'));
+        $perPage = $request->input('per_page', 25);
+        $warehouses = $query->orderBy('created_at', 'DESC')->paginate($perPage)->withQueryString();
+        return view('warehouses.index', compact('warehouses', 'perPage'));
     }
 
     /**
@@ -185,6 +186,31 @@ class WarehouseController extends Controller
             return redirect()->route('warehouses.index')->with('success', 'Warehouse deleted successfully.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'An error occurred while deleting the warehouse: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Bulk delete warehouses
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:warehouses,id',
+        ]);
+
+        try {
+            $count = Warehouse::whereIn('id', $request->ids)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' warehouse(s) deleted successfully.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting warehouses: ' . $e->getMessage(),
+            ], 500);
         }
     }
 }

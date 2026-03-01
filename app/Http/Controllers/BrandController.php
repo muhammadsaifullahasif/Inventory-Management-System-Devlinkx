@@ -29,9 +29,10 @@ class BrandController extends Controller
             $query->where('name', 'like', "%{$request->search}%");
         }
 
-        $brands = $query->orderBy('created_at', 'DESC')->paginate(25)->withQueryString();
+        $perPage = $request->input('per_page', 25);
+        $brands = $query->orderBy('created_at', 'DESC')->paginate($perPage)->withQueryString();
 
-        return view('brands.index', compact('brands'));
+        return view('brands.index', compact('brands', 'perPage'));
     }
 
     /**
@@ -114,6 +115,31 @@ class BrandController extends Controller
             return redirect()->route('brands.index')->with('success', 'Brand deleted successfully.');
         } catch (\Throwable $th) {
             return back()->with('error', 'Brand not deleted.');
+        }
+    }
+
+    /**
+     * Bulk delete brands
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:brands,id',
+        ]);
+
+        try {
+            $count = Brand::whereIn('id', $request->ids)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' brand(s) deleted successfully.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting brands: ' . $e->getMessage(),
+            ], 500);
         }
     }
 }

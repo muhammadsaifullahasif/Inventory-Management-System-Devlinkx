@@ -67,11 +67,22 @@
     <!-- Brands Table -->
     <div class="col-12">
         <div class="card">
+            <div class="card-body pb-0">
+                @include('partials.bulk-actions-bar', ['itemName' => 'brands'])
+            </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
+                                <th class="ps-3" style="width: 40px;">
+                                    <div class="btn-group mb-1">
+                                        <div class="custom-control custom-checkbox ms-1">
+                                            <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
+                                            <label for="selectAll" class="custom-control-label"></label>
+                                        </div>
+                                    </div>
+                                </th>
                                 <th>#</th>
                                 <th>Name</th>
                                 <th>Created at</th>
@@ -81,6 +92,16 @@
                         <tbody>
                             @forelse ($brands as $brand)
                                 <tr>
+                                    <td class="ps-3">
+                                        <div class="item-checkbox ms-1">
+                                            <div class="custom-control custom-checkbox">
+                                                <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $brand->id }}" data-brand-id="{{ $brand->id }}">
+                                                <label for="{{ $brand->id }}" class="custom-control-label"></label>
+                                                <input type="hidden" class="brand-id-input" value="{{ $brand->id }}" disabled>
+                                            </div>
+                                        </div>
+                                        {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $brand->id }}"> --}}
+                                    </td>
                                     <td>{{ $brand->id }}</td>
                                     <td><span class="fw-semibold">{{ $brand->name }}</span></td>
                                     <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($brand->created_at)->format('d M, Y') }}</span></td>
@@ -129,18 +150,21 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" class="text-center py-4 text-muted">No brands found.</td>
+                                    <td colspan="5" class="text-center py-4 text-muted">No brands found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
             </div>
-            @if($brands->hasPages())
-            <div class="card-footer">
-                {{ $brands->links('pagination::bootstrap-5') }}
+            <div class="card-footer d-flex align-items-center justify-content-between">
+                <div>
+                    @include('partials.per-page-dropdown', ['perPage' => $perPage])
+                </div>
+                <div>
+                    {{ $brands->links('pagination::bootstrap-5') }}
+                </div>
             </div>
-            @endif
         </div>
     </div>
 @endsection
@@ -159,4 +183,6 @@
             });
         });
     </script>
+
+    @include('partials.bulk-delete-scripts', ['routeName' => 'brands.bulk-delete', 'itemName' => 'brands'])
 @endpush

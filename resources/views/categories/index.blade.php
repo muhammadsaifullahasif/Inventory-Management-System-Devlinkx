@@ -77,11 +77,22 @@
     <!-- Categories Table -->
     <div class="col-12">
         <div class="card">
+            <div class="card-body pb-0">
+                @include('partials.bulk-actions-bar', ['itemName' => 'categories'])
+            </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
+                                <th class="ps-3" style="width: 40px;">
+                                    <div class="btn-group mb-1">
+                                        <div class="custom-control custom-checkbox ms-1">
+                                            <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
+                                            <label for="selectAll" class="custom-control-label"></label>
+                                        </div>
+                                    </div>
+                                </th>
                                 <th>#</th>
                                 <th>Name</th>
                                 <th>Parent Category</th>
@@ -92,6 +103,16 @@
                         <tbody>
                             @forelse ($categories as $category)
                                 <tr>
+                                    <td class="ps-3">
+                                        <div class="item-checkbox ms-1">
+                                            <div class="custom-control custom-checkbox">
+                                                <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $category->id }}" data-category-id="{{ $category->id }}">
+                                                <label for="{{ $category->id }}" class="custom-control-label"></label>
+                                                <input type="hidden" class="category-id-input" value="{{ $category->id }}" disabled>
+                                            </div>
+                                        </div>
+                                        {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $category->id }}"> --}}
+                                    </td>
                                     <td>{{ $category->id }}</td>
                                     <td><span class="fw-semibold">{{ $category->name }}</span></td>
                                     <td>
@@ -147,18 +168,21 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center py-4 text-muted">No categories found.</td>
+                                    <td colspan="6" class="text-center py-4 text-muted">No categories found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
             </div>
-            @if($categories->hasPages())
-            <div class="card-footer">
-                {{ $categories->links('pagination::bootstrap-5') }}
+            <div class="card-footer d-flex align-items-center justify-content-between">
+                <div>
+                    @include('partials.per-page-dropdown', ['perPage' => $perPage])
+                </div>
+                <div>
+                    {{ $categories->links('pagination::bootstrap-5') }}
+                </div>
             </div>
-            @endif
         </div>
     </div>
 @endsection
@@ -177,4 +201,6 @@
             });
         });
     </script>
+
+    @include('partials.bulk-delete-scripts', ['routeName' => 'categories.bulk-delete', 'itemName' => 'categories'])
 @endpush

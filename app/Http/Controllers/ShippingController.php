@@ -10,10 +10,11 @@ class ShippingController extends Controller
     {
         $this->shippingService = $shippingService;
     }
-    public function index()
+    public function index(Request $request)
     {
-        $shippings = Shipping::where("delete_status", "0")->orderByDesc("is_default")->orderBy("name")->get();
-        return view("shipping.index", compact("shippings"));
+        $perPage = $request->input('per_page', 25);
+        $shippings = Shipping::where("delete_status", "0")->orderByDesc("is_default")->orderBy("name")->paginate($perPage)->withQueryString();
+        return view("shipping.index", compact("shippings", "perPage"));
     }
     public function create()
     {
@@ -77,5 +78,32 @@ class ShippingController extends Controller
         $order = \App\Models\Order::findOrFail($request->order_id);
         $at = $this->shippingService->validateOrderAddress($order);
         return response()->json(["success"=>true,"address_type"=>$at,"validated_at"=>$order->fresh()->address_validated_at?->format("Y-m-d H:i:s")]);
+    }
+
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:shippings,id',
+        ]);
+
+        try {
+            $count = Shipping::whereIn('id', $request->ids)->update([
+                'delete_status' => '1',
+                'active_status' => '0',
+                'is_default' => false,
+                'is_address_validation' => false
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' shipping carrier(s) deleted successfully.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting shipping carriers: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

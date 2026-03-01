@@ -38,10 +38,11 @@ class CategoryController extends Controller
             }
         }
 
-        $categories = $query->orderBy('created_at', 'DESC')->paginate(25)->withQueryString();
+        $perPage = $request->input('per_page', 25);
+        $categories = $query->orderBy('created_at', 'DESC')->paginate($perPage)->withQueryString();
         $parentCategories = Category::whereNull('parent_id')->orderBy('name')->get();
 
-        return view('categories.index', compact('categories', 'parentCategories'));
+        return view('categories.index', compact('categories', 'parentCategories', 'perPage'));
     }
 
     /**
@@ -130,6 +131,31 @@ class CategoryController extends Controller
             return redirect()->route('categories.index')->with('success', 'Category deleted successfully.');
         } catch (\Throwable $th) {
             return back()->with('error', 'Category not deleted.');
+        }
+    }
+
+    /**
+     * Bulk delete categories
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:categories,id',
+        ]);
+
+        try {
+            $count = Category::whereIn('id', $request->ids)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' category(ies) deleted successfully.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting categories: ' . $e->getMessage(),
+            ], 500);
         }
     }
 }

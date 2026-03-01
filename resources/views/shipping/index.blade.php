@@ -31,11 +31,22 @@
 @section('content')
     <div class="col-12">
         <div class="card">
+            <div class="card-body pb-0">
+                @include('partials.bulk-actions-bar', ['itemName' => 'carriers'])
+            </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
+                                <th class="ps-3" style="width: 40px;">
+                                    <div class="btn-group mb-1">
+                                        <div class="custom-control custom-checkbox ms-1">
+                                            <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
+                                            <label for="selectAll" class="custom-control-label"></label>
+                                        </div>
+                                    </div>
+                                </th>
                                 <th>#</th>
                                 <th>Name</th>
                                 <th>Type</th>
@@ -52,6 +63,16 @@
                         <tbody>
                             @forelse ($shippings as $shipping)
                                 <tr>
+                                    <td class="ps-3">
+                                        <div class="item-checkbox ms-1">
+                                            <div class="custom-control custom-checkbox">
+                                                <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $shipping->id }}" data-shipping-id="{{ $shipping->id }}">
+                                                <label for="{{ $shipping->id }}" class="custom-control-label"></label>
+                                                <input type="hidden" class="shipping-id-input" value="{{ $shipping->id }}" disabled>
+                                            </div>
+                                        </div>
+                                        {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $shipping->id }}"> --}}
+                                    </td>
                                     <td>{{ $loop->iteration }}</td>
                                     <td><span class="fw-semibold">{{ $shipping->name }}</span></td>
                                     <td><span class="badge bg-soft-secondary text-secondary">{{ strtoupper($shipping->type) }}</span></td>
@@ -111,13 +132,21 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="11" class="text-center py-4 text-muted">
+                                    <td colspan="12" class="text-center py-4 text-muted">
                                         No shipping carriers found. <a href="{{ route('shipping.create') }}">Add one</a>.
                                     </td>
                                 </tr>
                             @endforelse
                         </tbody>
                     </table>
+                </div>
+            </div>
+            <div class="card-footer d-flex align-items-center justify-content-between">
+                <div>
+                    @include('partials.per-page-dropdown', ['perPage' => $perPage])
+                </div>
+                <div>
+                    {{ $shippings->links('pagination::bootstrap-5') }}
                 </div>
             </div>
         </div>
@@ -150,4 +179,6 @@ $(document).ready(function () {
     });
 });
 </script>
+
+@include('partials.bulk-delete-scripts', ['routeName' => 'shipping.bulk-delete', 'itemName' => 'carriers'])
 @endpush

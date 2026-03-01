@@ -181,11 +181,14 @@
                     </table>
                 </div>
             </div>
-            @if($sales_channels->hasPages())
-            <div class="card-footer">
-                {{ $sales_channels->links('pagination::bootstrap-5') }}
+            <div class="card-footer d-flex align-items-center justify-content-between">
+                <div>
+                    @include('partials.per-page-dropdown', ['perPage' => $perPage])
+                </div>
+                <div>
+                    {{ $sales_channels->links('pagination::bootstrap-5') }}
+                </div>
             </div>
-            @endif
         </div>
     </div>
 @endsection

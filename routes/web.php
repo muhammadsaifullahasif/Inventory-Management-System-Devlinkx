@@ -141,20 +141,27 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/dashboard/widgets/toggle', [DashboardController::class, 'toggleWidget'])->name('dashboard.widgets.toggle');
     Route::post('/dashboard/widgets/reset', [DashboardController::class, 'resetWidgets'])->name('dashboard.widgets.reset');
 
+    Route::post('/users/bulk-delete', [UserController::class, 'bulkDelete'])->name('users.bulk-delete');
     Route::resource('/users', UserController::class);
+    Route::post('/roles/bulk-delete', [RoleController::class, 'bulkDelete'])->name('roles.bulk-delete');
     Route::resource('/roles', RoleController::class);
+    Route::post('/permissions/bulk-delete', [PermissionController::class, 'bulkDelete'])->name('permissions.bulk-delete');
     Route::resource('/permissions', PermissionController::class);
 
     // Categories
+    Route::post('/categories/bulk-delete', [CategoryController::class, 'bulkDelete'])->name('categories.bulk-delete');
     Route::resource('/categories', CategoryController::class);
 
     // Brands
+    Route::post('/brands/bulk-delete', [BrandController::class, 'bulkDelete'])->name('brands.bulk-delete');
     Route::resource('/brands', BrandController::class);
 
     // Suppliers
+    Route::post('/suppliers/bulk-delete', [SupplierController::class, 'bulkDelete'])->name('suppliers.bulk-delete');
     Route::resource('/suppliers', SupplierController::class);
 
     // Warehouses
+    Route::post('/warehouses/bulk-delete', [WarehouseController::class, 'bulkDelete'])->name('warehouses.bulk-delete');
     Route::resource('/warehouses', WarehouseController::class);
 
     // Racks
@@ -162,6 +169,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/racks/label/print/{id}', [RackController::class, 'printLabelView'])->name('racks.label.print');
     Route::get('/racks/label/bulk', [RackController::class, 'bulkPrintLabelForm'])->name('racks.label.bulk-form');
     Route::post('/racks/label/bulk', [RackController::class, 'bulkPrintLabel'])->name('racks.label.bulk-print');
+    Route::post('/racks/bulk-delete', [RackController::class, 'bulkDelete'])->name('racks.bulk-delete');
     Route::resource('/racks', RackController::class);
     Route::get('/warehouses/{warehouse}/racks', [RackController::class, 'getRacksByWarehouse'])->name('warehouses.racks');
 
@@ -179,6 +187,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/products/barcode/bulk', [ProductController::class, 'bulkPrintBarcodeForm'])->name('products.barcode.bulk-form');
     Route::post('/products/barcode/bulk', [ProductController::class, 'bulkPrintBarcode'])->name('products.barcode.bulk-print');
     Route::post('/products/{id}/update-stock', [ProductController::class, 'updateStock'])->name('products.update-stock');
+    Route::post('/products/bulk-delete', [ProductController::class, 'bulkDelete'])->name('products.bulk-delete');
     Route::resource('/products', ProductController::class);
 
     // Purchases
@@ -186,6 +195,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/purchases/import/template', [PurchaseController::class, 'downloadImportTemplate'])->name('purchases.import.template');
     Route::post('/purchases/import/preview', [PurchaseController::class, 'import_purchase_preview'])->name('purchases.import.preview');
     Route::post('/purchases/import/store', [PurchaseController::class, 'import_purchases_store'])->name('purchases.import.store');
+    Route::post('/purchases/bulk-delete', [PurchaseController::class, 'bulkDelete'])->name('purchases.bulk-delete');
     Route::resource('/purchases', PurchaseController::class);
     Route::get('/purchases/{id}/receive', [PurchaseController::class, 'receiveStock'])->name('purchases.receive');
     Route::post('/purchases/{id}/receive', [PurchaseController::class, 'processReceiveStock'])->name('purchases.receive.store');
@@ -228,6 +238,7 @@ Route::middleware(['auth'])->group(function () {
     // Orders Management
     Route::post('/orders/shipping-rates', [OrderController::class, 'getShippingRates'])->name('orders.shipping-rates');
     Route::get('/orders/{id}/rate-info', [OrderController::class, 'rateInfo'])->name('orders.rate-info');
+    Route::post('/orders/bulk-delete', [OrderController::class, 'bulkDelete'])->name('orders.bulk-delete');
     Route::resource('/orders', OrderController::class);
     Route::get('/orders/ebay/{ebayOrderId}', [OrderController::class, 'getByEbayOrderId'])->name('orders.ebay');
     Route::post('/orders/{id}/ship', [OrderController::class, 'markAsShipped'])->name('orders.ship');
@@ -240,6 +251,7 @@ Route::middleware(['auth'])->group(function () {
 
 
     // Shipping
+    Route::post('/shipping/bulk-delete', [ShippingController::class, 'bulkDelete'])->name('shipping.bulk-delete');
     Route::resource('/shipping', ShippingController::class);
     Route::post('/shipping/{id}/toggle-status', [ShippingController::class, 'toggleStatus'])->name('shipping.toggle-status');
     Route::post('/shipping/validate-address', [ShippingController::class, 'validateAddress'])->name('shipping.validate-address');

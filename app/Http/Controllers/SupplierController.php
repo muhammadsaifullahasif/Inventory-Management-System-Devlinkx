@@ -45,8 +45,9 @@ class SupplierController extends Controller
             $query->where('city', 'like', "%{$request->city}%");
         }
 
-        $suppliers = $query->orderBy('created_at', 'DESC')->paginate(25)->withQueryString();
-        return view('suppliers.index', compact('suppliers'));
+        $perPage = $request->input('per_page', 25);
+        $suppliers = $query->orderBy('created_at', 'DESC')->paginate($perPage)->withQueryString();
+        return view('suppliers.index', compact('suppliers', 'perPage'));
     }
 
     /**
@@ -157,6 +158,31 @@ class SupplierController extends Controller
             return redirect()->route('suppliers.index')->with('success', 'Supplier deleted successfully.');
         } catch (\Throwable $th) {
             return back()->with('error', 'Brand not deleted.');
+        }
+    }
+
+    /**
+     * Bulk delete suppliers
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:suppliers,id',
+        ]);
+
+        try {
+            $count = Supplier::whereIn('id', $request->ids)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' supplier(s) deleted successfully.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting suppliers: ' . $e->getMessage(),
+            ], 500);
         }
     }
 }

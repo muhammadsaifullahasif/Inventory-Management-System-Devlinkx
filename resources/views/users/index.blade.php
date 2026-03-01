@@ -76,11 +76,22 @@
     <!-- Users Table -->
     <div class="col-12">
         <div class="card">
+            <div class="card-body pb-0">
+                @include('partials.bulk-actions-bar', ['itemName' => 'users'])
+            </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
+                                <th class="ps-3" style="width: 40px;">
+                                    <div class="btn-group mb-1">
+                                        <div class="custom-control custom-checkbox ms-1">
+                                            <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
+                                            <label for="selectAll" class="custom-control-label"></label>
+                                        </div>
+                                    </div>
+                                </th>
                                 <th>#</th>
                                 <th>Name</th>
                                 <th>Email</th>
@@ -92,6 +103,16 @@
                         <tbody>
                             @forelse ($users as $user)
                                 <tr>
+                                    <td class="ps-3">
+                                        <div class="item-checkbox ms-1">
+                                            <div class="custom-control custom-checkbox">
+                                                <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $user->id }}" data-user-id="{{ $user->id }}">
+                                                <label for="{{ $user->id }}" class="custom-control-label"></label>
+                                                <input type="hidden" class="user-id-input" value="{{ $user->id }}" disabled>
+                                            </div>
+                                        </div>
+                                        {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $user->id }}"> --}}
+                                    </td>
                                     <td>{{ $user->id }}</td>
                                     <td><span class="fw-semibold">{{ $user->name }}</span></td>
                                     <td>{{ $user->email }}</td>
@@ -122,18 +143,21 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center py-4 text-muted">No users found.</td>
+                                    <td colspan="7" class="text-center py-4 text-muted">No users found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
             </div>
-            @if($users->hasPages())
-            <div class="card-footer">
-                {{ $users->links('pagination::bootstrap-5') }}
+            <div class="card-footer d-flex align-items-center justify-content-between">
+                <div>
+                    @include('partials.per-page-dropdown', ['perPage' => $perPage])
+                </div>
+                <div>
+                    {{ $users->links('pagination::bootstrap-5') }}
+                </div>
             </div>
-            @endif
         </div>
     </div>
 @endsection
@@ -152,4 +176,6 @@
             });
         });
     </script>
+
+    @include('partials.bulk-delete-scripts', ['routeName' => 'users.bulk-delete', 'itemName' => 'users'])
 @endpush

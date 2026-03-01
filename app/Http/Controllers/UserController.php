@@ -41,10 +41,11 @@ class UserController extends Controller
             });
         }
 
-        $users = $query->orderBy('name', 'ASC')->paginate(25)->withQueryString();
+        $perPage = $request->input('per_page', 25);
+        $users = $query->orderBy('name', 'ASC')->paginate($perPage)->withQueryString();
         $roles = Role::orderBy('name')->get();
 
-        return view('users.index', compact('users', 'roles'));
+        return view('users.index', compact('users', 'roles', 'perPage'));
     }
 
     /**
@@ -140,6 +141,31 @@ class UserController extends Controller
             return redirect()->route('users.index')->with('success', 'User deleted successfully.');
         } catch (\Throwable $th) {
             return back()->with('error', 'User not deleted.');
+        }
+    }
+
+    /**
+     * Bulk delete users
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:users,id',
+        ]);
+
+        try {
+            $count = User::whereIn('id', $request->ids)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' user(s) deleted successfully.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting users: ' . $e->getMessage(),
+            ], 500);
         }
     }
 }

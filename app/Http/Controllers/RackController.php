@@ -47,10 +47,11 @@ class RackController extends Controller
             $query->where('is_default', $request->is_default);
         }
 
-        $racks = $query->orderBy('created_at', 'DESC')->paginate(25)->withQueryString();
+        $perPage = $request->input('per_page', 25);
+        $racks = $query->orderBy('created_at', 'DESC')->paginate($perPage)->withQueryString();
         $warehouses = Warehouse::orderBy('name')->get();
 
-        return view('racks.index', compact('racks', 'warehouses'));
+        return view('racks.index', compact('racks', 'warehouses', 'perPage'));
     }
 
     /**
@@ -236,5 +237,30 @@ class RackController extends Controller
             ->setPaper('a4', 'portrait');
 
         return $pdf->download('rack_labels_' . date('Y-m-d_H-i-s') . '.pdf');
+    }
+
+    /**
+     * Bulk delete racks
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:racks,id',
+        ]);
+
+        try {
+            $count = Rack::whereIn('id', $request->ids)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' rack(s) deleted successfully.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting racks: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

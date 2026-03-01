@@ -29,8 +29,9 @@ class RoleController extends Controller
             $query->where('name', 'like', "%{$request->search}%");
         }
 
-        $roles = $query->orderBy('id', 'DESC')->paginate(25)->withQueryString();
-        return view('roles.index', compact('roles'));
+        $perPage = $request->input('per_page', 25);
+        $roles = $query->orderBy('id', 'DESC')->paginate($perPage)->withQueryString();
+        return view('roles.index', compact('roles', 'perPage'));
     }
 
     /**
@@ -124,6 +125,31 @@ class RoleController extends Controller
             return redirect()->route('roles.index')->with('success', 'Role deleted successfully.');
         } catch (\Throwable $th) {
             return back()->with('error', 'Role not deleted.');
+        }
+    }
+
+    /**
+     * Bulk delete roles
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:roles,id',
+        ]);
+
+        try {
+            $count = Role::whereIn('id', $request->ids)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' role(s) deleted successfully.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting roles: ' . $e->getMessage(),
+            ], 500);
         }
     }
 }

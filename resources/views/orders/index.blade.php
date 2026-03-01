@@ -100,11 +100,22 @@
     <!-- Orders Table -->
     <div class="col-12">
         <div class="card">
+            <div class="card-body pb-0">
+                @include('partials.bulk-actions-bar', ['itemName' => 'orders'])
+            </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
+                                <th class="ps-3" style="width: 40px;">
+                                    <div class="btn-group mb-1">
+                                        <div class="custom-control custom-checkbox ms-1">
+                                            <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
+                                            <label for="selectAll" class="custom-control-label"></label>
+                                        </div>
+                                    </div>
+                                </th>
                                 <th>#</th>
                                 <th>Order #</th>
                                 <th>Channel</th>
@@ -122,6 +133,16 @@
                         <tbody>
                             @forelse ($orders as $order)
                                 <tr>
+                                    <td class="ps-3">
+                                        <div class="item-checkbox ms-1">
+                                            <div class="custom-control custom-checkbox">
+                                                <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $order->id }}" data-order-id="{{ $order->id }}">
+                                                <label for="{{ $order->id }}" class="custom-control-label"></label>
+                                                <input type="hidden" class="order-id-input" value="{{ $order->id }}" disabled>
+                                            </div>
+                                        </div>
+                                        {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $order->id }}"> --}}
+                                    </td>
                                     <td>{{ $order->id }}</td>
                                     <td>
                                         <a href="{{ route('orders.show', $order->id) }}" class="fw-semibold text-primary">
@@ -299,18 +320,21 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="12" class="text-center py-4 text-muted">No orders found.</td>
+                                    <td colspan="13" class="text-center py-4 text-muted">No orders found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
             </div>
-            @if($orders->hasPages())
-            <div class="card-footer">
-                {{ $orders->appends(request()->query())->links('pagination::bootstrap-5') }}
+            <div class="card-footer d-flex align-items-center justify-content-between">
+                <div>
+                    @include('partials.per-page-dropdown', ['perPage' => $perPage])
+                </div>
+                <div>
+                    {{ $orders->appends(request()->query())->links('pagination::bootstrap-5') }}
+                </div>
             </div>
-            @endif
         </div>
     </div>
 
@@ -1074,4 +1098,6 @@
 
         });
     </script>
+
+    @include('partials.bulk-delete-scripts', ['routeName' => 'orders.bulk-delete', 'itemName' => 'orders'])
 @endpush

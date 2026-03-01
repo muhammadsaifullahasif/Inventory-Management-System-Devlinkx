@@ -47,8 +47,9 @@ class SalesChannelController extends Controller
             }
         }
 
-        $sales_channels = $query->orderBy('id', 'DESC')->paginate(25)->withQueryString();
-        return view('sales-channel.index', compact('sales_channels'));
+        $perPage = $request->input('per_page', 25);
+        $sales_channels = $query->orderBy('id', 'DESC')->paginate($perPage)->withQueryString();
+        return view('sales-channel.index', compact('sales_channels', 'perPage'));
     }
 
     /**

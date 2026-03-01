@@ -37,12 +37,13 @@ class PermissionController extends Controller
             }
         }
 
-        $permissions = $query->orderBy('category')->orderBy('name')->paginate(25)->withQueryString();
+        $perPage = $request->input('per_page', 25);
+        $permissions = $query->orderBy('category')->orderBy('name')->paginate($perPage)->withQueryString();
 
         // Get predefined categories from model
         $categories = Permission::getCategories();
 
-        return view('permissions.index', compact('permissions', 'categories'));
+        return view('permissions.index', compact('permissions', 'categories', 'perPage'));
     }
 
     /**
@@ -133,6 +134,31 @@ class PermissionController extends Controller
             return redirect()->route('permissions.index')->with('success', 'Permission deleted successfully.');
         } catch (\Throwable $th) {
             return back()->with('error', 'Permission not deleted.');
+        }
+    }
+
+    /**
+     * Bulk delete permissions
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:permissions,id',
+        ]);
+
+        try {
+            $count = Permission::whereIn('id', $request->ids)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' permission(s) deleted successfully.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting permissions: ' . $e->getMessage(),
+            ], 500);
         }
     }
 }

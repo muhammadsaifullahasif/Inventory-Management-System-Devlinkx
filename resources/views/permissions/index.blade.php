@@ -77,11 +77,22 @@
     <!-- Permissions Table -->
     <div class="col-12">
         <div class="card">
+            <div class="card-body pb-0">
+                @include('partials.bulk-actions-bar', ['itemName' => 'permissions'])
+            </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
+                                <th class="ps-3" style="width: 40px;">
+                                    <div class="btn-group mb-1">
+                                        <div class="custom-control custom-checkbox ms-1">
+                                            <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
+                                            <label for="selectAll" class="custom-control-label"></label>
+                                        </div>
+                                    </div>
+                                </th>
                                 <th>#</th>
                                 <th>Name</th>
                                 <th>Category</th>
@@ -92,6 +103,16 @@
                         <tbody>
                             @forelse ($permissions as $permission)
                                 <tr>
+                                    <td class="ps-3">
+                                        <div class="item-checkbox ms-1">
+                                            <div class="custom-control custom-checkbox">
+                                                <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $permission->id }}" data-permission-id="{{ $permission->id }}">
+                                                <label for="{{ $permission->id }}" class="custom-control-label"></label>
+                                                <input type="hidden" class="permission-id-input" value="{{ $permission->id }}" disabled>
+                                            </div>
+                                        </div>
+                                        {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $permission->id }}"> --}}
+                                    </td>
                                     <td>{{ $permission->id }}</td>
                                     <td><span class="fw-semibold">{{ $permission->name }}</span></td>
                                     <td>
@@ -123,18 +144,21 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center py-4 text-muted">No permissions found.</td>
+                                    <td colspan="6" class="text-center py-4 text-muted">No permissions found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
             </div>
-            @if($permissions->hasPages())
-            <div class="card-footer">
-                {{ $permissions->links('pagination::bootstrap-5') }}
+            <div class="card-footer d-flex align-items-center justify-content-between">
+                <div>
+                    @include('partials.per-page-dropdown', ['perPage' => $perPage])
+                </div>
+                <div>
+                    {{ $permissions->links('pagination::bootstrap-5') }}
+                </div>
             </div>
-            @endif
         </div>
     </div>
 @endsection
@@ -153,4 +177,6 @@
             });
         });
     </script>
+
+    @include('partials.bulk-delete-scripts', ['routeName' => 'permissions.bulk-delete', 'itemName' => 'permissions'])
 @endpush
