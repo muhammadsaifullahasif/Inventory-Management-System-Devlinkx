@@ -575,10 +575,11 @@ class EbayOrderService
         $shipmentDeadline = null;
 
         // First, try to get HandleByTime directly from eBay (most accurate)
+        // eBay returns times in UTC (Z suffix), convert to Central Time
         $handleByTime = $transaction['ShippingServiceSelected']['ShippingPackageInfo']['HandleByTime'] ?? null;
         if (!empty($handleByTime)) {
             try {
-                $shipmentDeadline = Carbon::parse($handleByTime);
+                $shipmentDeadline = Carbon::parse($handleByTime)->setTimezone('America/Chicago');
             } catch (\Exception $e) {
                 // Ignore parse errors
             }
@@ -601,7 +602,8 @@ class EbayOrderService
 
             if (!empty($baseTime)) {
                 try {
-                    $shipmentDeadline = Carbon::parse($baseTime)->addWeekdays($handlingTimeDays);
+                    // eBay times are in UTC, convert to Central Time after calculation
+                    $shipmentDeadline = Carbon::parse($baseTime)->addWeekdays($handlingTimeDays)->setTimezone('America/Chicago');
                 } catch (\Exception $e) {
                     // Ignore parse errors
                 }

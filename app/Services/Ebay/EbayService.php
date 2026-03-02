@@ -791,7 +791,8 @@ class EbayService
 
         if (!empty($handleByTime)) {
             try {
-                $shipmentDeadline = \Carbon\Carbon::parse($handleByTime)->toIso8601String();
+                // eBay returns times in UTC (Z suffix), convert to Central Time
+                $shipmentDeadline = \Carbon\Carbon::parse($handleByTime)->setTimezone('America/Chicago')->toIso8601String();
             } catch (\Exception $e) {
                 // Ignore parse errors
             }
@@ -820,7 +821,8 @@ class EbayService
             $baseTime = !empty($order['PaidTime']) ? $order['PaidTime'] : ($order['CreatedTime'] ?? '');
             if (!empty($baseTime)) {
                 try {
-                    $deadline = \Carbon\Carbon::parse($baseTime)->addWeekdays($handlingTimeDays);
+                    // eBay times are in UTC, convert to Central Time after calculation
+                    $deadline = \Carbon\Carbon::parse($baseTime)->addWeekdays($handlingTimeDays)->setTimezone('America/Chicago');
                     $shipmentDeadline = $deadline->toIso8601String();
                 } catch (\Exception $e) {
                     // Ignore parse errors
