@@ -100,12 +100,30 @@
     <!-- Orders Table -->
     <div class="col-12">
         <div class="card">
-            <div class="card-body pb-0">
+            <div class="card-body pb-0 d-flex align-items-center justify-content-between">
                 @include('partials.bulk-actions-bar', ['itemName' => 'orders'])
+                <div class="ms-auto">
+                    @php
+                        $orderColumns = [
+                            ['key' => 'id', 'label' => 'ID', 'default' => true],
+                            ['key' => 'order_number', 'label' => 'Order #', 'default' => true],
+                            ['key' => 'channel', 'label' => 'Channel', 'default' => true],
+                            ['key' => 'customer', 'label' => 'Customer', 'default' => true],
+                            ['key' => 'items', 'label' => 'Items', 'default' => true],
+                            ['key' => 'total', 'label' => 'Total', 'default' => true],
+                            ['key' => 'status', 'label' => 'Status', 'default' => true],
+                            ['key' => 'address_type', 'label' => 'Address Type', 'default' => false],
+                            ['key' => 'order_date', 'label' => 'Order Date', 'default' => true],
+                            ['key' => 'ship_by', 'label' => 'Ship By', 'default' => true],
+                            ['key' => 'shipped_date', 'label' => 'Shipped Date', 'default' => false],
+                        ];
+                    @endphp
+                    @include('partials.column-toggle', ['tableId' => 'ordersTable', 'cookieName' => 'orders_columns', 'columns' => $orderColumns])
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0" id="ordersTable">
                         <thead>
                             <tr>
                                 <th class="ps-3" style="width: 40px;">
@@ -116,17 +134,17 @@
                                         </div>
                                     </div>
                                 </th>
-                                <th>#</th>
-                                <th>Order #</th>
-                                <th>Channel</th>
-                                <th>Customer</th>
-                                <th>Items</th>
-                                <th>Total</th>
-                                <th>Status</th>
-                                <th>Address Type</th>
-                                <th>Order Date</th>
-                                <th>Ship By</th>
-                                <th>Shipped Date</th>
+                                <th data-column="id">#</th>
+                                <th data-column="order_number">Order #</th>
+                                <th data-column="channel">Channel</th>
+                                <th data-column="customer">Customer</th>
+                                <th data-column="items">Items</th>
+                                <th data-column="total">Total</th>
+                                <th data-column="status">Status</th>
+                                <th data-column="address_type">Address Type</th>
+                                <th data-column="order_date">Order Date</th>
+                                <th data-column="ship_by">Ship By</th>
+                                <th data-column="shipped_date">Shipped Date</th>
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -143,8 +161,8 @@
                                         </div>
                                         {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $order->id }}"> --}}
                                     </td>
-                                    <td>{{ $order->id }}</td>
-                                    <td>
+                                    <td data-column="id">{{ $order->id }}</td>
+                                    <td data-column="order_number">
                                         <a href="{{ route('orders.show', $order->id) }}" class="fw-semibold text-primary">
                                             {{ $order->order_number }}
                                         </a>
@@ -152,27 +170,27 @@
                                             <span class="d-block fs-11 text-muted">eBay: {{ \Illuminate\Support\Str::limit($order->ebay_order_id, 20) }}</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="channel">
                                         @if($order->salesChannel)
                                             <span class="badge bg-soft-info text-info">{{ $order->salesChannel->name }}</span>
                                         @else
                                             <span class="badge bg-soft-secondary text-secondary">N/A</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="customer">
                                         <span class="fw-semibold">{{ $order->buyer_name ?? 'N/A' }}</span>
                                         @if($order->buyer_email)
                                             <span class="d-block fs-11 text-muted">{{ $order->buyer_email }}</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="items">
                                         <span>{{ $order->items->count() }} item(s)</span>
                                         <span class="d-block fs-11 text-muted">Qty: {{ $order->items->sum('quantity') }}</span>
                                     </td>
-                                    <td>
+                                    <td data-column="total">
                                         <span class="fw-semibold">{{ $order->currency ?? 'USD' }} {{ number_format($order->total, 2) }}</span>
                                     </td>
-                                    <td>
+                                    <td data-column="status">
                                         @php
                                             $isPaid       = in_array($order->payment_status, ['paid']);
                                             $isShipped    = in_array($order->fulfillment_status, ['fulfilled', 'partially_fulfilled'])
@@ -206,7 +224,7 @@
                                             <span class="d-block fs-11 text-muted">{{ $order->currency ?? 'USD' }} {{ number_format($order->total_refunded, 2) }} refunded</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="address_type">
                                         @php
                                             $addrColors = [
                                                 'BUSINESS'    => 'primary',
@@ -223,7 +241,7 @@
                                             <span class="text-muted fs-12">-</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="order_date">
                                         @if($order->order_date)
                                             <span class="fs-12">{{ \Carbon\Carbon::parse($order->order_date)->format('d M, Y') }}</span>
                                             <span class="d-block fs-11 text-muted">{{ \Carbon\Carbon::parse($order->order_date)->format('H:i') }}</span>
@@ -231,7 +249,7 @@
                                             <span class="text-muted">N/A</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="ship_by">
                                         @php
                                             $deadlineStatus = $order->getShipmentDeadlineStatus();
                                             $deadlineColors = [
@@ -266,7 +284,7 @@
                                             <span class="text-muted fs-12">-</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="shipped_date">
                                         @if($order->shipped_at)
                                             <span class="fs-12 text-success">{{ $order->shipped_at->format('d M, Y') }}</span>
                                             <span class="d-block fs-11 text-muted">{{ $order->shipped_at->format('H:i') }}</span>
