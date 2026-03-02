@@ -157,6 +157,7 @@
                                 <thead class="bg-light">
                                     <tr>
                                         <th style="width: 40px;">#</th>
+                                        <th style="width: 60px;">Image</th>
                                         <th>Product</th>
                                         <th style="width: 90px;" class="text-center">Ordered</th>
                                         <th style="width: 90px;" class="text-center">Received</th>
@@ -177,6 +178,15 @@
                                         @endphp
                                         <tr class="{{ $isFullyReceived ? 'fully-received' : ($isPartiallyReceived ? 'partially-received' : '') }}">
                                             <td>{{ $index + 1 }}</td>
+                                            <td>
+                                                @if($item->product && $item->product->getImageUrl())
+                                                    <img src="{{ $item->product->getImageUrl() }}" alt="{{ $item->name }}" class="rounded" style="width: 45px; height: 45px; object-fit: cover;">
+                                                @else
+                                                    <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
+                                                        <i class="feather-image text-muted fs-12"></i>
+                                                    </div>
+                                                @endif
+                                            </td>
                                             <td>
                                                 <div class="fw-semibold">{{ $item->name }}</div>
                                                 <small class="text-muted">SKU: {{ $item->sku }}</small>

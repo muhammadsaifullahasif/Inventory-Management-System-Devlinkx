@@ -170,6 +170,7 @@
                                     </div>
                                 </th>
                                 <th>#</th>
+                                <th style="width: 60px;">Image</th>
                                 <th>Barcode</th>
                                 <th>Name</th>
                                 <th>Price</th>
@@ -195,6 +196,15 @@
                                         {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $product->id }}"> --}}
                                     </td>
                                     <td>{{ $product->id }}</td>
+                                    <td>
+                                        @if($product->getImageUrl())
+                                            <img src="{{ $product->getImageUrl() }}" alt="{{ $product->name }}" class="rounded" style="width: 50px; height: 50px; object-fit: cover;">
+                                        @else
+                                            <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                <i class="feather-image text-muted"></i>
+                                            </div>
+                                        @endif
+                                    </td>
                                     <td>
                                         <div style="max-width: 100px;">
                                             @php
@@ -289,7 +299,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="11" class="text-center py-4 text-muted">No products found.</td>
+                                    <td colspan="12" class="text-center py-4 text-muted">No products found.</td>
                                 </tr>
                             @endforelse
                         </tbody>

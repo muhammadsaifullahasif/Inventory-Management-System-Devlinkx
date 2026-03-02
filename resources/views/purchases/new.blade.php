@@ -193,6 +193,7 @@
                                             </div>
                                         </div>
                                     </th>
+                                    <th style="width: 60px;">Image</th>
                                     <th style="min-width: 100px;">SKU</th>
                                     <th style="min-width: 180px;">Name</th>
                                     <th style="min-width: 120px;">Barcode</th>
@@ -223,6 +224,15 @@
                                                     <input type="hidden" class="product-id-input" value="{{ $product->id }}" disabled>
                                                 </div>
                                             </div>
+                                        </td>
+                                        <td>
+                                            @if($product->getImageUrl())
+                                                <img src="{{ $product->getImageUrl() }}" alt="{{ $product->name }}" class="rounded" style="width: 45px; height: 45px; object-fit: cover;">
+                                            @else
+                                                <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
+                                                    <i class="feather-image text-muted fs-12"></i>
+                                                </div>
+                                            @endif
                                         </td>
                                         <td><span class="fs-12">{{ $product->sku }}</span></td>
                                         <td>{{ $product->name }}</td>
