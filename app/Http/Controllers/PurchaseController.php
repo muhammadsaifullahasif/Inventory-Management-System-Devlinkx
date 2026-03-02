@@ -700,7 +700,7 @@ class PurchaseController extends Controller
                     'product_name' => $product->name ?? 'Unknown Product',
                     'rack_id' => $rack->id ?? null,
                     'quantity' => $productData['quantity'],
-                    'price' => $productData['price'],
+                    'price' => round((float) $productData['price'], 2),
                     'note' => $productData['note'],
                 ];
 
