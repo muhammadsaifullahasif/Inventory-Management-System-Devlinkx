@@ -570,11 +570,21 @@ class EbayOrderService
         // Get item data
         $item = $response['Item'] ?? [];
 
-        // Calculate shipment deadline from DispatchTimeMax (handling time)
+        // Calculate shipment deadline from HandleByTime or DispatchTimeMax (handling time)
         $handlingTimeDays = null;
         $shipmentDeadline = null;
 
-        // Try to get DispatchTimeMax from item
+        // First, try to get HandleByTime directly from eBay (most accurate)
+        $handleByTime = $transaction['ShippingServiceSelected']['ShippingPackageInfo']['HandleByTime'] ?? null;
+        if (!empty($handleByTime)) {
+            try {
+                $shipmentDeadline = Carbon::parse($handleByTime);
+            } catch (\Exception $e) {
+                // Ignore parse errors
+            }
+        }
+
+        // Try to get DispatchTimeMax from item for handling_time_days
         if (isset($item['DispatchTimeMax'])) {
             $handlingTimeDays = (int) $item['DispatchTimeMax'];
         } elseif (isset($transaction['Item']['DispatchTimeMax'])) {
@@ -583,8 +593,8 @@ class EbayOrderService
             $handlingTimeDays = (int) $transaction['ShippingDetails']['ShippingTimeMax'];
         }
 
-        // Calculate deadline: from paid time (or created time) + handling days (as business days)
-        if ($handlingTimeDays !== null) {
+        // If HandleByTime was not available, calculate deadline from handling days
+        if ($shipmentDeadline === null && $handlingTimeDays !== null) {
             $paidTime = $transaction['PaidTime'] ?? '';
             $createdDate = $transaction['CreatedDate'] ?? '';
             $baseTime = !empty($paidTime) ? $paidTime : $createdDate;
