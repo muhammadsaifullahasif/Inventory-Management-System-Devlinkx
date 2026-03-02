@@ -168,7 +168,7 @@
                         @endif
                     </h5>
                     @if ($totalTransactionCount > 10)
-                        <a href="{{ route('general-ledger.account', $chartOfAccount) }}" class="btn btn-sm btn-light-brand">
+                        <a href="{{ route('general-ledger.index', ['account_id' => $chartOfAccount->id]) }}" class="btn btn-sm btn-light-brand">
                             <i class="feather-external-link me-1"></i>View All ({{ $totalTransactionCount }})
                         </a>
                     @endif
