@@ -55,16 +55,34 @@
 
                 <!-- Controls Row -->
                 <div class="row mb-4">
-                    <div class="col-md-4">
+                    <div class="col-md-2 mb-3">
                         <label for="productSearch">Search/Filter:</label>
                         <input type="text" id="productSearch" class="form-control form-control-sm" placeholder="Filter by name, SKU, or barcode...">
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-2 mb-3">
+                        <label for="brand">Brand</label>
+                        <select id="brand" class="form-select form-select-sm">
+                            <option value="">All Brands</option>
+                            @foreach ($brands as $brand)
+                                <option value="{{ $brand->id }}">{{ $brand->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label for="category">Category</label>
+                        <select id="category" class="form-select form-select-sm">
+                            <option value="">All Categories</option>
+                            @foreach ($categories as $category)
+                                <option value="{{ $category->id }}">{{ $category->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
                         <label for="defaultQuantity">Quantity per Product:</label>
                         <input type="number" id="defaultQuantity" name="default_quantity" class="form-control form-control-sm" value="1" min="1" max="100">
                     </div>
-                    <div class="col-md-2">
-                        <label for="columns">Columns per Row:</label>
+                    <div class="col-md-1 mb-3">
+                        <label for="columns">Columns:</label>
                         <select id="columns" name="columns" class="form-select form-select-sm">
                             <option value="2">2 Columns</option>
                             <option value="3" selected>3 Columns</option>
@@ -72,8 +90,8 @@
                             <option value="5">5 Columns</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
-                        <label for="perPage">Products per Page:</label>
+                    <div class="col-md-1 mb-3">
+                        <label for="perPage">per Page:</label>
                         <select id="perPage" class="form-select form-select-sm">
                             <option value="10">10</option>
                             <option value="25" selected>25</option>
@@ -81,7 +99,7 @@
                             <option value="100">100</option>
                         </select>
                     </div>
-                    <div class="col-md-2 d-flex align-items-end">
+                    <div class="col-md-2 mb-3 d-flex align-items-end">
                         <div class="btn-group w-100">
                             <button type="button" class="btn btn-outline-secondary btn-sm" id="selectAllBtn">Select All</button>
                             <button type="button" class="btn btn-outline-secondary btn-sm" id="deselectAllBtn">Deselect</button>
@@ -115,7 +133,9 @@
                                     data-id="{{ $product->id }}"
                                     data-name="{{ strtolower($product->name) }}"
                                     data-sku="{{ strtolower($product->sku) }}"
-                                    data-barcode="{{ strtolower($product->barcode) }}">
+                                    data-barcode="{{ strtolower($product->barcode) }}"
+                                    data-brand="{{ $product->brand_id }}"
+                                    data-category="{{ $product->category_id }}">
                                     <td>
                                         {{-- <input type="checkbox" class="product-checkbox"
                                             name="products[{{ $product->id }}][id]"
@@ -176,6 +196,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let perPage = 25;
 
     const searchInput = document.getElementById('productSearch');
+    const brand = document.getElementById('brand');
+    const category = document.getElementById('category');
     const perPageSelect = document.getElementById('perPage');
     const defaultQuantityInput = document.getElementById('defaultQuantity');
     const selectPageCheckbox = document.getElementById('selectPageCheckbox');
@@ -201,6 +223,24 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
+        currentPage = 1;
+        updateDisplay();
+    });
+
+    brand.addEventListener('change', function() {
+        const query = this.value.trim().toLowerCase();
+        filteredRows = query.length === 0 ? [...allRows] : allRows.filter(row => {
+            return (row.dataset.brand || '').includes(query);
+        });
+        currentPage = 1;
+        updateDisplay();
+    });
+
+    category.addEventListener('change', function() {
+        const query = this.value.trim().toLowerCase();
+        filteredRows = query.length === 0 ? [...allRows] : allRows.filter(row => {
+            return (row.dataset.category || '').includes(query);
+        });
         currentPage = 1;
         updateDisplay();
     });

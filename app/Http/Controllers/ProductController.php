@@ -412,8 +412,10 @@ class ProductController extends Controller
      */
     public function bulkPrintBarcodeForm()
     {
+        $brands = Brand::all();
+        $categories = Category::all();
         $products = Product::whereNotNull('barcode')->orderBy('name')->get();
-        return view('products.bulk-print-barcode', compact('products'));
+        return view('products.bulk-print-barcode', compact('products', 'brands', 'categories'));
     }
 
     /**
