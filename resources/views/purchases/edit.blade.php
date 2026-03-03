@@ -203,15 +203,15 @@
                                         {{-- <input type="checkbox" class="form-check-input" id="selectPageCheckbox" title="Select all on this page"> --}}
                                     </th>
                                     <th style="width: 60px;">Image</th>
-                                    <th style="min-width: 100px;">SKU</th>
+                                    {{-- <th style="min-width: 100px;">SKU</th> --}}
                                     <th style="min-width: 180px;">Name</th>
-                                    <th style="min-width: 120px;">Barcode</th>
+                                    {{-- <th style="min-width: 120px;">Barcode</th> --}}
                                     <th style="width: 70px;">Stock</th>
                                     <th style="min-width: 150px;">Rack</th>
                                     <th style="min-width: 100px;">Qty</th>
                                     <th style="min-width: 110px;">Price</th>
-                                    <th style="min-width: 150px;">Note</th>
                                     <th style="min-width: 120px;">SubTotal</th>
+                                    <th style="min-width: 150px;">Note</th>
                                 </tr>
                             </thead>
                             <tbody id="productsTableBody">
@@ -260,9 +260,12 @@
                                                 </div>
                                             @endif
                                         </td>
-                                        <td><span class="fs-12">{{ $product->sku }}</span></td>
-                                        <td style="white-space: normal; width: 300px; display: block;">{{ $product->name }}</td>
-                                        <td><span class="fs-12 text-muted">{{ $product->barcode ?? 'N/A' }}</span></td>
+                                        {{-- <td><span class="fs-12">{{ $product->sku }}</span></td> --}}
+                                        <td style="white-space: normal; width: 300px; display: block;">
+                                            <div>{{ $product->name }}</div>
+                                            <small>{{ $product->sku }}</small>
+                                        </td>
+                                        {{-- <td><span class="fs-12 text-muted">{{ $product->barcode ?? 'N/A' }}</span></td> --}}
                                         <td class="text-center">
                                             <span class="badge bg-soft-secondary text-secondary">{{ (int)($product->product_stocks_sum_quantity ?? 0) }}</span>
                                         </td>
@@ -280,12 +283,12 @@
                                                 value="{{ $existingItem ? $existingItem->price : 0 }}" min="0" step="0.01" {{ $isChecked ? '' : 'disabled' }}>
                                         </td>
                                         <td>
-                                            <input type="text" class="form-control form-control-sm note-input"
-                                                value="{{ $existingItem ? $existingItem->note : '' }}" {{ $isChecked ? '' : 'disabled' }}>
-                                        </td>
-                                        <td>
                                             <input type="text" class="form-control form-control-sm subtotal-input"
                                                 value="{{ $existingItem ? number_format($existingItem->quantity * $existingItem->price, 2, '.', '') : '0.00' }}" readonly>
+                                        </td>
+                                        <td>
+                                            <input type="text" class="form-control form-control-sm note-input"
+                                                value="{{ $existingItem ? $existingItem->note : '' }}" {{ $isChecked ? '' : 'disabled' }}>
                                         </td>
                                     </tr>
                                 @endforeach
