@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\ProductController;
 use App\Imports\PurchaseImport;
+use App\Models\Brand;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Rack;
@@ -90,8 +92,10 @@ class PurchaseController extends Controller
     {
         $suppliers = Supplier::all();
         $warehouses = Warehouse::all();
+        $brands = Brand::all();
+        $categories = Category::all();
         $products = Product::withSum('product_stocks', 'quantity')->orderBy('name')->get();
-        return view('purchases.new', compact('suppliers', 'warehouses', 'products'));
+        return view('purchases.new', compact('suppliers', 'warehouses', 'brands', 'categories', 'products'));
     }
 
     /**
@@ -172,8 +176,10 @@ class PurchaseController extends Controller
         $purchase = Purchase::findOrFail($id);
         $suppliers = Supplier::all();
         $warehouses = Warehouse::all();
+        $brands = Brand::all();
+        $categories = Category::all();
         $products = Product::withSum('product_stocks', 'quantity')->orderBy('name')->get();
-        return view('purchases.edit', compact('purchase', 'suppliers', 'warehouses', 'products'));
+        return view('purchases.edit', compact('purchase', 'suppliers', 'warehouses', 'brands', 'categories', 'products'));
     }
 
     /**

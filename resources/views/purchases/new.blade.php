@@ -134,11 +134,29 @@
 
                     <!-- Controls Row -->
                     <div class="row mb-3 g-3">
-                        <div class="col-md-4">
+                        <div class="col-md-2">
                             <label for="productSearch" class="form-label">Search/Filter</label>
                             <input type="text" id="productSearch" class="form-control form-control-sm" placeholder="Filter by name, SKU, or barcode...">
                         </div>
+                        <div class="col-md-1">
+                            <label for="brand" class="form-label">Brand</label>
+                            <select id="brand" class="form-select form-select-sm">
+                                <option value="">All Brands</option>
+                                @foreach ($brands as $brand)
+                                    <option value="{{ $brand->id }}">{{ $brand->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                         <div class="col-md-2">
+                            <label for="category" class="form-label">Category</label>
+                            <select id="category" class="form-select form-select-sm">
+                                <option value="">All Categories</option>
+                                @foreach ($categories as $category)
+                                    <option value="{{ $category->id }}">{{ $category->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-1">
                             <label for="perPage" class="form-label">Per Page</label>
                             <select id="perPage" class="form-select form-select-sm">
                                 <option value="10">10</option>
@@ -211,7 +229,9 @@
                                         data-id="{{ $product->id }}"
                                         data-name="{{ strtolower($product->name) }}"
                                         data-sku="{{ strtolower($product->sku) }}"
-                                        data-barcode="{{ strtolower($product->barcode ?? '') }}">
+                                        data-barcode="{{ strtolower($product->barcode ?? '') }}"
+                                        data-brand="{{ $product->brand_id }}"
+                                        data-category="{{ $product->category_id }}">
                                         <td>
                                             {{-- <input type="checkbox" class="form-check-input product-checkbox"
                                                 data-product-id="{{ $product->id }}">
@@ -304,6 +324,8 @@ $(document).ready(function(){
     let racks = [];
 
     const searchInput = document.getElementById('productSearch');
+    const brand = document.getElementById('brand');
+    const category = document.getElementById('category');
     const perPageSelect = document.getElementById('perPage');
     const selectPageCheckbox = document.getElementById('selectPageCheckbox');
     const selectAllBtn = document.getElementById('selectAllBtn');
@@ -357,6 +379,24 @@ $(document).ready(function(){
             return (row.dataset.name || '').includes(query) ||
                    (row.dataset.sku || '').includes(query) ||
                    (row.dataset.barcode || '').includes(query);
+        });
+        currentPage = 1;
+        updateDisplay();
+    });
+
+    brand.addEventListener('change', function() {
+        const query = this.value.trim().toLowerCase();
+        filteredRows = query.length === 0 ? [...allRows] : allRows.filter(row => {
+            return (row.dataset.brand || '').includes(query);
+        });
+        currentPage = 1;
+        updateDisplay();
+    });
+
+    category.addEventListener('change', function() {
+        const query = this.value.trim().toLowerCase();
+        filteredRows = query.length === 0 ? [...allRows] : allRows.filter(row => {
+            return (row.dataset.category || '').includes(query);
         });
         currentPage = 1;
         updateDisplay();
