@@ -290,25 +290,70 @@ class PurchaseController extends Controller
                 }
             }
 
-            // Handle removed purchase items - only allow if not received
+            // Handle removed purchase items - reverse stock for received items
             $removedItems = $purchase->purchase_items()->whereNotIn('id', $existingItemIds)->get();
+            $productsToSync = [];
+            $inventoryAccountingService = new InventoryAccountingService();
 
             foreach ($removedItems as $removedItem) {
-                if ((float) $removedItem->received_quantity > 0) {
-                    DB::rollBack();
-                    return redirect()->back()
-                        ->with('error', "Cannot remove '{$removedItem->name}' - {$removedItem->received_quantity} units already received.")
-                        ->withInput();
+                $receivedQty = (float) $removedItem->received_quantity;
+
+                // If item was received, reverse the stock
+                if ($receivedQty > 0) {
+                    $product = Product::find($removedItem->product_id);
+                    if ($product) {
+                        // Decrease stock from the corresponding warehouse and rack
+                        $stock = $product->product_stocks()
+                            ->where('warehouse_id', $purchase->warehouse_id)
+                            ->where('rack_id', $removedItem->rack_id)
+                            ->first();
+
+                        if ($stock) {
+                            $stock->quantity = max(0, (float) $stock->quantity - $receivedQty);
+                            if ($stock->quantity <= 0) {
+                                $stock->delete();
+                            } else {
+                                $stock->save();
+                            }
+                        }
+
+                        // Reverse the accounting journal entry for this receipt
+                        $unitCost = (float) $removedItem->price;
+                        $inventoryAccountingService->reversePurchaseReceipt(
+                            $purchase,
+                            $removedItem,
+                            $receivedQty,
+                            $unitCost
+                        );
+
+                        // Track for sales channel sync
+                        $productsToSync[$product->id] = $product;
+
+                        Log::info('Stock reversed for removed purchase item', [
+                            'purchase_id'      => $purchase->id,
+                            'product_id'       => $product->id,
+                            'product_sku'      => $product->sku,
+                            'received_removed' => $receivedQty,
+                            'warehouse_id'     => $purchase->warehouse_id,
+                            'rack_id'          => $removedItem->rack_id,
+                        ]);
+                    }
                 }
             }
 
-            // Delete the removed purchase items (only unreceived items reach here)
+            // Delete the removed purchase items
             $purchase->purchase_items()->whereNotIn('id', $existingItemIds)->delete();
 
             // Update purchase status
             $this->updatePurchaseStatus($purchase);
 
             DB::commit();
+
+            // Sync inventory to all linked sales channels for affected products
+            foreach ($productsToSync as $productToSync) {
+                ProductController::syncProductInventoryToChannels($productToSync);
+            }
+
             return redirect()->route('purchases.index')->with('success', 'Purchase updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
