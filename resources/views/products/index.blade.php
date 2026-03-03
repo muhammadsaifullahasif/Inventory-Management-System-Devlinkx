@@ -175,14 +175,14 @@
                                 @endcan
                                 <th>#</th>
                                 <th style="width: 60px;">Image</th>
-                                <th>Barcode</th>
-                                <th>Name</th>
+                                {{-- <th>Barcode</th> --}}
+                                <th style="max-width: 300px;">Name</th>
                                 <th>Price</th>
                                 <th>Quantity</th>
                                 <th>Location</th>
                                 <th>Category</th>
                                 <th>Sales Channels</th>
-                                <th>Created at</th>
+                                {{-- <th>Created at</th> --}}
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -211,7 +211,7 @@
                                             </div>
                                         @endif
                                     </td>
-                                    <td>
+                                    {{-- <td>
                                         <div style="max-width: 100px;">
                                             @php
                                                 $barcode = (new Picqer\Barcode\Types\TypeCode128())->getBarcode($product->barcode);
@@ -225,11 +225,10 @@
                                                     <i class="feather feather-printer"></i>
                                                 </a>
                                             </div>
-                                            {{-- <a href="{{ route('products.print-barcode', $product->id) }}" target="_blank" class="fs-11">Print</a> --}}
                                         </div>
-                                    </td>
+                                    </td> --}}
                                     <td>
-                                        <span class="fw-semibold">{{ $product->name }}</span>
+                                        <span style="white-space: normal; width: 300px; display: block;" class="fw-semibold">{{ $product->name }}</span>
                                         <span class="d-block fs-11 text-muted">SKU: {{ $product->sku }}</span>
                                     </td>
                                     <td><span class="fw-semibold">${{ number_format($product->price, 2) }}</span></td>
@@ -258,7 +257,7 @@
                                             <a href="{{ $sales_channel->pivot->listing_url }}" target="_blank" class="badge bg-soft-primary text-primary me-1">{{ $sales_channel['name'] }}</a>
                                         @endforeach
                                     </td>
-                                    <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($product->created_at)->format('d M, Y') }}</span></td>
+                                    {{-- <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($product->created_at)->format('d M, Y') }}</span></td> --}}
                                     <td>
                                         <div class="hstack gap-2 justify-content-end">
                                             <a href="{{ route('products.show', $product->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="View">
@@ -305,7 +304,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="12" class="text-center py-4 text-muted">No products found.</td>
+                                    <td colspan="10" class="text-center py-4 text-muted">No products found.</td>
                                 </tr>
                             @endforelse
                         </tbody>

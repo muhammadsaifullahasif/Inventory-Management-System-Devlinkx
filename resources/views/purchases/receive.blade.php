@@ -158,7 +158,7 @@
                                     <tr>
                                         <th style="width: 40px;">#</th>
                                         <th style="width: 60px;">Image</th>
-                                        <th>Product</th>
+                                        <th style="max-width: 250px;">Product</th>
                                         <th style="width: 90px;" class="text-center">Ordered</th>
                                         <th style="width: 90px;" class="text-center">Received</th>
                                         <th style="width: 90px;" class="text-center">Pending</th>
@@ -188,7 +188,7 @@
                                                 @endif
                                             </td>
                                             <td>
-                                                <div class="fw-semibold">{{ $item->name }}</div>
+                                                <div style="white-space: normal; width: 250px; display: block;" class="fw-semibold">{{ $item->name }}</div>
                                                 <small class="text-muted">SKU: {{ $item->sku }}</small>
                                                 <input type="hidden" name="items[{{ $index }}][item_id]" value="{{ $item->id }}">
                                             </td>

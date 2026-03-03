@@ -178,7 +178,7 @@
                         <tr>
                             <th>#</th>
                             <th>SKU</th>
-                            <th>Product Name</th>
+                            <th style="max-width: 300px;">Product Name</th>
                             <th class="text-center">Ordered</th>
                             <th class="text-center">Received</th>
                             <th class="text-center">Pending</th>
@@ -201,7 +201,7 @@
                                 <td>{{ $loop->index + 1 }}</td>
                                 <td><span class="fs-12 fw-semibold">{{ $item->sku }}</span></td>
                                 <td>
-                                    <span class="fw-semibold">{{ $item->name }}</span>
+                                    <span style="white-space: normal; width: 300px; display: block;" class="fw-semibold">{{ $item->name }}</span>
                                     @if($item->barcode)
                                     <span class="d-block fs-11 text-muted">{{ $item->barcode }}</span>
                                     @endif

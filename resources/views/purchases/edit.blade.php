@@ -261,7 +261,7 @@
                                             @endif
                                         </td>
                                         <td><span class="fs-12">{{ $product->sku }}</span></td>
-                                        <td>{{ $product->name }}</td>
+                                        <td style="white-space: normal; width: 300px; display: block;">{{ $product->name }}</td>
                                         <td><span class="fs-12 text-muted">{{ $product->barcode ?? 'N/A' }}</span></td>
                                         <td class="text-center">
                                             <span class="badge bg-soft-secondary text-secondary">{{ (int)($product->product_stocks_sum_quantity ?? 0) }}</span>
