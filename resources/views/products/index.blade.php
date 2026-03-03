@@ -154,21 +154,25 @@
     <div class="col-12">
         <div class="card">
             <div class="card-body pb-0">
-                @include('partials.bulk-actions-bar', ['itemName' => 'products'])
+                @can('delete products')
+                    @include('partials.bulk-actions-bar', ['itemName' => 'products'])
+                @endcan
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover align-top mb-0">
                         <thead>
                             <tr>
-                                <th class="ps-3" style="width: 40px;">
-                                    <div class="btn-group mb-1">
-                                        <div class="custom-control custom-checkbox ms-1">
-                                            <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
-                                            <label for="selectAll" class="custom-control-label"></label>
+                                @can('delete products')
+                                    <th class="ps-3" style="width: 40px;">
+                                        <div class="btn-group mb-1">
+                                            <div class="custom-control custom-checkbox ms-1">
+                                                <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
+                                                <label for="selectAll" class="custom-control-label"></label>
+                                            </div>
                                         </div>
-                                    </div>
-                                </th>
+                                    </th>
+                                @endcan
                                 <th>#</th>
                                 <th style="width: 60px;">Image</th>
                                 <th>Barcode</th>
@@ -185,16 +189,18 @@
                         <tbody>
                             @forelse ($products as $product)
                                 <tr>
-                                    <td class="ps-3">
-                                        <div class="item-checkbox ms-1">
-                                            <div class="custom-control custom-checkbox">
-                                                <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $product->id }}" data-product-id="{{ $product->id }}">
-                                                <label for="{{ $product->id }}" class="custom-control-label"></label>
-                                                <input type="hidden" class="product-id-input" value="{{ $product->id }}" disabled>
+                                    @can('delete products')
+                                        <td class="ps-3">
+                                            <div class="item-checkbox ms-1">
+                                                <div class="custom-control custom-checkbox">
+                                                    <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $product->id }}" data-product-id="{{ $product->id }}">
+                                                    <label for="{{ $product->id }}" class="custom-control-label"></label>
+                                                    <input type="hidden" class="product-id-input" value="{{ $product->id }}" disabled>
+                                                </div>
                                             </div>
-                                        </div>
-                                        {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $product->id }}"> --}}
-                                    </td>
+                                            {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $product->id }}"> --}}
+                                        </td>
+                                    @endcan
                                     <td>{{ $product->id }}</td>
                                     <td>
                                         @if($product->getImageUrl())
@@ -359,5 +365,7 @@
             $('#warehouse_id').trigger('change');
         });
     </script>
-    @include('partials.bulk-delete-scripts', ['routeName' => 'products.bulk-delete', 'itemName' => 'products'])
+    @can('delete products')
+        @include('partials.bulk-delete-scripts', ['routeName' => 'products.bulk-delete', 'itemName' => 'products'])
+    @endcan
 @endpush

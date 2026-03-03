@@ -68,21 +68,25 @@
     <div class="col-12">
         <div class="card">
             <div class="card-body pb-0">
-                @include('partials.bulk-actions-bar', ['itemName' => 'roles'])
+                @can('delete roles')
+                    @include('partials.bulk-actions-bar', ['itemName' => 'roles'])
+                @endcan
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
-                                <th class="ps-3" style="width: 40px;">
-                                    <div class="btn-group mb-1">
-                                        <div class="custom-control custom-checkbox ms-1">
-                                            <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
-                                            <label for="selectAll" class="custom-control-label"></label>
+                                @can('delete roles')
+                                    <th class="ps-3" style="width: 40px;">
+                                        <div class="btn-group mb-1">
+                                            <div class="custom-control custom-checkbox ms-1">
+                                                <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
+                                                <label for="selectAll" class="custom-control-label"></label>
+                                            </div>
                                         </div>
-                                    </div>
-                                </th>
+                                    </th>
+                                @endcan
                                 <th>#</th>
                                 <th>Name</th>
                                 <th>Created at</th>
@@ -92,16 +96,18 @@
                         <tbody>
                             @forelse ($roles as $role)
                                 <tr>
-                                    <td class="ps-3">
-                                        <div class="item-checkbox ms-1">
-                                            <div class="custom-control custom-checkbox">
-                                                <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $role->id }}" data-role-id="{{ $role->id }}">
-                                                <label for="{{ $role->id }}" class="custom-control-label"></label>
-                                                <input type="hidden" class="role-id-input" value="{{ $role->id }}" disabled>
+                                    @can('delete roles')
+                                        <td class="ps-3">
+                                            <div class="item-checkbox ms-1">
+                                                <div class="custom-control custom-checkbox">
+                                                    <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $role->id }}" data-role-id="{{ $role->id }}">
+                                                    <label for="{{ $role->id }}" class="custom-control-label"></label>
+                                                    <input type="hidden" class="role-id-input" value="{{ $role->id }}" disabled>
+                                                </div>
                                             </div>
-                                        </div>
-                                        {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $role->id }}"> --}}
-                                    </td>
+                                            {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $role->id }}"> --}}
+                                        </td>
+                                    @endcan
                                     <td>{{ $role->id }}</td>
                                     <td><span class="fw-semibold">{{ $role->name }}</span></td>
                                     <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($role->created_at)->format('d M, Y') }}</span></td>
@@ -160,5 +166,7 @@
         });
     </script>
 
-    @include('partials.bulk-delete-scripts', ['routeName' => 'roles.bulk-delete', 'itemName' => 'roles'])
+    @can('delete roles')
+        @include('partials.bulk-delete-scripts', ['routeName' => 'roles.bulk-delete', 'itemName' => 'roles'])
+    @endcan
 @endpush

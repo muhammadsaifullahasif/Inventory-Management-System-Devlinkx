@@ -76,21 +76,25 @@
     <div class="col-12">
         <div class="card">
             <div class="card-body pb-0">
-                @include('partials.bulk-actions-bar', ['itemName' => 'warehouses'])
+                @can('delete warehouses')
+                    @include('partials.bulk-actions-bar', ['itemName' => 'warehouses'])
+                @endcan
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
-                                <th class="ps-3" style="width: 40px;">
-                                    <div class="btn-group mb-1">
-                                        <div class="custom-control custom-checkbox ms-1">
-                                            <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
-                                            <label for="selectAll" class="custom-control-label"></label>
+                                @can('delete warehouses')
+                                    <th class="ps-3" style="width: 40px;">
+                                        <div class="btn-group mb-1">
+                                            <div class="custom-control custom-checkbox ms-1">
+                                                <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
+                                                <label for="selectAll" class="custom-control-label"></label>
+                                            </div>
                                         </div>
-                                    </div>
-                                </th>
+                                    </th>
+                                @endcan
                                 <th>#</th>
                                 <th>Name</th>
                                 <th>Racks</th>
@@ -106,16 +110,18 @@
                         <tbody>
                             @forelse ($warehouses as $warehouse)
                                 <tr>
-                                    <td class="ps-3">
-                                        <div class="item-checkbox ms-1">
-                                            <div class="custom-control custom-checkbox">
-                                                <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $warehouse->id }}" data-warehouse-id="{{ $warehouse->id }}">
-                                                <label for="{{ $warehouse->id }}" class="custom-control-label"></label>
-                                                <input type="hidden" class="warehouse-id-input" value="{{ $warehouse->id }}" disabled>
+                                    @can('delete warehouses')
+                                        <td class="ps-3">
+                                            <div class="item-checkbox ms-1">
+                                                <div class="custom-control custom-checkbox">
+                                                    <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $warehouse->id }}" data-warehouse-id="{{ $warehouse->id }}">
+                                                    <label for="{{ $warehouse->id }}" class="custom-control-label"></label>
+                                                    <input type="hidden" class="warehouse-id-input" value="{{ $warehouse->id }}" disabled>
+                                                </div>
                                             </div>
-                                        </div>
-                                        {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $warehouse->id }}"> --}}
-                                    </td>
+                                            {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $warehouse->id }}"> --}}
+                                        </td>
+                                    @endcan
                                     <td>{{ $warehouse->id }}</td>
                                     <td>
                                         <a href="{{ route('products.index', ['warehouse_id' => $warehouse->id]) }}" class="fw-semibold text-primary">
@@ -202,5 +208,7 @@
         });
     </script>
 
-    @include('partials.bulk-delete-scripts', ['routeName' => 'warehouses.bulk-delete', 'itemName' => 'warehouses'])
+    @can('delete warehouses')
+        @include('partials.bulk-delete-scripts', ['routeName' => 'warehouses.bulk-delete', 'itemName' => 'warehouses'])
+    @endcan
 @endpush

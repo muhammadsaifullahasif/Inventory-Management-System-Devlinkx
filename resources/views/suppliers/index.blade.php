@@ -80,21 +80,25 @@
     <div class="col-12">
         <div class="card">
             <div class="card-body pb-0">
-                @include('partials.bulk-actions-bar', ['itemName' => 'suppliers'])
+                @can('delete suppliers')
+                    @include('partials.bulk-actions-bar', ['itemName' => 'suppliers'])
+                @endcan
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
-                                <th class="ps-3" style="width: 40px;">
-                                    <div class="btn-group mb-1">
-                                        <div class="custom-control custom-checkbox ms-1">
-                                            <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
-                                            <label for="selectAll" class="custom-control-label"></label>
+                                @can('delete suppliers')
+                                    <th class="ps-3" style="width: 40px;">
+                                        <div class="btn-group mb-1">
+                                            <div class="custom-control custom-checkbox ms-1">
+                                                <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
+                                                <label for="selectAll" class="custom-control-label"></label>
+                                            </div>
                                         </div>
-                                    </div>
-                                </th>
+                                    </th>
+                                @endcan
                                 <th>#</th>
                                 <th>Name</th>
                                 <th>Email</th>
@@ -107,16 +111,18 @@
                         <tbody>
                             @forelse ($suppliers as $supplier)
                                 <tr>
-                                    <td class="ps-3">
-                                        <div class="item-checkbox ms-1">
-                                            <div class="custom-control custom-checkbox">
-                                                <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $supplier->id }}" data-supplier-id="{{ $supplier->id }}">
-                                                <label for="{{ $supplier->id }}" class="custom-control-label"></label>
-                                                <input type="hidden" class="supplier-id-input" value="{{ $supplier->id }}" disabled>
+                                    @can('delete suppliers')
+                                        <td class="ps-3">
+                                            <div class="item-checkbox ms-1">
+                                                <div class="custom-control custom-checkbox">
+                                                    <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $supplier->id }}" data-supplier-id="{{ $supplier->id }}">
+                                                    <label for="{{ $supplier->id }}" class="custom-control-label"></label>
+                                                    <input type="hidden" class="supplier-id-input" value="{{ $supplier->id }}" disabled>
+                                                </div>
                                             </div>
-                                        </div>
-                                        {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $supplier->id }}"> --}}
-                                    </td>
+                                            {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $supplier->id }}"> --}}
+                                        </td>
+                                    @endcan
                                     <td>{{ $supplier->id }}</td>
                                     <td><span class="fw-semibold">{{ (($supplier->last_name != '') ? $supplier->first_name . ' ' . $supplier->last_name : $supplier->first_name) }}</span></td>
                                     <td><a href="mailto:{{ $supplier->email }}" class="text-primary">{{ $supplier->email }}</a></td>
@@ -184,5 +190,7 @@
         });
     </script>
 
-    @include('partials.bulk-delete-scripts', ['routeName' => 'suppliers.bulk-delete', 'itemName' => 'suppliers'])
+    @can('delete suppliers')
+        @include('partials.bulk-delete-scripts', ['routeName' => 'suppliers.bulk-delete', 'itemName' => 'suppliers'])
+    @endcan
 @endpush

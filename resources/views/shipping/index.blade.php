@@ -32,21 +32,25 @@
     <div class="col-12">
         <div class="card">
             <div class="card-body pb-0">
-                @include('partials.bulk-actions-bar', ['itemName' => 'carriers'])
+                @can('delete shipping')
+                    @include('partials.bulk-actions-bar', ['itemName' => 'carriers'])
+                @endcan
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
-                                <th class="ps-3" style="width: 40px;">
-                                    <div class="btn-group mb-1">
-                                        <div class="custom-control custom-checkbox ms-1">
-                                            <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
-                                            <label for="selectAll" class="custom-control-label"></label>
+                                @can('delete shipping')
+                                    <th class="ps-3" style="width: 40px;">
+                                        <div class="btn-group mb-1">
+                                            <div class="custom-control custom-checkbox ms-1">
+                                                <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
+                                                <label for="selectAll" class="custom-control-label"></label>
+                                            </div>
                                         </div>
-                                    </div>
-                                </th>
+                                    </th>
+                                @endcan
                                 <th>#</th>
                                 <th>Name</th>
                                 <th>Type</th>
@@ -63,16 +67,18 @@
                         <tbody>
                             @forelse ($shippings as $shipping)
                                 <tr>
-                                    <td class="ps-3">
-                                        <div class="item-checkbox ms-1">
-                                            <div class="custom-control custom-checkbox">
-                                                <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $shipping->id }}" data-shipping-id="{{ $shipping->id }}">
-                                                <label for="{{ $shipping->id }}" class="custom-control-label"></label>
-                                                <input type="hidden" class="shipping-id-input" value="{{ $shipping->id }}" disabled>
+                                    @can('delete shipping')
+                                        <td class="ps-3">
+                                            <div class="item-checkbox ms-1">
+                                                <div class="custom-control custom-checkbox">
+                                                    <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $shipping->id }}" data-shipping-id="{{ $shipping->id }}">
+                                                    <label for="{{ $shipping->id }}" class="custom-control-label"></label>
+                                                    <input type="hidden" class="shipping-id-input" value="{{ $shipping->id }}" disabled>
+                                                </div>
                                             </div>
-                                        </div>
-                                        {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $shipping->id }}"> --}}
-                                    </td>
+                                            {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $shipping->id }}"> --}}
+                                        </td>
+                                    @endcan
                                     <td>{{ $loop->iteration }}</td>
                                     <td><span class="fw-semibold">{{ $shipping->name }}</span></td>
                                     <td><span class="badge bg-soft-secondary text-secondary">{{ strtoupper($shipping->type) }}</span></td>
@@ -180,5 +186,7 @@ $(document).ready(function () {
 });
 </script>
 
-@include('partials.bulk-delete-scripts', ['routeName' => 'shipping.bulk-delete', 'itemName' => 'carriers'])
+@can('delete shipping')
+    @include('partials.bulk-delete-scripts', ['routeName' => 'shipping.bulk-delete', 'itemName' => 'carriers'])
+@endcan
 @endpush

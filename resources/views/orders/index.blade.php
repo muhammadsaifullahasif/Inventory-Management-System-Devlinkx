@@ -101,7 +101,9 @@
     <div class="col-12">
         <div class="card">
             <div class="card-body pb-0 d-flex align-items-center justify-content-between">
-                @include('partials.bulk-actions-bar', ['itemName' => 'orders'])
+                @can('delete orders')
+                    @include('partials.bulk-actions-bar', ['itemName' => 'orders'])
+                @endcan
                 <div class="ms-auto">
                     @php
                         $orderColumns = [
@@ -126,14 +128,16 @@
                     <table class="table table-hover mb-0" id="ordersTable">
                         <thead>
                             <tr>
-                                <th class="ps-3" style="width: 40px;">
-                                    <div class="btn-group mb-1">
-                                        <div class="custom-control custom-checkbox ms-1">
-                                            <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
-                                            <label for="selectAll" class="custom-control-label"></label>
+                                @can('delete orders')
+                                    <th class="ps-3" style="width: 40px;">
+                                        <div class="btn-group mb-1">
+                                            <div class="custom-control custom-checkbox ms-1">
+                                                <input type="checkbox" class="custom-control-input" id="selectAll" title="Select all on this page">
+                                                <label for="selectAll" class="custom-control-label"></label>
+                                            </div>
                                         </div>
-                                    </div>
-                                </th>
+                                    </th>
+                                @endcan
                                 <th data-column="id">#</th>
                                 <th data-column="order_number">Order #</th>
                                 <th data-column="channel">Channel</th>
@@ -151,16 +155,18 @@
                         <tbody>
                             @forelse ($orders as $order)
                                 <tr>
-                                    <td class="ps-3">
-                                        <div class="item-checkbox ms-1">
-                                            <div class="custom-control custom-checkbox">
-                                                <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $order->id }}" data-order-id="{{ $order->id }}">
-                                                <label for="{{ $order->id }}" class="custom-control-label"></label>
-                                                <input type="hidden" class="order-id-input" value="{{ $order->id }}" disabled>
+                                    @can('delete orders')
+                                        <td class="ps-3">
+                                            <div class="item-checkbox ms-1">
+                                                <div class="custom-control custom-checkbox">
+                                                    <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $order->id }}" data-order-id="{{ $order->id }}">
+                                                    <label for="{{ $order->id }}" class="custom-control-label"></label>
+                                                    <input type="hidden" class="order-id-input" value="{{ $order->id }}" disabled>
+                                                </div>
                                             </div>
-                                        </div>
-                                        {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $order->id }}"> --}}
-                                    </td>
+                                            {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $order->id }}"> --}}
+                                        </td>
+                                    @endcan
                                     <td data-column="id">{{ $order->id }}</td>
                                     <td data-column="order_number">
                                         <a href="{{ route('orders.show', $order->id) }}" class="fw-semibold text-primary">
@@ -1117,5 +1123,7 @@
         });
     </script>
 
-    @include('partials.bulk-delete-scripts', ['routeName' => 'orders.bulk-delete', 'itemName' => 'orders'])
+    @can('delete orders')
+        @include('partials.bulk-delete-scripts', ['routeName' => 'orders.bulk-delete', 'itemName' => 'orders'])
+    @endcan
 @endpush
