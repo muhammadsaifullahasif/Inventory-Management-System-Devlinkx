@@ -223,6 +223,7 @@ class FedexService
             $data = $response->json();
 
             Log::info('FedEx Response: ', [
+                'endpoint' => $endpoint,
                 'response' => $data,
             ]);
 
