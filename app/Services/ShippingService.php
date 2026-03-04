@@ -581,6 +581,10 @@ class ShippingService
             'payload'         => $shipmentPayload,
         ]);
 
+        Log::info('ShippingService: response from shipping carrier', [
+            'result'          => $result,
+        ]);
+
         return [
             'tracking_number' => $trackingNumber,
             'label_path'      => $filename,
