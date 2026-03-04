@@ -526,6 +526,7 @@ class ShippingService
                         'stateOrProvinceCode' => $order->shipping_state         ?? '',
                         'postalCode'          => $order->shipping_postal_code   ?? '',
                         'countryCode'         => $order->shipping_country       ?? 'US',
+                        'residential'         => in_array($order->address_type, ['RESIDENTIAL', 'MIXED']),
                     ],
                 ]],
                 'serviceType'          => $serviceCode,
