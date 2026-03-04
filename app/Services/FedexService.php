@@ -207,6 +207,8 @@ class FedexService
                     'status'  => $response->status(),
                     'body'    => $response->body(),
                     'status'  => $response->status(),
+                    'Json'    => $response->json(),
+                    'result'  => $response,
                     'payload' => $shipmentDetails,
                 ]);
 
