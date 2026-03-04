@@ -222,6 +222,10 @@ class FedexService
 
             $data = $response->json();
 
+            Log::info('FedEx Response: ', [
+                'response' => $data,
+            ]);
+
             // Extract tracking number
             $trackingNumber = $data['output']['transactionShipments'][0]['masterTrackingNumber'] ?? null;
             if (!$trackingNumber) {
