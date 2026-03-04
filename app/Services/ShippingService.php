@@ -543,7 +543,7 @@ class ShippingService
                 'labelSpecification' => [
                     'labelFormatType' => 'COMMON2D',
                     'imageType'       => 'PDF',
-                    'labelStockType'  => 'PAPER_7X475',
+                    'labelStockType'  => 'PAPER_4X6',
                 ],
                 'requestedPackageLineItems' => [[
                     'weight' => [

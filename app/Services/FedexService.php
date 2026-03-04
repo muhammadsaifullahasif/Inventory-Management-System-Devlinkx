@@ -190,6 +190,7 @@ class FedexService
         try {
             $response = Http::withToken($token)
                 ->withHeaders([
+                    'Authorization' => 'Bearer',
                     'Content-Type' => 'application/json',
                     'x-locale'     => 'en_US',
                 ])
