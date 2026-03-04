@@ -506,10 +506,10 @@ class ShippingService
                     'contact' => [
                         'personName'  => $carrier->shipper_name ?? 'Shipper',
                         'companyName' => $carrier->shipper_name ?? 'Shipper',
-                        'phoneNumber' => '8323457985',
+                        'phoneNumber' => '18323457985',
                     ],
                     'address' => [
-                        'streetLines'         => $carrier->shipper_address,
+                        'streetLines'         => $shipperStreetLines,
                         'city'                => $carrier->shipper_city          ?? 'New York',
                         'stateOrProvinceCode' => $carrier->shipper_state         ?? 'NY',
                         'postalCode'          => $carrier->shipper_postal_code   ?? '10001',
