@@ -505,10 +505,11 @@ class ShippingService
                 'shipper' => [
                     'contact' => [
                         'personName'  => $carrier->shipper_name ?? 'Shipper',
-                        'phoneNumber' => '18323457985',
+                        'companyName' => $carrier->shipper_name ?? 'Shipper',
+                        'phoneNumber' => '8323457985',
                     ],
                     'address' => [
-                        'streetLines'         => $shipperStreetLines,
+                        'streetLines'         => $carrier->shipper_address,
                         'city'                => $carrier->shipper_city          ?? 'New York',
                         'stateOrProvinceCode' => $carrier->shipper_state         ?? 'NY',
                         'postalCode'          => $carrier->shipper_postal_code   ?? '10001',
@@ -531,7 +532,7 @@ class ShippingService
                 ]],
                 'serviceType'          => $serviceCode,
                 'packagingType'        => 'YOUR_PACKAGING',
-                'pickupType'           => 'USE_SCHEDULED_PICKUP',
+                'pickupType'           => 'DROPOFF_AT_FEDEX_LOCATION',
                 'shippingChargesPayment' => [
                     'paymentType' => 'SENDER',
                     'payor'       => [
