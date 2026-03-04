@@ -206,6 +206,7 @@ class FedexService
                 Log::error('FedEx: createShipment failed', [
                     'status'  => $response->status(),
                     'body'    => $response->body(),
+                    'status'  => $response->status(),
                     'payload' => $shipmentDetails,
                 ]);
 
