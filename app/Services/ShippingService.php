@@ -505,7 +505,7 @@ class ShippingService
                 'shipper' => [
                     'contact' => [
                         'personName'  => $carrier->shipper_name ?? 'Shipper',
-                        'phoneNumber' => '1234567890',
+                        'phoneNumber' => '18323457985',
                     ],
                     'address' => [
                         'streetLines'         => $shipperStreetLines,
@@ -526,7 +526,6 @@ class ShippingService
                         'stateOrProvinceCode' => $order->shipping_state         ?? '',
                         'postalCode'          => $order->shipping_postal_code   ?? '',
                         'countryCode'         => $order->shipping_country       ?? 'US',
-                        'residential'         => in_array($order->address_type, ['RESIDENTIAL', 'MIXED']),
                     ],
                 ]],
                 'serviceType'          => $serviceCode,
@@ -557,6 +556,7 @@ class ShippingService
                         'units'  => $fedexDimUnit,
                     ],
                 ]],
+                'totalWeight' => round($totalWeight, 1),
             ],
         ];
 
@@ -578,6 +578,7 @@ class ShippingService
             'tracking_number' => $trackingNumber,
             'label_path'      => $filename,
             'carrier'         => $carrier->name,
+            'payload'         => $shipmentPayload,
         ]);
 
         return [
