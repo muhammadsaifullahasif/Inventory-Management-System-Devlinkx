@@ -499,7 +499,7 @@ class ShippingService
         ]));
 
         $shipmentPayload = [
-            'labelResponseOptions' => 'LABEL',
+            'labelResponseOptions' => 'URL_ONLY',
             'accountNumber'        => ['value' => $carrier->account_number ?? ''],
             'requestedShipment'    => [
                 'shipper' => [
