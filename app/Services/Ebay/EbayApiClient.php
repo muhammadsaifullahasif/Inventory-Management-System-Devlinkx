@@ -360,6 +360,10 @@ class EbayApiClient
 
     public function subscribedNotificationEvent(SalesChannel $salesChannel)
     {
+        // if (!$this->ensureValidToken($salesChannel)) {
+        //     return false;
+        // }
+        $this->ensureValidToken($salesChannel);
         $response = Http::withToken($salesChannel->access_token)
             ->get('https://api.ebay.com/commerce/notification/v1/subscription');
         
