@@ -957,4 +957,11 @@ class EbayService
         }
         return 'USD';
     }
+
+    public function subscribedNotificationEventNames(SalesChannel $channel)
+    {
+        $this->client->subscribedNotificationEvent($channel);
+
+        dd('Successfull');
+    }
 }

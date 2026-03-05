@@ -357,4 +357,18 @@ class EbayApiClient
 
         return $result;
     }
+
+    public function subscribedNotificationEvent(SalesChannel $salesChannel)
+    {
+        $response = Http::withToken($salesChannel->access_token)
+            ->get('https://api.ebay.com/commerce/notification/v1/subscription');
+        
+        $subscriptions = $response->json();
+
+        Log::info('Ebay Subscribed Notification Events', [
+            'events' => $subscriptions,
+        ]);
+
+        return true;
+    }
 }

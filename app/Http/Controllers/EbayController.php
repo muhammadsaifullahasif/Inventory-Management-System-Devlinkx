@@ -2383,4 +2383,9 @@ class EbayController extends Controller
             'message' => $message,
         ], $status);
     }
+
+    public function getNotificationEvents(string $id)
+    {
+        return $this->ebayService->subscribedNotificationEventNames(SalesChannel::findOrFail($id));
+    }
 }
