@@ -234,7 +234,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/ebay/orders/{id}', [EbayController::class, 'getOrders'])->name('ebay.orders.list');
 
     Route::get('/ebay/orders/import/{id}', [EbayController::class, 'getEbayOrders'])->name('ebay.orders.import');
-    Route::get('/ebay/notifications/subscribed{id}', [EbayController::class, 'getNotificationEvents'])->name('ebay.notifications.subscribed');
+    Route::get('/ebay/notifications/subscribed/{id}', [EbayController::class, 'getNotificationEvents'])->name('ebay.notifications.subscribed');
 
     // Orders Management
     Route::post('/orders/shipping-rates', [OrderController::class, 'getShippingRates'])->name('orders.shipping-rates');
