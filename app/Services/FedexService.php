@@ -187,6 +187,13 @@ class FedexService
             ? ($this->carrier->sandbox_endpoint ?: 'https://apis-sandbox.fedex.com')
             : ($this->carrier->api_endpoint     ?: 'https://apis.fedex.com');
 
+        Log::info('FedEx: createShipment request', [
+            'endpoint' => $endpoint,
+            'is_sandbox' => $this->carrier->is_sandbox,
+            'carrier_name' => $this->carrier->name,
+            'account_number' => $this->carrier->account_number,
+        ]);
+
         try {
             $response = Http::withToken($token)
                 ->withHeaders([
@@ -225,9 +232,14 @@ class FedexService
 
             $data = $response->json();
 
-            Log::info('FedEx Response: ', [
+            // Log full response for debugging
+            Log::info('FedEx: createShipment response', [
                 'endpoint' => $endpoint,
-                'response' => $data,
+                'is_sandbox' => $this->carrier->is_sandbox,
+                'http_status' => $response->status(),
+                'transaction_id' => $data['transactionId'] ?? null,
+                'alerts' => $data['output']['alerts'] ?? [],
+                'shipment_id' => $data['output']['transactionShipments'][0]['shipmentId'] ?? null,
             ]);
 
             // Extract tracking number
@@ -250,6 +262,11 @@ class FedexService
             Log::info('FedEx: shipment created successfully', [
                 'tracking_number' => $trackingNumber,
                 'carrier_id'      => $this->carrier->id,
+                'endpoint' => $endpoint,
+                'is_sandbox' => $this->carrier->is_sandbox,
+                'shipment_id' => $data['output']['transactionShipments'][0]['shipmentId'] ?? null,
+                'service_type' => $data['output']['transactionShipments'][0]['serviceType'] ?? null,
+                'completed_shipment_detail' => $data['output']['transactionShipments'][0]['completedShipmentDetail'] ?? null,
             ]);
 
             return [
