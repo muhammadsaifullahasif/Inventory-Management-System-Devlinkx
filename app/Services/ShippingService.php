@@ -631,9 +631,10 @@ class ShippingService
         ];
 
         // Remove email notification if no buyer email
-        if (empty($order->buyer_email)) {
-            unset($shipmentPayload['requestedShipment']['shipmentSpecialServices']);
-        }
+        // if (empty($order->buyer_email)) {
+        //     unset($shipmentPayload['requestedShipment']['shipmentSpecialServices']);
+        // }
+        unset($shipmentPayload['requestedShipment']['shipmentSpecialServices']);
 
         // Call FedEx to create shipment
         $result = $service->createShipment($shipmentPayload);
