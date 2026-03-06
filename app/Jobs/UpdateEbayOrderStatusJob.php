@@ -172,23 +172,55 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
             'order_count' => count($orderIds),
         ]);
 
+        // Log to dedicated sync log
+        Log::channel('ebay-order-sync')->info('=== Starting eBay order status sync ===', [
+            'sales_channel_id' => $salesChannel->id,
+            'sales_channel_name' => $salesChannel->name,
+            'order_count' => count($orderIds),
+            'order_ids' => $orderIds,
+        ]);
+
         // Process orders in batches
         $batches = array_chunk($orderIds, self::BATCH_SIZE);
+        $batchNumber = 0;
 
         foreach ($batches as $batchOrderIds) {
+            $batchNumber++;
+            Log::channel('ebay-order-sync')->info("Processing batch {$batchNumber}/" . count($batches), [
+                'batch_order_ids' => $batchOrderIds,
+            ]);
+
             try {
                 $result = $ebayService->getOrdersByIds($salesChannel, $batchOrderIds);
 
                 if (!$result['success']) {
-                    Log::channel('ebay')->warning('Failed to fetch order batch', [
+                    Log::channel('ebay-order-sync')->warning('Failed to fetch order batch', [
                         'sales_channel_id' => $salesChannel->id,
+                        'batch_order_ids' => $batchOrderIds,
                     ]);
                     $stats['errors']++;
                     continue;
                 }
 
+                Log::channel('ebay-order-sync')->info('Batch fetched successfully', [
+                    'orders_returned' => count($result['orders']),
+                ]);
+
                 foreach ($result['orders'] as $ebayOrder) {
                     $stats['total_checked']++;
+
+                    // Log the full eBay order response to dedicated log file
+                    Log::channel('ebay-order-sync')->info('eBay order response', [
+                        'ebay_order_id' => $ebayOrder['order_id'] ?? 'unknown',
+                        'order_status' => $ebayOrder['order_status'] ?? null,
+                        'payment_status' => $ebayOrder['payment_status'] ?? null,
+                        'checkout_status' => $ebayOrder['checkout_status'] ?? null,
+                        'cancel_status' => $ebayOrder['cancel_status'] ?? null,
+                        'shipped_time' => $ebayOrder['shipped_time'] ?? null,
+                        'tracking_number' => $ebayOrder['tracking_number'] ?? null,
+                        'shipping_carrier' => $ebayOrder['shipping_carrier'] ?? null,
+                        'raw_data' => $ebayOrder['raw_data'] ?? $ebayOrder,
+                    ]);
 
                     try {
                         $updateResult = $this->updateOrderStatus($ebayOrder, $salesChannel->id, $orderService);
@@ -204,24 +236,41 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
                             if ($updateResult['return_updated']) {
                                 $stats['return_updated']++;
                             }
+
+                            // Log status change
+                            Log::channel('ebay-order-sync')->info('Order status updated', [
+                                'ebay_order_id' => $ebayOrder['order_id'] ?? 'unknown',
+                                'cancelled' => $updateResult['cancelled'],
+                                'refunded' => $updateResult['refunded'],
+                                'return_updated' => $updateResult['return_updated'],
+                            ]);
                         }
                     } catch (Exception $e) {
                         $stats['errors']++;
-                        Log::channel('ebay')->error('Failed to update order status', [
+                        Log::channel('ebay-order-sync')->error('Failed to update order status', [
                             'ebay_order_id' => $ebayOrder['order_id'] ?? 'unknown',
                             'error' => $e->getMessage(),
+                            'trace' => $e->getTraceAsString(),
                         ]);
                     }
                 }
 
             } catch (Exception $e) {
                 $stats['errors']++;
-                Log::channel('ebay')->error('Failed to fetch order batch from eBay', [
+                Log::channel('ebay-order-sync')->error('Failed to fetch order batch from eBay', [
                     'sales_channel_id' => $salesChannel->id,
+                    'batch_order_ids' => $batchOrderIds,
                     'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
             }
         }
+
+        // Log completion summary
+        Log::channel('ebay-order-sync')->info('=== eBay order status sync completed ===', [
+            'sales_channel_id' => $salesChannel->id,
+            'stats' => $stats,
+        ]);
 
         return $stats;
     }

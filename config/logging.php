@@ -136,6 +136,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // eBay order status sync logs (detailed order responses)
+        'ebay-order-sync' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/ebay/order-status-sync.log'),
+            'level' => 'debug',
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];
