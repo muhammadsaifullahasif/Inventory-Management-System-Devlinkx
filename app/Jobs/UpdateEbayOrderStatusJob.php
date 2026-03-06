@@ -300,13 +300,24 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
         $newFulfillmentStatus = $orderService->mapFulfillmentStatus($ebayOrder);
 
         // Check for cancellation status changes
-        $cancelStatus = strtolower($ebayOrder['cancel_status'] ?? '');
-        if (!empty($cancelStatus) && !in_array($cancelStatus, ['none', 'notapplicable', ''])) {
-            if (in_array($cancelStatus, ['cancelled', 'cancelcomplete', 'cancelcompleted'])) {
+        // eBay returns PascalCase values like: CancelRequested, CancelComplete, CancelPending, NotApplicable, Invalid
+        $cancelStatus = strtolower(trim($ebayOrder['cancel_status'] ?? ''));
+
+        Log::channel('ebay')->info('Checking cancel status', [
+            'ebay_order_id' => $ebayOrder['order_id'],
+            'raw_cancel_status' => $ebayOrder['cancel_status'] ?? 'null',
+            'normalized_cancel_status' => $cancelStatus,
+            'local_order_status' => $localOrder->order_status,
+        ]);
+
+        // Skip if no cancellation or not applicable
+        if (!empty($cancelStatus) && !in_array($cancelStatus, ['none', 'notapplicable', 'invalid', ''])) {
+            // Cancelled/Complete states - order has been fully cancelled
+            if (in_array($cancelStatus, ['cancelled', 'cancelcomplete', 'cancelclosed'])) {
                 if ($localOrder->order_status !== 'cancelled') {
                     $updateData['order_status'] = 'cancelled';
                     $updateData['cancel_status'] = $ebayOrder['cancel_status'];
-                    $changes[] = 'order_status changed to cancelled';
+                    $changes[] = "order_status changed to cancelled (eBay: {$ebayOrder['cancel_status']})";
                     $result['cancelled'] = true;
 
                     // Restore inventory for newly cancelled orders
@@ -316,11 +327,21 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
                         }
                     }
                 }
-            } elseif (in_array($cancelStatus, ['cancelrequested', 'cancelrequest', 'cancelpending'])) {
+            }
+            // Pending/Requested states - cancellation in progress
+            elseif (in_array($cancelStatus, ['cancelrequested', 'cancelpending'])) {
                 if ($localOrder->order_status !== 'cancellation_requested' && $localOrder->order_status !== 'cancelled') {
                     $updateData['order_status'] = 'cancellation_requested';
                     $updateData['cancel_status'] = $ebayOrder['cancel_status'];
-                    $changes[] = 'order_status changed to cancellation_requested';
+                    $changes[] = "order_status changed to cancellation_requested (eBay: {$ebayOrder['cancel_status']})";
+                }
+            }
+            // Rejected state - cancellation was denied
+            elseif (in_array($cancelStatus, ['cancelrejected', 'cancelclosedwithrefund', 'cancelclosednorefund', 'cancelfailed'])) {
+                // Just update the cancel_status field for tracking, don't change order_status
+                if ($localOrder->cancel_status !== $ebayOrder['cancel_status']) {
+                    $updateData['cancel_status'] = $ebayOrder['cancel_status'];
+                    $changes[] = "cancel_status updated to {$ebayOrder['cancel_status']}";
                 }
             }
         }

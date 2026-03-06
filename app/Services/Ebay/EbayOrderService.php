@@ -60,12 +60,15 @@ class EbayOrderService
     public function mapOrderStatus(string $ebayStatus, array $ebayOrder = []): string
     {
         // Check for cancellation first
-        $cancelStatus = strtolower($ebayOrder['cancel_status'] ?? '');
-        if (!empty($cancelStatus) && !in_array($cancelStatus, ['none', 'notapplicable'])) {
-            if (in_array($cancelStatus, ['cancelled', 'cancelcomplete', 'cancelcompleted'])) {
+        // eBay returns PascalCase: CancelRequested, CancelComplete, CancelPending, NotApplicable, CancelClosed, etc.
+        $cancelStatus = strtolower(trim($ebayOrder['cancel_status'] ?? ''));
+        if (!empty($cancelStatus) && !in_array($cancelStatus, ['none', 'notapplicable', 'invalid', ''])) {
+            // Fully cancelled states
+            if (in_array($cancelStatus, ['cancelled', 'cancelcomplete', 'cancelclosed'])) {
                 return 'cancelled';
             }
-            if (in_array($cancelStatus, ['cancelrequested', 'cancelrequest', 'cancelpending'])) {
+            // Cancellation requested/pending states
+            if (in_array($cancelStatus, ['cancelrequested', 'cancelpending'])) {
                 return 'cancellation_requested';
             }
         }
@@ -152,12 +155,15 @@ class EbayOrderService
      */
     public function mapOrderStatusFromTransaction(array $transaction): string
     {
-        $cancelStatus = strtolower($transaction['ContainingOrder']['CancelStatus'] ?? '');
-        if (!empty($cancelStatus) && !in_array($cancelStatus, ['none', 'notapplicable'])) {
-            if (in_array($cancelStatus, ['cancelled', 'cancelcomplete', 'cancelcompleted'])) {
+        // eBay returns PascalCase: CancelRequested, CancelComplete, CancelPending, NotApplicable, CancelClosed, etc.
+        $cancelStatus = strtolower(trim($transaction['ContainingOrder']['CancelStatus'] ?? ''));
+        if (!empty($cancelStatus) && !in_array($cancelStatus, ['none', 'notapplicable', 'invalid', ''])) {
+            // Fully cancelled states
+            if (in_array($cancelStatus, ['cancelled', 'cancelcomplete', 'cancelclosed'])) {
                 return 'cancelled';
             }
-            if (in_array($cancelStatus, ['cancelrequested', 'cancelrequest', 'cancelpending'])) {
+            // Cancellation requested/pending states
+            if (in_array($cancelStatus, ['cancelrequested', 'cancelpending'])) {
                 return 'cancellation_requested';
             }
         }
