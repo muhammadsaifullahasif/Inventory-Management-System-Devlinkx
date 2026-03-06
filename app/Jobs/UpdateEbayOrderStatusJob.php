@@ -10,6 +10,7 @@ use App\Services\Ebay\EbayService;
 use App\Services\Ebay\EbayOrderService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\File;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -209,18 +210,8 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
                 foreach ($result['orders'] as $ebayOrder) {
                     $stats['total_checked']++;
 
-                    // Log the full eBay order response to dedicated log file
-                    Log::channel('ebay-order-sync')->info('eBay order response', [
-                        'ebay_order_id' => $ebayOrder['order_id'] ?? 'unknown',
-                        'order_status' => $ebayOrder['order_status'] ?? null,
-                        'payment_status' => $ebayOrder['payment_status'] ?? null,
-                        'checkout_status' => $ebayOrder['checkout_status'] ?? null,
-                        'cancel_status' => $ebayOrder['cancel_status'] ?? null,
-                        'shipped_time' => $ebayOrder['shipped_time'] ?? null,
-                        'tracking_number' => $ebayOrder['tracking_number'] ?? null,
-                        'shipping_carrier' => $ebayOrder['shipping_carrier'] ?? null,
-                        'raw_data' => $ebayOrder['raw_data'] ?? $ebayOrder,
-                    ]);
+                    // Save the full eBay order response to a separate JSON file
+                    $this->saveOrderLog($ebayOrder, $salesChannel->id);
 
                     try {
                         $updateResult = $this->updateOrderStatus($ebayOrder, $salesChannel->id, $orderService);
@@ -401,5 +392,62 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
             'error' => $exception->getMessage(),
             'trace' => $exception->getTraceAsString(),
         ]);
+    }
+
+    /**
+     * Save each order's eBay response to a separate JSON file.
+     * Files are saved in storage/logs/ebay/orders/{date}/{order_id}.json
+     */
+    protected function saveOrderLog(array $ebayOrder, int $salesChannelId): void
+    {
+        try {
+            $orderId = $ebayOrder['order_id'] ?? 'unknown';
+            // Sanitize order ID for filename (replace special chars)
+            $safeOrderId = preg_replace('/[^a-zA-Z0-9_-]/', '_', $orderId);
+
+            $date = now()->format('Y-m-d');
+            $directory = storage_path("logs/ebay/orders/{$date}");
+
+            // Create directory if it doesn't exist
+            if (!File::isDirectory($directory)) {
+                File::makeDirectory($directory, 0755, true);
+            }
+
+            $logData = [
+                'fetched_at' => now()->toIso8601String(),
+                'sales_channel_id' => $salesChannelId,
+                'ebay_order_id' => $orderId,
+                'order_status' => $ebayOrder['order_status'] ?? null,
+                'payment_status' => $ebayOrder['payment_status'] ?? null,
+                'checkout_status' => $ebayOrder['checkout_status'] ?? null,
+                'cancel_status' => $ebayOrder['cancel_status'] ?? null,
+                'shipped_time' => $ebayOrder['shipped_time'] ?? null,
+                'paid_time' => $ebayOrder['paid_time'] ?? null,
+                'created_time' => $ebayOrder['created_time'] ?? null,
+                'tracking_number' => $ebayOrder['tracking_number'] ?? null,
+                'shipping_carrier' => $ebayOrder['shipping_carrier'] ?? null,
+                'buyer' => $ebayOrder['buyer'] ?? null,
+                'total' => $ebayOrder['total'] ?? null,
+                'subtotal' => $ebayOrder['subtotal'] ?? null,
+                'shipping_cost' => $ebayOrder['shipping_cost'] ?? null,
+                'currency' => $ebayOrder['currency'] ?? null,
+                'line_items' => $ebayOrder['line_items'] ?? null,
+                'shipping_address' => $ebayOrder['shipping_address'] ?? null,
+                'raw_data' => $ebayOrder['raw_data'] ?? $ebayOrder,
+            ];
+
+            $filePath = "{$directory}/{$safeOrderId}.json";
+            File::put($filePath, json_encode($logData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+            Log::channel('ebay')->debug('Order response saved to file', [
+                'ebay_order_id' => $orderId,
+                'file_path' => $filePath,
+            ]);
+        } catch (Exception $e) {
+            Log::channel('ebay')->warning('Failed to save order log file', [
+                'ebay_order_id' => $ebayOrder['order_id'] ?? 'unknown',
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
