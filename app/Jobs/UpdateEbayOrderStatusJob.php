@@ -389,7 +389,7 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
             $updateData['ebay_payment_status'] = $ebayOrder['payment_status'];
         }
 
-        if (in_array($ebayOrder['order_status'], ['Cancelled']) && in_array($ebayOrder['cancel_status'], ['CancelComplete', 'CancelClosed', 'CancelClosedWithRefund', 'CancelClosedNoRefund'])) {
+        if (in_array($ebayOrder['order_status'], ['Cancelled']) || in_array($ebayOrder['cancel_status'], ['CancelComplete', 'CancelClosed', 'CancelClosedWithRefund', 'CancelClosedNoRefund'])) {
             if (strtolower($localOrder->order_status) !== 'cancelled') {
                 $localOrder->update(['order_status' => 'cancelled']);
             }
