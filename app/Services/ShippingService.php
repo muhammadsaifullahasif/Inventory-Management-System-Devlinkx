@@ -534,30 +534,31 @@ class ShippingService
                     ],
                 ],
 
-                'soldTo' => [
-                    'contact' => [
-                        'personName' => $carrier->shipper_name ?? 'Shipper',
-                        'companyName' => $carrier->shipper_name ?? 'Shipper',
-                        'phoneExtension' => '1',
-                        'phoneNumber' => $shipperPhone,
-                    ],
-                    'address' => [
-                        'streetLines'         => $shipperStreetLines,
-                        'city'                => $carrier->shipper_city          ?? 'New York',
-                        'stateOrProvinceCode' => $carrier->shipper_state         ?? 'NY',
-                        'postalCode'          => $carrier->shipper_postal_code   ?? '10001',
-                        'countryCode'         => $carrier->shipper_country       ?? 'US',
-                        'residential'         => false,
-                    ],
-                    'accountNumber' => [
-                        'value' => $carrier->account_number ?? ''
-                    ],
-                ],
+                // 'soldTo' => [
+                //     'contact' => [
+                //         'personName' => $carrier->shipper_name ?? 'Shipper',
+                //         'companyName' => $carrier->shipper_name ?? 'Shipper',
+                //         'phoneExtension' => '1',
+                //         'phoneNumber' => $shipperPhone,
+                //     ],
+                //     'address' => [
+                //         'streetLines'         => $shipperStreetLines,
+                //         'city'                => $carrier->shipper_city          ?? 'New York',
+                //         'stateOrProvinceCode' => $carrier->shipper_state         ?? 'NY',
+                //         'postalCode'          => $carrier->shipper_postal_code   ?? '10001',
+                //         'countryCode'         => $carrier->shipper_country       ?? 'US',
+                //         'residential'         => false,
+                //     ],
+                //     'accountNumber' => [
+                //         'value' => $carrier->account_number ?? ''
+                //     ],
+                // ],
 
                 // Recipient information
                 'recipients' => [[
                     'contact' => [
                         'personName'  => $order->shipping_name ?? $order->buyer_name ?? 'Recipient',
+                        'companyName'  => $order->shipping_name ?? $order->buyer_name ?? 'Recipient',
                         'phoneNumber' => $recipientPhone,
                     ],
                     'address' => [
@@ -570,10 +571,10 @@ class ShippingService
                     ],
                 ]],
 
-                'customerReferences' => [[
-                    'customerReferenceType' => 'CUSTOMER_REFERENCE',
-                    'value' => 'Order #' . ($order->order_number ?? $order->id),
-                ]],
+                // 'customerReferences' => [[
+                //     'customerReferenceType' => 'CUSTOMER_REFERENCE',
+                //     'value' => 'Order #' . ($order->order_number ?? $order->id),
+                // ]],
 
                 // Shipment configuration
                 'shipDatestamp'        => date('Y-m-d'), // Ship date (today)
