@@ -514,6 +514,8 @@ class ShippingService
         $shipmentPayload = [
             'labelResponseOptions' => 'LABEL',
             'accountNumber'        => ['value' => $carrier->account_number ?? ''],
+            'shipAction'           => 'CONFIRM',
+            'processingOptionType' => 'ALLOW_ASYNCHRONOUS',
             'requestedShipment'    => [
                 // Shipper information
                 'shipper' => [
@@ -532,6 +534,26 @@ class ShippingService
                     ],
                 ],
 
+                'soldTo' => [
+                    'contact' => [
+                        'personName' => $carrier->shipper_name ?? 'Shipper',
+                        'companyName' => $carrier->shipper_name ?? 'Shipper',
+                        'phoneExtension' => '1',
+                        'phoneNumber' => $shipperPhone,
+                    ],
+                    'address' => [
+                        'streetLines'         => $shipperStreetLines,
+                        'city'                => $carrier->shipper_city          ?? 'New York',
+                        'stateOrProvinceCode' => $carrier->shipper_state         ?? 'NY',
+                        'postalCode'          => $carrier->shipper_postal_code   ?? '10001',
+                        'countryCode'         => $carrier->shipper_country       ?? 'US',
+                        'residential'         => false,
+                    ],
+                    'accountNumber' => [
+                        'value' => $carrier->account_number ?? ''
+                    ],
+                ],
+
                 // Recipient information
                 'recipients' => [[
                     'contact' => [
@@ -546,6 +568,11 @@ class ShippingService
                         'countryCode'         => $order->shipping_country       ?? 'US',
                         'residential'         => $isResidential,
                     ],
+                ]],
+
+                'customerReferences' => [[
+                    'customerReferenceType' => 'CUSTOMER_REFERENCE',
+                    'value' => 'Order #' . ($order->order_number ?? $order->id),
                 ]],
 
                 // Shipment configuration
@@ -627,6 +654,8 @@ class ShippingService
                         'value' => 'Order #' . ($order->order_number ?? $order->id),
                     ]],
                 ]],
+
+                'totalPackageCount' => 1,
             ],
         ];
 
