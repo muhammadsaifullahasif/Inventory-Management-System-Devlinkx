@@ -249,6 +249,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/orders/{id}/refund', [OrderController::class, 'refund'])->name('orders.refund');
     Route::post('/orders/{id}/refund/partial', [OrderController::class, 'partialRefund'])->name('orders.refund.partial');
     Route::post('/orders/sync-ebay-status', [OrderController::class, 'syncEbayOrderStatus'])->name('orders.sync-ebay-status');
+    Route::post('/orders/close-fedex-shipments', [OrderController::class, 'closeFedExShipments'])->name('orders.close-fedex-shipments');
     Route::get('/orders-statistics', [OrderController::class, 'statistics'])->name('orders.statistics');
 
 

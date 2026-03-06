@@ -283,6 +283,107 @@ class FedexService
     }
 
     /**
+     * Close/commit shipments for the day (Ground End of Day).
+     * This is required for FedEx Ground shipments to appear in Ship Manager
+     * and to generate the manifest for pickup.
+     *
+     * @param string|null $closeDate The close date (YYYY-MM-DD), defaults to today
+     * @return array ['success' => bool, 'confirmation_number' => ?string, 'manifest' => ?string, 'raw' => array]
+     * @throws \RuntimeException on failure
+     */
+    public function closeShipments(?string $closeDate = null): array
+    {
+        $token = $this->getAccessToken();
+        if (!$token) {
+            throw new \RuntimeException('FedEx: Unable to obtain access token');
+        }
+
+        $endpoint = $this->carrier->is_sandbox
+            ? ($this->carrier->sandbox_endpoint ?: 'https://apis-sandbox.fedex.com')
+            : ($this->carrier->api_endpoint     ?: 'https://apis.fedex.com');
+
+        $closeDate = $closeDate ?? date('Y-m-d');
+
+        $payload = [
+            'accountNumber' => [
+                'value' => $this->carrier->account_number ?? '',
+            ],
+            'groundServiceCategory' => 'GROUND', // For FedEx Ground shipments
+            'closeReqType' => 'GCCLOSE', // Ground Close
+            'closeDate' => $closeDate,
+            'closeDocumentSpecification' => [
+                'closeDocumentTypes' => ['MANIFEST'],
+            ],
+        ];
+
+        Log::info('FedEx: closeShipments request', [
+            'endpoint' => $endpoint,
+            'is_sandbox' => $this->carrier->is_sandbox,
+            'close_date' => $closeDate,
+            'account_number' => $this->carrier->account_number,
+        ]);
+
+        try {
+            $response = Http::withToken($token)
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                    'x-locale'     => 'en_US',
+                ])
+                ->post("{$endpoint}/ship/v1/shipments/packages/close", $payload);
+
+            $data = $response->json();
+
+            if (!$response->successful()) {
+                $errorMessage = $data['errors'][0]['message']
+                    ?? $data['error_description']
+                    ?? $response->body();
+
+                Log::warning('FedEx: closeShipments failed', [
+                    'status'  => $response->status(),
+                    'body'    => $response->body(),
+                    'payload' => $payload,
+                ]);
+
+                // If no shipments to close, this is not an error
+                if (str_contains(strtolower($errorMessage), 'no shipment') ||
+                    str_contains(strtolower($errorMessage), 'nothing to close')) {
+                    return [
+                        'success' => true,
+                        'confirmation_number' => null,
+                        'manifest' => null,
+                        'message' => 'No shipments to close for this date',
+                        'raw' => $data,
+                    ];
+                }
+
+                throw new \RuntimeException("FedEx close shipments failed: {$errorMessage}");
+            }
+
+            $confirmationNumber = $data['output']['closeDocuments'][0]['confirmationNumber'] ?? null;
+            $manifestBase64 = $data['output']['closeDocuments'][0]['encodedDocument'] ?? null;
+
+            Log::info('FedEx: closeShipments success', [
+                'confirmation_number' => $confirmationNumber,
+                'close_date' => $closeDate,
+                'has_manifest' => !empty($manifestBase64),
+            ]);
+
+            return [
+                'success' => true,
+                'confirmation_number' => $confirmationNumber,
+                'manifest' => $manifestBase64,
+                'message' => 'Shipments closed successfully',
+                'raw' => $data,
+            ];
+        } catch (\RuntimeException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('FedEx: closeShipments exception', ['message' => $e->getMessage()]);
+            throw new \RuntimeException("FedEx close shipments failed: {$e->getMessage()}");
+        }
+    }
+
+    /**
      * Get tracking status for a shipment.
      *
      * @param string $trackingNumber The FedEx tracking number

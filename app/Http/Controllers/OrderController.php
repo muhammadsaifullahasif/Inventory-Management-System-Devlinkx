@@ -1223,4 +1223,54 @@ class OrderController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Close FedEx Ground shipments for the day (End of Day).
+     * This commits shipments to FedEx and generates the manifest for pickup.
+     */
+    public function closeFedExShipments(Request $request): JsonResponse
+    {
+        try {
+            // Get the default FedEx carrier
+            $carrier = Shipping::where('type', 'fedex')
+                ->where('active_status', '1')
+                ->where('delete_status', '0')
+                ->first();
+
+            if (!$carrier) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No active FedEx carrier found.',
+                ], 404);
+            }
+
+            $fedexService = new \App\Services\FedexService($carrier);
+            $closeDate = $request->input('close_date', date('Y-m-d'));
+
+            $result = $fedexService->closeShipments($closeDate);
+
+            // Save manifest if present
+            if (!empty($result['manifest'])) {
+                $filename = "fedex-manifests/manifest-{$closeDate}.pdf";
+                Storage::put($filename, base64_decode($result['manifest']));
+                $result['manifest_path'] = $filename;
+            }
+
+            return response()->json([
+                'success' => $result['success'],
+                'message' => $result['message'],
+                'confirmation_number' => $result['confirmation_number'] ?? null,
+                'manifest_path' => $result['manifest_path'] ?? null,
+            ]);
+        } catch (Exception $e) {
+            Log::error('Failed to close FedEx shipments', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to close shipments: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }

@@ -124,6 +124,9 @@
                     <button type="button" class="avatar-text avatar-md text-primary" id="syncEbayStatusBtn" data-bs-toggle="tooltip" title="Sync eBay order statuses (cancel/refund/return)">
                         <i class="feather-refresh-cw"></i>
                     </button>
+                    <button type="button" class="avatar-text avatar-md text-warning" id="closeFedExBtn" data-bs-toggle="tooltip" title="FedEx End of Day - Close shipments and generate manifest">
+                        <i class="feather-package"></i>
+                    </button>
                 </div>
             </div>
             <div class="card-body p-0">
@@ -1151,6 +1154,51 @@
                     },
                     error: function(xhr) {
                         alert('Failed to start sync: ' + (xhr.responseJSON?.message || 'Unknown error'));
+                        $btn.prop('disabled', false).html(originalHtml);
+                    }
+                });
+            });
+
+            // ----------------------------------------------------------------
+            // FedEx End of Day Close button
+            // ----------------------------------------------------------------
+            $('#closeFedExBtn').on('click', function() {
+                if (!confirm('Close FedEx shipments for today? This will commit all shipments created today and generate the manifest for pickup.')) {
+                    return;
+                }
+
+                var $btn = $(this);
+                var originalHtml = $btn.html();
+
+                $btn.prop('disabled', true).html('<i class="spinner-border spinner-border-sm"></i>');
+
+                $.ajax({
+                    url: '{{ route('orders.close-fedex-shipments') }}',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            var msg = response.message;
+                            if (response.confirmation_number) {
+                                msg += '\n\nConfirmation #: ' + response.confirmation_number;
+                            }
+                            if (response.manifest_path) {
+                                msg += '\n\nManifest saved to: ' + response.manifest_path;
+                            }
+                            alert(msg);
+                            $btn.html('<i class="feather-check"></i>');
+                            setTimeout(function() {
+                                $btn.prop('disabled', false).html(originalHtml);
+                            }, 3000);
+                        } else {
+                            alert(response.message || 'Failed to close shipments');
+                            $btn.prop('disabled', false).html(originalHtml);
+                        }
+                    },
+                    error: function(xhr) {
+                        alert('Failed to close shipments: ' + (xhr.responseJSON?.message || 'Unknown error'));
                         $btn.prop('disabled', false).html(originalHtml);
                     }
                 });
