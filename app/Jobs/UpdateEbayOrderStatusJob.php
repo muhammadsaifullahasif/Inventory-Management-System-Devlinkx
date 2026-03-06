@@ -395,6 +395,7 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
             }
         }
 
+        /*
         // Only update if there are changes
         if (!empty($updateData)) {
             $localOrder->update($updateData);
@@ -416,6 +417,7 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
                 'changes' => $changes,
             ]);
         }
+        */
 
         return $result;
     }
