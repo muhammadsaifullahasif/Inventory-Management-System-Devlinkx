@@ -409,6 +409,10 @@ class EbayService
             'orders' => [],
         ];
 
+        Log::info('Ebay Orders Reponse: ', [
+            'response' => $response,
+        ]);
+
         $orders = self::normalizeList($response['OrderArray']['Order'] ?? []);
         foreach ($orders as $order) {
             $result['orders'][] = $this->parseOrder($order);
