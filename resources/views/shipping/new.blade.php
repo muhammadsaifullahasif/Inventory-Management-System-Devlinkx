@@ -72,11 +72,16 @@
                 <h6 class="fw-bold mb-3"><i class="feather-map-pin me-2"></i>Shipper Address <small class="text-muted fw-normal">(Ship From)</small></h6>
 
                 <div class="row">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label class="form-label">Company / Sender Name</label>
                         <input type="text" name="shipper_name" value="{{ old('shipper_name') }}" class="form-control" placeholder="e.g. My Store LLC">
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Phone Number</label>
+                        <input type="text" name="shipper_phone" value="{{ old('shipper_phone') }}" class="form-control" placeholder="e.g. 8321234567">
+                        <small class="text-muted">Required for FedEx shipments</small>
+                    </div>
+                    <div class="col-md-4 mb-3">
                         <label class="form-label">Street Address</label>
                         <input type="text" name="shipper_address" value="{{ old('shipper_address') }}" class="form-control" placeholder="123 Warehouse Blvd">
                     </div>

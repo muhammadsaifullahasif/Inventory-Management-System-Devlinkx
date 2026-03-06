@@ -498,15 +498,29 @@ class ShippingService
             $order->shipping_address_line2 ?? null,
         ]));
 
+        // Get shipper phone - use carrier's shipper_phone or fallback
+        $shipperPhone = $carrier->shipper_phone ?? config('shipping.shipper_phone', '0000000000');
+        // FedEx requires phone without special characters
+        $shipperPhone = preg_replace('/[^0-9]/', '', $shipperPhone);
+
+        // Get recipient phone - use order phone or fallback
+        $recipientPhone = $order->buyer_phone ?? $order->shipping_phone ?? '0000000000';
+        $recipientPhone = preg_replace('/[^0-9]/', '', $recipientPhone);
+
+        // Determine if residential address
+        $isResidential = in_array($order->address_type, ['RESIDENTIAL', 'MIXED']);
+
+        // Build the comprehensive FedEx Ship API payload
         $shipmentPayload = [
             'labelResponseOptions' => 'LABEL',
             'accountNumber'        => ['value' => $carrier->account_number ?? ''],
             'requestedShipment'    => [
+                // Shipper information
                 'shipper' => [
                     'contact' => [
                         'personName'  => $carrier->shipper_name ?? 'Shipper',
                         'companyName' => $carrier->shipper_name ?? 'Shipper',
-                        'phoneNumber' => '18323457985',
+                        'phoneNumber' => $shipperPhone,
                     ],
                     'address' => [
                         'streetLines'         => $shipperStreetLines,
@@ -514,12 +528,15 @@ class ShippingService
                         'stateOrProvinceCode' => $carrier->shipper_state         ?? 'NY',
                         'postalCode'          => $carrier->shipper_postal_code   ?? '10001',
                         'countryCode'         => $carrier->shipper_country       ?? 'US',
+                        'residential'         => false,
                     ],
                 ],
+
+                // Recipient information
                 'recipients' => [[
                     'contact' => [
                         'personName'  => $order->shipping_name ?? $order->buyer_name ?? 'Recipient',
-                        'phoneNumber' => $order->buyer_phone ?? '1234567890',
+                        'phoneNumber' => $recipientPhone,
                     ],
                     'address' => [
                         'streetLines'         => $recipientStreetLines,
@@ -527,26 +544,74 @@ class ShippingService
                         'stateOrProvinceCode' => $order->shipping_state         ?? '',
                         'postalCode'          => $order->shipping_postal_code   ?? '',
                         'countryCode'         => $order->shipping_country       ?? 'US',
-                        'residential'         => in_array($order->address_type, ['RESIDENTIAL', 'MIXED']),
+                        'residential'         => $isResidential,
                     ],
                 ]],
+
+                // Shipment configuration
+                'shipDatestamp'        => date('Y-m-d'), // Ship date (today)
                 'serviceType'          => $serviceCode,
                 'packagingType'        => 'YOUR_PACKAGING',
-                'pickupType'           => 'DROPOFF_AT_FEDEX_LOCATION',
+                'pickupType'           => 'USE_SCHEDULED_PICKUP', // FedEx picks up from warehouse
+                'blockInsightVisibility' => false,
+
+                // Payment - sender pays
                 'shippingChargesPayment' => [
                     'paymentType' => 'SENDER',
                     'payor'       => [
                         'responsibleParty' => [
                             'accountNumber' => ['value' => $carrier->account_number ?? ''],
+                            'contact' => [
+                                'personName'  => $carrier->shipper_name ?? 'Shipper',
+                                'companyName' => $carrier->shipper_name ?? 'Shipper',
+                                'phoneNumber' => $shipperPhone,
+                            ],
+                            'address' => [
+                                'streetLines'         => $shipperStreetLines,
+                                'city'                => $carrier->shipper_city          ?? 'New York',
+                                'stateOrProvinceCode' => $carrier->shipper_state         ?? 'NY',
+                                'postalCode'          => $carrier->shipper_postal_code   ?? '10001',
+                                'countryCode'         => $carrier->shipper_country       ?? 'US',
+                            ],
                         ],
                     ],
                 ],
+
+                // Label configuration
                 'labelSpecification' => [
                     'labelFormatType' => 'COMMON2D',
                     'imageType'       => 'PDF',
                     'labelStockType'  => 'PAPER_4X6',
+                    'labelPrintingOrientation' => 'TOP_EDGE_OF_TEXT_FIRST',
+                    'labelOrder' => 'SHIPPING_LABEL_FIRST',
                 ],
+
+                // Shipment special services (optional - email notifications)
+                'shipmentSpecialServices' => [
+                    'specialServiceTypes' => ['EVENT_NOTIFICATION'],
+                    'eventNotificationDetail' => [
+                        'eventNotifications' => [[
+                            'events' => ['ON_SHIPMENT', 'ON_EXCEPTION', 'ON_DELIVERY'],
+                            'notificationDetail' => [
+                                'notificationType' => 'EMAIL',
+                                'emailDetail' => [
+                                    'emailAddress' => $order->buyer_email ?? '',
+                                    'name' => $order->shipping_name ?? $order->buyer_name ?? 'Customer',
+                                ],
+                                'localization' => [
+                                    'languageCode' => 'EN',
+                                ],
+                            ],
+                            'formatSpecification' => [
+                                'type' => 'HTML',
+                            ],
+                        ]],
+                    ],
+                ],
+
+                // Package details
                 'requestedPackageLineItems' => [[
+                    'sequenceNumber' => 1,
                     'weight' => [
                         'units' => $fedexWeightUnit,
                         'value' => round($totalWeight, 2),
@@ -557,10 +622,18 @@ class ShippingService
                         'height' => (int) ceil($maxHeight),
                         'units'  => $fedexDimUnit,
                     ],
+                    'customerReferences' => [[
+                        'customerReferenceType' => 'CUSTOMER_REFERENCE',
+                        'value' => 'Order #' . ($order->order_number ?? $order->id),
+                    ]],
                 ]],
-                'totalWeight' => round($totalWeight, 1),
             ],
         ];
+
+        // Remove email notification if no buyer email
+        if (empty($order->buyer_email)) {
+            unset($shipmentPayload['requestedShipment']['shipmentSpecialServices']);
+        }
 
         // Call FedEx to create shipment
         $result = $service->createShipment($shipmentPayload);

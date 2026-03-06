@@ -75,6 +75,10 @@
                     </div>
                 </div>
                 <div class="row mb-3">
+                    <div class="col-sm-4 text-muted">Shipper Phone</div>
+                    <div class="col-sm-8">{{ $shipping->shipper_phone ?: '-' }}</div>
+                </div>
+                <div class="row mb-3">
                     <div class="col-sm-4 text-muted">Weight Unit</div>
                     <div class="col-sm-8">{{ $shipping->weight_unit }}</div>
                 </div>

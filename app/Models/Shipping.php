@@ -23,6 +23,7 @@ class Shipping extends Model
         'shipper_state',
         'shipper_postal_code',
         'shipper_country',
+        'shipper_phone',
         'is_sandbox',
         'is_address_validation',
         'api_endpoint',
