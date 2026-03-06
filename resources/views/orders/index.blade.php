@@ -104,7 +104,7 @@
                 @can('delete orders')
                     @include('partials.bulk-actions-bar', ['itemName' => 'orders'])
                 @endcan
-                <div class="ms-auto">
+                <div class="ms-auto d-flex align-items-center gap-2">
                     @php
                         $orderColumns = [
                             ['key' => 'id', 'label' => 'ID', 'default' => true],
@@ -121,6 +121,9 @@
                         ];
                     @endphp
                     @include('partials.column-toggle', ['tableId' => 'ordersTable', 'cookieName' => 'orders_columns', 'columns' => $orderColumns])
+                    <button type="button" class="avatar-text avatar-md text-primary" id="syncEbayStatusBtn" data-bs-toggle="tooltip" title="Sync eBay order statuses (cancel/refund/return)">
+                        <i class="feather-refresh-cw"></i>
+                    </button>
                 </div>
             </div>
             <div class="card-body p-0">
@@ -1116,6 +1119,39 @@
                     },
                     error: function(xhr) {
                         alert('Failed to update order: ' + (xhr.responseJSON?.message || 'Unknown error'));
+                    }
+                });
+            });
+
+            // ----------------------------------------------------------------
+            // Sync eBay Order Status button
+            // ----------------------------------------------------------------
+            $('#syncEbayStatusBtn').on('click', function() {
+                var $btn = $(this);
+                var originalHtml = $btn.html();
+
+                $btn.prop('disabled', true).html('<i class="spinner-border spinner-border-sm me-1"></i> Syncing...');
+
+                $.ajax({
+                    url: '{{ route('orders.sync-ebay-status') }}',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            $btn.html('<i class="feather-check me-1"></i> Queued!');
+                            setTimeout(function() {
+                                $btn.prop('disabled', false).html(originalHtml);
+                            }, 3000);
+                        } else {
+                            alert(response.message || 'Failed to start sync');
+                            $btn.prop('disabled', false).html(originalHtml);
+                        }
+                    },
+                    error: function(xhr) {
+                        alert('Failed to start sync: ' + (xhr.responseJSON?.message || 'Unknown error'));
+                        $btn.prop('disabled', false).html(originalHtml);
                     }
                 });
             });

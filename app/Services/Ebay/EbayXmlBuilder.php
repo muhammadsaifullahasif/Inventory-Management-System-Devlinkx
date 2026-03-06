@@ -418,6 +418,26 @@ XML;
     }
 
     /**
+     * Build GetOrders request XML by order IDs.
+     * Used for fetching specific orders to check their status.
+     */
+    public static function getOrdersByIds(array $orderIds): string
+    {
+        $orderIdXml = '';
+        foreach ($orderIds as $orderId) {
+            $orderIdXml .= '<OrderID>' . htmlspecialchars($orderId) . '</OrderID>';
+        }
+
+        return '<?xml version="1.0" encoding="utf-8"?>
+            <GetOrdersRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                <ErrorLanguage>en_US</ErrorLanguage>
+                <WarningLevel>High</WarningLevel>
+                <DetailLevel>ReturnAll</DetailLevel>
+                <OrderIDArray>' . $orderIdXml . '</OrderIDArray>
+            </GetOrdersRequest>';
+    }
+
+    /**
      * Build CompleteSale request XML (mark order shipped by ItemID + TransactionID).
      */
     public static function completeSale(

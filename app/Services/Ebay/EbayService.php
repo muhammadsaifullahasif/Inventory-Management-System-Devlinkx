@@ -388,6 +388,36 @@ class EbayService
     }
 
     /**
+     * Get orders by their eBay order IDs.
+     * Used for checking status updates on specific orders.
+     */
+    public function getOrdersByIds(SalesChannel $channel, array $orderIds): array
+    {
+        if (empty($orderIds)) {
+            return [
+                'success' => true,
+                'orders' => [],
+            ];
+        }
+
+        $xml = EbayXmlBuilder::getOrdersByIds($orderIds);
+        $response = $this->client->call($channel, 'GetOrders', $xml);
+        $this->client->checkForErrors($response);
+
+        $result = [
+            'success' => true,
+            'orders' => [],
+        ];
+
+        $orders = self::normalizeList($response['OrderArray']['Order'] ?? []);
+        foreach ($orders as $order) {
+            $result['orders'][] = $this->parseOrder($order);
+        }
+
+        return $result;
+    }
+
+    /**
      * Complete a sale with shipment tracking.
      */
     public function completeSale(

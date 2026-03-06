@@ -1198,4 +1198,29 @@ class OrderController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Manually trigger eBay order status sync.
+     * Dispatches the UpdateEbayOrderStatusJob to sync cancel/refund/return statuses.
+     */
+    public function syncEbayOrderStatus(): JsonResponse
+    {
+        try {
+            \App\Jobs\UpdateEbayOrderStatusJob::dispatch(90);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'eBay order status sync has been queued. Statuses will be updated shortly.',
+            ]);
+        } catch (Exception $e) {
+            Log::error('Failed to dispatch eBay order status sync', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to start sync: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }
