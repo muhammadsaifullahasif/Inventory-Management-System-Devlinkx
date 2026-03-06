@@ -442,7 +442,7 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
             // Sanitize order ID for filename (replace special chars)
             $safeOrderId = preg_replace('/[^a-zA-Z0-9_-]/', '_', $orderId);
 
-            $date = now()->format('Y-m-d');
+            $date = now()->format('Y-m-d-H-i');
             $directory = storage_path("logs/ebay/orders/{$date}");
 
             // Create directory if it doesn't exist
