@@ -382,11 +382,17 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
         }
 
         // Update eBay-specific status fields
-        if ($localOrder->ebay_order_status !== $ebayOrder['order_status']) {
+        if (strtolower($localOrder->ebay_order_status) !== strtolower($ebayOrder['order_status'])) {
             $updateData['ebay_order_status'] = $ebayOrder['order_status'];
         }
-        if ($localOrder->ebay_payment_status !== $ebayOrder['payment_status']) {
+        if (strtolower($localOrder->ebay_payment_status) !== strtolower($ebayOrder['payment_status'])) {
             $updateData['ebay_payment_status'] = $ebayOrder['payment_status'];
+        }
+
+        if (in_array($ebayOrder['order_status'], ['Cancelled']) && in_array($ebayOrder['cancel_status'], ['CancelComplete', 'CancelClosed', 'CancelClosedWithRefund', 'CancelClosedNoRefund'])) {
+            if (strtolower($localOrder->order_status) !== 'cancelled') {
+                $localOrder->update(['order_status' => 'cancelled']);
+            }
         }
 
         // Only update if there are changes
