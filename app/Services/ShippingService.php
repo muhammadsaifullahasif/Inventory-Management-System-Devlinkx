@@ -535,6 +535,8 @@ class ShippingService
                     ],
                 ],
 
+                'accountNumber'        => ['value' => $carrier->account_number ?? ''],
+
                 // Recipient information
                 'recipients' => [[
                     'contact' => [
@@ -546,7 +548,7 @@ class ShippingService
                         'streetLines'         => $recipientStreetLines,
                         'city'                => $order->shipping_city          ?? '',
                         'stateOrProvinceCode' => $order->shipping_state         ?? '',
-                        'postalCode'          => $order->shipping_postal_code   ?? '',
+                        'postalCode'          => substr($order->shipping_postal_code, 0, 5) ?? '',
                         'countryCode'         => $order->shipping_country       ?? 'US',
                         'residential'         => $isResidential,
                     ],
@@ -556,7 +558,7 @@ class ShippingService
                 'shipDatestamp'        => date('Y-m-d'), // Ship date (today)
                 'serviceType'          => $serviceCode,
                 'packagingType'        => 'YOUR_PACKAGING',
-                'pickupType'           => 'USE_SCHEDULED_PICKUP', // FedEx picks up from warehouse
+                'pickupType'           => 'DROPOFF_AT_FEDEX_LOCATION', // FedEx picks up from warehouse
                 'blockInsightVisibility' => true,
 
                 // Payment - sender pays
