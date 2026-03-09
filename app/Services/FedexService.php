@@ -170,9 +170,9 @@ class FedexService
     }
 
     /**
-     * Create a shipment and generate a shipping label using two-step process.
-     * Step 1: CONFIRM - validates shipment and gets shipmentId + tracking number + label
-     * Step 2: SHIP - registers the shipment in FedEx system using shipmentId
+     * Create a shipment and generate a shipping label.
+     * Uses shipAction=CREATE with processingOptionType=SYNCHRONOUS_ONLY
+     * to create and register the shipment in FedEx system in a single call.
      *
      * @param array $shipmentDetails The full shipment payload for FedEx Ship API
      * @return array ['tracking_number' => string, 'label_base64' => string, 'label_format' => string]
@@ -189,45 +189,42 @@ class FedexService
             ? ($this->carrier->sandbox_endpoint ?: 'https://apis-sandbox.fedex.com')
             : ($this->carrier->api_endpoint     ?: 'https://apis.fedex.com');
 
-        // =========================================================================
-        // STEP 1: CONFIRM - Validate shipment and get shipmentId, tracking, label
-        // =========================================================================
+        // Set shipAction to CREATE for single-step shipment creation and registration
+        $shipmentDetails['shipAction'] = 'CREATE';
+        $shipmentDetails['processingOptionType'] = 'SYNCHRONOUS_ONLY';
 
-        // Override shipAction to CONFIRM for first step
-        $confirmPayload = $shipmentDetails;
-        $confirmPayload['shipAction'] = 'CONFIRM';
-
-        Log::info('FedEx: createShipment STEP 1 (CONFIRM) request', [
+        Log::info('FedEx: createShipment request', [
             'endpoint' => $endpoint,
             'is_sandbox' => $this->carrier->is_sandbox,
             'carrier_name' => $this->carrier->name,
             'account_number' => $this->carrier->account_number,
-            'ship_action' => 'CONFIRM',
+            'ship_action' => 'CREATE',
+            'processing_option_type' => 'SYNCHRONOUS_ONLY',
         ]);
 
         try {
-            $confirmResponse = Http::withToken($token)
+            $response = Http::withToken($token)
                 ->withHeaders([
                     'Content-Type' => 'application/json',
                     'x-locale'     => 'en_US',
                 ])
-                ->post("{$endpoint}/ship/v1/shipments", $confirmPayload);
+                ->post("{$endpoint}/ship/v1/shipments", $shipmentDetails);
 
-            if (!$confirmResponse->successful()) {
-                $errorBody = $confirmResponse->json();
+            if (!$response->successful()) {
+                $errorBody = $response->json();
                 $errorCode = $errorBody['errors'][0]['code'] ?? '';
                 $errorMessage = $errorBody['errors'][0]['message']
                     ?? $errorBody['error_description']
-                    ?? $confirmResponse->body();
+                    ?? $response->body();
 
-                Log::error('FedEx: createShipment CONFIRM failed', [
-                    'status'  => $confirmResponse->status(),
-                    'body'    => $confirmResponse->body(),
-                    'json'    => $confirmResponse->json(),
-                    'payload' => $confirmPayload,
+                Log::error('FedEx: createShipment failed', [
+                    'status'  => $response->status(),
+                    'body'    => $response->body(),
+                    'json'    => $response->json(),
+                    'payload' => $shipmentDetails,
                 ]);
 
-                if ($confirmResponse->status() === 403 || $errorCode === 'FORBIDDEN.ERROR') {
+                if ($response->status() === 403 || $errorCode === 'FORBIDDEN.ERROR') {
                     throw new \RuntimeException(
                         "FedEx authorization failed. Please ensure: (1) Ship API is enabled in your FedEx Developer Portal project, " .
                         "(2) Your account number is authorized for shipping, (3) You're using the correct sandbox/production credentials. " .
@@ -235,115 +232,49 @@ class FedexService
                     );
                 }
 
-                throw new \RuntimeException("FedEx shipment CONFIRM failed: {$errorMessage}");
+                throw new \RuntimeException("FedEx shipment creation failed: {$errorMessage}");
             }
 
-            $confirmData = $confirmResponse->json();
+            $data = $response->json();
 
-            // Extract shipmentId from CONFIRM response
-            $shipmentId = $confirmData['output']['transactionShipments'][0]['shipmentId'] ?? null;
+            // Extract shipmentId
+            $shipmentId = $data['output']['transactionShipments'][0]['shipmentId'] ?? null;
 
             // Extract tracking number
-            $trackingNumber = $confirmData['output']['transactionShipments'][0]['masterTrackingNumber'] ?? null;
+            $trackingNumber = $data['output']['transactionShipments'][0]['masterTrackingNumber'] ?? null;
             if (!$trackingNumber) {
-                $trackingNumber = $confirmData['output']['transactionShipments'][0]['pieceResponses'][0]['trackingNumber'] ?? null;
+                $trackingNumber = $data['output']['transactionShipments'][0]['pieceResponses'][0]['trackingNumber'] ?? null;
             }
 
             // Extract label (base64 encoded)
-            $labelBase64 = $confirmData['output']['transactionShipments'][0]['pieceResponses'][0]['packageDocuments'][0]['encodedLabel'] ?? null;
-            $labelFormat = $confirmData['output']['transactionShipments'][0]['pieceResponses'][0]['packageDocuments'][0]['docType'] ?? 'PDF';
+            $labelBase64 = $data['output']['transactionShipments'][0]['pieceResponses'][0]['packageDocuments'][0]['encodedLabel'] ?? null;
+            $labelFormat = $data['output']['transactionShipments'][0]['pieceResponses'][0]['packageDocuments'][0]['docType'] ?? 'PDF';
 
-            Log::info('FedEx: createShipment STEP 1 (CONFIRM) response', [
+            Log::info('FedEx: createShipment response', [
                 'endpoint' => $endpoint,
                 'is_sandbox' => $this->carrier->is_sandbox,
-                'http_status' => $confirmResponse->status(),
-                'transaction_id' => $confirmData['transactionId'] ?? null,
+                'http_status' => $response->status(),
+                'transaction_id' => $data['transactionId'] ?? null,
                 'shipment_id' => $shipmentId,
                 'tracking_number' => $trackingNumber,
                 'has_label' => !empty($labelBase64),
-                'alerts' => $confirmData['output']['alerts'] ?? [],
+                'alerts' => $data['output']['alerts'] ?? [],
+                'service_type' => $data['output']['transactionShipments'][0]['serviceType'] ?? null,
             ]);
 
             if (!$trackingNumber || !$labelBase64) {
-                Log::error('FedEx: createShipment CONFIRM missing tracking or label', [
-                    'response' => $confirmData,
+                Log::error('FedEx: createShipment missing tracking or label', [
+                    'response' => $data,
                 ]);
-                throw new \RuntimeException('FedEx: CONFIRM succeeded but missing tracking number or label');
+                throw new \RuntimeException('FedEx: Shipment created but missing tracking number or label');
             }
 
-            // =========================================================================
-            // STEP 2: SHIP - Register the shipment in FedEx system using shipmentId
-            // =========================================================================
-
-            if ($shipmentId) {
-                Log::info('FedEx: createShipment STEP 2 (SHIP) request', [
-                    'endpoint' => $endpoint,
-                    'shipment_id' => $shipmentId,
-                    'tracking_number' => $trackingNumber,
-                ]);
-
-                // Build SHIP payload - simpler, just needs shipmentId and accountNumber
-                $shipPayload = [
-                    'shipAction' => 'SHIP',
-                    'processingOptionType' => 'SYNCHRONOUS_ONLY',
-                    'accountNumber' => $shipmentDetails['accountNumber'] ?? ['value' => ''],
-                    'shipmentId' => $shipmentId,
-                ];
-
-                $shipResponse = Http::withToken($token)
-                    ->withHeaders([
-                        'Content-Type' => 'application/json',
-                        'x-locale'     => 'en_US',
-                    ])
-                    ->post("{$endpoint}/ship/v1/shipments", $shipPayload);
-
-                if (!$shipResponse->successful()) {
-                    $shipErrorBody = $shipResponse->json();
-                    $shipErrorMessage = $shipErrorBody['errors'][0]['message']
-                        ?? $shipErrorBody['error_description']
-                        ?? $shipResponse->body();
-
-                    Log::error('FedEx: createShipment SHIP failed', [
-                        'status'  => $shipResponse->status(),
-                        'body'    => $shipResponse->body(),
-                        'json'    => $shipResponse->json(),
-                        'payload' => $shipPayload,
-                        'shipment_id' => $shipmentId,
-                    ]);
-
-                    // Even if SHIP fails, we have the label and tracking from CONFIRM
-                    // Log warning but don't throw - shipment may still be usable
-                    Log::warning('FedEx: SHIP step failed but CONFIRM succeeded. Shipment may not appear in FedEx Shipment History.', [
-                        'tracking_number' => $trackingNumber,
-                        'shipment_id' => $shipmentId,
-                        'error' => $shipErrorMessage,
-                    ]);
-                } else {
-                    $shipData = $shipResponse->json();
-
-                    Log::info('FedEx: createShipment STEP 2 (SHIP) response - SUCCESS', [
-                        'http_status' => $shipResponse->status(),
-                        'transaction_id' => $shipData['transactionId'] ?? null,
-                        'shipment_id' => $shipmentId,
-                        'tracking_number' => $trackingNumber,
-                        'alerts' => $shipData['output']['alerts'] ?? [],
-                    ]);
-                }
-            } else {
-                // No shipmentId returned - log warning
-                Log::warning('FedEx: CONFIRM response did not return shipmentId. Shipment may not appear in FedEx Shipment History.', [
-                    'tracking_number' => $trackingNumber,
-                    'confirm_response' => $confirmData,
-                ]);
-            }
-
-            Log::info('FedEx: shipment created successfully (two-step process)', [
+            Log::info('FedEx: shipment created successfully', [
                 'tracking_number' => $trackingNumber,
                 'carrier_id'      => $this->carrier->id,
                 'endpoint' => $endpoint,
                 'is_sandbox' => $this->carrier->is_sandbox,
                 'shipment_id' => $shipmentId,
-                'service_type' => $confirmData['output']['transactionShipments'][0]['serviceType'] ?? null,
             ]);
 
             return [
