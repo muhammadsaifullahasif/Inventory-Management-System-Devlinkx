@@ -511,10 +511,10 @@ class ShippingService
         $isResidential = in_array($order->address_type, ['RESIDENTIAL', 'MIXED']);
 
         // Build the comprehensive FedEx Ship API payload
+        // Note: shipAction is handled by FedexService (two-step CONFIRM -> SHIP flow)
         $shipmentPayload = [
             'labelResponseOptions' => 'LABEL',
             'accountNumber'        => ['value' => $carrier->account_number ?? ''],
-            'shipAction'           => 'SHIP',
             'processingOptionType' => 'SYNCHRONOUS_ONLY',
             'requestedShipment'    => [
                 // Shipper information
