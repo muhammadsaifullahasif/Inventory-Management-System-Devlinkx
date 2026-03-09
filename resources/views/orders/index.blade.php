@@ -144,6 +144,7 @@
                                         </div>
                                     </th>
                                 @endcan
+                                <th style="width: 40px;"></th>
                                 <th data-column="id">#</th>
                                 <th data-column="order_number">Order #</th>
                                 <th data-column="channel">Channel</th>
@@ -173,6 +174,11 @@
                                             {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $order->id }}"> --}}
                                         </td>
                                     @endcan
+                                    <td class="text-center">
+                                        <a href="javascript:void(0);" class="avatar-text avatar-sm expand-items-btn" data-order-id="{{ $order->id }}" data-bs-toggle="tooltip" title="View Items">
+                                            <i class="feather-chevron-right expand-icon"></i>
+                                        </a>
+                                    </td>
                                     <td data-column="id">{{ $order->id }}</td>
                                     <td data-column="order_number">
                                         <a href="{{ route('orders.show', $order->id) }}" class="fw-semibold text-primary">
@@ -348,9 +354,94 @@
                                         </div>
                                     </td>
                                 </tr>
+                                <!-- Order Items Subtable Row (Hidden by default) -->
+                                <tr class="order-items-row" id="order-items-{{ $order->id }}" style="display: none;">
+                                    <td colspan="14" class="p-0 bg-light">
+                                        <div class="p-3">
+                                            <h6 class="mb-2 fw-bold"><i class="feather-package me-2"></i>Order Items</h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-bordered mb-0 bg-white">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th style="width: 60px;">Image</th>
+                                                            <th>Item Name</th>
+                                                            <th>eBay Item ID</th>
+                                                            <th>SKU</th>
+                                                            <th class="text-center">Qty</th>
+                                                            <th class="text-end">Unit Price</th>
+                                                            <th class="text-end">Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @forelse($order->items as $item)
+                                                            <tr>
+                                                                <td class="text-center">
+                                                                    @php
+                                                                        $itemImage = null;
+                                                                        if ($item->product && $item->product->images && count($item->product->images) > 0) {
+                                                                            $itemImage = $item->product->images[0];
+                                                                        }
+                                                                    @endphp
+                                                                    @if($itemImage)
+                                                                        <img src="{{ asset('storage/' . $itemImage) }}" alt="{{ $item->title }}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">
+                                                                    @else
+                                                                        <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                                            <i class="feather-image text-muted"></i>
+                                                                        </div>
+                                                                    @endif
+                                                                </td>
+                                                                <td>
+                                                                    <span class="fw-semibold">{{ \Illuminate\Support\Str::limit($item->title, 50) }}</span>
+                                                                    @if($item->variation_attributes)
+                                                                        <span class="d-block fs-11 text-muted">
+                                                                            @foreach($item->variation_attributes as $attr => $val)
+                                                                                {{ $attr }}: {{ $val }}@if(!$loop->last), @endif
+                                                                            @endforeach
+                                                                        </span>
+                                                                    @endif
+                                                                </td>
+                                                                <td>
+                                                                    @if($item->ebay_item_id)
+                                                                        <code class="fs-11">{{ $item->ebay_item_id }}</code>
+                                                                    @else
+                                                                        <span class="text-muted fs-11">-</span>
+                                                                    @endif
+                                                                </td>
+                                                                <td>
+                                                                    @if($item->sku)
+                                                                        <code class="fs-11">{{ $item->sku }}</code>
+                                                                    @else
+                                                                        <span class="text-muted fs-11">-</span>
+                                                                    @endif
+                                                                </td>
+                                                                <td class="text-center fw-semibold">{{ $item->quantity }}</td>
+                                                                <td class="text-end">{{ $order->currency ?? 'USD' }} {{ number_format($item->unit_price, 2) }}</td>
+                                                                <td class="text-end fw-semibold">{{ $order->currency ?? 'USD' }} {{ number_format($item->total_price, 2) }}</td>
+                                                            </tr>
+                                                        @empty
+                                                            <tr>
+                                                                <td colspan="7" class="text-center text-muted py-3">No items found.</td>
+                                                            </tr>
+                                                        @endforelse
+                                                    </tbody>
+                                                    @if($order->items->count() > 0)
+                                                        <tfoot class="table-light">
+                                                            <tr>
+                                                                <td colspan="4"></td>
+                                                                <td class="text-center fw-bold">{{ $order->items->sum('quantity') }}</td>
+                                                                <td class="text-end"></td>
+                                                                <td class="text-end fw-bold">{{ $order->currency ?? 'USD' }} {{ number_format($order->items->sum('total_price'), 2) }}</td>
+                                                            </tr>
+                                                        </tfoot>
+                                                    @endif
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
                             @empty
                                 <tr>
-                                    <td colspan="13" class="text-center py-4 text-muted">No orders found.</td>
+                                    <td colspan="14" class="text-center py-4 text-muted">No orders found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -665,6 +756,28 @@
 @push('scripts')
     <script>
         $(document).ready(function() {
+
+            // ----------------------------------------------------------------
+            // Expand/Collapse Order Items Subtable
+            // ----------------------------------------------------------------
+            $(document).on('click', '.expand-items-btn', function() {
+                var $btn = $(this);
+                var orderId = $btn.data('order-id');
+                var $icon = $btn.find('.expand-icon');
+                var $itemsRow = $('#order-items-' + orderId);
+
+                if ($itemsRow.is(':visible')) {
+                    // Collapse
+                    $itemsRow.slideUp(200);
+                    $icon.removeClass('feather-chevron-down').addClass('feather-chevron-right');
+                    $btn.removeClass('bg-soft-primary');
+                } else {
+                    // Expand
+                    $itemsRow.slideDown(200);
+                    $icon.removeClass('feather-chevron-right').addClass('feather-chevron-down');
+                    $btn.addClass('bg-soft-primary');
+                }
+            });
 
             // ----------------------------------------------------------------
             // Refund Modal
