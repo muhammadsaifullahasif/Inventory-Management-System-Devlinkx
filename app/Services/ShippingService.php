@@ -514,7 +514,7 @@ class ShippingService
         $shipmentPayload = [
             'labelResponseOptions' => 'LABEL',
             'accountNumber'        => ['value' => $carrier->account_number ?? ''],
-            'shipAction'           => 'CONFIRM',
+            'shipAction'           => 'SHIP',
             'processingOptionType' => 'SYNCHRONOUS_ONLY',
             'requestedShipment'    => [
                 // Shipper information
