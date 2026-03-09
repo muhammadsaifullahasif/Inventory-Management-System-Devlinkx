@@ -594,6 +594,21 @@ class ShippingService
                 ],
 
                 // Shipment special services (optional - email notifications)
+                'shipmentSpecialServices' => [
+                    'specialServiceTypes' => ['EVENT_NOTIFICATION'],
+                    'eventNotifications' => [[
+                        'events' => ['ON_SHIPMENT','ON_EXCEPTION','ON_DELIVERY'],
+                        'notificationDetail' => [
+                            'notificationType' => 'EMAIL',
+                            'emailDetail' => [
+                                'emailAddress' => 'muhammadsaifullahasif@gmail.com',
+                                'name' => $order->shipping_name ?? $order->buyer_name ?? 'Customer',
+                            ],
+                            'localization' => ['languageCode' => 'EN'],
+                        ],
+                        'formatSpecification' => ['type' => 'HTML'],
+                    ]],
+                ],
 
                 // Package details
                 'requestedPackageLineItems' => [[
