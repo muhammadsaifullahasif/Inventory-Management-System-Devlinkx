@@ -260,6 +260,7 @@ class FedexService
                 'has_label' => !empty($labelBase64),
                 'alerts' => $data['output']['alerts'] ?? [],
                 'service_type' => $data['output']['transactionShipments'][0]['serviceType'] ?? null,
+                'response' => $response,
             ]);
 
             if (!$trackingNumber || !$labelBase64) {
