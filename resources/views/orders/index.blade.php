@@ -419,7 +419,7 @@
                                                     @if($order->items->count() > 0)
                                                         <tfoot class="table-light">
                                                             <tr>
-                                                                <td colspan="4"></td>
+                                                                <td colspan="3"></td>
                                                                 <td class="text-center fw-bold">{{ $order->items->sum('quantity') }}</td>
                                                                 <td class="text-end"></td>
                                                                 <td class="text-end fw-bold">{{ $order->currency ?? 'USD' }} {{ number_format($order->items->sum('total_price'), 2) }}</td>
