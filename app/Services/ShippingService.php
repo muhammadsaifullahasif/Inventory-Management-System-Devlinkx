@@ -537,10 +537,21 @@ class ShippingService
 
                 'accountNumber'        => ['value' => $carrier->account_number ?? ''],
                 'shipmentVisibility'   => 'INSIGHT_ON',
-                'requestedShipment'    => [
-                    'shipmentSpecialServices' => [
-                        'specialServiceTypes' => ['EMAIL_NOTIFICATION', 'SHIPMENT_CONFIRMATION'],
-                    ],
+                'blockInsightVisibility' => false,
+                'shipmentSpecialServices' => [
+                    'specialServiceTypes' => ['EMAIL_NOTIFICATION', 'SHIPMENT_CONFIRMATION', 'EVENT_NOTIFICATION'],
+                    'eventNotifications' => [[
+                        'events' => ['ON_SHIPMENT','ON_EXCEPTION','ON_DELIVERY'],
+                        'notificationDetail' => [
+                            'notificationType' => 'EMAIL',
+                            'emailDetail' => [
+                                'emailAddress' => 'muhammadsaifullahasif@gmail.com' ?? '',
+                                'name' => $order->shipping_name ?? $order->buyer_name ?? 'Customer',
+                            ],
+                            'localization' => ['languageCode' => 'EN'],
+                        ],
+                        'formatSpecification' => ['type' => 'HTML'],
+                    ]],
                 ],
 
                 // Recipient information
@@ -565,7 +576,6 @@ class ShippingService
                 'serviceType'          => $serviceCode,
                 'packagingType'        => 'YOUR_PACKAGING',
                 'pickupType'           => 'USE_SCHEDULED_PICKUP', // FedEx picks up from warehouse
-                'blockInsightVisibility' => false,
 
                 // Payment - sender pays
                 'shippingChargesPayment' => [
