@@ -276,6 +276,7 @@ class FedexService
                 'endpoint' => $endpoint,
                 'is_sandbox' => $this->carrier->is_sandbox,
                 'shipment_id' => $shipmentId,
+                'raw_response' => $data,
             ]);
 
             return [
