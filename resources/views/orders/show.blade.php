@@ -173,7 +173,7 @@
                         <table class="table table-hover mb-0">
                             <thead>
                                 <tr>
-                                    <th style="width: 50px;">#</th>
+                                    <th style="width: 60px;">Image</th>
                                     <th>Item</th>
                                     <th>SKU</th>
                                     <th class="text-center">Qty</th>
@@ -184,7 +184,18 @@
                             <tbody>
                                 @foreach($order->items as $index => $item)
                                     <tr>
-                                        <td>{{ $index + 1 }}</td>
+                                        <td class="text-center">
+                                            @php
+                                                $itemImageUrl = $item->product?->getImageUrl();
+                                            @endphp
+                                            @if($itemImageUrl)
+                                                <img src="{{ $itemImageUrl }}" alt="{{ $item->title }}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">
+                                            @else
+                                                <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                    <i class="feather-image text-muted"></i>
+                                                </div>
+                                            @endif
+                                        </td>
                                         <td>
                                             <span class="fw-semibold">{{ $item->title }}</span>
                                             @if($item->variation_attributes)
