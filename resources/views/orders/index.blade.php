@@ -365,7 +365,6 @@
                                                         <tr>
                                                             <th style="width: 60px;">Image</th>
                                                             <th>Item Name</th>
-                                                            <th>eBay Item ID</th>
                                                             <th>SKU</th>
                                                             <th class="text-center">Qty</th>
                                                             <th class="text-end">Unit Price</th>
@@ -377,13 +376,10 @@
                                                             <tr>
                                                                 <td class="text-center">
                                                                     @php
-                                                                        $itemImage = null;
-                                                                        if ($item->product && $item->product->images && count($item->product->images) > 0) {
-                                                                            $itemImage = $item->product->images[0];
-                                                                        }
+                                                                        $itemImageUrl = $item->product?->getImageUrl();
                                                                     @endphp
-                                                                    @if($itemImage)
-                                                                        <img src="{{ asset('storage/' . $itemImage) }}" alt="{{ $item->title }}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">
+                                                                    @if($itemImageUrl)
+                                                                        <img src="{{ $itemImageUrl }}" alt="{{ $item->title }}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">
                                                                     @else
                                                                         <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
                                                                             <i class="feather-image text-muted"></i>
@@ -392,19 +388,15 @@
                                                                 </td>
                                                                 <td>
                                                                     <span class="fw-semibold">{{ \Illuminate\Support\Str::limit($item->title, 50) }}</span>
+                                                                    @if ($item->ebay_item_id)
+                                                                        <span class="d-block fs-11 text-muted">{{ $item->ebay_item_id }}</span>
+                                                                    @endif
                                                                     @if($item->variation_attributes)
                                                                         <span class="d-block fs-11 text-muted">
                                                                             @foreach($item->variation_attributes as $attr => $val)
                                                                                 {{ $attr }}: {{ $val }}@if(!$loop->last), @endif
                                                                             @endforeach
                                                                         </span>
-                                                                    @endif
-                                                                </td>
-                                                                <td>
-                                                                    @if($item->ebay_item_id)
-                                                                        <code class="fs-11">{{ $item->ebay_item_id }}</code>
-                                                                    @else
-                                                                        <span class="text-muted fs-11">-</span>
                                                                     @endif
                                                                 </td>
                                                                 <td>
