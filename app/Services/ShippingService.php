@@ -538,21 +538,6 @@ class ShippingService
                 'accountNumber'        => ['value' => $carrier->account_number ?? ''],
                 'shipmentVisibility'   => 'INSIGHT_ON',
                 'blockInsightVisibility' => false,
-                'shipmentSpecialServices' => [
-                    'specialServiceTypes' => ['EMAIL_NOTIFICATION', 'SHIPMENT_CONFIRMATION', 'EVENT_NOTIFICATION'],
-                    'eventNotifications' => [[
-                        'events' => ['ON_SHIPMENT','ON_EXCEPTION','ON_DELIVERY'],
-                        'notificationDetail' => [
-                            'notificationType' => 'EMAIL',
-                            'emailDetail' => [
-                                'emailAddress' => 'muhammadsaifullahasif@gmail.com' ?? '',
-                                'name' => $order->shipping_name ?? $order->buyer_name ?? 'Customer',
-                            ],
-                            'localization' => ['languageCode' => 'EN'],
-                        ],
-                        'formatSpecification' => ['type' => 'HTML'],
-                    ]],
-                ],
 
                 // Recipient information
                 'recipients' => [[
@@ -627,6 +612,21 @@ class ShippingService
                         'customerReferenceType' => 'CUSTOMER_REFERENCE',
                         'value' => 'Order #' . ($order->order_number ?? $order->id),
                     ]],
+                    'specialServices' => [
+                        'specialServiceTypes' => ['EMAIL_NOTIFICATION', 'SHIPMENT_CONFIRMATION', 'EVENT_NOTIFICATION'],
+                        'eventNotifications' => [[
+                            'events' => ['ON_SHIPMENT','ON_EXCEPTION','ON_DELIVERY'],
+                            'notificationDetail' => [
+                                'notificationType' => 'EMAIL',
+                                'emailDetail' => [
+                                    'emailAddress' => 'muhammadsaifullahasif@gmail.com' ?? '',
+                                    'name' => $order->shipping_name ?? $order->buyer_name ?? 'Customer',
+                                ],
+                                'localization' => ['languageCode' => 'EN'],
+                            ],
+                            'formatSpecification' => ['type' => 'HTML'],
+                        ]],
+                    ],
                 ]],
 
                 'totalPackageCount' => 1,
