@@ -536,6 +536,12 @@ class ShippingService
                 ],
 
                 'accountNumber'        => ['value' => $carrier->account_number ?? ''],
+                'shipmentVisibility'   => 'INSIGHT_ON',
+                'requestedShipment'    => [
+                    'shipmentSpecialServices' => [
+                        'specialServiceTypes' => ['EMAIL_NOTIFICATION', 'SHIPMENT_CONFIRMATION'],
+                    ],
+                ],
 
                 // Recipient information
                 'recipients' => [[
@@ -558,8 +564,8 @@ class ShippingService
                 'shipDatestamp'        => date('Y-m-d'), // Ship date (today)
                 'serviceType'          => $serviceCode,
                 'packagingType'        => 'YOUR_PACKAGING',
-                'pickupType'           => 'DROPOFF_AT_FEDEX_LOCATION', // FedEx picks up from warehouse
-                'blockInsightVisibility' => true,
+                'pickupType'           => 'USE_SCHEDULED_PICKUP', // FedEx picks up from warehouse
+                'blockInsightVisibility' => false,
 
                 // Payment - sender pays
                 'shippingChargesPayment' => [
