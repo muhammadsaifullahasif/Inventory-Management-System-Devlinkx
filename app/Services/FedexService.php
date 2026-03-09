@@ -171,8 +171,8 @@ class FedexService
 
     /**
      * Create a shipment and generate a shipping label.
-     * Uses shipAction=CREATE with processingOptionType=SYNCHRONOUS_ONLY
-     * to create and register the shipment in FedEx system in a single call.
+     * Uses processingOptionType=SYNCHRONOUS_ONLY for immediate processing.
+     * No shipAction is specified - FedEx defaults to creating and registering the shipment.
      *
      * @param array $shipmentDetails The full shipment payload for FedEx Ship API
      * @return array ['tracking_number' => string, 'label_base64' => string, 'label_format' => string]
@@ -189,8 +189,9 @@ class FedexService
             ? ($this->carrier->sandbox_endpoint ?: 'https://apis-sandbox.fedex.com')
             : ($this->carrier->api_endpoint     ?: 'https://apis.fedex.com');
 
-        // Set shipAction to CREATE for single-step shipment creation and registration
-        $shipmentDetails['shipAction'] = 'CREATE';
+        // Remove shipAction - let FedEx use default behavior (creates and registers shipment)
+        // Only set processingOptionType for synchronous processing
+        unset($shipmentDetails['shipAction']);
         $shipmentDetails['processingOptionType'] = 'SYNCHRONOUS_ONLY';
 
         Log::info('FedEx: createShipment request', [
@@ -198,7 +199,6 @@ class FedexService
             'is_sandbox' => $this->carrier->is_sandbox,
             'carrier_name' => $this->carrier->name,
             'account_number' => $this->carrier->account_number,
-            'ship_action' => 'CREATE',
             'processing_option_type' => 'SYNCHRONOUS_ONLY',
         ]);
 
