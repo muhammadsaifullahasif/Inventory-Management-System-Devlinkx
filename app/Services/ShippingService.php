@@ -515,8 +515,8 @@ class ShippingService
         $shipmentPayload = [
             'labelResponseOptions' => 'LABEL',
             'accountNumber'        => ['value' => $carrier->account_number ?? ''],
-            'processingOptionType' => 'SYNCHRONOUS_ONLY',
-            'oneLabelAtATime'      => true,
+            'processingOptionType' => 'STANDARD',
+            // 'oneLabelAtATime'      => true,
             'requestedShipment'    => [
                 // Shipper information
                 'shipper' => [
@@ -630,6 +630,8 @@ class ShippingService
                 ]],
 
                 'totalPackageCount' => 1,
+                // Confirm shipment to fully book it
+                'shipmentConfirmationType' => 'CONFIRM_AND_CARRIER_PACKAGE_LABEL'
             ],
         ];
 
