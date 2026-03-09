@@ -609,27 +609,6 @@ class ShippingService
                 ],
 
                 // Shipment special services (optional - email notifications)
-                'shipmentSpecialServices' => [
-                    'specialServiceTypes' => ['EVENT_NOTIFICATION'],
-                    'eventNotificationDetail' => [
-                        'eventNotifications' => [[
-                            'events' => ['ON_SHIPMENT', 'ON_EXCEPTION', 'ON_DELIVERY'],
-                            'notificationDetail' => [
-                                'notificationType' => 'EMAIL',
-                                'emailDetail' => [
-                                    'emailAddress' => $order->buyer_email ?? '',
-                                    'name' => $order->shipping_name ?? $order->buyer_name ?? 'Customer',
-                                ],
-                                'localization' => [
-                                    'languageCode' => 'EN',
-                                ],
-                            ],
-                            'formatSpecification' => [
-                                'type' => 'HTML',
-                            ],
-                        ]],
-                    ],
-                ],
 
                 // Package details
                 'requestedPackageLineItems' => [[
@@ -658,7 +637,7 @@ class ShippingService
         // if (empty($order->buyer_email)) {
         //     unset($shipmentPayload['requestedShipment']['shipmentSpecialServices']);
         // }
-        unset($shipmentPayload['requestedShipment']['shipmentSpecialServices']);
+        // unset($shipmentPayload['requestedShipment']['shipmentSpecialServices']);
 
         // Call FedEx to create shipment
         $result = $service->createShipment($shipmentPayload);
