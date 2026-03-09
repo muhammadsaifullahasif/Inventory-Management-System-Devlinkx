@@ -582,7 +582,7 @@ class ShippingService
                 'serviceType'          => $serviceCode,
                 'packagingType'        => 'YOUR_PACKAGING',
                 'pickupType'           => 'USE_SCHEDULED_PICKUP', // FedEx picks up from warehouse
-                'blockInsightVisibility' => false,
+                'blockInsightVisibility' => true,
 
                 // Payment - sender pays
                 'shippingChargesPayment' => [
