@@ -516,6 +516,7 @@ class ShippingService
             'labelResponseOptions' => 'LABEL',
             'accountNumber'        => ['value' => $carrier->account_number ?? ''],
             'processingOptionType' => 'SYNCHRONOUS_ONLY',
+            'oneLabelAtATime'      => true,
             'requestedShipment'    => [
                 // Shipper information
                 'shipper' => [
