@@ -558,7 +558,8 @@ class ShippingService
 
                 // Shipment configuration
                 'shipDatestamp'        => date('Y-m-d'), // Ship date (today)
-                'serviceType'          => $serviceCode,
+                'serviceType'          => 'FEDEX_GROUND',
+                // 'serviceType'          => $serviceCode,
                 'packagingType'        => 'YOUR_PACKAGING',
                 'pickupType'           => 'USE_SCHEDULED_PICKUP', // FedEx picks up from warehouse
 
