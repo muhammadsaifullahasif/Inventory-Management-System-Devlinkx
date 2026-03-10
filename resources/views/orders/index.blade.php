@@ -364,11 +364,11 @@
                                                     <thead class="table-light">
                                                         <tr>
                                                             <th style="width: 60px;">Image</th>
-                                                            <th>Item Name</th>
-                                                            <th>SKU</th>
-                                                            <th class="text-center">Qty</th>
-                                                            <th class="text-end">Unit Price</th>
-                                                            <th class="text-end">Total</th>
+                                                            <th style="width: 300px;">Item Name</th>
+                                                            <th style="width: 200px;">SKU</th>
+                                                            <th style="width: 100px;" class="text-center">Qty</th>
+                                                            <th style="width: 150px;" class="text-end">Unit Price</th>
+                                                            <th style="width: 150px;" class="text-end">Total</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
