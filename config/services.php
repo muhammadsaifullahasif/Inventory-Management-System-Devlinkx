@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'ebay' => [
+        'client_id' => env('EBAY_CLIENT_ID'),
+        'client_secret' => env('EBAY_CLIENT_SECRET'),
+        'ru_name' => env('EBAY_RU_NAME'),
+        'scopes' => env('EBAY_SCOPES'),
+        'auth_url' => env('EBAY_AUTH_URL', 'https://auth.ebay.com/oauth2/authorize'),
+        'token_url' => env('EBAY_TOKEN_URL', 'https://api.ebay.com/identity/v1/oauth2/token'),
+    ],
+
 ];
