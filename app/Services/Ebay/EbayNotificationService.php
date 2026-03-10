@@ -248,13 +248,19 @@ class EbayNotificationService
     }
 
     /**
-     * Get current notification preferences.
+     * Get current notification preferences (both User and Application level).
      */
     public function getNotificationPreferences(SalesChannel $channel): array
     {
-        $xml = EbayXmlBuilder::getNotificationPreferences();
-        $response = $this->client->call($channel, 'GetNotificationPreferences', $xml);
-        $this->client->checkForErrors($response);
+        // Get User-level preferences (which events are enabled)
+        $userXml = EbayXmlBuilder::getNotificationPreferences();
+        $userResponse = $this->client->call($channel, 'GetNotificationPreferences', $userXml);
+        $this->client->checkForErrors($userResponse);
+
+        // Get Application-level preferences (webhook URL)
+        $appXml = EbayXmlBuilder::getNotificationPreferencesApplication();
+        $appResponse = $this->client->call($channel, 'GetNotificationPreferences', $appXml);
+        $this->client->checkForErrors($appResponse);
 
         $preferences = [
             'application_delivery_preferences' => [],
@@ -262,8 +268,9 @@ class EbayNotificationService
             'enabled_events' => [],
         ];
 
-        if (isset($response['ApplicationDeliveryPreferences'])) {
-            $adp = $response['ApplicationDeliveryPreferences'];
+        // Extract Application-level preferences (webhook URL, enabled status)
+        if (isset($appResponse['ApplicationDeliveryPreferences'])) {
+            $adp = $appResponse['ApplicationDeliveryPreferences'];
             $preferences['application_delivery_preferences'] = [
                 'application_url' => $adp['ApplicationURL'] ?? '',
                 'application_enable' => $adp['ApplicationEnable'] ?? '',
@@ -272,8 +279,9 @@ class EbayNotificationService
             ];
         }
 
+        // Extract User-level preferences (enabled events)
         $notificationEnables = EbayService::normalizeList(
-            $response['UserDeliveryPreferenceArray']['NotificationEnable'] ?? []
+            $userResponse['UserDeliveryPreferenceArray']['NotificationEnable'] ?? []
         );
 
         foreach ($notificationEnables as $pref) {

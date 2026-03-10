@@ -523,13 +523,25 @@ XML;
     }
 
     /**
-     * Build GetNotificationPreferences request XML.
+     * Build GetNotificationPreferences request XML for User level.
      */
     public static function getNotificationPreferences(): string
     {
         return '<?xml version="1.0" encoding="utf-8"?>
             <GetNotificationPreferencesRequest xmlns="urn:ebay:apis:eBLBaseComponents">
                 <PreferenceLevel>User</PreferenceLevel>
+            </GetNotificationPreferencesRequest>';
+    }
+
+    /**
+     * Build GetNotificationPreferences request XML for Application level.
+     * This returns the ApplicationDeliveryPreferences including the webhook URL.
+     */
+    public static function getNotificationPreferencesApplication(): string
+    {
+        return '<?xml version="1.0" encoding="utf-8"?>
+            <GetNotificationPreferencesRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                <PreferenceLevel>Application</PreferenceLevel>
             </GetNotificationPreferencesRequest>';
     }
 
