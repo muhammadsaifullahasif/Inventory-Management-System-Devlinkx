@@ -911,6 +911,9 @@ class EbayController extends Controller
             $notificationXmlString = $notificationXml->asXML();
             $jsonData = $this->client->xmlToArray($this->client->cleanSoapXml($notificationXmlString));
 
+            // Try to find the correct sales channel based on RecipientUserID
+            $salesChannel = $this->resolveCorrectSalesChannel($jsonData, $salesChannel);
+
             // Save notification to file
             $notificationData = [
                 'timestamp' => $timestamp->toIso8601String(),
@@ -980,6 +983,56 @@ class EbayController extends Controller
 
             return response('OK', 200); // Still return OK to eBay to prevent retries
         }
+    }
+
+    /**
+     * Resolve the correct sales channel based on the notification's RecipientUserID
+     * eBay sends notifications to a single webhook URL per app, so we need to identify
+     * the correct sales channel based on the eBay user ID in the notification.
+     */
+    protected function resolveCorrectSalesChannel(array $jsonData, SalesChannel $fallbackChannel): SalesChannel
+    {
+        // Try to extract the recipient user ID from the notification
+        $recipientUserId = $jsonData['RecipientUserID'] ?? null;
+
+        if (empty($recipientUserId)) {
+            // Try alternative locations where the seller ID might be
+            $recipientUserId = $jsonData['SellerUserID'] ?? null;
+        }
+
+        if (empty($recipientUserId)) {
+            // Check inside Item for seller info
+            $recipientUserId = $jsonData['Item']['Seller']['UserID'] ?? null;
+        }
+
+        if (empty($recipientUserId)) {
+            Log::channel('ebay')->debug('No RecipientUserID found in notification, using fallback channel', [
+                'fallback_channel_id' => $fallbackChannel->id,
+            ]);
+            return $fallbackChannel;
+        }
+
+        // Find the sales channel matching this eBay user ID
+        $matchedChannel = SalesChannel::where('ebay_user_id', $recipientUserId)->first();
+
+        if ($matchedChannel) {
+            if ($matchedChannel->id !== $fallbackChannel->id) {
+                Log::channel('ebay')->info('Resolved correct sales channel from RecipientUserID', [
+                    'recipient_user_id' => $recipientUserId,
+                    'url_channel_id' => $fallbackChannel->id,
+                    'matched_channel_id' => $matchedChannel->id,
+                    'matched_channel_name' => $matchedChannel->name,
+                ]);
+            }
+            return $matchedChannel;
+        }
+
+        Log::channel('ebay')->warning('No sales channel found for RecipientUserID, using fallback', [
+            'recipient_user_id' => $recipientUserId,
+            'fallback_channel_id' => $fallbackChannel->id,
+        ]);
+
+        return $fallbackChannel;
     }
 
     /**

@@ -179,6 +179,9 @@ class SalesChannelController extends Controller
             $sales_channel->refresh_token_expires_at = now()->addSeconds($response_data['refresh_token_expires_in']);
             $sales_channel->save();
 
+            // Fetch and store the eBay UserID for this account
+            $this->fetchAndStoreEbayUserId($sales_channel);
+
             // Subscribe to eBay notifications for orders
             $notificationResult = $this->subscribeToEbayNotifications($sales_channel);
 
@@ -222,6 +225,52 @@ class SalesChannelController extends Controller
             ]);
 
             return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Fetch and store the eBay UserID for the sales channel
+     * This is used to identify which sales channel incoming webhooks belong to
+     */
+    protected function fetchAndStoreEbayUserId(SalesChannel $salesChannel): void
+    {
+        try {
+            $xml = '<?xml version="1.0" encoding="utf-8"?>
+                <GetUserRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                    <ErrorLanguage>en_US</ErrorLanguage>
+                </GetUserRequest>';
+
+            $response = Http::timeout(60)
+                ->withHeaders([
+                    'X-EBAY-API-SITEID' => '0',
+                    'X-EBAY-API-COMPATIBILITY-LEVEL' => '967',
+                    'X-EBAY-API-CALL-NAME' => 'GetUser',
+                    'X-EBAY-API-IAF-TOKEN' => $salesChannel->access_token,
+                    'Content-Type' => 'text/xml',
+                ])
+                ->withBody($xml, 'text/xml')
+                ->post('https://api.ebay.com/ws/api.dll');
+
+            if ($response->successful()) {
+                $xmlResponse = simplexml_load_string($response->body());
+                $userId = (string) ($xmlResponse->User->UserID ?? '');
+
+                if (!empty($userId)) {
+                    $salesChannel->ebay_user_id = $userId;
+                    $salesChannel->save();
+
+                    Log::info('eBay UserID stored for sales channel', [
+                        'sales_channel_id' => $salesChannel->id,
+                        'ebay_user_id' => $userId,
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('Failed to fetch eBay UserID', [
+                'sales_channel_id' => $salesChannel->id,
+                'error' => $e->getMessage(),
+            ]);
+            // Don't throw - this is not critical for the OAuth flow
         }
     }
 

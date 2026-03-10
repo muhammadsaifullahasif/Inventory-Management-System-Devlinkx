@@ -8,6 +8,7 @@ class SalesChannel extends Model
 {
     protected $fillable = [
         'name',
+        'ebay_user_id',
         'client_id',
         'client_secret',
         'ru_name',
