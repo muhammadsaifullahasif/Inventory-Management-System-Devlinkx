@@ -387,7 +387,7 @@
                                                                     @endif
                                                                 </td>
                                                                 <td>
-                                                                    <span class="fw-semibold">{{ \Illuminate\Support\Str::limit($item->title, 50) }}</span>
+                                                                    <span style="white-space: normal; width: 300px; display: block;" class="fw-semibold">{{ \Illuminate\Support\Str::limit($item->title, 50) }}</span>
                                                                     @if ($item->ebay_item_id)
                                                                         <span class="d-block fs-11 text-muted">{{ $item->ebay_item_id }}</span>
                                                                     @endif
