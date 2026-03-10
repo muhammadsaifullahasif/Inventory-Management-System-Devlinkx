@@ -233,7 +233,14 @@ class EbayApiClient
             throw new Exception('Failed to parse eBay XML response: ' . implode(', ', $errorMessages));
         }
 
-        return $this->xmlNodeToArray($xml);
+        $result = $this->xmlNodeToArray($xml);
+
+        // Ensure we always return an array, even if the root element has only text content
+        if (is_string($result)) {
+            return ['@value' => $result];
+        }
+
+        return $result;
     }
 
     /**
