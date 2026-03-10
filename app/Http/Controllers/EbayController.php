@@ -771,8 +771,47 @@ class EbayController extends Controller
     // =========================================
 
     /**
-     * Handle eBay webhook notifications
-     * Supports both Platform Notifications (XML) and Commerce Notification API (JSON)
+     * Handle eBay webhook notifications (single endpoint for all channels)
+     *
+     * eBay Platform Notifications only supports ONE webhook URL per application.
+     * This endpoint receives ALL notifications and routes them to the correct
+     * sales channel based on RecipientUserID in the notification payload.
+     */
+    public function handleEbayWebhook(Request $request)
+    {
+        Log::channel('ebay')->info('>>>>>> WEBHOOK REQUEST RECEIVED <<<<<<');
+        Log::channel('ebay')->info(json_encode([
+            'timestamp' => now()->toIso8601String(),
+            'endpoint' => 'unified',
+            'method' => $request->method(),
+            'content_type' => $request->header('Content-Type'),
+            'ip' => $request->ip(),
+        ], JSON_PRETTY_PRINT));
+
+        // Check if this is a challenge request (Commerce Notification API)
+        if ($request->has('challenge_code')) {
+            // For challenge requests, we need any valid sales channel
+            $salesChannel = SalesChannel::whereNotNull('access_token')->first();
+            if (!$salesChannel) {
+                Log::channel('ebay')->error('eBay Webhook: No sales channel found for challenge verification');
+                return response()->json(['error' => 'No sales channel configured'], 500);
+            }
+            return $this->handleChallengeRequest($request, $salesChannel);
+        }
+
+        // Determine notification type based on content type
+        $contentType = $request->header('Content-Type', '');
+
+        if (str_contains($contentType, 'application/json')) {
+            return $this->handleUnifiedCommerceApiNotification($request);
+        } else {
+            return $this->handleUnifiedPlatformNotification($request);
+        }
+    }
+
+    /**
+     * Handle eBay webhook notifications (legacy endpoint with channel ID)
+     * Kept for backwards compatibility with existing subscriptions
      */
     public function handleEbayOrderWebhook(Request $request, string $id)
     {
@@ -983,6 +1022,203 @@ class EbayController extends Controller
 
             return response('OK', 200); // Still return OK to eBay to prevent retries
         }
+    }
+
+    /**
+     * Handle Platform Notifications without a pre-defined sales channel
+     * Resolves the correct channel from the notification content
+     */
+    protected function handleUnifiedPlatformNotification(Request $request)
+    {
+        $rawContent = $request->getContent();
+        $timestamp = now();
+
+        try {
+            // Clean SOAP namespaces and parse
+            $cleanedXml = $this->client->cleanSoapXml($rawContent);
+
+            libxml_use_internal_errors(true);
+            $xml = simplexml_load_string($cleanedXml);
+            $xmlErrors = libxml_get_errors();
+            libxml_clear_errors();
+            libxml_use_internal_errors(false);
+
+            if ($xml === false || !empty($xmlErrors)) {
+                Log::channel('ebay')->warning('eBay Platform Notification: XML parsing issues', [
+                    'timestamp' => $timestamp->toIso8601String(),
+                    'errors' => array_map(fn($e) => $e->message, $xmlErrors),
+                ]);
+
+                $notificationData = [
+                    'timestamp' => $timestamp->toIso8601String(),
+                    'notification_type' => 'RAW_XML_PARSE_ERROR',
+                    'parse_errors' => array_map(fn($e) => trim($e->message), $xmlErrors),
+                    'raw_content' => $rawContent,
+                    'cleaned_content' => $cleanedXml,
+                ];
+
+                $this->saveNotificationToFile('RAW_NOTIFICATION', $notificationData, $timestamp);
+                return response('OK', 200);
+            }
+
+            // Get the notification type from the root element
+            $notificationType = $xml->getName();
+            $notificationXml = $xml;
+
+            // For SOAP notifications, extract the actual notification from Body
+            if ($notificationType === 'Envelope') {
+                $body = $xml->Body ?? null;
+                if ($body && $body->children()->count() > 0) {
+                    $notificationXml = $body->children()[0];
+                    $notificationType = $notificationXml->getName();
+                }
+            }
+
+            // Convert XML to array
+            $notificationXmlString = $notificationXml->asXML();
+            $jsonData = $this->client->xmlToArray($this->client->cleanSoapXml($notificationXmlString));
+
+            // Find the correct sales channel based on RecipientUserID
+            $salesChannel = $this->findSalesChannelFromNotification($jsonData);
+
+            if (!$salesChannel) {
+                Log::channel('ebay')->error('Could not find sales channel for notification', [
+                    'notification_type' => $notificationType,
+                    'recipient_user_id' => $jsonData['RecipientUserID'] ?? 'not found',
+                    'seller_user_id' => $jsonData['Item']['Seller']['UserID'] ?? 'not found',
+                ]);
+
+                // Save the notification anyway for debugging
+                $notificationData = [
+                    'timestamp' => $timestamp->toIso8601String(),
+                    'notification_type' => $notificationType,
+                    'sales_channel_id' => null,
+                    'sales_channel_name' => 'UNRESOLVED',
+                    'data' => $jsonData,
+                ];
+                $this->saveNotificationToFile($notificationType . '_UNRESOLVED', $notificationData, $timestamp);
+
+                return response('OK', 200);
+            }
+
+            // Save notification to file
+            $notificationData = [
+                'timestamp' => $timestamp->toIso8601String(),
+                'notification_type' => $notificationType,
+                'sales_channel_id' => $salesChannel->id,
+                'sales_channel_name' => $salesChannel->name,
+                'data' => $jsonData,
+            ];
+
+            $this->saveNotificationToFile($notificationType, $notificationData, $timestamp);
+
+            Log::channel('ebay')->info("Notification received: {$notificationType}", [
+                'timestamp' => $timestamp->toIso8601String(),
+                'sales_channel_id' => $salesChannel->id,
+                'ebay_user_id' => $salesChannel->ebay_user_id,
+                'file' => $this->getNotificationFileName($notificationType, $timestamp),
+            ]);
+
+            // Process order-related notifications
+            if (EbayOrderService::isOrderNotification($notificationType)) {
+                try {
+                    $order = $this->orderService->processNotification($jsonData, $salesChannel, $notificationType, $timestamp);
+
+                    if ($order) {
+                        Log::channel('ebay')->info("Order processed from notification: {$notificationType}", [
+                            'order_id' => $order->id,
+                            'ebay_order_id' => $order->ebay_order_id,
+                            'order_status' => $order->order_status,
+                            'fulfillment_status' => $order->fulfillment_status,
+                            'sales_channel_id' => $salesChannel->id,
+                        ]);
+                    }
+                } catch (Exception $orderException) {
+                    Log::channel('ebay')->error("Failed to process order notification: {$notificationType}", [
+                        'error' => $orderException->getMessage(),
+                        'sales_channel_id' => $salesChannel->id,
+                    ]);
+                }
+            }
+
+            return response('OK', 200);
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('eBay Platform Notification processing error', [
+                'timestamp' => $timestamp->toIso8601String(),
+                'error' => $e->getMessage(),
+            ]);
+
+            return response('OK', 200);
+        }
+    }
+
+    /**
+     * Handle Commerce API Notifications without a pre-defined sales channel
+     */
+    protected function handleUnifiedCommerceApiNotification(Request $request)
+    {
+        $timestamp = now();
+        $payload = $request->all();
+
+        // For Commerce API, we need to find channel based on the notification content
+        // This might need additional logic based on how Commerce API notifications are structured
+        $salesChannel = SalesChannel::whereNotNull('access_token')->first();
+
+        if (!$salesChannel) {
+            Log::channel('ebay')->error('No sales channel found for Commerce API notification');
+            return response()->json(['error' => 'No sales channel configured'], 500);
+        }
+
+        return $this->handleCommerceApiNotification($request, $salesChannel);
+    }
+
+    /**
+     * Find the correct sales channel from notification data
+     */
+    protected function findSalesChannelFromNotification(array $jsonData): ?SalesChannel
+    {
+        // Try RecipientUserID first (most common in Platform Notifications)
+        $recipientUserId = $jsonData['RecipientUserID'] ?? null;
+
+        if (!empty($recipientUserId)) {
+            $channel = SalesChannel::where('ebay_user_id', $recipientUserId)->first();
+            if ($channel) {
+                Log::channel('ebay')->info('Found sales channel from RecipientUserID', [
+                    'recipient_user_id' => $recipientUserId,
+                    'sales_channel_id' => $channel->id,
+                    'sales_channel_name' => $channel->name,
+                ]);
+                return $channel;
+            }
+        }
+
+        // Try SellerUserID
+        $sellerUserId = $jsonData['SellerUserID'] ?? null;
+        if (!empty($sellerUserId)) {
+            $channel = SalesChannel::where('ebay_user_id', $sellerUserId)->first();
+            if ($channel) {
+                return $channel;
+            }
+        }
+
+        // Try Item.Seller.UserID
+        $itemSellerUserId = $jsonData['Item']['Seller']['UserID'] ?? null;
+        if (!empty($itemSellerUserId)) {
+            $channel = SalesChannel::where('ebay_user_id', $itemSellerUserId)->first();
+            if ($channel) {
+                return $channel;
+            }
+        }
+
+        // Log all IDs we found for debugging
+        Log::channel('ebay')->warning('Could not match any sales channel', [
+            'recipient_user_id' => $recipientUserId,
+            'seller_user_id' => $sellerUserId,
+            'item_seller_user_id' => $itemSellerUserId,
+            'available_channels' => SalesChannel::pluck('ebay_user_id', 'name')->toArray(),
+        ]);
+
+        return null;
     }
 
     /**

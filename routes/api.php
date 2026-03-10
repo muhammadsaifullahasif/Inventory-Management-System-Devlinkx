@@ -20,18 +20,22 @@ Route::get('/user', function (Request $request) {
 |
 */
 
-// Handle both GET (challenge) and POST (notifications) for eBay webhooks
-Route::match(['get', 'post'], '/ebay/webhook/{id}', [EbayController::class, 'handleEbayOrderWebhook'])
+// Single webhook endpoint for ALL eBay notifications (no channel ID needed)
+// eBay Platform Notifications only supports ONE webhook URL per application.
+// The handler routes to the correct channel based on RecipientUserID in the notification.
+Route::match(['get', 'post'], '/ebay/webhook', [EbayController::class, 'handleEbayWebhook'])
     ->name('ebay.webhook');
 
-// Legacy route (for backwards compatibility)
+// Legacy routes (for backwards compatibility with existing subscriptions)
+Route::match(['get', 'post'], '/ebay/webhook/{id}', [EbayController::class, 'handleEbayOrderWebhook'])
+    ->name('ebay.webhook.legacy');
+
 Route::post('/ebay/orders/webhook/{id}', [EbayController::class, 'handleEbayOrderWebhook'])
     ->name('ebay.orders.webhook');
 
 // Test endpoint to verify webhook is reachable
-Route::get('/ebay/webhook-test/{id}', function (Request $request, string $id) {
+Route::get('/ebay/webhook-test', function (Request $request) {
     Log::channel('ebay')->info('Webhook test endpoint hit', [
-        'sales_channel_id' => $id,
         'timestamp' => now()->toIso8601String(),
         'ip' => $request->ip(),
         'user_agent' => $request->userAgent(),
@@ -40,9 +44,8 @@ Route::get('/ebay/webhook-test/{id}', function (Request $request, string $id) {
     return response()->json([
         'success' => true,
         'message' => 'Webhook endpoint is reachable',
-        'sales_channel_id' => $id,
         'timestamp' => now()->toIso8601String(),
-        'webhook_url' => url("/api/ebay/webhook/{$id}"),
+        'webhook_url' => url("/api/ebay/webhook"),
     ]);
 })->name('ebay.webhook.test');
 

@@ -320,11 +320,17 @@ class EbayNotificationService
     }
 
     /**
-     * Get the webhook URL for a sales channel.
+     * Get the webhook URL for notifications.
+     *
+     * IMPORTANT: eBay Platform Notifications only supports ONE webhook URL per application.
+     * All sales channels using the same Client ID must share the same webhook URL.
+     * The webhook handler uses RecipientUserID to route notifications to the correct channel.
      */
     public function getWebhookUrl(SalesChannel $channel): string
     {
-        return rtrim(config('app.url'), '/') . '/api/ebay/webhook/' . $channel->id;
+        // Use a single, fixed webhook URL for all channels
+        // The handler will route to correct channel based on RecipientUserID
+        return rtrim(config('app.url'), '/') . '/api/ebay/webhook';
     }
 
     /**
