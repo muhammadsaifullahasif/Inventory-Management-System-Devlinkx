@@ -9,6 +9,7 @@ class SalesChannel extends Model
     protected $fillable = [
         'name',
         'ebay_user_id',
+        'ebay_user_ids', // Array of all eBay user IDs for this seller
         'client_id',
         'client_secret',
         'ru_name',
@@ -37,6 +38,7 @@ class SalesChannel extends Model
         'platform_notifications_enabled' => 'boolean',
         'platform_notification_events' => 'array',
         'notification_subscriptions' => 'array',
+        'ebay_user_ids' => 'array', // Cast to array
     ];
 
     public function products()

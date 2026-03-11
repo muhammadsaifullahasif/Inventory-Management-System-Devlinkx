@@ -1174,6 +1174,8 @@ class EbayController extends Controller
 
     /**
      * Find the correct sales channel from notification data
+     * Checks against both ebay_user_id and ebay_user_ids array since eBay uses
+     * different RecipientUserIDs for different notification types for the same seller.
      */
     protected function findSalesChannelFromNotification(array $jsonData): ?SalesChannel
     {
@@ -1181,7 +1183,14 @@ class EbayController extends Controller
         $recipientUserId = $jsonData['RecipientUserID'] ?? null;
 
         if (!empty($recipientUserId)) {
+            // Check single ebay_user_id field
             $channel = SalesChannel::where('ebay_user_id', $recipientUserId)->first();
+
+            // If not found, check in ebay_user_ids JSON array
+            if (!$channel) {
+                $channel = SalesChannel::whereJsonContains('ebay_user_ids', $recipientUserId)->first();
+            }
+
             if ($channel) {
                 Log::channel('ebay')->info('Found sales channel from RecipientUserID', [
                     'recipient_user_id' => $recipientUserId,
@@ -1195,7 +1204,9 @@ class EbayController extends Controller
         // Try SellerUserID
         $sellerUserId = $jsonData['SellerUserID'] ?? null;
         if (!empty($sellerUserId)) {
-            $channel = SalesChannel::where('ebay_user_id', $sellerUserId)->first();
+            $channel = SalesChannel::where('ebay_user_id', $sellerUserId)
+                ->orWhereJsonContains('ebay_user_ids', $sellerUserId)
+                ->first();
             if ($channel) {
                 return $channel;
             }
@@ -1204,7 +1215,9 @@ class EbayController extends Controller
         // Try Item.Seller.UserID
         $itemSellerUserId = $jsonData['Item']['Seller']['UserID'] ?? null;
         if (!empty($itemSellerUserId)) {
-            $channel = SalesChannel::where('ebay_user_id', $itemSellerUserId)->first();
+            $channel = SalesChannel::where('ebay_user_id', $itemSellerUserId)
+                ->orWhereJsonContains('ebay_user_ids', $itemSellerUserId)
+                ->first();
             if ($channel) {
                 return $channel;
             }
@@ -1215,7 +1228,7 @@ class EbayController extends Controller
             'recipient_user_id' => $recipientUserId,
             'seller_user_id' => $sellerUserId,
             'item_seller_user_id' => $itemSellerUserId,
-            'available_channels' => SalesChannel::pluck('ebay_user_id', 'name')->toArray(),
+            'available_channels' => SalesChannel::select('id', 'name', 'ebay_user_id', 'ebay_user_ids')->get()->toArray(),
         ]);
 
         return null;
@@ -1249,7 +1262,10 @@ class EbayController extends Controller
         }
 
         // Find the sales channel matching this eBay user ID
-        $matchedChannel = SalesChannel::where('ebay_user_id', $recipientUserId)->first();
+        // Check both ebay_user_id and ebay_user_ids array
+        $matchedChannel = SalesChannel::where('ebay_user_id', $recipientUserId)
+            ->orWhereJsonContains('ebay_user_ids', $recipientUserId)
+            ->first();
 
         if ($matchedChannel) {
             if ($matchedChannel->id !== $fallbackChannel->id) {
