@@ -16,10 +16,10 @@ class SalesChannelController extends Controller
     public function __construct(EbayNotificationService $notificationService)
     {
         $this->notificationService = $notificationService;
-        $this->middleware(PermissionMiddleware::using('view sales_channels'), ['only' => ['index']]);
-        $this->middleware(PermissionMiddleware::using('add sales_channels'), ['only' => ['create', 'store']]);
-        $this->middleware(PermissionMiddleware::using('edit sales_channels'), ['only' => ['edit', 'update']]);
-        $this->middleware(PermissionMiddleware::using('delete sales_channels'), ['only' => ['destroy']]);
+        $this->middleware(PermissionMiddleware::using('view sales-channels'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('add sales-channels'), ['only' => ['create', 'store']]);
+        $this->middleware(PermissionMiddleware::using('edit sales-channels'), ['only' => ['edit', 'update']]);
+        $this->middleware(PermissionMiddleware::using('delete sales-channels'), ['only' => ['destroy']]);
     }
 
     /**

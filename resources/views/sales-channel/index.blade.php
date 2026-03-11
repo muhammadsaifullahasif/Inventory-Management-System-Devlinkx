@@ -15,7 +15,7 @@
         <div class="page-header-right ms-auto">
             <div class="page-header-right-items">
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
-                    @can('add purchases')
+                    @can('add sales-channels')
                     <a href="{{ route('sales-channels.create') }}" class="btn btn-primary">
                         <i class="feather-plus me-2"></i>
                         <span>Add Sales Channel</span>
@@ -155,12 +155,12 @@
                                                title="Subscribe to eBay notifications (orders, returns, cancellations)">
                                                 <i class="feather-bell me-1"></i>Subscribe
                                             </button>
-                                            @can('edit sales_channels')
+                                            @can('edit sales-channels')
                                                 <a href="{{ route('sales-channels.edit', $sales_channel->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="Edit">
                                                     <i class="feather-edit-3"></i>
                                                 </a>
                                             @endcan
-                                            @can('delete sales_channels')
+                                            @can('delete sales-channels')
                                                 <form action="{{ route('sales-channels.destroy', $sales_channel->id) }}" method="POST" id="sales-channel-{{ $sales_channel->id }}-delete-form">
                                                     @csrf
                                                     @method('DELETE')

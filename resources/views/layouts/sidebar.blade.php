@@ -134,7 +134,7 @@
                                 <a class="nxl-link" href="{{ route('sales-channels.index') }}">All Channels</a>
                             </li>
                             @endcan
-                            @can('add sales-channel')
+                            @can('add sales-channels')
                             <li class="nxl-item {{ request()->routeIs('sales-channels.create') ? 'active' : '' }}">
                                 <a class="nxl-link" href="{{ route('sales-channels.create') }}">Add Channel</a>
                             </li>
