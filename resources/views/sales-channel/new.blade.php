@@ -86,14 +86,14 @@
                         </div>
 
                         <div class="col-md-6 mb-3">
-                            <label for="ru_name" class="form-label">RuName (Redirect URI) <span class="text-danger">*</span></label>
-                            <input type="text" name="ru_name" id="ru_name" value="{{ old('ru_name', url('/ebay/callback')) }}"
+                            <label for="ru_name" class="form-label">RuName <span class="text-danger">*</span></label>
+                            <input type="text" name="ru_name" id="ru_name" value="{{ old('ru_name') }}"
                                    class="form-control @error('ru_name') is-invalid @enderror"
-                                   placeholder="{{ url('/ebay/callback') }}" required>
+                                   placeholder="e.g., YourName-YourApp-Production-xyz" required>
                             @error('ru_name')
                                 <span class="invalid-feedback">{{ $message }}</span>
                             @enderror
-                            <small class="text-muted">OAuth redirect URI configured in eBay Developer</small>
+                            <small class="text-muted">RuName from your eBay Developer Application (e.g., Haroon_Naseem-HaroonNa-sigma--mwiqy)</small>
                         </div>
 
                         <div class="col-md-12 mb-3">

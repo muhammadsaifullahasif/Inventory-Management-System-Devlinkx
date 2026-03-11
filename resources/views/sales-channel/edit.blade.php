@@ -97,13 +97,14 @@
                         </div>
 
                         <div class="col-md-6 mb-3">
-                            <label for="ru_name" class="form-label">RuName (Redirect URI) <span class="text-danger">*</span></label>
+                            <label for="ru_name" class="form-label">RuName <span class="text-danger">*</span></label>
                             <input type="text" name="ru_name" id="ru_name"
                                    value="{{ old('ru_name', $sales_channel->ru_name) }}"
                                    class="form-control @error('ru_name') is-invalid @enderror" required>
                             @error('ru_name')
                                 <span class="invalid-feedback">{{ $message }}</span>
                             @enderror
+                            <small class="text-muted">RuName from eBay Developer Application</small>
                         </div>
 
                         <div class="col-md-12 mb-3">

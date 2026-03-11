@@ -69,7 +69,7 @@ class SalesChannelController extends Controller
             'name' => 'required|string|max:255',
             'client_id' => 'required|string',
             'client_secret' => 'required|string',
-            'ru_name' => 'required|string|url',
+            'ru_name' => 'required|string',
             'user_scopes' => 'required|string',
         ]);
 
@@ -399,7 +399,7 @@ class SalesChannelController extends Controller
             'name' => 'required|string|max:255',
             'client_id' => 'required|string',
             'client_secret' => 'required|string',
-            'ru_name' => 'required|string|url',
+            'ru_name' => 'required|string',
             'user_scopes' => 'required|string',
         ]);
 
