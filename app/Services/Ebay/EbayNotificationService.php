@@ -182,9 +182,23 @@ class EbayNotificationService
         $events = $events ?? self::ALL_NOTIFICATION_EVENTS;
         $webhookUrl = $this->getWebhookUrl($channel);
 
+        Log::channel('ebay')->info('Subscribing to Platform Notifications', [
+            'sales_channel_id' => $channel->id,
+            'sales_channel_name' => $channel->name,
+            'ebay_user_id' => $channel->ebay_user_id,
+            'webhook_url' => $webhookUrl,
+            'events_count' => count($events),
+        ]);
+
         $xml = EbayXmlBuilder::setNotificationPreferences($webhookUrl, $events);
         $response = $this->client->call($channel, 'SetNotificationPreferences', $xml);
         $this->client->checkForErrors($response);
+
+        Log::channel('ebay')->info('eBay API Response for SetNotificationPreferences', [
+            'sales_channel_id' => $channel->id,
+            'ack' => $response['Ack'] ?? 'unknown',
+            'timestamp' => $response['Timestamp'] ?? null,
+        ]);
 
         $channel->update([
             'platform_notifications_enabled' => true,

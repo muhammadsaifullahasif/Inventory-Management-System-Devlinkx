@@ -516,6 +516,11 @@ XML;
                     <ApplicationEnable>Enable</ApplicationEnable>
                     <ApplicationURL>' . htmlspecialchars($webhookUrl) . '</ApplicationURL>
                     <DeviceType>Platform</DeviceType>
+                    <DeliveryURLDetails>
+                        <DeliveryURLName>Primary</DeliveryURLName>
+                        <DeliveryURL>' . htmlspecialchars($webhookUrl) . '</DeliveryURL>
+                        <Status>Enable</Status>
+                    </DeliveryURLDetails>
                 </ApplicationDeliveryPreferences>
                 <UserDeliveryPreferenceArray>' . $notificationEnableXml . '
                 </UserDeliveryPreferenceArray>
