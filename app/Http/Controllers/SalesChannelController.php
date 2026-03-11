@@ -67,28 +67,31 @@ class SalesChannelController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
+            'client_id' => 'required|string',
+            'client_secret' => 'required|string',
+            'ru_name' => 'required|string|url',
+            'user_scopes' => 'required|string',
         ]);
 
-        // Check if eBay credentials are configured
-        if (empty(config('services.ebay.client_id'))) {
-            return back()->withErrors(['error' => 'eBay API credentials are not configured. Please contact administrator.'])->withInput();
-        }
-
         try {
-            // Store sales channel with credentials from config
+            // Store sales channel with credentials from form
             $sales_channel = new SalesChannel();
             $sales_channel->name = $request->input('name');
-            $sales_channel->client_id = config('services.ebay.client_id');
-            $sales_channel->client_secret = config('services.ebay.client_secret');
-            $sales_channel->ru_name = config('services.ebay.ru_name');
-            $sales_channel->user_scopes = config('services.ebay.scopes');
+            $sales_channel->client_id = $request->input('client_id');
+            $sales_channel->client_secret = $request->input('client_secret');
+            $sales_channel->ru_name = $request->input('ru_name');
+            $sales_channel->user_scopes = $request->input('user_scopes');
             $sales_channel->save();
 
             session(['sales_channel_id' => $sales_channel->id]);
 
             return redirect($this->buildEbayAuthUrl($sales_channel));
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'An error occurred while creating the sales channel.'])->withInput();
+            Log::error('Failed to create sales channel', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->withErrors(['error' => 'An error occurred while creating the sales channel: ' . $e->getMessage()])->withInput();
         }
     }
 
@@ -394,20 +397,23 @@ class SalesChannelController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
+            'client_id' => 'required|string',
+            'client_secret' => 'required|string',
+            'ru_name' => 'required|string|url',
+            'user_scopes' => 'required|string',
         ]);
 
         try {
             $sales_channel = SalesChannel::findOrFail($id);
             $sales_channel->name = $request->input('name');
+            $sales_channel->client_id = $request->input('client_id');
+            $sales_channel->client_secret = $request->input('client_secret');
+            $sales_channel->ru_name = $request->input('ru_name');
+            $sales_channel->user_scopes = $request->input('user_scopes');
 
-            // If reconnecting, update credentials from config and redirect to eBay OAuth
+            // If reconnecting, redirect to eBay OAuth
             if ($request->has('reconnect')) {
-                $sales_channel->client_id = config('services.ebay.client_id');
-                $sales_channel->client_secret = config('services.ebay.client_secret');
-                $sales_channel->ru_name = config('services.ebay.ru_name');
-                $sales_channel->user_scopes = config('services.ebay.scopes');
                 $sales_channel->save();
-
                 session(['sales_channel_id' => $sales_channel->id]);
                 return redirect($this->buildEbayAuthUrl($sales_channel));
             }
@@ -415,7 +421,12 @@ class SalesChannelController extends Controller
             $sales_channel->save();
             return redirect()->route('sales-channels.index')->with('success', 'Sales Channel updated successfully.');
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'An error occurred while updating the sales channel.'])->withInput();
+            Log::error('Failed to update sales channel', [
+                'id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->withErrors(['error' => 'An error occurred while updating the sales channel: ' . $e->getMessage()])->withInput();
         }
     }
 

@@ -62,6 +62,50 @@
                             @enderror
                             <small class="text-muted">Enter a friendly name to identify this eBay store</small>
                         </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="client_id" class="form-label">Client ID (App ID) <span class="text-danger">*</span></label>
+                            <input type="text" name="client_id" id="client_id" value="{{ old('client_id') }}"
+                                   class="form-control @error('client_id') is-invalid @enderror"
+                                   placeholder="Enter your eBay App ID" required>
+                            @error('client_id')
+                                <span class="invalid-feedback">{{ $message }}</span>
+                            @enderror
+                            <small class="text-muted">From your eBay Developer Application</small>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="client_secret" class="form-label">Client Secret (Cert ID) <span class="text-danger">*</span></label>
+                            <input type="password" name="client_secret" id="client_secret" value="{{ old('client_secret') }}"
+                                   class="form-control @error('client_secret') is-invalid @enderror"
+                                   placeholder="Enter your eBay Cert ID" required>
+                            @error('client_secret')
+                                <span class="invalid-feedback">{{ $message }}</span>
+                            @enderror
+                            <small class="text-muted">Keep this secret secure</small>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label for="ru_name" class="form-label">RuName (Redirect URI) <span class="text-danger">*</span></label>
+                            <input type="text" name="ru_name" id="ru_name" value="{{ old('ru_name', url('/ebay/callback')) }}"
+                                   class="form-control @error('ru_name') is-invalid @enderror"
+                                   placeholder="{{ url('/ebay/callback') }}" required>
+                            @error('ru_name')
+                                <span class="invalid-feedback">{{ $message }}</span>
+                            @enderror
+                            <small class="text-muted">OAuth redirect URI configured in eBay Developer</small>
+                        </div>
+
+                        <div class="col-md-12 mb-3">
+                            <label for="user_scopes" class="form-label">User Scopes <span class="text-danger">*</span></label>
+                            <textarea name="user_scopes" id="user_scopes" rows="3"
+                                      class="form-control @error('user_scopes') is-invalid @enderror"
+                                      placeholder="Enter eBay API scopes (space-separated)" required>{{ old('user_scopes', 'https://api.ebay.com/oauth/api_scope https://api.ebay.com/oauth/api_scope/sell.marketing.readonly https://api.ebay.com/oauth/api_scope/sell.marketing https://api.ebay.com/oauth/api_scope/sell.inventory.readonly https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account.readonly https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly https://api.ebay.com/oauth/api_scope/sell.fulfillment https://api.ebay.com/oauth/api_scope/sell.analytics.readonly https://api.ebay.com/oauth/api_scope/sell.finances https://api.ebay.com/oauth/api_scope/sell.payment.dispute https://api.ebay.com/oauth/api_scope/commerce.identity.readonly https://api.ebay.com/oauth/api_scope/commerce.notification.subscription https://api.ebay.com/oauth/api_scope/commerce.notification.subscription.readonly https://api.ebay.com/oauth/api_scope/sell.stores https://api.ebay.com/oauth/api_scope/sell.stores.readonly') }}</textarea>
+                            @error('user_scopes')
+                                <span class="invalid-feedback">{{ $message }}</span>
+                            @enderror
+                            <small class="text-muted">Space-separated list of OAuth scopes</small>
+                        </div>
                     </div>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary">
