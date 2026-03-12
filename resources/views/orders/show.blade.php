@@ -427,7 +427,7 @@
                     @endif
 
                     @if($order->order_status !== 'cancelled')
-                        <button type="button" class="btn btn-danger w-100" id="cancelOrderBtn">
+                        <button type="button" class="btn btn-danger w-100" data-bs-toggle="modal" data-bs-target="#cancelModal">
                             <i class="feather-x me-1"></i> Cancel Order
                         </button>
                     @endif
@@ -682,6 +682,51 @@
             </div>
         </div>
     </div>
+
+    <!-- Cancel Order Modal -->
+    <div class="modal fade" id="cancelModal" tabindex="-1" aria-labelledby="cancelModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="cancelModalLabel">Cancel Order &mdash; {{ $order->order_number }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="cancelOrderForm">
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <i class="feather-alert-triangle me-2"></i>
+                            <strong>Warning:</strong> This action cannot be undone. The order will be cancelled and inventory will be restored.
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="cancelReason" class="form-label">Cancellation Reason <span class="text-danger">*</span></label>
+                            <select class="form-select" id="cancelReason" name="reason" required>
+                                <option value="">Select a reason...</option>
+                                <option value="Out of stock">Out of stock</option>
+                                <option value="Buyer requested cancellation">Buyer requested cancellation</option>
+                                <option value="Address issue">Address issue</option>
+                                <option value="Shipping issue">Shipping issue</option>
+                                <option value="Pricing error">Pricing error</option>
+                                <option value="Item damaged">Item damaged</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3" id="otherReasonContainer" style="display: none;">
+                            <label for="otherReason" class="form-label">Please specify</label>
+                            <textarea class="form-control" id="otherReason" name="other_reason" rows="3" placeholder="Enter cancellation reason..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light-brand" data-bs-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="feather-x me-1"></i> Cancel Order
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 @endpush
 
 @push('scripts')
@@ -888,29 +933,70 @@
             });
 
             // ----------------------------------------------------------------
-            // Cancel order
+            // Cancel order - Show/hide other reason field
             // ----------------------------------------------------------------
-            $('#cancelOrderBtn').on('click', function() {
-                if (confirm('Are you sure you want to cancel this order? This action cannot be undone.')) {
-                    $.ajax({
-                        url: '{{ route('orders.cancel', $order->id) }}',
-                        type: 'POST',
-                        data: {
-                            _token: '{{ csrf_token() }}',
-                            reason: 'Cancelled by admin'
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                location.reload();
-                            } else {
-                                alert(response.message || 'Failed to cancel order');
-                            }
-                        },
-                        error: function(xhr) {
-                            alert('Failed to cancel order: ' + (xhr.responseJSON?.message || 'Unknown error'));
-                        }
-                    });
+            $('#cancelReason').on('change', function() {
+                if ($(this).val() === 'Other') {
+                    $('#otherReasonContainer').show();
+                    $('#otherReason').prop('required', true);
+                } else {
+                    $('#otherReasonContainer').hide();
+                    $('#otherReason').prop('required', false);
                 }
+            });
+
+            // ----------------------------------------------------------------
+            // Cancel order form submit
+            // ----------------------------------------------------------------
+            $('#cancelOrderForm').on('submit', function(e) {
+                e.preventDefault();
+
+                var reason = $('#cancelReason').val();
+                if (reason === 'Other') {
+                    reason = $('#otherReason').val();
+                }
+
+                if (!reason) {
+                    alert('Please select or enter a cancellation reason');
+                    return;
+                }
+
+                var $submitBtn = $(this).find('button[type="submit"]');
+                $submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Cancelling...');
+
+                $.ajax({
+                    url: '{{ route('orders.cancel', $order->id) }}',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        reason: reason
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            bootstrap.Modal.getInstance(document.getElementById('cancelModal')).hide();
+
+                            // Show success message with eBay sync status
+                            var message = response.message;
+                            if (response.ebay_sync) {
+                                if (response.ebay_sync.success) {
+                                    message += '\n✓ Successfully synced to eBay';
+                                } else {
+                                    message += '\n⚠ Warning: eBay sync failed - ' + (response.ebay_sync.message || 'Unknown error');
+                                }
+                            }
+
+                            alert(message);
+                            location.reload();
+                        } else {
+                            alert(response.message || 'Failed to cancel order');
+                            $submitBtn.prop('disabled', false).html('<i class="feather-x me-1"></i> Cancel Order');
+                        }
+                    },
+                    error: function(xhr) {
+                        alert('Failed to cancel order: ' + (xhr.responseJSON?.message || 'Unknown error'));
+                        $submitBtn.prop('disabled', false).html('<i class="feather-x me-1"></i> Cancel Order');
+                    }
+                });
             });
 
             // ----------------------------------------------------------------

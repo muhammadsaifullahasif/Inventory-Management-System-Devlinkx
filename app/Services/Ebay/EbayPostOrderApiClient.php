@@ -246,8 +246,20 @@ class EbayPostOrderApiClient
             Log::channel('ebay')->info('Creating cancellation request', $requestLog);
             Log::info('eBay: Creating cancellation request', $requestLog);
 
+            // Try without Bearer prefix as Post-Order API v2 may reject it
+            $headers = [
+                'Authorization' => $channel->access_token,  // Try without "Bearer" prefix
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+                'X-EBAY-C-MARKETPLACE-ID' => 'EBAY_US',
+            ];
+
+            Log::info('eBay: Trying authorization without Bearer prefix', [
+                'token_preview' => substr($channel->access_token, 0, 20) . '...',
+            ]);
+
             $response = Http::timeout(self::REQUEST_TIMEOUT)
-                ->withHeaders($this->getRestApiHeaders($channel))
+                ->withHeaders($headers)
                 ->post(self::POST_ORDER_API_URL . '/cancellation', $body);
 
             $data = $response->json();
@@ -1148,6 +1160,7 @@ class EbayPostOrderApiClient
             'X-EBAY-C-MARKETPLACE-ID' => 'EBAY_US',
         ];
     }
+
 
     /**
      * Parse a cancellation from API response.
