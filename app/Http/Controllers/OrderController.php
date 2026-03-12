@@ -631,6 +631,11 @@ class OrderController extends Controller
      */
     public function cancel(Request $request, string $id): JsonResponse
     {
+        Log::info('Order cancellation requested', [
+            'order_id' => $id,
+            'reason' => $request->input('reason'),
+        ]);
+
         $order = Order::with('salesChannel')->find($id);
 
         if (!$order) {
@@ -639,6 +644,14 @@ class OrderController extends Controller
                 'message' => 'Order not found',
             ], 404);
         }
+
+        Log::info('Order found for cancellation', [
+            'order_id' => $order->id,
+            'order_status' => $order->order_status,
+            'is_ebay_order' => $order->isEbayOrder(),
+            'ebay_order_id' => $order->ebay_order_id,
+            'sales_channel_id' => $order->salesChannel?->id,
+        ]);
 
         if ($order->order_status === 'cancelled') {
             return response()->json([
@@ -702,20 +715,41 @@ class OrderController extends Controller
      */
     protected function syncCancellationToEbay(Order $order, ?string $reason = null): array
     {
+        Log::info('syncCancellationToEbay called', [
+            'order_id' => $order->id,
+            'ebay_order_id' => $order->ebay_order_id,
+            'reason' => $reason,
+        ]);
+
         try {
             $salesChannel = $order->salesChannel;
             if (!$salesChannel || !$salesChannel->isEbay()) {
+                Log::warning('Order is not an eBay order', [
+                    'order_id' => $order->id,
+                    'sales_channel_id' => $salesChannel?->id,
+                ]);
                 return [
                     'success' => false,
                     'message' => 'Not an eBay sales channel',
                 ];
             }
 
+            Log::info('Attempting to sync cancellation to eBay', [
+                'order_id' => $order->id,
+                'ebay_order_id' => $order->ebay_order_id,
+                'sales_channel_id' => $salesChannel->id,
+            ]);
+
             $ebayController = app(EbayController::class);
 
             // Map cancellation reason to eBay reason codes
             $ebayReason = $this->mapCancellationReasonToEbay($reason);
             $buyerNote = $reason ? "Order cancelled: " . $reason : "Order has been cancelled";
+
+            Log::info('Calling EbayController::createCancellation', [
+                'ebay_reason' => $ebayReason,
+                'buyer_note' => $buyerNote,
+            ]);
 
             $response = $ebayController->createCancellation(
                 new \Illuminate\Http\Request([
@@ -728,6 +762,10 @@ class OrderController extends Controller
 
             // Extract result from JsonResponse
             $result = json_decode($response->getContent(), true);
+
+            Log::info('EbayController response received', [
+                'result' => $result,
+            ]);
 
             // Log the sync attempt
             $order->setMeta('ebay_cancellation_sync_' . time(), [

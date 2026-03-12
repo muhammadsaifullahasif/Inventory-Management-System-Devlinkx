@@ -208,7 +208,19 @@ class EbayPostOrderApiClient
         string $reason = 'OUT_OF_STOCK',
         ?string $buyerNote = null
     ): array {
+        Log::info('eBay: Before ensureValidToken', [
+            'sales_channel_id' => $channel->id,
+            'token_length' => strlen($channel->access_token ?? ''),
+            'token_expires_at' => $channel->access_token_expires_at,
+        ]);
+
         $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        Log::info('eBay: After ensureValidToken', [
+            'sales_channel_id' => $channel->id,
+            'token_length' => strlen($channel->access_token ?? ''),
+            'token_expires_at' => $channel->access_token_expires_at,
+        ]);
 
         try {
             $body = [
@@ -221,11 +233,18 @@ class EbayPostOrderApiClient
                 $body['reasonForCancellation'] = $buyerNote;
             }
 
-            Log::channel('ebay')->info('Creating cancellation request', [
+            // Log to both ebay channel and default log for debugging
+            $requestLog = [
                 'order_id' => $legacyOrderId,
                 'reason' => $reason,
                 'body' => $body,
-            ]);
+                'api_url' => self::POST_ORDER_API_URL . '/cancellation',
+                'token_length' => strlen($channel->access_token ?? ''),
+                'token_expires_at' => $channel->access_token_expires_at,
+                'token_is_expired' => $channel->access_token_expires_at ? now()->greaterThan($channel->access_token_expires_at) : null,
+            ];
+            Log::channel('ebay')->info('Creating cancellation request', $requestLog);
+            Log::info('eBay: Creating cancellation request', $requestLog);
 
             $response = Http::timeout(self::REQUEST_TIMEOUT)
                 ->withHeaders($this->getRestApiHeaders($channel))
@@ -234,32 +253,40 @@ class EbayPostOrderApiClient
             $data = $response->json();
 
             if (!$response->successful()) {
-                Log::channel('ebay')->error('Failed to create cancellation', [
+                $errorLog = [
                     'order_id' => $legacyOrderId,
                     'reason' => $reason,
                     'status' => $response->status(),
                     'response' => $data,
                     'body' => $body,
-                ]);
+                    'response_body' => $response->body(),
+                ];
+                Log::channel('ebay')->error('Failed to create cancellation', $errorLog);
+                Log::error('eBay: Failed to create cancellation', $errorLog);
 
                 $errorMessage = 'Failed to create cancellation';
                 if (isset($data['errors'][0]['message'])) {
                     $errorMessage = $data['errors'][0]['message'];
                 } elseif (isset($data['message'])) {
                     $errorMessage = $data['message'];
+                } elseif (isset($data['error'])) {
+                    $errorMessage = $data['error'];
                 }
 
                 return [
                     'success' => false,
                     'message' => $errorMessage,
                     'error_details' => $data,
+                    'http_status' => $response->status(),
                 ];
             }
 
-            Log::channel('ebay')->info('Cancellation created', [
+            $successLog = [
                 'order_id' => $legacyOrderId,
                 'cancellation_id' => $data['cancellationId'] ?? '',
-            ]);
+            ];
+            Log::channel('ebay')->info('Cancellation created', $successLog);
+            Log::info('eBay: Cancellation created', $successLog);
 
             return [
                 'success' => true,
@@ -268,11 +295,16 @@ class EbayPostOrderApiClient
             ];
 
         } catch (Exception $e) {
-            Log::channel('ebay')->error('Create cancellation exception', [
+            $exceptionLog = [
                 'order_id' => $legacyOrderId,
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
-            ]);
+            ];
+            Log::channel('ebay')->error('Create cancellation exception', $exceptionLog);
+            Log::error('eBay: Create cancellation exception', $exceptionLog);
+
             return [
                 'success' => false,
                 'message' => $e->getMessage(),
