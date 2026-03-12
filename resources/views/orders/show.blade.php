@@ -973,15 +973,20 @@
                     },
                     success: function(response) {
                         if (response.success) {
-                            bootstrap.Modal.getInstance(document.getElementById('cancelModal')).hide();
+                            // Close the modal
+                            $('#cancelModal').modal('hide');
 
                             // Show success message with eBay sync status
                             var message = response.message;
                             if (response.ebay_sync) {
                                 if (response.ebay_sync.success) {
-                                    message += '\n✓ Successfully synced to eBay';
+                                    message += '\n\n✓ Successfully synced to eBay';
                                 } else {
-                                    message += '\n⚠ Warning: eBay sync failed - ' + (response.ebay_sync.message || 'Unknown error');
+                                    message += '\n\n⚠ Warning: eBay sync failed';
+                                    if (response.ebay_sync.message) {
+                                        message += '\nReason: ' + response.ebay_sync.message;
+                                    }
+                                    message += '\n\nNote: The order has been cancelled locally. You may need to manually cancel it on eBay Seller Hub.';
                                 }
                             }
 

@@ -228,6 +228,16 @@ class EbayPostOrderApiClient
                 'cancelReason' => $reason,
             ];
 
+            // NOTE: eBay's Post-Order API v2 /cancellation endpoint is primarily designed for
+            // BUYER-INITIATED cancellations that sellers approve/reject. For seller-initiated
+            // cancellations, eBay requires sellers to manually cancel through Seller Hub or
+            // use the issueRefund endpoint to effectively cancel by refunding.
+            //
+            // As of 2026, eBay requires Digital Signatures for EU/UK sellers for Post-Order API calls.
+            // Many users report 401 errors when trying to use this endpoint for seller cancellations.
+            //
+            // Alternative: Issue a full refund which effectively cancels the order
+
             // Add buyer note if provided
             if ($buyerNote) {
                 $body['reasonForCancellation'] = $buyerNote;
@@ -242,24 +252,13 @@ class EbayPostOrderApiClient
                 'token_length' => strlen($channel->access_token ?? ''),
                 'token_expires_at' => $channel->access_token_expires_at,
                 'token_is_expired' => $channel->access_token_expires_at ? now()->greaterThan($channel->access_token_expires_at) : null,
+                'note' => 'eBay Post-Order API may not support seller-initiated cancellations',
             ];
             Log::channel('ebay')->info('Creating cancellation request', $requestLog);
             Log::info('eBay: Creating cancellation request', $requestLog);
 
-            // Try without Bearer prefix as Post-Order API v2 may reject it
-            $headers = [
-                'Authorization' => $channel->access_token,  // Try without "Bearer" prefix
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-                'X-EBAY-C-MARKETPLACE-ID' => 'EBAY_US',
-            ];
-
-            Log::info('eBay: Trying authorization without Bearer prefix', [
-                'token_preview' => substr($channel->access_token, 0, 20) . '...',
-            ]);
-
             $response = Http::timeout(self::REQUEST_TIMEOUT)
-                ->withHeaders($headers)
+                ->withHeaders($this->getRestApiHeaders($channel))
                 ->post(self::POST_ORDER_API_URL . '/cancellation', $body);
 
             $data = $response->json();
@@ -276,13 +275,15 @@ class EbayPostOrderApiClient
                 Log::channel('ebay')->error('Failed to create cancellation', $errorLog);
                 Log::error('eBay: Failed to create cancellation', $errorLog);
 
-                $errorMessage = 'Failed to create cancellation';
+                $errorMessage = 'Failed to create cancellation on eBay';
                 if (isset($data['errors'][0]['message'])) {
                     $errorMessage = $data['errors'][0]['message'];
                 } elseif (isset($data['message'])) {
                     $errorMessage = $data['message'];
                 } elseif (isset($data['error'])) {
                     $errorMessage = $data['error'];
+                } elseif ($response->status() === 401) {
+                    $errorMessage = 'eBay API authentication failed. Note: eBay\'s Post-Order API has limitations for seller-initiated cancellations. Please cancel manually on eBay Seller Hub.';
                 }
 
                 return [
@@ -290,6 +291,7 @@ class EbayPostOrderApiClient
                     'message' => $errorMessage,
                     'error_details' => $data,
                     'http_status' => $response->status(),
+                    'note' => 'eBay requires sellers to cancel orders manually through Seller Hub or issue a full refund',
                 ];
             }
 
