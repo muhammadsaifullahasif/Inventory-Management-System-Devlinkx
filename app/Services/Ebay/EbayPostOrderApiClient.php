@@ -216,9 +216,16 @@ class EbayPostOrderApiClient
                 'cancelReason' => $reason,
             ];
 
+            // Add buyer note if provided
             if ($buyerNote) {
-                $body['buyerPaidDate'] = gmdate('Y-m-d\TH:i:s\Z');
+                $body['reasonForCancellation'] = $buyerNote;
             }
+
+            Log::channel('ebay')->info('Creating cancellation request', [
+                'order_id' => $legacyOrderId,
+                'reason' => $reason,
+                'body' => $body,
+            ]);
 
             $response = Http::timeout(self::REQUEST_TIMEOUT)
                 ->withHeaders($this->getRestApiHeaders($channel))
@@ -232,10 +239,20 @@ class EbayPostOrderApiClient
                     'reason' => $reason,
                     'status' => $response->status(),
                     'response' => $data,
+                    'body' => $body,
                 ]);
+
+                $errorMessage = 'Failed to create cancellation';
+                if (isset($data['errors'][0]['message'])) {
+                    $errorMessage = $data['errors'][0]['message'];
+                } elseif (isset($data['message'])) {
+                    $errorMessage = $data['message'];
+                }
+
                 return [
                     'success' => false,
-                    'message' => $data['errors'][0]['message'] ?? 'Failed to create cancellation',
+                    'message' => $errorMessage,
+                    'error_details' => $data,
                 ];
             }
 
@@ -254,6 +271,7 @@ class EbayPostOrderApiClient
             Log::channel('ebay')->error('Create cancellation exception', [
                 'order_id' => $legacyOrderId,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
             return [
                 'success' => false,
