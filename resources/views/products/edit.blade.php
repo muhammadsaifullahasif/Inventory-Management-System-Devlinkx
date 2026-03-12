@@ -1,5 +1,10 @@
 @extends('layouts.app')
 
+@push('styles')
+<link rel="stylesheet" type="text/css" href="{{ asset('vendors/css/select2.min.css') }}" />
+<link rel="stylesheet" type="text/css" href="{{ asset('vendors/css/select2-theme.min.css') }}" />
+@endpush
+
 @section('header')
     <!-- [ page-header ] start -->
     <div class="page-header">
@@ -438,6 +443,8 @@
 @endsection
 
 @push('scripts')
+    <script src="{{ asset('vendors/js/select2.min.js') }}"></script>
+    <script src="{{ asset('vendors/js/select2-active.min.js') }}"></script>
     <script>
         $(document).ready(function(){
             let componentIndex = 0;
@@ -494,6 +501,15 @@
                     </div>
                 `;
                 $('#componentsContainer').append(row);
+
+                // Initialize Select2 on the newly added select
+                const $newRow = $('.component-row').last();
+                $newRow.find('.component-product').select2({
+                    placeholder: 'Search and select a product...',
+                    allowClear: true,
+                    width: '100%',
+                    theme: 'bootstrap-5'
+                });
 
                 componentIndex++;
                 updateStockPreview();
