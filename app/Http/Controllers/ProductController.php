@@ -6,6 +6,7 @@ use App\Imports\ProductsImport;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductBundleComponent;
 use App\Models\Rack;
 use App\Models\SalesChannel;
 use App\Models\SalesChannelProduct;
@@ -43,7 +44,7 @@ class ProductController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Product::with(['sales_channels', 'category', 'brand', 'product_stocks.warehouse', 'product_stocks.rack']);
+        $query = Product::with(['sales_channels', 'category', 'brand', 'product_stocks.warehouse', 'product_stocks.rack', 'bundleComponents']);
 
         // Filter by search term (name, sku, barcode)
         if ($request->filled('search')) {
@@ -72,6 +73,15 @@ class ProductController extends Controller
             });
         }
 
+        // Filter by product type
+        if ($request->filled('product_type')) {
+            if ($request->product_type === 'bundle') {
+                $query->where('is_bundle', true);
+            } elseif ($request->product_type === 'regular') {
+                $query->where('is_bundle', false);
+            }
+        }
+
         // Combined filter for stock status with warehouse/rack
         // This ensures we check stock status within the specific warehouse/rack context
         $warehouseId = $request->warehouse_id;
@@ -79,22 +89,30 @@ class ProductController extends Controller
         $stockStatus = $request->stock_status;
 
         if ($warehouseId || $rackId || $stockStatus) {
-            $query->whereHas('product_stocks', function ($q) use ($warehouseId, $rackId, $stockStatus) {
-                // Filter by warehouse
-                if ($warehouseId) {
-                    $q->where('warehouse_id', $warehouseId);
-                }
+            $query->where(function ($q) use ($warehouseId, $rackId, $stockStatus) {
+                // Regular products: filter by product_stocks
+                $q->whereHas('product_stocks', function ($stockQuery) use ($warehouseId, $rackId, $stockStatus) {
+                    if ($warehouseId) {
+                        $stockQuery->where('warehouse_id', $warehouseId);
+                    }
+                    if ($rackId) {
+                        $stockQuery->where('rack_id', $rackId);
+                    }
+                    if ($stockStatus === 'in_stock') {
+                        $stockQuery->where('quantity', '>', 0);
+                    } elseif ($stockStatus === 'out_of_stock') {
+                        $stockQuery->where('quantity', '<=', 0);
+                    }
+                });
 
-                // Filter by rack
-                if ($rackId) {
-                    $q->where('rack_id', $rackId);
-                }
-
-                // Filter by stock status within the warehouse/rack context
-                if ($stockStatus === 'in_stock') {
-                    $q->where('quantity', '>', 0);
-                } elseif ($stockStatus === 'out_of_stock') {
-                    $q->where('quantity', '<=', 0);
+                // Bundle products: filter by components in warehouse (only for warehouse filter, not rack/stock status)
+                if ($warehouseId && !$rackId && !$stockStatus) {
+                    $q->orWhere(function ($bundleQuery) use ($warehouseId) {
+                        $bundleQuery->where('is_bundle', true)
+                            ->whereHas('bundleComponents.product.product_stocks', function ($componentStockQuery) use ($warehouseId) {
+                                $componentStockQuery->where('warehouse_id', $warehouseId);
+                            });
+                    });
                 }
             });
         }
@@ -127,9 +145,16 @@ class ProductController extends Controller
     {
         $categories = Category::all();
         $brands = Brand::all();
+        $warehouses = Warehouse::where('active_status', '1')->where('delete_status', '0')->get();
+        // Get all non-bundle products for bundle components
+        $products = Product::where('is_bundle', false)
+            ->where('active_status', '1')
+            ->where('delete_status', '0')
+            ->orderBy('name')
+            ->get();
         // $salesChannels = SalesChannel::where('active_status', 1)->get();
-        // return view('products.new', compact('categories', 'brands', 'salesChannels'));
-        return view('products.new', compact('categories', 'brands'));
+        // return view('products.new', compact('categories', 'brands', 'salesChannels', 'products', 'warehouses'));
+        return view('products.new', compact('categories', 'brands', 'products', 'warehouses'));
     }
 
     /**
@@ -152,6 +177,11 @@ class ProductController extends Controller
             'active_status' => 'sometimes|boolean',
             'sales_channels' => 'nullable|array',
             'sales_channels.*' => 'exists:sales_channels,id',
+            'is_bundle' => 'sometimes|boolean',
+            'bundle_type' => 'nullable|string|in:pair,kit,set,bundle',
+            'components' => 'required_if:is_bundle,1|array|min:2',
+            'components.*.product_id' => 'required|exists:products,id',
+            'components.*.quantity' => 'required|integer|min:1',
         ]);
 
         try {
@@ -164,6 +194,8 @@ class ProductController extends Controller
             $product->barcode = $request->barcode;
             $product->category_id = $request->category_id;
             $product->brand_id = $request->brand_id;
+            $product->is_bundle = $request->has('is_bundle') && $request->is_bundle;
+            $product->bundle_type = $request->is_bundle ? $request->bundle_type : null;
             if (empty($request->sale_price)) {
                 $product->price = $request->regular_price;
             } else {
@@ -211,6 +243,17 @@ class ProductController extends Controller
                 ]
             ]);
 
+            // Handle bundle components
+            if ($product->is_bundle && $request->has('components')) {
+                foreach ($request->components as $component) {
+                    ProductBundleComponent::create([
+                        'bundle_product_id' => $product->id,
+                        'component_product_id' => $component['product_id'],
+                        'quantity_required' => $component['quantity'],
+                    ]);
+                }
+            }
+
             // Handle Sales Channels - Create listings
             // $selectedChannels = $request->input('sales_channels', []);
             // if (!empty($selectedChannels)) {
@@ -219,7 +262,7 @@ class ProductController extends Controller
 
             DB::commit();
 
-            return redirect()->route('products.index')->with('success', 'Product created successfully.');
+            return redirect()->route('products.index')->with('success', $product->is_bundle ? 'Bundle created successfully.' : 'Product created successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Product creation failed', ['error' => $e->getMessage()]);
@@ -262,11 +305,18 @@ class ProductController extends Controller
      */
     public function edit(string $id)
     {
-        $product = Product::with(['sales_channels', 'product_stocks.warehouse', 'product_stocks.rack'])->findOrFail($id);
+        $product = Product::with(['sales_channels', 'product_stocks.warehouse', 'product_stocks.rack', 'bundleComponents.product.product_stocks'])->findOrFail($id);
         $categories = Category::all();
         $brands = Brand::all();
+        $warehouses = Warehouse::where('active_status', '1')->where('delete_status', '0')->get();
         $salesChannels = SalesChannel::where('active_status', 1)->get();
-        return view('products.edit', compact('product', 'categories', 'brands', 'salesChannels'));
+        // Get all non-bundle products for bundle components
+        $products = Product::where('is_bundle', false)
+            ->where('active_status', '1')
+            ->where('delete_status', '0')
+            ->orderBy('name')
+            ->get();
+        return view('products.edit', compact('product', 'categories', 'brands', 'salesChannels', 'products', 'warehouses'));
     }
 
     /**
@@ -289,6 +339,11 @@ class ProductController extends Controller
             'active_status' => 'sometimes|boolean',
             'sales_channels' => 'nullable|array',
             'sales_channels.*' => 'exists:sales_channels,id',
+            'is_bundle' => 'sometimes|boolean',
+            'bundle_type' => 'nullable|string|in:pair,kit,set,bundle',
+            'components' => 'required_if:is_bundle,1|array|min:2',
+            'components.*.product_id' => 'required|exists:products,id',
+            'components.*.quantity' => 'required|integer|min:1',
         ]);
 
         try {
@@ -303,6 +358,8 @@ class ProductController extends Controller
             $product->barcode = $request->barcode;
             $product->category_id = $request->category_id;
             $product->brand_id = $request->brand_id;
+            $product->is_bundle = $request->has('is_bundle') && $request->is_bundle;
+            $product->bundle_type = $request->is_bundle ? $request->bundle_type : null;
             if (empty($request->sale_price)) {
                 $product->price = $request->regular_price;
             } else {
@@ -328,13 +385,33 @@ class ProductController extends Controller
                 );
             }
 
+            // Handle bundle components
+            if ($product->is_bundle) {
+                // Delete existing components
+                ProductBundleComponent::where('bundle_product_id', $product->id)->delete();
+
+                // Create new components
+                if ($request->has('components')) {
+                    foreach ($request->components as $component) {
+                        ProductBundleComponent::create([
+                            'bundle_product_id' => $product->id,
+                            'component_product_id' => $component['product_id'],
+                            'quantity_required' => $component['quantity'],
+                        ]);
+                    }
+                }
+            } else {
+                // If bundle was disabled, remove all components
+                ProductBundleComponent::where('bundle_product_id', $product->id)->delete();
+            }
+
             // Handle Sales Channels sync
             $selectedChannels = $request->input('sales_channels', []);
             $this->syncSalesChannels($product, $selectedChannels, $currentChannelIds, $oldSku !== $request->sku);
 
             DB::commit();
 
-            return redirect()->route('products.index')->with('success', 'Product updated successfully.');
+            return redirect()->route('products.index')->with('success', $product->is_bundle ? 'Bundle updated successfully.' : 'Product updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Product update failed', ['error' => $e->getMessage(), 'product_id' => $id]);
@@ -748,6 +825,52 @@ class ProductController extends Controller
         }
 
         return $result['error'] ?? null;
+    }
+
+    /**
+     * Calculate bundle stock based on component availability (AJAX endpoint)
+     */
+    public function calculateStock(Request $request)
+    {
+        $request->validate([
+            'components' => 'required|array|min:1',
+            'components.*.product_id' => 'required|exists:products,id',
+            'components.*.quantity' => 'required|integer|min:1',
+        ]);
+
+        $minStock = PHP_INT_MAX;
+        $limitingComponent = null;
+        $details = [];
+
+        foreach ($request->components as $component) {
+            $product = Product::find($component['product_id']);
+            if (!$product) {
+                continue;
+            }
+
+            $componentStock = $product->available_stock;
+            $possibleBundles = (int) floor($componentStock / $component['quantity']);
+
+            $details[] = [
+                'product_name' => $product->name,
+                'product_sku' => $product->sku,
+                'required_qty' => $component['quantity'],
+                'available_stock' => $componentStock,
+                'possible_bundles' => $possibleBundles,
+            ];
+
+            if ($possibleBundles < $minStock) {
+                $minStock = $possibleBundles;
+                $limitingComponent = $product->name;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'available_bundles' => $minStock === PHP_INT_MAX ? 0 : $minStock,
+            'limiting_component' => $limitingComponent,
+            'components' => $details,
+        ]);
     }
 
     /**

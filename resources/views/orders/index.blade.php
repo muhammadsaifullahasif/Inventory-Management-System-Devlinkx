@@ -373,43 +373,95 @@
                                                     </thead>
                                                     <tbody>
                                                         @forelse($order->items as $item)
-                                                            <tr>
-                                                                <td class="text-center">
-                                                                    @php
-                                                                        $itemImageUrl = $item->product?->getImageUrl();
-                                                                    @endphp
-                                                                    @if($itemImageUrl)
-                                                                        <img src="{{ $itemImageUrl }}" alt="{{ $item->title }}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">
-                                                                    @else
-                                                                        <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                                                            <i class="feather-image text-muted"></i>
-                                                                        </div>
-                                                                    @endif
-                                                                </td>
-                                                                <td>
-                                                                    <span style="white-space: normal; width: 300px; display: block;" class="fw-semibold">{{ \Illuminate\Support\Str::limit($item->title, 50) }}</span>
-                                                                    @if ($item->ebay_item_id)
-                                                                        <span class="d-block fs-11 text-muted">{{ $item->ebay_item_id }}</span>
-                                                                    @endif
-                                                                    @if($item->variation_attributes)
-                                                                        <span class="d-block fs-11 text-muted">
-                                                                            @foreach($item->variation_attributes as $attr => $val)
-                                                                                {{ $attr }}: {{ $val }}@if(!$loop->last), @endif
-                                                                            @endforeach
+                                                            @if($item->is_bundle_summary)
+                                                                <!-- Bundle Summary Row -->
+                                                                <tr class="table-primary">
+                                                                    <td class="text-center">
+                                                                        @php
+                                                                            $itemImageUrl = $item->product?->getImageUrl();
+                                                                        @endphp
+                                                                        @if($itemImageUrl)
+                                                                            <img src="{{ $itemImageUrl }}" alt="{{ $item->title }}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">
+                                                                        @else
+                                                                            <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                                                <i class="feather-package text-primary"></i>
+                                                                            </div>
+                                                                        @endif
+                                                                    </td>
+                                                                    <td>
+                                                                        <span style="white-space: normal; width: 300px; display: block;" class="fw-bold">
+                                                                            <i class="feather-package me-1"></i>{{ $item->title }}
                                                                         </span>
-                                                                    @endif
-                                                                </td>
-                                                                <td>
-                                                                    @if($item->sku)
-                                                                        <code class="fs-11">{{ $item->sku }}</code>
-                                                                    @else
-                                                                        <span class="text-muted fs-11">-</span>
-                                                                    @endif
-                                                                </td>
-                                                                <td class="text-center fw-semibold">{{ $item->quantity }}</td>
-                                                                <td class="text-end">{{ $order->currency ?? 'USD' }} {{ number_format($item->unit_price, 2) }}</td>
-                                                                <td class="text-end fw-semibold">{{ $order->currency ?? 'USD' }} {{ number_format($item->total_price, 2) }}</td>
-                                                            </tr>
+                                                                        <span class="badge bg-primary text-white fs-11 mt-1">Bundle</span>
+                                                                        @if ($item->ebay_item_id)
+                                                                            <span class="d-block fs-11 text-muted mt-1">{{ $item->ebay_item_id }}</span>
+                                                                        @endif
+                                                                    </td>
+                                                                    <td><code class="fs-11">{{ $item->sku }}</code></td>
+                                                                    <td class="text-center fw-bold">{{ $item->quantity }}</td>
+                                                                    <td class="text-end fw-semibold">{{ $order->currency ?? 'USD' }} {{ number_format($item->unit_price, 2) }}</td>
+                                                                    <td class="text-end fw-bold">{{ $order->currency ?? 'USD' }} {{ number_format($item->total_price, 2) }}</td>
+                                                                </tr>
+
+                                                                <!-- Bundle Components -->
+                                                                @php
+                                                                    $components = $order->items->where('bundle_product_id', $item->product_id)
+                                                                                               ->where('is_bundle_summary', false);
+                                                                @endphp
+                                                                @foreach($components as $component)
+                                                                    <tr class="bg-light text-muted">
+                                                                        <td></td>
+                                                                        <td>
+                                                                            <span style="white-space: normal; width: 300px; display: block; padding-left: 20px;">
+                                                                                ↳ {{ $component->title }}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td><code class="fs-11 text-muted">{{ $component->sku }}</code></td>
+                                                                        <td class="text-center">{{ $component->quantity }}</td>
+                                                                        <td class="text-end text-muted">-</td>
+                                                                        <td class="text-end text-muted">-</td>
+                                                                    </tr>
+                                                                @endforeach
+                                                            @elseif(!$item->bundle_product_id)
+                                                                <!-- Regular Product Row -->
+                                                                <tr>
+                                                                    <td class="text-center">
+                                                                        @php
+                                                                            $itemImageUrl = $item->product?->getImageUrl();
+                                                                        @endphp
+                                                                        @if($itemImageUrl)
+                                                                            <img src="{{ $itemImageUrl }}" alt="{{ $item->title }}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">
+                                                                        @else
+                                                                            <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                                                <i class="feather-image text-muted"></i>
+                                                                            </div>
+                                                                        @endif
+                                                                    </td>
+                                                                    <td>
+                                                                        <span style="white-space: normal; width: 300px; display: block;" class="fw-semibold">{{ \Illuminate\Support\Str::limit($item->title, 50) }}</span>
+                                                                        @if ($item->ebay_item_id)
+                                                                            <span class="d-block fs-11 text-muted">{{ $item->ebay_item_id }}</span>
+                                                                        @endif
+                                                                        @if($item->variation_attributes)
+                                                                            <span class="d-block fs-11 text-muted">
+                                                                                @foreach($item->variation_attributes as $attr => $val)
+                                                                                    {{ $attr }}: {{ $val }}@if(!$loop->last), @endif
+                                                                                @endforeach
+                                                                            </span>
+                                                                        @endif
+                                                                    </td>
+                                                                    <td>
+                                                                        @if($item->sku)
+                                                                            <code class="fs-11">{{ $item->sku }}</code>
+                                                                        @else
+                                                                            <span class="text-muted fs-11">-</span>
+                                                                        @endif
+                                                                    </td>
+                                                                    <td class="text-center fw-semibold">{{ $item->quantity }}</td>
+                                                                    <td class="text-end">{{ $order->currency ?? 'USD' }} {{ number_format($item->unit_price, 2) }}</td>
+                                                                    <td class="text-end fw-semibold">{{ $order->currency ?? 'USD' }} {{ number_format($item->total_price, 2) }}</td>
+                                                                </tr>
+                                                            @endif
                                                         @empty
                                                             <tr>
                                                                 <td colspan="7" class="text-center text-muted py-3">No items found.</td>

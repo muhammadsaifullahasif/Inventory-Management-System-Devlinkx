@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\ProductStock;
+use App\Observers\ProductStockObserver;
 use App\Services\Ebay\EbayApiClient;
 use App\Services\Ebay\EbayNotificationService;
 use App\Services\Ebay\EbayOrderService;
@@ -32,5 +34,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::before(function ($user, $ability) {
             return $user->hasRole('superadmin') ? true : null;
         });
+
+        // Register ProductStock observer for auto-syncing bundle stock
+        ProductStock::observe(ProductStockObserver::class);
     }
 }

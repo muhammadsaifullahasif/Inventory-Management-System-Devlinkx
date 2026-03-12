@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Product extends Model
 {
@@ -19,15 +20,38 @@ class Product extends Model
         'price',
         'product_image',
         'is_featured',
+        'is_bundle',
+        'bundle_type',
         'active_status',
         'delete_status',
     ];
 
     protected $with = ['product_meta'];
 
+    protected $casts = [
+        'is_bundle' => 'boolean',
+        'is_featured' => 'boolean',
+    ];
+
     public function product_meta()
     {
         return $this->hasMany(ProductMeta::class);
+    }
+
+    /**
+     * Get bundle components (for bundle products)
+     */
+    public function bundleComponents()
+    {
+        return $this->hasMany(ProductBundleComponent::class, 'bundle_product_id');
+    }
+
+    /**
+     * Get bundles this product is a component of
+     */
+    public function isComponentOf()
+    {
+        return $this->hasMany(ProductBundleComponent::class, 'component_product_id');
     }
 
     /**
@@ -146,5 +170,153 @@ class Product extends Model
 
         // Otherwise, it's in the uploads folder
         return asset('uploads/' . $this->product_image);
+    }
+
+    /**
+     * Get available stock quantity
+     * For regular products: sum from product_stocks
+     * For bundle products: calculated from components (minimum available)
+     */
+    public function getAvailableStockAttribute(): int
+    {
+        if (!$this->is_bundle) {
+            // Regular product - sum from product_stocks
+            return (int) ProductStock::where('product_id', $this->id)
+                ->where('active_status', '1')
+                ->where('delete_status', '0')
+                ->sum(DB::raw('CAST(quantity AS UNSIGNED)'));
+        }
+
+        // Bundle product - calculate from components
+        if (!$this->relationLoaded('bundleComponents')) {
+            $this->load('bundleComponents.product');
+        }
+
+        if ($this->bundleComponents->isEmpty()) {
+            return 0;
+        }
+
+        $minStock = PHP_INT_MAX;
+
+        foreach ($this->bundleComponents as $component) {
+            $componentStock = $component->product->available_stock;
+            $possibleBundles = (int) floor($componentStock / $component->quantity_required);
+            $minStock = min($minStock, $possibleBundles);
+        }
+
+        return $minStock === PHP_INT_MAX ? 0 : $minStock;
+    }
+
+    /**
+     * Get stock details for bundle (which component is limiting)
+     */
+    public function getBundleStockDetails(): array
+    {
+        if (!$this->is_bundle) {
+            return [];
+        }
+
+        $details = [];
+        $minStock = PHP_INT_MAX;
+        $limitingComponent = null;
+
+        foreach ($this->bundleComponents as $component) {
+            $componentStock = $component->product->available_stock;
+            $possibleBundles = (int) floor($componentStock / $component->quantity_required);
+
+            $details[] = [
+                'product_name' => $component->product->name,
+                'product_sku' => $component->product->sku,
+                'required_qty' => $component->quantity_required,
+                'available_stock' => $componentStock,
+                'possible_bundles' => $possibleBundles,
+            ];
+
+            if ($possibleBundles < $minStock) {
+                $minStock = $possibleBundles;
+                $limitingComponent = $component->product->name;
+            }
+        }
+
+        return [
+            'available_bundles' => $minStock === PHP_INT_MAX ? 0 : $minStock,
+            'limiting_component' => $limitingComponent,
+            'components' => $details,
+        ];
+    }
+
+    /**
+     * Get bundle stock details per warehouse
+     * Returns available bundle quantity for each warehouse (including incomplete ones)
+     */
+    public function getBundleStockByWarehouse(): array
+    {
+        if (!$this->is_bundle) {
+            return [];
+        }
+
+        if (!$this->relationLoaded('bundleComponents')) {
+            $this->load('bundleComponents.product.product_stocks.warehouse');
+        }
+
+        if ($this->bundleComponents->isEmpty()) {
+            return [];
+        }
+
+        // Get all warehouses that have at least one component
+        $warehouses = [];
+        $allWarehouses = Warehouse::where('active_status', '1')->where('delete_status', '0')->get();
+
+        // Initialize all warehouses
+        foreach ($allWarehouses as $warehouse) {
+            $warehouses[$warehouse->id] = [
+                'warehouse' => $warehouse,
+                'available_bundles' => PHP_INT_MAX,
+                'components' => [],
+                'has_all_components' => true,
+                'missing_components' => [],
+            ];
+        }
+
+        // Calculate bundle stock for each warehouse
+        foreach ($this->bundleComponents as $component) {
+            foreach ($warehouses as $warehouseId => &$warehouseData) {
+                $componentStock = $component->product->product_stocks
+                    ->where('warehouse_id', $warehouseId)
+                    ->sum('quantity');
+
+                $possibleBundles = (int) floor($componentStock / $component->quantity_required);
+
+                // If component stock is 0, mark as missing
+                if ($componentStock == 0) {
+                    $warehouseData['has_all_components'] = false;
+                    $warehouseData['missing_components'][] = $component->product->name;
+                }
+
+                // Update minimum available bundles for this warehouse
+                $warehouseData['available_bundles'] = min(
+                    $warehouseData['available_bundles'],
+                    $possibleBundles
+                );
+
+                $warehouseData['components'][] = [
+                    'product_name' => $component->product->name,
+                    'product_sku' => $component->product->sku,
+                    'required_qty' => $component->quantity_required,
+                    'available_stock' => $componentStock,
+                    'possible_bundles' => $possibleBundles,
+                    'is_missing' => $componentStock == 0,
+                ];
+            }
+        }
+
+        // Convert PHP_INT_MAX to 0 for warehouses with incomplete data
+        foreach ($warehouses as &$warehouse) {
+            if ($warehouse['available_bundles'] === PHP_INT_MAX) {
+                $warehouse['available_bundles'] = 0;
+            }
+        }
+
+        return $warehouses;
     }
 }

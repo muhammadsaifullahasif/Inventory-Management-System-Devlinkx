@@ -104,6 +104,14 @@
                                     @endforeach
                                 </select>
                             </div>
+                            <div class="col-md-1">
+                                <label class="form-label">Product Type</label>
+                                <select name="product_type" class="form-select form-select-sm">
+                                    <option value="">All</option>
+                                    <option value="regular" {{ request('product_type') == 'regular' ? 'selected' : '' }}>Regular</option>
+                                    <option value="bundle" {{ request('product_type') == 'bundle' ? 'selected' : '' }}>Bundle</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="row g-3 mt-1">
                             <div class="col-md-2">
@@ -233,23 +241,38 @@
                                     </td>
                                     <td><span class="fw-semibold">${{ number_format($product->price, 2) }}</span></td>
                                     <td>
-                                        @php $totalStock = $product->product_stocks->sum('quantity'); @endphp
+                                        @php
+                                            $totalStock = $product->is_bundle
+                                                ? $product->available_stock
+                                                : $product->product_stocks->sum('quantity');
+                                        @endphp
                                         @if($totalStock > 0)
                                             <span class="badge bg-soft-success text-success">{{ $totalStock }}</span>
+                                            @if($product->is_bundle)
+                                                <span class="badge bg-soft-primary text-primary ms-1">Bundle</span>
+                                            @endif
                                         @else
                                             <span class="badge bg-soft-danger text-danger">Out of Stock</span>
+                                            @if($product->is_bundle)
+                                                <span class="badge bg-soft-primary text-primary ms-1">Bundle</span>
+                                            @endif
                                         @endif
                                     </td>
                                     <td>
-                                        @forelse($product->product_stocks as $stock)
-                                            <div class="mb-1">
-                                                <span class="badge bg-soft-info text-info">{{ $stock->warehouse->name ?? 'N/A' }}</span>
-                                                <span class="badge bg-soft-secondary text-secondary">{{ $stock->rack->name ?? 'N/A' }}</span>
-                                                <span class="text-muted fs-11">({{ $stock->quantity }})</span>
-                                            </div>
-                                        @empty
-                                            <span class="text-muted fs-12">-</span>
-                                        @endforelse
+                                        @if($product->is_bundle)
+                                            <span class="badge bg-soft-info text-info">Bundle</span>
+                                            <span class="text-muted fs-11">({{ $product->bundleComponents->count() }} Components)</span>
+                                        @else
+                                            @forelse($product->product_stocks as $stock)
+                                                <div class="mb-1">
+                                                    <span class="badge bg-soft-info text-info">{{ $stock->warehouse->name ?? 'N/A' }}</span>
+                                                    <span class="badge bg-soft-secondary text-secondary">{{ $stock->rack->name ?? 'N/A' }}</span>
+                                                    <span class="text-muted fs-11">({{ $stock->quantity }})</span>
+                                                </div>
+                                            @empty
+                                                <span class="text-muted fs-12">-</span>
+                                            @endforelse
+                                        @endif
                                     </td>
                                     <td>{{ $product->category->name ?? 'N/A' }}</td>
                                     <td>

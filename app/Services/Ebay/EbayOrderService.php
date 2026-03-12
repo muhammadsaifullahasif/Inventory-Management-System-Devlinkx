@@ -352,23 +352,30 @@ class EbayOrderService
             foreach ($ebayOrder['line_items'] as $lineItem) {
                 $product = Product::where('sku', $lineItem['item_id'])->first();
 
-                $orderItem = OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $product?->id,
-                    'ebay_item_id' => $lineItem['item_id'],
-                    'ebay_transaction_id' => $lineItem['transaction_id'],
-                    'ebay_line_item_id' => $lineItem['line_item_id'],
-                    'sku' => $lineItem['sku'] ?: $lineItem['item_id'],
-                    'title' => $lineItem['title'],
-                    'quantity' => $lineItem['quantity'],
-                    'unit_price' => $lineItem['unit_price'],
-                    'total_price' => $lineItem['unit_price'] * $lineItem['quantity'],
-                    'currency' => $ebayOrder['currency'],
-                    'variation_attributes' => $lineItem['variation_attributes'],
-                ]);
+                // Check if this is a bundle product
+                if ($product && $product->is_bundle) {
+                    // Process bundle: create summary + components
+                    $this->createBundleOrderItems($order, $product, $lineItem, $ebayOrder, $this->mapPaymentStatus($ebayOrder['payment_status'], $ebayOrder) === 'paid');
+                } else {
+                    // Regular product
+                    $orderItem = OrderItem::create([
+                        'order_id' => $order->id,
+                        'product_id' => $product?->id,
+                        'ebay_item_id' => $lineItem['item_id'],
+                        'ebay_transaction_id' => $lineItem['transaction_id'],
+                        'ebay_line_item_id' => $lineItem['line_item_id'],
+                        'sku' => $lineItem['sku'] ?: $lineItem['item_id'],
+                        'title' => $lineItem['title'],
+                        'quantity' => $lineItem['quantity'],
+                        'unit_price' => $lineItem['unit_price'],
+                        'total_price' => $lineItem['unit_price'] * $lineItem['quantity'],
+                        'currency' => $ebayOrder['currency'],
+                        'variation_attributes' => $lineItem['variation_attributes'],
+                    ]);
 
-                if ($this->mapPaymentStatus($ebayOrder['payment_status'], $ebayOrder) === 'paid') {
-                    $orderItem->updateInventory();
+                    if ($this->mapPaymentStatus($ebayOrder['payment_status'], $ebayOrder) === 'paid') {
+                        $orderItem->updateInventory();
+                    }
                 }
             }
 
@@ -2076,5 +2083,86 @@ class EbayOrderService
         }
 
         return !empty($attributes) ? $attributes : null;
+    }
+
+    /**
+     * Create order items for a bundle product.
+     * Creates a bundle summary item (for display) and component items (for inventory).
+     *
+     * @param Order $order
+     * @param Product $bundleProduct
+     * @param array $lineItem
+     * @param array $ebayOrder
+     * @param bool $isPaid
+     * @return void
+     */
+    protected function createBundleOrderItems(Order $order, Product $bundleProduct, array $lineItem, array $ebayOrder, bool $isPaid): void
+    {
+        // Load bundle components
+        $bundleProduct->load('bundleComponents.product');
+
+        Log::info('EbayOrderService: Creating bundle order items', [
+            'order_id' => $order->id,
+            'bundle_sku' => $bundleProduct->sku,
+            'bundle_name' => $bundleProduct->name,
+            'quantity' => $lineItem['quantity'],
+            'components_count' => $bundleProduct->bundleComponents->count(),
+        ]);
+
+        // 1. Create bundle summary item (for display only, won't deduct inventory)
+        OrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $bundleProduct->id,
+            'ebay_item_id' => $lineItem['item_id'],
+            'ebay_transaction_id' => $lineItem['transaction_id'],
+            'ebay_line_item_id' => $lineItem['line_item_id'],
+            'sku' => $bundleProduct->sku,
+            'title' => $bundleProduct->name,
+            'quantity' => $lineItem['quantity'],
+            'unit_price' => $lineItem['unit_price'],
+            'total_price' => $lineItem['unit_price'] * $lineItem['quantity'],
+            'currency' => $ebayOrder['currency'],
+            'is_bundle_summary' => true, // Mark as summary item
+        ]);
+
+        // 2. Create component items (these will deduct inventory)
+        foreach ($bundleProduct->bundleComponents as $component) {
+            $componentProduct = $component->product;
+            $componentQuantity = $component->quantity_required * $lineItem['quantity'];
+
+            $componentItem = OrderItem::create([
+                'order_id' => $order->id,
+                'product_id' => $componentProduct->id,
+                'bundle_product_id' => $bundleProduct->id,
+                'bundle_name' => $bundleProduct->name,
+                'sku' => $componentProduct->sku,
+                'title' => $componentProduct->name,
+                'quantity' => $componentQuantity,
+                'unit_price' => 0, // Components have no individual price
+                'total_price' => 0,
+                'currency' => $ebayOrder['currency'],
+                'is_bundle_summary' => false,
+            ]);
+
+            // Update inventory if order is paid
+            if ($isPaid) {
+                $componentItem->updateInventory();
+            }
+
+            Log::debug('EbayOrderService: Created bundle component item', [
+                'order_id' => $order->id,
+                'component_sku' => $componentProduct->sku,
+                'component_name' => $componentProduct->name,
+                'quantity' => $componentQuantity,
+                'inventory_updated' => $isPaid,
+            ]);
+        }
+
+        Log::info('EbayOrderService: Bundle order items created successfully', [
+            'order_id' => $order->id,
+            'bundle_sku' => $bundleProduct->sku,
+            'summary_items' => 1,
+            'component_items' => $bundleProduct->bundleComponents->count(),
+        ]);
     }
 }

@@ -190,6 +190,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/products/bulk-delete', [ProductController::class, 'bulkDelete'])->name('products.bulk-delete');
     Route::resource('/products', ProductController::class);
 
+    // Product Bundle Stock Calculation (AJAX)
+    Route::post('/bundles/calculate-stock', [ProductController::class, 'calculateStock'])->name('bundles.calculate-stock');
+
     // Purchases
     Route::get('/purchases/import', [PurchaseController::class, 'import_purchases'])->name('purchases.import');
     Route::get('/purchases/import/template', [PurchaseController::class, 'downloadImportTemplate'])->name('purchases.import.template');

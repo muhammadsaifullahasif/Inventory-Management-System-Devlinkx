@@ -62,7 +62,7 @@
                     </div>
 
                     <div class="row">
-                        <div class="col-md-6 mb-4">
+                        <div class="col-md-4 mb-4">
                             <label for="category_id" class="form-label">Category <span class="text-danger">*</span></label>
                             <select name="category_id" id="category_id" class="form-select @error('category_id') is-invalid @enderror">
                                 <option value="">Select Category</option>
@@ -74,7 +74,7 @@
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
-                        <div class="col-md-6 mb-4">
+                        <div class="col-md-4 mb-4">
                             <label for="brand_id" class="form-label">Brand <span class="text-danger">*</span></label>
                             <select name="brand_id" id="brand_id" class="form-select @error('brand_id') is-invalid @enderror">
                                 <option value="">Select Brand</option>
@@ -86,6 +86,26 @@
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
+                        <div class="col-md-4 mb-4">
+                            <label for="is_bundle" class="form-label">Product Type</label>
+                            <div class="form-check form-switch" style="padding-top: 8px;">
+                                <input class="form-check-input" type="checkbox" role="switch" id="is_bundle" name="is_bundle" value="1" {{ old('is_bundle') ? 'checked' : '' }}>
+                                <label class="form-check-label" for="is_bundle">This is a Bundle Product</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="bundleTypeContainer" class="mb-4" style="display: none;">
+                        <label for="bundle_type" class="form-label">Bundle Type</label>
+                        <select name="bundle_type" id="bundle_type" class="form-select @error('bundle_type') is-invalid @enderror">
+                            <option value="pair" {{ old('bundle_type') == 'pair' ? 'selected' : '' }}>Pair</option>
+                            <option value="kit" {{ old('bundle_type') == 'kit' ? 'selected' : '' }}>Kit</option>
+                            <option value="set" {{ old('bundle_type') == 'set' ? 'selected' : '' }}>Set</option>
+                            <option value="bundle" {{ old('bundle_type') == 'bundle' ? 'selected' : '' }}>Bundle</option>
+                        </select>
+                        @error('bundle_type')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                     </div>
 
                     <div class="row">
@@ -144,6 +164,36 @@
                         @enderror
                     </div>
 
+                    <!-- Bundle Components Section -->
+                    <div id="bundleComponentsSection" style="display: none;">
+                        <div class="card bg-light border mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center bg-white">
+                                <h6 class="mb-0">Bundle Components <span class="text-danger">*</span></h6>
+                                <button type="button" class="btn btn-sm btn-primary" id="addComponentBtn">
+                                    <i class="feather-plus me-1"></i> Add Component
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-info mb-3">
+                                    <i class="feather-info me-2"></i>
+                                    <strong>Auto-Pairing:</strong> Each bundle uses 1 of each component. Bundle quantity is automatically calculated based on the product with the lowest stock.
+                                </div>
+                                <div id="componentsContainer"></div>
+                                @error('components')
+                                    <div class="text-danger mt-2">{{ $message }}</div>
+                                @enderror
+
+                                <!-- Stock Preview -->
+                                <div class="mt-3 p-3 bg-white rounded border">
+                                    <h6 class="mb-2">Stock Preview</h6>
+                                    <div id="stockPreview" class="text-center text-muted py-2">
+                                        <small>Add at least 2 components to see stock calculation</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary">
                             <i class="feather-save me-2"></i>Save Product
@@ -155,3 +205,132 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+$(document).ready(function() {
+    let componentIndex = 0;
+
+    // Toggle bundle sections
+    $('#is_bundle').change(function() {
+        if($(this).is(':checked')) {
+            $('#bundleTypeContainer').slideDown();
+            $('#bundleComponentsSection').slideDown();
+        } else {
+            $('#bundleTypeContainer').slideUp();
+            $('#bundleComponentsSection').slideUp();
+            $('#componentsContainer').empty();
+            componentIndex = 0;
+        }
+    });
+
+    // Check on page load
+    if($('#is_bundle').is(':checked')) {
+        $('#bundleTypeContainer').show();
+        $('#bundleComponentsSection').show();
+    }
+
+    // Add component row
+    $('#addComponentBtn').click(function() {
+        addComponentRow();
+    });
+
+    function addComponentRow(productId = '', quantity = 1) {
+        const row = `
+            <div class="component-row mb-3 p-3 border rounded bg-white" data-index="${componentIndex}">
+                <div class="row g-3">
+                    <div class="col-md-11">
+                        <label class="form-label">Product</label>
+                        <select name="components[${componentIndex}][product_id]" class="form-select component-product" required>
+                            <option value="">Select Product</option>
+                            @foreach($products ?? [] as $product)
+                                <option value="{{ $product->id }}" data-name="{{ $product->name }}"
+                                    ${productId == '{{ $product->id }}' ? 'selected' : ''}>
+                                    {{ $product->name }} ({{ $product->sku }})
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <input type="hidden" name="components[${componentIndex}][quantity]" class="component-quantity" value="1">
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="button" class="btn btn-light-danger remove-component-btn">
+                            <i class="feather-trash-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        $('#componentsContainer').append(row);
+
+        componentIndex++;
+        updateStockPreview();
+    }
+
+    // Remove component
+    $(document).on('click', '.remove-component-btn', function() {
+        $(this).closest('.component-row').remove();
+        updateStockPreview();
+    });
+
+    // Update stock preview when product is selected
+    $(document).on('change', '.component-product', function() {
+        updateStockPreview();
+    });
+
+    function updateStockPreview() {
+        const components = [];
+        let isValid = true;
+
+        $('.component-row').each(function() {
+            const productId = $(this).find('.component-product').val();
+            const quantity = parseInt($(this).find('.component-quantity').val());
+
+            if (productId && quantity > 0) {
+                components.push({
+                    product_id: productId,
+                    quantity: quantity
+                });
+            } else {
+                isValid = false;
+            }
+        });
+
+        if (!isValid || components.length < 2) {
+            $('#stockPreview').html(`<small class="text-muted">Add at least 2 components to see stock calculation</small>`);
+            return;
+        }
+
+        // Calculate stock preview
+        $.ajax({
+            url: '{{ route('bundles.calculate-stock') }}',
+            method: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                components: components
+            },
+            success: function(response) {
+                if (response.success) {
+                    let html = `
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong>Available Bundles:</strong>
+                            <span class="badge bg-${response.available_bundles > 10 ? 'success' : response.available_bundles > 0 ? 'warning' : 'danger'} fs-6">
+                                ${response.available_bundles}
+                            </span>
+                        </div>
+                    `;
+
+                    if (response.limiting_component) {
+                        html += `<small class="text-muted">Limited by: <strong>${response.limiting_component}</strong></small>`;
+                    }
+
+                    $('#stockPreview').html(html);
+                }
+            },
+            error: function() {
+                $('#stockPreview').html(`<small class="text-danger">Failed to calculate stock</small>`);
+            }
+        });
+    }
+});
+</script>
+@endpush

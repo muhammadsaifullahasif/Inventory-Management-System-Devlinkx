@@ -15,6 +15,9 @@ class OrderItem extends Model
     protected $fillable = [
         'order_id',
         'product_id',
+        'bundle_product_id',
+        'bundle_name',
+        'is_bundle_summary',
         'ebay_item_id',
         'ebay_transaction_id',
         'ebay_line_item_id',
@@ -49,6 +52,7 @@ class OrderItem extends Model
         'cost_at_sale' => 'decimal:4',
         'item_paid_time' => 'datetime',
         'inventory_updated' => 'boolean',
+        'is_bundle_summary' => 'boolean',
     ];
 
     /**
@@ -68,6 +72,14 @@ class OrderItem extends Model
     }
 
     /**
+     * Get the bundle product (if this is a component of a bundle)
+     */
+    public function bundleProduct()
+    {
+        return $this->belongsTo(Product::class, 'bundle_product_id');
+    }
+
+    /**
      * Update inventory for this order item
      * Decrements the product stock quantity, records COGS, and syncs to all sales channels
      */
@@ -75,6 +87,12 @@ class OrderItem extends Model
     {
         if ($this->inventory_updated) {
             return true; // Already updated
+        }
+
+        // Skip bundle summary items (they're for display only)
+        if ($this->is_bundle_summary) {
+            $this->update(['inventory_updated' => true]);
+            return true;
         }
 
         if (!$this->product_id) {
