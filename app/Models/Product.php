@@ -173,12 +173,22 @@ class Product extends Model
     }
 
     /**
+     * Static array to track products being calculated (prevents infinite recursion)
+     */
+    private static array $calculatingStock = [];
+
+    /**
      * Get available stock quantity
      * For regular products: sum from product_stocks
      * For bundle products: calculated from components (minimum available)
      */
     public function getAvailableStockAttribute(): int
     {
+        // Prevent infinite recursion for circular bundle references
+        if (isset(self::$calculatingStock[$this->id])) {
+            return 0;
+        }
+
         if (!$this->is_bundle) {
             // Regular product - sum from product_stocks
             return (int) ProductStock::where('product_id', $this->id)
@@ -187,24 +197,48 @@ class Product extends Model
                 ->sum(DB::raw('CAST(quantity AS UNSIGNED)'));
         }
 
-        // Bundle product - calculate from components
-        if (!$this->relationLoaded('bundleComponents')) {
-            $this->load('bundleComponents.product');
+        // Mark this product as being calculated
+        self::$calculatingStock[$this->id] = true;
+
+        try {
+            // Bundle product - calculate from components
+            if (!$this->relationLoaded('bundleComponents')) {
+                $this->load('bundleComponents.product');
+            }
+
+            if ($this->bundleComponents->isEmpty()) {
+                return 0;
+            }
+
+            $minStock = PHP_INT_MAX;
+
+            foreach ($this->bundleComponents as $component) {
+                // Skip if component product doesn't exist
+                if (!$component->product) {
+                    continue;
+                }
+
+                // For component products, get stock directly from product_stocks (don't recurse into bundles)
+                if ($component->product->is_bundle) {
+                    // Nested bundle - recursively calculate (with protection)
+                    $componentStock = $component->product->available_stock;
+                } else {
+                    // Regular product - direct query (faster)
+                    $componentStock = (int) ProductStock::where('product_id', $component->product->id)
+                        ->where('active_status', '1')
+                        ->where('delete_status', '0')
+                        ->sum(DB::raw('CAST(quantity AS UNSIGNED)'));
+                }
+
+                $possibleBundles = (int) floor($componentStock / max(1, $component->quantity_required));
+                $minStock = min($minStock, $possibleBundles);
+            }
+
+            return $minStock === PHP_INT_MAX ? 0 : $minStock;
+        } finally {
+            // Always clean up the tracking flag
+            unset(self::$calculatingStock[$this->id]);
         }
-
-        if ($this->bundleComponents->isEmpty()) {
-            return 0;
-        }
-
-        $minStock = PHP_INT_MAX;
-
-        foreach ($this->bundleComponents as $component) {
-            $componentStock = $component->product->available_stock;
-            $possibleBundles = (int) floor($componentStock / $component->quantity_required);
-            $minStock = min($minStock, $possibleBundles);
-        }
-
-        return $minStock === PHP_INT_MAX ? 0 : $minStock;
     }
 
     /**
@@ -216,17 +250,29 @@ class Product extends Model
             return [];
         }
 
+        // Load components if not loaded
+        if (!$this->relationLoaded('bundleComponents')) {
+            $this->load('bundleComponents.product');
+        }
+
         $details = [];
         $minStock = PHP_INT_MAX;
         $limitingComponent = null;
 
         foreach ($this->bundleComponents as $component) {
+            // Skip if component product doesn't exist
+            if (!$component->product) {
+                continue;
+            }
+
+            // Get component stock (uses the protected available_stock accessor)
             $componentStock = $component->product->available_stock;
-            $possibleBundles = (int) floor($componentStock / $component->quantity_required);
+            $quantityRequired = max(1, $component->quantity_required);
+            $possibleBundles = (int) floor($componentStock / $quantityRequired);
 
             $details[] = [
-                'product_name' => $component->product->name,
-                'product_sku' => $component->product->sku,
+                'product_name' => $component->product->name ?? 'Unknown',
+                'product_sku' => $component->product->sku ?? 'N/A',
                 'required_qty' => $component->quantity_required,
                 'available_stock' => $componentStock,
                 'possible_bundles' => $possibleBundles,
@@ -234,7 +280,7 @@ class Product extends Model
 
             if ($possibleBundles < $minStock) {
                 $minStock = $possibleBundles;
-                $limitingComponent = $component->product->name;
+                $limitingComponent = $component->product->name ?? 'Unknown';
             }
         }
 
