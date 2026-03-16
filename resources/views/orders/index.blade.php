@@ -328,6 +328,15 @@
                                                     <i class="feather-truck"></i>
                                                 </a>
                                             @endif
+                                            @if ($order->order_status === 'shipped' && $order->fulfillment_status === 'fulfilled' && !is_null($order->shipping_label_path))
+                                                <a href="{{ route('orders.label', $order->id) }}"
+                                                   class="avatar-text avatar-md text-primary shipping-label"
+                                                   target="_blank"
+                                                   data-bs-toggle="tooltip"
+                                                   title="Download Shipping Label">
+                                                    <i class="feather-download"></i>
+                                                </a>
+                                            @endif
                                             {{-- Refund Button --}}
                                             @if($order->canBeRefunded() && !$order->isRefunded())
                                                 <a href="javascript:void(0);"

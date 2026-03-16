@@ -426,6 +426,12 @@
                         </button>
                     @endif
 
+                    @if ($order->order_status === 'shipped' && $order->fulfillment_status === 'fulfilled' && !is_null($order->shipping_label_path))
+                        <a href="{{ route('orders.label', $order->id) }}" class="btn btn-primary w-100 mb-2">
+                            <i class="feather-download me-1"></i> Download Shipping Label
+                        </a>
+                    @endif
+
                     @if($order->order_status !== 'cancelled')
                         <button type="button" class="btn btn-danger w-100" data-bs-toggle="modal" data-bs-target="#cancelModal">
                             <i class="feather-x me-1"></i> Cancel Order
