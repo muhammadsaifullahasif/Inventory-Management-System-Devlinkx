@@ -528,9 +528,9 @@ class OrderController extends Controller
 
             // Sync shipment to eBay if this is an eBay order
             $ebayResult = null;
-            if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
-                $ebayResult = $this->syncShipmentToEbay($order, $validated['shipping_carrier'], $validated['tracking_number']);
-            }
+            // if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+            //     $ebayResult = $this->syncShipmentToEbay($order, $validated['shipping_carrier'], $validated['tracking_number']);
+            // }
 
             $message = 'Order marked as shipped';
             if ($ebayResult) {

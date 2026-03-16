@@ -589,7 +589,7 @@ class ShippingService
                 'labelSpecification' => [
                     'labelFormatType' => 'COMMON2D',
                     'imageType'       => 'PDF',
-                    'labelStockType'  => 'PAPER_4X6',
+                    'labelStockType'  => 'STOCK_4X6',
                     'labelPrintingOrientation' => 'TOP_EDGE_OF_TEXT_FIRST',
                     'labelOrder' => 'SHIPPING_LABEL_FIRST',
                 ],
@@ -626,7 +626,7 @@ class ShippingService
                     ],
                     'customerReferences' => [[
                         'customerReferenceType' => 'CUSTOMER_REFERENCE',
-                        'value' => 'Order #' . ($order->order_number ?? $order->id),
+                        'value' => $order->items->pluck('title')->filter()->implode(', ') ?: ('Order #' . ($order->order_number ?? $order->id)),
                     ]],
                 ]],
 
