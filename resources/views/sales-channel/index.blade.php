@@ -82,6 +82,7 @@
                             <tr>
                                 <th>#</th>
                                 <th>Name</th>
+                                <th>Status</th>
                                 <th>Created at</th>
                                 <th class="text-end">Actions</th>
                             </tr>
@@ -126,6 +127,13 @@
                                                 <button type="button" class="btn-close" style="font-size: 0.75rem;" onclick="hideCompleteMessage({{ $sales_channel->id }})"></button>
                                             </div>
                                         </div>
+                                    </td>
+                                    <td>
+                                        @if ($sales_channel->hasValidToken())
+                                            <span class="badge badge-success">Connected</span>
+                                        @else
+                                            <span class="badge badge-warning">Disconnected</span>
+                                        @endif
                                     </td>
                                     <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($sales_channel->created_at)->format('d M, Y') }}</span></td>
                                     <td>
@@ -174,7 +182,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" class="text-center py-4 text-muted">No sales channels found.</td>
+                                    <td colspan="5" class="text-center py-4 text-muted">No sales channels found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
