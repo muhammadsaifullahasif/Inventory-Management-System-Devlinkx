@@ -26,3 +26,15 @@ Schedule::job(new UpdateEbayOrderStatusJob(90))
     ->twiceDaily(6, 18) // Run at 6 AM and 6 PM
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/ebay-order-status.log'));
+
+// Refresh eBay tokens every 30 minutes (tokens expire after ~2 hours)
+Schedule::command('tokens:refresh-ebay')
+    ->everyThirtyMinutes()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/token-refresh.log'));
+
+// Refresh shipping carrier tokens every 30 minutes
+Schedule::command('tokens:refresh-shipping')
+    ->everyThirtyMinutes()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/token-refresh.log'));
