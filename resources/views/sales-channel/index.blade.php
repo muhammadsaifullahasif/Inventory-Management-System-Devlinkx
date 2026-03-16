@@ -130,9 +130,9 @@
                                     </td>
                                     <td>
                                         @if ($sales_channel->hasValidToken())
-                                            <span class="badge badge-success">Connected</span>
+                                            <span class="badge bg-soft-info text-info">Connected</span>
                                         @else
-                                            <span class="badge badge-warning">Disconnected</span>
+                                            <span class="badge bg-soft-danger text-danger">Disconnected</span>
                                         @endif
                                     </td>
                                     <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($sales_channel->created_at)->format('d M, Y') }}</span></td>
