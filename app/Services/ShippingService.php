@@ -636,6 +636,10 @@ class ShippingService
             ],
         ];
 
+        Log::info('Shippment Label Payload: ', [
+            'payload' => $shipmentPayload
+        ]);
+
         // Remove email notification if no buyer email
         // if (empty($order->buyer_email)) {
         //     unset($shipmentPayload['requestedShipment']['shipmentSpecialServices']);
