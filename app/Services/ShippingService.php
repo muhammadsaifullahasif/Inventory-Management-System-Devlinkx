@@ -626,7 +626,7 @@ class ShippingService
                     ],
                     'customerReferences' => [[
                         'customerReferenceType' => 'CUSTOMER_REFERENCE',
-                        'value' => $order->items->pluck('title')->filter()->implode(', ') ?: ('Order #' . ($order->order_number ?? $order->id)),
+                        'value' => substr($order->items->pluck('title')->filter()->implode(', ') ?: ('Order #' . ($order->order_number ?? $order->id)), 0, 30),
                     ]],
                 ]],
 
