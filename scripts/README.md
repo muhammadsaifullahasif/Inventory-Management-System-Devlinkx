@@ -88,7 +88,7 @@ For the **Queue Worker**:
 ## Linux/Ubuntu Setup (Production Server)
 
 ### Server Details
-- **Project Path:** `/home/u776021627/public_html`
+- **Project Path:** `/home/u776021627/domains/inventory.satmec.com/public_html`
 - **PHP Path:** `/usr/bin/php`
 
 ### Quick Setup (Copy & Paste)
@@ -97,7 +97,7 @@ SSH into your server and run these commands:
 
 ```bash
 # 1. Navigate to project directory
-cd /home/u776021627/public_html
+cd /home/u776021627/domains/inventory.satmec.com/public_html
 
 # 2. Check if supervisor is installed
 which supervisord
@@ -150,13 +150,13 @@ sudo supervisorctl tail -f inventory-worker-00
 sudo supervisorctl tail -f inventory-scheduler
 
 # View last 100 lines of worker log
-tail -100 /home/u776021627/public_html/storage/logs/worker.log
+tail -100 /home/u776021627/domains/inventory.satmec.com/public_html/storage/logs/worker.log
 
 # View last 100 lines of scheduler log
-tail -100 /home/u776021627/public_html/storage/logs/scheduler.log
+tail -100 /home/u776021627/domains/inventory.satmec.com/public_html/storage/logs/scheduler.log
 
 # View token refresh log
-tail -100 /home/u776021627/public_html/storage/logs/token-refresh.log
+tail -100 /home/u776021627/domains/inventory.satmec.com/public_html/storage/logs/token-refresh.log
 
 # Reload configuration after changes
 sudo supervisorctl reread
@@ -169,10 +169,10 @@ If you can't install supervisor (shared hosting), use cron instead:
 
 ```bash
 # Your existing cron job for scheduler (already configured):
-* * * * * /usr/bin/php /home/u776021627/public_html/artisan schedule:run >> /dev/null 2>&1
+* * * * * /usr/bin/php /home/u776021627/domains/inventory.satmec.com/public_html/artisan schedule:run >> /dev/null 2>&1
 
 # Add this for queue worker (processes jobs every minute):
-* * * * * /usr/bin/php /home/u776021627/public_html/artisan queue:work --stop-when-empty --max-time=50 >> /dev/null 2>&1
+* * * * * /usr/bin/php /home/u776021627/domains/inventory.satmec.com/public_html/artisan queue:work --stop-when-empty --max-time=50 >> /dev/null 2>&1
 ```
 
 Note: Cron-only setup processes queue jobs once per minute. Supervisor is preferred for continuous processing.
