@@ -38,3 +38,10 @@ Schedule::command('tokens:refresh-shipping')
     ->everyThirtyMinutes()
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/token-refresh.log'));
+
+// Sync eBay orders every 15 minutes (backup for missed notifications)
+// Fetches today's orders by default
+Schedule::command('ebay:sync-orders')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/ebay-order-sync.log'));
