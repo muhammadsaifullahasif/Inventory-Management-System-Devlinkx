@@ -22,8 +22,7 @@ class SyncEbayOrders extends Command
                             {--days= : Number of days back to fetch orders}
                             {--from= : Start date in Y-m-d format (overrides --days)}
                             {--to= : End date in Y-m-d format (defaults to now)}
-                            {--today : Fetch only today\'s orders (default when no date options provided)}
-                            {--force : Force re-sync even for existing orders}';
+                            {--today : Fetch only today\'s orders (default when no date options provided)}';
 
     /**
      * The console command description.
@@ -86,17 +85,17 @@ class SyncEbayOrders extends Command
 
         foreach ($channels as $channel) {
             $this->newLine();
-            $this->line("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            $this->line("--------------------------------------------------");
             $this->info("Syncing channel: {$channel->name} (ID: {$channel->id})");
-            $this->line("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            $this->line("--------------------------------------------------");
 
             try {
                 // Ensure we have a valid token
                 $channel = $ebayClient->ensureValidToken($channel);
-                $this->line("  ✓ Token validated");
+                $this->line("  [OK] Token validated");
 
                 // Fetch all orders from eBay
-                $this->line("  → Fetching orders from eBay...");
+                $this->line("  Fetching orders from eBay...");
                 $result = $ebayService->getAllOrders(
                     $channel,
                     $dateFrom->toIso8601String(),
@@ -104,7 +103,7 @@ class SyncEbayOrders extends Command
                 );
 
                 if (!$result['success']) {
-                    $this->error("  ✗ Failed to fetch orders from eBay");
+                    $this->error("  [FAIL] Failed to fetch orders from eBay");
                     Log::channel('ebay')->error('Failed to fetch orders for sync', [
                         'sales_channel_id' => $channel->id,
                         'result' => $result,
@@ -115,7 +114,7 @@ class SyncEbayOrders extends Command
 
                 $orders = $result['orders'];
                 $orderCount = count($orders);
-                $this->info("  ✓ Found {$orderCount} order(s) on eBay");
+                $this->info("  [OK] Found {$orderCount} order(s) on eBay");
 
                 if ($orderCount === 0) {
                     continue;
@@ -124,9 +123,6 @@ class SyncEbayOrders extends Command
                 $channelCreated = 0;
                 $channelUpdated = 0;
                 $channelSkipped = 0;
-
-                $progressBar = $this->output->createProgressBar($orderCount);
-                $progressBar->start();
 
                 foreach ($orders as $ebayOrder) {
                     try {
@@ -151,12 +147,7 @@ class SyncEbayOrders extends Command
                         ]);
                         $totalFailed++;
                     }
-
-                    $progressBar->advance();
                 }
-
-                $progressBar->finish();
-                $this->newLine();
 
                 $this->line("  Results for {$channel->name}:");
                 $this->line("    Created: {$channelCreated}");
@@ -175,7 +166,7 @@ class SyncEbayOrders extends Command
                 ]);
 
             } catch (Exception $e) {
-                $this->error("  ✗ Error syncing channel: {$e->getMessage()}");
+                $this->error("  [ERROR] Error syncing channel: {$e->getMessage()}");
                 Log::channel('ebay')->error('eBay order sync failed for channel', [
                     'sales_channel_id' => $channel->id,
                     'error' => $e->getMessage(),
@@ -186,9 +177,9 @@ class SyncEbayOrders extends Command
         }
 
         $this->newLine(2);
-        $this->info("═══════════════════════════════════════════════════");
+        $this->info("===================================================");
         $this->info("           eBay Order Sync Complete");
-        $this->info("═══════════════════════════════════════════════════");
+        $this->info("===================================================");
         $this->line("  Total Created: {$totalCreated}");
         $this->line("  Total Updated: {$totalUpdated}");
         $this->line("  Total Skipped: {$totalSkipped}");
