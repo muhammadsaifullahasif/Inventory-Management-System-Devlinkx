@@ -262,7 +262,7 @@
                                     <td data-column="order_date">
                                         @if($order->order_date)
                                             <span class="fs-12">{{ \Carbon\Carbon::parse($order->order_date)->format('d M, Y') }}</span>
-                                            <span class="d-block fs-11 text-muted">{{ \Carbon\Carbon::parse($order->order_date)->format('H:i') }}</span>
+                                            <span class="d-block fs-11 text-muted">{{ \Carbon\Carbon::parse($order->order_date)->format('h:i A') }}</span>
                                         @else
                                             <span class="text-muted">N/A</span>
                                         @endif

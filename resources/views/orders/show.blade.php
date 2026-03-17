@@ -65,11 +65,11 @@
                                 </tr>
                                 <tr>
                                     <td class="text-muted">Order Date:</td>
-                                    <td>{{ $order->order_date ? \Carbon\Carbon::parse($order->order_date)->format('d M, Y H:i') : 'N/A' }}</td>
+                                    <td>{{ $order->order_date ? \Carbon\Carbon::parse($order->order_date)->format('d M, Y h:i A') : 'N/A' }}</td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted">Paid At:</td>
-                                    <td>{{ $order->paid_at ? \Carbon\Carbon::parse($order->paid_at)->format('d M, Y H:i') : 'N/A' }}</td>
+                                    <td>{{ $order->paid_at ? \Carbon\Carbon::parse($order->paid_at)->format('d M, Y h:i A') : 'N/A' }}</td>
                                 </tr>
                             </table>
                         </div>
@@ -128,7 +128,7 @@
                                 @if($order->shipped_at)
                                 <tr>
                                     <td class="text-muted">Shipped At:</td>
-                                    <td>{{ \Carbon\Carbon::parse($order->shipped_at)->format('d M, Y H:i') }}</td>
+                                    <td>{{ \Carbon\Carbon::parse($order->shipped_at)->format('d M, Y h:i A') }}</td>
                                 </tr>
                                 @endif
                                 @if($order->tracking_number)
@@ -152,7 +152,7 @@
                                     <td>
                                         <span class="text-success">
                                             <i class="feather-check-circle me-1"></i>
-                                            {{ \Carbon\Carbon::parse($order->delivered_at)->format('d M, Y H:i') }}
+                                            {{ \Carbon\Carbon::parse($order->delivered_at)->format('d M, Y h:i A') }}
                                         </span>
                                     </td>
                                 </tr>
