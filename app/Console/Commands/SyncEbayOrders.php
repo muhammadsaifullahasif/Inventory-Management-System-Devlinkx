@@ -39,11 +39,10 @@ class SyncEbayOrders extends Command
     {
         $this->info('Starting eBay order sync...');
 
-        // Build query for active eBay sales channels
+        // Build query for eBay sales channels with valid credentials
         $query = SalesChannel::whereNotNull('refresh_token')
             ->whereNotNull('client_id')
-            ->whereNotNull('client_secret')
-            ->where('is_active', true);
+            ->whereNotNull('client_secret');
 
         // Filter by specific channel if provided
         if ($channelId = $this->option('channel')) {
