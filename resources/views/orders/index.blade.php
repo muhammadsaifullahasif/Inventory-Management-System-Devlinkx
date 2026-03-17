@@ -201,9 +201,15 @@
                                             <span class="d-block fs-11 text-muted">{{ $order->buyer_email }}</span>
                                         @endif
                                     </td>
+                                    @php
+                                        // Count only main items (bundles + regular products), exclude bundle components
+                                        $mainItems = $order->items->filter(fn($item) => !$item->bundle_product_id || $item->is_bundle_summary);
+                                        $itemCount = $mainItems->count();
+                                        $totalQty = $mainItems->sum('quantity');
+                                    @endphp
                                     <td data-column="items">
-                                        <span>{{ $order->items->count() }} item(s)</span>
-                                        <span class="d-block fs-11 text-muted">Qty: {{ $order->items->sum('quantity') }}</span>
+                                        <span>{{ $itemCount }} item(s)</span>
+                                        <span class="d-block fs-11 text-muted">Qty: {{ $totalQty }}</span>
                                     </td>
                                     <td data-column="total">
                                         <span class="fw-semibold">{{ $order->currency ?? 'USD' }} {{ number_format($order->total, 2) }}</span>
@@ -322,7 +328,7 @@
                                                     data-customer="{{ $order->buyer_name ?? 'N/A' }}"
                                                     data-email="{{ $order->buyer_email ?? '' }}"
                                                     data-address="{{ implode(', ', array_filter([$order->shipping_address_line1, $order->shipping_city, $order->shipping_state, $order->shipping_postal_code, $order->shipping_country])) }}"
-                                                    data-items="{{ $order->items->count() }} item(s), Qty: {{ $order->items->sum('quantity') }}"
+                                                    data-items="{{ $mainItems->count() }} item(s), Qty: {{ $mainItems->sum('quantity') }}"
                                                     data-total="{{ ($order->currency ?? 'USD') . ' ' . number_format($order->total, 2) }}"
                                                     data-bs-toggle="tooltip" title="Mark as Shipped">
                                                     <i class="feather-truck"></i>
@@ -477,13 +483,17 @@
                                                             </tr>
                                                         @endforelse
                                                     </tbody>
-                                                    @if($order->items->count() > 0)
+                                                    @php
+                                                        // Only count main items for footer totals (exclude bundle components)
+                                                        $footerItems = $order->items->filter(fn($item) => !$item->bundle_product_id || $item->is_bundle_summary);
+                                                    @endphp
+                                                    @if($footerItems->count() > 0)
                                                         <tfoot class="table-light">
                                                             <tr>
                                                                 <td colspan="3"></td>
-                                                                <td class="text-center fw-bold">{{ $order->items->sum('quantity') }}</td>
+                                                                <td class="text-center fw-bold">{{ $footerItems->sum('quantity') }}</td>
                                                                 <td class="text-end"></td>
-                                                                <td class="text-end fw-bold">{{ $order->currency ?? 'USD' }} {{ number_format($order->items->sum('total_price'), 2) }}</td>
+                                                                <td class="text-end fw-bold">{{ $order->currency ?? 'USD' }} {{ number_format($footerItems->sum('total_price'), 2) }}</td>
                                                             </tr>
                                                         </tfoot>
                                                     @endif
@@ -748,6 +758,12 @@
                                         </table>
                                     </div>
                                     <small class="text-muted d-block mt-1"><i class="feather-info me-1"></i>Rates are estimates only. Actual cost may vary.</small>
+
+                                    <!-- Customer Reference -->
+                                    <div class="mt-3">
+                                        <label class="form-label small mb-1">Customer Reference <small class="text-muted">(max 30 chars, shown on label)</small></label>
+                                        <input type="text" id="indexCustomerReference" class="form-control form-control-sm" maxlength="30" placeholder="Auto-generated from item names if empty">
+                                    </div>
 
                                     <!-- Generate Label Button -->
                                     <button type="button" id="generateLabelBtn" class="btn btn-success w-100 mt-3" style="display:none;" disabled>
@@ -1202,6 +1218,7 @@
                 // Get selected units
                 var weightUnit = $('#indexWeightUnit').val();
                 var dimensionUnit = $('#indexDimensionUnit').val();
+                var customerReference = $('#indexCustomerReference').val();
 
                 var $btn = $(this);
                 $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generating Label...');
@@ -1215,7 +1232,8 @@
                         service_code:   serviceCode,
                         items:          itemOverrides,
                         weight_unit:    weightUnit,
-                        dimension_unit: dimensionUnit
+                        dimension_unit: dimensionUnit,
+                        customer_reference: customerReference
                     },
                     success: function(response) {
                         if (response.success) {

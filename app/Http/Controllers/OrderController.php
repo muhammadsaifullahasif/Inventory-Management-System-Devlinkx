@@ -412,7 +412,13 @@ class OrderController extends Controller
     {
         $order = Order::with(['items.product.product_meta'])->findOrFail($id);
 
-        $items = $order->items->map(function ($item) {
+        // Filter to only include main items (bundles + regular products), exclude bundle components
+        $mainItems = $order->items->filter(function ($item) {
+            // Include if: not a bundle component OR is the bundle summary itself
+            return !$item->bundle_product_id || $item->is_bundle_summary;
+        });
+
+        $items = $mainItems->map(function ($item) {
             $meta = $item->product?->product_meta ?? [];
             return [
                 'order_item_id' => $item->id,
@@ -424,7 +430,7 @@ class OrderController extends Controller
                 'width'         => (float) ($meta['width']  ?? 0),
                 'height'        => (float) ($meta['height'] ?? 0),
             ];
-        });
+        })->values();
 
         return response()->json(['success' => true, 'items' => $items]);
     }
@@ -1035,16 +1041,18 @@ class OrderController extends Controller
             'items.*.height'            => 'nullable|numeric|min:0',
             'weight_unit'               => 'nullable|string|in:lbs,kg,oz',
             'dimension_unit'            => 'nullable|string|in:in,cm',
+            'customer_reference'        => 'nullable|string|max:30',
         ]);
 
         $carrier      = Shipping::findOrFail($validated['carrier_id']);
         $serviceCode  = $validated['service_code'];
         $itemOverrides = $validated['items'] ?? [];
 
-        // Get unit overrides (defaults to carrier settings if not provided)
+        // Get unit overrides and customer reference (defaults to carrier settings if not provided)
         $unitOverrides = [
-            'weight_unit'    => $request->input('weight_unit'),
-            'dimension_unit' => $request->input('dimension_unit'),
+            'weight_unit'        => $request->input('weight_unit'),
+            'dimension_unit'     => $request->input('dimension_unit'),
+            'customer_reference' => $request->input('customer_reference'),
         ];
 
         try {

@@ -626,7 +626,13 @@ class ShippingService
                     ],
                     'customerReferences' => [[
                         'customerReferenceType' => 'CUSTOMER_REFERENCE',
-                        'value' => substr($this->getCustomerReference($order), 0, 30),
+                        'value' => substr(
+                            !empty($unitOverrides['customer_reference'])
+                                ? $unitOverrides['customer_reference']
+                                : $this->getCustomerReference($order),
+                            0,
+                            30
+                        ),
                     ]],
                 ]],
 

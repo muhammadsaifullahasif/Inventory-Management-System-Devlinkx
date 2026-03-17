@@ -633,6 +633,12 @@
                                     </div>
                                     <small class="text-muted d-block mt-1"><i class="feather-info me-1"></i>Rates are estimates only. Actual cost may vary.</small>
 
+                                    <!-- Customer Reference -->
+                                    <div class="mt-3">
+                                        <label class="form-label small mb-1">Customer Reference <small class="text-muted">(max 30 chars, shown on label)</small></label>
+                                        <input type="text" id="showCustomerReference" class="form-control form-control-sm" maxlength="30" placeholder="Auto-generated from item names if empty">
+                                    </div>
+
                                     <!-- Generate Label Button -->
                                     <button type="button" id="showGenerateLabelBtn" class="btn btn-success w-100 mt-3" style="display:none;" disabled>
                                         <i class="feather-printer me-1"></i> Generate Label & Mark Shipped
@@ -899,6 +905,7 @@
                 // Get selected units
                 var weightUnit = $('#showWeightUnit').val();
                 var dimensionUnit = $('#showDimensionUnit').val();
+                var customerReference = $('#showCustomerReference').val();
 
                 var $btn = $(this);
                 $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generating Label...');
@@ -912,7 +919,8 @@
                         service_code: serviceCode,
                         items:        itemOverrides,
                         weight_unit:  weightUnit,
-                        dimension_unit: dimensionUnit
+                        dimension_unit: dimensionUnit,
+                        customer_reference: customerReference
                     },
                     success: function(response) {
                         if (response.success) {
