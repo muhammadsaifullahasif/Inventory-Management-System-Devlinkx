@@ -626,7 +626,7 @@ class ShippingService
                     ],
                     'customerReferences' => [[
                         'customerReferenceType' => 'CUSTOMER_REFERENCE',
-                        'value' => substr($order->items->pluck('title')->filter()->implode(', ') ?: ('Order #' . ($order->order_number ?? $order->id)), 0, 30),
+                        'value' => substr($this->getCustomerReference($order), 0, 30),
                     ]],
                 ]],
 
@@ -826,5 +826,40 @@ class ShippingService
         Log::info('ShippingService: delivery status check complete', $stats);
 
         return $stats;
+    }
+
+    // -------------------------------------------------------------------------
+    // Helper Methods
+    // -------------------------------------------------------------------------
+
+    /**
+     * Get customer reference string for shipping label.
+     * Priority: Product title from products table > Order item title > Order number
+     *
+     * @param Order $order
+     * @return string
+     */
+    protected function getCustomerReference(Order $order): string
+    {
+        $titles = [];
+
+        foreach ($order->items as $item) {
+            // First priority: Product title from products table
+            if ($item->product && !empty($item->product->title)) {
+                $titles[] = $item->product->title;
+            }
+            // Second priority: Title from order_items table
+            elseif (!empty($item->title)) {
+                $titles[] = $item->title;
+            }
+        }
+
+        // If we have titles, join them
+        if (!empty($titles)) {
+            return implode(', ', $titles);
+        }
+
+        // Fallback: Order number
+        return 'Order #' . ($order->order_number ?? $order->id);
     }
 }
