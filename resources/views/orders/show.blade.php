@@ -481,10 +481,14 @@
                             </p>
                         </div>
                     </div>
+                    @php
+                        // Count only main items (bundles + regular products), exclude bundle components
+                        $modalMainItems = $order->items->filter(fn($item) => !$item->bundle_product_id || $item->is_bundle_summary);
+                    @endphp
                     <div class="row mb-3">
                         <div class="col-md-4">
                             <small class="text-muted">Items</small>
-                            <div>{{ $order->items->count() }} item(s), Qty: {{ $order->items->sum('quantity') }}</div>
+                            <div>{{ $modalMainItems->count() }} item(s), Qty: {{ $modalMainItems->sum('quantity') }}</div>
                         </div>
                         <div class="col-md-4">
                             <small class="text-muted">Order Total</small>
@@ -543,8 +547,12 @@
                                             <th class="text-center" style="width:90px;">H <span class="text-muted unit-label" id="dimUnitLabelH">(in)</span></th>
                                         </tr>
                                     </thead>
+                                    @php
+                                        // Filter to only show main items (bundles + regular products), exclude bundle components
+                                        $shippingItems = $order->items->filter(fn($item) => !$item->bundle_product_id || $item->is_bundle_summary);
+                                    @endphp
                                     <tbody id="showItemsDimTbody">
-                                        @foreach($order->items as $item)
+                                        @foreach($shippingItems as $item)
                                             @php
                                                 $meta   = $item->product?->product_meta ?? [];
                                                 $weight = (float) ($meta['weight'] ?? 0);
