@@ -26,7 +26,7 @@ class EbayApiClient
 {
     public const EBAY_API_URL = 'https://api.ebay.com/ws/api.dll';
     public const EBAY_TOKEN_URL = 'https://api.ebay.com/identity/v1/oauth2/token';
-    public const API_COMPATIBILITY_LEVEL = '967';
+    public const API_COMPATIBILITY_LEVEL = '1173';
     public const API_SITE_ID = '0'; // US
 
     // Default timeouts (seconds)

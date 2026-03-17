@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Services\Ebay\EbayNotificationService;
+use App\Services\Ebay\EbayApiClient;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class SalesChannelController extends Controller
@@ -245,8 +246,8 @@ class SalesChannelController extends Controller
 
             $response = Http::timeout(60)
                 ->withHeaders([
-                    'X-EBAY-API-SITEID' => '0',
-                    'X-EBAY-API-COMPATIBILITY-LEVEL' => '967',
+                    'X-EBAY-API-SITEID' => EbayApiClient::API_SITE_ID,
+                    'X-EBAY-API-COMPATIBILITY-LEVEL' => EbayApiClient::API_COMPATIBILITY_LEVEL,
                     'X-EBAY-API-CALL-NAME' => 'GetUser',
                     'X-EBAY-API-IAF-TOKEN' => $salesChannel->access_token,
                     'Content-Type' => 'text/xml',
