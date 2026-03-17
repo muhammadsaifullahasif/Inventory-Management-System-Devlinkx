@@ -1906,39 +1906,62 @@ class EbayOrderService
 
     /**
      * Save order item from notification transaction data (array format).
+     * Handles both regular products and bundle products.
      */
-    protected function saveOrderItemFromNotification(Order $order, array $transaction, array $item = []): OrderItem
+    protected function saveOrderItemFromNotification(Order $order, array $transaction, array $item = []): ?OrderItem
     {
         $itemId = $item['ItemID'] ?? $transaction['Item']['ItemID'] ?? '';
         $transactionId = $transaction['TransactionID'] ?? '';
 
-        $orderItem = OrderItem::where('order_id', $order->id)
+        // Check if order item already exists
+        $existingOrderItem = OrderItem::where('order_id', $order->id)
             ->where('ebay_transaction_id', $transactionId)
             ->first();
 
+        // If item already exists, just update it (don't recreate bundle components)
+        if ($existingOrderItem) {
+            $existingOrderItem->update([
+                'actual_shipping_cost' => EbayService::priceValue($transaction['ActualShippingCost'] ?? null),
+                'actual_handling_cost' => EbayService::priceValue($transaction['ActualHandlingCost'] ?? null),
+                'final_value_fee' => EbayService::priceValue($transaction['FinalValueFee'] ?? null),
+                'item_paid_time' => $this->parseEbayDate($transaction['PaidTime'] ?? ''),
+            ]);
+            return $existingOrderItem;
+        }
+
         $sku = $item['SKU'] ?? $transaction['Item']['SKU'] ?? $transaction['Variation']['SKU'] ?? '';
-        $productId = null;
+        $product = null;
 
         if (!empty($sku)) {
             $product = Product::where('sku', $sku)->first();
-            $productId = $product?->id;
         }
 
+        $quantity = (int) ($transaction['QuantityPurchased'] ?? 1);
+        $unitPrice = EbayService::priceValue($transaction['TransactionPrice'] ?? null);
+        $currency = EbayService::priceCurrency($transaction['TransactionPrice'] ?? null);
+        $isPaid = $this->mapPaymentStatusFromTransaction($transaction) === 'paid';
+
+        // Check if this is a bundle product
+        if ($product && $product->is_bundle) {
+            return $this->createBundleOrderItemsFromNotification($order, $product, $transaction, $item, $isPaid);
+        }
+
+        // Regular product - create single order item
         $itemData = [
             'order_id' => $order->id,
-            'product_id' => $productId,
+            'product_id' => $product?->id,
             'ebay_item_id' => $itemId,
             'ebay_transaction_id' => $transactionId,
             'ebay_line_item_id' => $transaction['OrderLineItemID'] ?? '',
             'sku' => $sku,
             'title' => $item['Title'] ?? $transaction['Item']['Title'] ?? '',
-            'quantity' => (int) ($transaction['QuantityPurchased'] ?? 1),
-            'unit_price' => EbayService::priceValue($transaction['TransactionPrice'] ?? null),
-            'total_price' => EbayService::priceValue($transaction['TransactionPrice'] ?? null) * (int) ($transaction['QuantityPurchased'] ?? 1),
+            'quantity' => $quantity,
+            'unit_price' => $unitPrice,
+            'total_price' => $unitPrice * $quantity,
             'actual_shipping_cost' => EbayService::priceValue($transaction['ActualShippingCost'] ?? null),
             'actual_handling_cost' => EbayService::priceValue($transaction['ActualHandlingCost'] ?? null),
             'final_value_fee' => EbayService::priceValue($transaction['FinalValueFee'] ?? null),
-            'currency' => EbayService::priceCurrency($transaction['TransactionPrice'] ?? null),
+            'currency' => $currency,
             'listing_type' => $item['ListingType'] ?? $transaction['Item']['ListingType'] ?? '',
             'condition_id' => $item['ConditionID'] ?? $transaction['Item']['ConditionID'] ?? '',
             'condition_display_name' => $item['ConditionDisplayName'] ?? $transaction['Item']['ConditionDisplayName'] ?? '',
@@ -1949,13 +1972,106 @@ class EbayOrderService
             'variation_attributes' => $this->extractVariationAttributes($transaction),
         ];
 
-        if ($orderItem) {
-            $orderItem->update($itemData);
-        } else {
-            $orderItem = OrderItem::create($itemData);
+        $orderItem = OrderItem::create($itemData);
+
+        // Update inventory if order is paid
+        if ($isPaid && $product) {
+            $orderItem->updateInventory();
         }
 
         return $orderItem;
+    }
+
+    /**
+     * Create bundle order items from notification data.
+     * Creates a summary item for the bundle and individual items for each component.
+     */
+    protected function createBundleOrderItemsFromNotification(Order $order, Product $bundleProduct, array $transaction, array $item, bool $isPaid): ?OrderItem
+    {
+        $bundleProduct->load('bundleComponents.product');
+
+        $itemId = $item['ItemID'] ?? $transaction['Item']['ItemID'] ?? '';
+        $transactionId = $transaction['TransactionID'] ?? '';
+        $quantity = (int) ($transaction['QuantityPurchased'] ?? 1);
+        $unitPrice = EbayService::priceValue($transaction['TransactionPrice'] ?? null);
+        $currency = EbayService::priceCurrency($transaction['TransactionPrice'] ?? null);
+
+        Log::info('EbayOrderService: Creating bundle order items from notification', [
+            'order_id' => $order->id,
+            'bundle_sku' => $bundleProduct->sku,
+            'bundle_name' => $bundleProduct->name,
+            'quantity' => $quantity,
+            'components_count' => $bundleProduct->bundleComponents->count(),
+        ]);
+
+        // 1. Create bundle summary item (for display, marked as is_bundle_summary)
+        $summaryItem = OrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $bundleProduct->id,
+            'ebay_item_id' => $itemId,
+            'ebay_transaction_id' => $transactionId,
+            'ebay_line_item_id' => $transaction['OrderLineItemID'] ?? '',
+            'sku' => $bundleProduct->sku,
+            'title' => $item['Title'] ?? $transaction['Item']['Title'] ?? $bundleProduct->name,
+            'quantity' => $quantity,
+            'unit_price' => $unitPrice,
+            'total_price' => $unitPrice * $quantity,
+            'actual_shipping_cost' => EbayService::priceValue($transaction['ActualShippingCost'] ?? null),
+            'actual_handling_cost' => EbayService::priceValue($transaction['ActualHandlingCost'] ?? null),
+            'final_value_fee' => EbayService::priceValue($transaction['FinalValueFee'] ?? null),
+            'currency' => $currency,
+            'listing_type' => $item['ListingType'] ?? $transaction['Item']['ListingType'] ?? '',
+            'condition_id' => $item['ConditionID'] ?? $transaction['Item']['ConditionID'] ?? '',
+            'condition_display_name' => $item['ConditionDisplayName'] ?? $transaction['Item']['ConditionDisplayName'] ?? '',
+            'site' => $item['Site'] ?? $transaction['Item']['Site'] ?? '',
+            'shipping_service' => $transaction['ShippingServiceSelected']['ShippingService'] ?? '',
+            'buyer_checkout_message' => $transaction['BuyerCheckoutMessage'] ?? '',
+            'item_paid_time' => $this->parseEbayDate($transaction['PaidTime'] ?? ''),
+            'variation_attributes' => $this->extractVariationAttributes($transaction),
+            'is_bundle_summary' => true,
+        ]);
+
+        // 2. Create component items (these will deduct inventory)
+        foreach ($bundleProduct->bundleComponents as $component) {
+            $componentProduct = $component->product;
+            $componentQuantity = $component->quantity_required * $quantity;
+
+            $componentItem = OrderItem::create([
+                'order_id' => $order->id,
+                'product_id' => $componentProduct->id,
+                'bundle_product_id' => $bundleProduct->id,
+                'bundle_name' => $bundleProduct->name,
+                'sku' => $componentProduct->sku,
+                'title' => $componentProduct->name,
+                'quantity' => $componentQuantity,
+                'unit_price' => 0,
+                'total_price' => 0,
+                'currency' => $currency,
+                'is_bundle_summary' => false,
+            ]);
+
+            // Update inventory if order is paid
+            if ($isPaid) {
+                $componentItem->updateInventory();
+            }
+
+            Log::debug('EbayOrderService: Created bundle component item from notification', [
+                'order_id' => $order->id,
+                'component_sku' => $componentProduct->sku,
+                'component_name' => $componentProduct->name,
+                'quantity' => $componentQuantity,
+                'inventory_updated' => $isPaid,
+            ]);
+        }
+
+        Log::info('EbayOrderService: Bundle order items created successfully from notification', [
+            'order_id' => $order->id,
+            'bundle_sku' => $bundleProduct->sku,
+            'summary_item_id' => $summaryItem->id,
+            'component_items' => $bundleProduct->bundleComponents->count(),
+        ]);
+
+        return $summaryItem;
     }
 
     /**
