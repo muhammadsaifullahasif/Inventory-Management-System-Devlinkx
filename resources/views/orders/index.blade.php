@@ -121,6 +121,9 @@
                         ];
                     @endphp
                     @include('partials.column-toggle', ['tableId' => 'ordersTable', 'cookieName' => 'orders_columns', 'columns' => $orderColumns])
+                    <button type="button" class="avatar-text avatar-md text-secondary" id="toggleAllSubtablesBtn" data-bs-toggle="tooltip" title="Expand/Collapse all order items">
+                        <i class="feather-list" id="toggleAllIcon"></i>
+                    </button>
                     <button type="button" class="avatar-text avatar-md text-primary" id="syncEbayStatusBtn" data-bs-toggle="tooltip" title="Sync eBay order statuses (cancel/refund/return)">
                         <i class="feather-refresh-cw"></i>
                     </button>
@@ -845,6 +848,39 @@
                     $itemsRow.slideDown(200);
                     $icon.removeClass('feather-chevron-right').addClass('feather-chevron-down');
                     $btn.addClass('bg-soft-primary');
+                }
+            });
+
+            // ----------------------------------------------------------------
+            // Toggle All Subtables (Expand/Collapse All)
+            // ----------------------------------------------------------------
+            var allSubtablesExpanded = false;
+            $('#toggleAllSubtablesBtn').on('click', function() {
+                var $btn = $(this);
+                var $icon = $('#toggleAllIcon');
+
+                if (allSubtablesExpanded) {
+                    // Collapse all
+                    $('.order-items-row').slideUp(200);
+                    $('.expand-items-btn').each(function() {
+                        $(this).find('.expand-icon').removeClass('feather-chevron-down').addClass('feather-chevron-right');
+                        $(this).removeClass('bg-soft-primary');
+                    });
+                    $icon.removeClass('feather-minimize-2').addClass('feather-list');
+                    $btn.removeClass('text-primary').addClass('text-secondary');
+                    $btn.attr('data-bs-original-title', 'Expand all order items');
+                    allSubtablesExpanded = false;
+                } else {
+                    // Expand all
+                    $('.order-items-row').slideDown(200);
+                    $('.expand-items-btn').each(function() {
+                        $(this).find('.expand-icon').removeClass('feather-chevron-right').addClass('feather-chevron-down');
+                        $(this).addClass('bg-soft-primary');
+                    });
+                    $icon.removeClass('feather-list').addClass('feather-minimize-2');
+                    $btn.removeClass('text-secondary').addClass('text-primary');
+                    $btn.attr('data-bs-original-title', 'Collapse all order items');
+                    allSubtablesExpanded = true;
                 }
             });
 
