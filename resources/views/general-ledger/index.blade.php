@@ -36,9 +36,14 @@
                                     <option value="all" {{ $selectedAccountId === 'all' ? 'selected' : '' }}>-- All Accounts --</option>
                                     @foreach ($groups as $group)
                                         <optgroup label="{{ $group->code }} - {{ $group->name }} ({{ ucfirst($group->nature) }})">
+                                            {{-- Group account itself (includes all children) --}}
+                                            <option value="{{ $group->id }}" {{ $selectedAccountId == $group->id ? 'selected' : '' }}>
+                                                {{ $group->code }} - {{ $group->name }} (All)
+                                            </option>
+                                            {{-- Child accounts --}}
                                             @foreach ($group->children as $child)
                                                 <option value="{{ $child->id }}" {{ $selectedAccountId == $child->id ? 'selected' : '' }}>
-                                                    {{ $child->code }} - {{ $child->name }}
+                                                    &nbsp;&nbsp;{{ $child->code }} - {{ $child->name }}
                                                     @if ($child->is_bank_cash)
                                                         (Bal: {{ number_format($child->current_balance, 2) }})
                                                     @endif
@@ -210,6 +215,9 @@
 
     @else
         {{-- ==================== SINGLE ACCOUNT VIEW ==================== --}}
+        @php
+            $isGroupAccount = $account->type === 'group';
+        @endphp
 
         <!-- Account Header -->
         <div class="col-12">
@@ -227,6 +235,9 @@
                                 @endif
                                 @if ($account->is_bank_cash)
                                     <span class="badge bg-soft-info text-info ms-2">Bank/Cash Account</span>
+                                @endif
+                                @if ($isGroupAccount)
+                                    <span class="badge bg-soft-info text-info ms-2">Includes all child accounts</span>
                                 @endif
                             </p>
                         </div>
@@ -252,6 +263,9 @@
                                 <tr>
                                     <th>Date</th>
                                     <th>Entry #</th>
+                                    @if ($isGroupAccount)
+                                        <th>Account</th>
+                                    @endif
                                     <th>Type</th>
                                     <th>Description</th>
                                     <th class="text-end">Debit</th>
@@ -269,7 +283,7 @@
                                             -
                                         @endif
                                     </td>
-                                    <td colspan="3"><strong>Opening Balance</strong></td>
+                                    <td colspan="{{ $isGroupAccount ? 4 : 3 }}"><strong>Opening Balance</strong></td>
                                     <td class="text-end">-</td>
                                     <td class="text-end">-</td>
                                     <td class="text-end fw-bold">{{ number_format(abs($openingBalance), 2) }}</td>
@@ -283,6 +297,13 @@
                                                 {{ $line->journalEntry->entry_number }}
                                             </a>
                                         </td>
+                                        @if ($isGroupAccount)
+                                            <td>
+                                                <a href="{{ route('general-ledger.index', ['account_id' => $line->account->id, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="text-primary">
+                                                    <code>{{ $line->account->code }}</code> {{ $line->account->name }}
+                                                </a>
+                                            </td>
+                                        @endif
                                         <td>
                                             @if ($line->journalEntry->reference_type === 'bill')
                                                 <span class="badge bg-soft-warning text-warning">Bill</span>
@@ -313,7 +334,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="text-center py-4 text-muted">
+                                        <td colspan="{{ $isGroupAccount ? 8 : 7 }}" class="text-center py-4 text-muted">
                                             No transactions found for the selected period.
                                         </td>
                                     </tr>
@@ -321,7 +342,7 @@
                             </tbody>
                             <tfoot>
                                 <tr class="table-light">
-                                    <td colspan="4" class="text-end fw-bold">Totals / Closing Balance:</td>
+                                    <td colspan="{{ $isGroupAccount ? 5 : 4 }}" class="text-end fw-bold">Totals / Closing Balance:</td>
                                     <td class="text-end fw-bold">{{ number_format($totalDebit, 2) }}</td>
                                     <td class="text-end fw-bold">{{ number_format($totalCredit, 2) }}</td>
                                     <td class="text-end fw-bold">{{ number_format(abs($runningBalance), 2) }}</td>

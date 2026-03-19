@@ -30,6 +30,9 @@ class SalesChannel extends Model
         'notification_verification_token',
         'notification_subscriptions',
         'webhook_url',
+        // Accounting fields
+        'receivable_account_id',
+        'sales_account_id',
     ];
 
     protected $casts = [
@@ -77,5 +80,37 @@ class SalesChannel extends Model
         return !empty($this->access_token) &&
                $this->access_token_expires_at &&
                $this->access_token_expires_at->isFuture();
+    }
+
+    /**
+     * Get the bank account for this sales channel (stored in receivable_account_id)
+     */
+    public function bankAccount()
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'receivable_account_id');
+    }
+
+    /**
+     * Alias for bankAccount for backwards compatibility
+     */
+    public function receivableAccount()
+    {
+        return $this->bankAccount();
+    }
+
+    /**
+     * Get the sales revenue account for this sales channel
+     */
+    public function salesAccount()
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'sales_account_id');
+    }
+
+    /**
+     * Check if this sales channel has accounting accounts set up
+     */
+    public function hasAccountingSetup(): bool
+    {
+        return !empty($this->receivable_account_id) && !empty($this->sales_account_id);
     }
 }

@@ -23,6 +23,7 @@ class InventoryAccountingService
     const PRODUCT_SALES_CODE = '4001';          // Product Sales
     const FREIGHT_CHARGES_CODE = '5002';        // Freight Charges (under Cost of Sales)
     const DUTIES_CUSTOMS_CODE = '5003';         // Duties & Customs (under Cost of Sales)
+    const ACCOUNTS_RECEIVABLE_CODE = '1301';    // Accounts Receivable (for marketplace sales)
 
     /**
      * Get the inventory asset account
@@ -70,6 +71,14 @@ class InventoryAccountingService
     public function getFreightAccount(): ?ChartOfAccount
     {
         return ChartOfAccount::where('code', self::FREIGHT_CHARGES_CODE)->first();
+    }
+
+    /**
+     * Get the accounts receivable account
+     */
+    public function getReceivablesAccount(): ?ChartOfAccount
+    {
+        return ChartOfAccount::where('code', self::ACCOUNTS_RECEIVABLE_CODE)->first();
     }
 
     /**
@@ -280,6 +289,182 @@ class InventoryAccountingService
             'quantity' => $orderItem->quantity,
             'avg_cost' => $avgCost,
             'total_cogs' => $totalCOGS,
+        ]);
+
+        return $journalEntry;
+    }
+
+    /**
+     * Record Sales Revenue journal entry when an order is fulfilled
+     *
+     * DEBIT: Accounts Receivable (1301 or channel-specific) - increases asset (money owed)
+     * CREDIT: Product Sales (4001 or channel-specific) - increases revenue
+     *
+     * @param Order $order The order being fulfilled
+     * @param OrderItem $orderItem The specific item
+     * @return JournalEntry|null
+     */
+    public function recordSalesRevenue(Order $order, OrderItem $orderItem): ?JournalEntry
+    {
+        // Try to get channel-specific accounts first, fall back to default
+        $receivablesAccount = $this->getChannelReceivablesAccount($order);
+        $salesAccount = $this->getChannelSalesAccount($order);
+
+        if (!$receivablesAccount || !$salesAccount) {
+            Log::warning('Inventory accounting: Required accounts not found for Sales Revenue', [
+                'receivables_account' => $receivablesAccount ? 'found' : 'missing',
+                'sales_account' => $salesAccount ? 'found' : 'missing',
+                'order_id' => $order->id,
+                'sales_channel_id' => $order->sales_channel_id,
+            ]);
+            return null;
+        }
+
+        // Use the item's total price (unit_price * quantity)
+        $saleAmount = round($orderItem->unit_price * $orderItem->quantity, 2);
+
+        if ($saleAmount <= 0) {
+            return null; // Don't create journal entry for zero value
+        }
+
+        // Get channel name for narration
+        $channelName = $order->salesChannel ? $order->salesChannel->name : 'Direct';
+
+        $journalEntry = JournalEntry::create([
+            'entry_number' => JournalEntry::generateEntryNumber(),
+            'entry_date' => now(),
+            'reference_type' => 'order_sale',
+            'reference_id' => $order->id,
+            'narration' => "Sale [{$channelName}]: {$orderItem->title} (Order #{$order->order_number}) - Qty: {$orderItem->quantity} @ {$orderItem->unit_price}",
+            'is_posted' => true,
+            'created_by' => Auth::id(),
+        ]);
+
+        // DEBIT: Accounts Receivable (increases asset)
+        JournalEntryLine::create([
+            'journal_entry_id' => $journalEntry->id,
+            'account_id' => $receivablesAccount->id,
+            'description' => "Receivable for sale: {$orderItem->title} ({$orderItem->quantity} units)",
+            'debit' => $saleAmount,
+            'credit' => 0,
+        ]);
+
+        // CREDIT: Product Sales (increases revenue)
+        JournalEntryLine::create([
+            'journal_entry_id' => $journalEntry->id,
+            'account_id' => $salesAccount->id,
+            'description' => "Product sale: {$orderItem->title}",
+            'debit' => 0,
+            'credit' => $saleAmount,
+        ]);
+
+        Log::info('Inventory accounting: Sales Revenue recorded', [
+            'journal_entry_id' => $journalEntry->id,
+            'order_id' => $order->id,
+            'sales_channel' => $channelName,
+            'product_title' => $orderItem->title,
+            'quantity' => $orderItem->quantity,
+            'unit_price' => $orderItem->unit_price,
+            'sale_amount' => $saleAmount,
+            'receivables_account' => $receivablesAccount->code,
+            'sales_account' => $salesAccount->code,
+        ]);
+
+        return $journalEntry;
+    }
+
+    /**
+     * Get the receivables account for an order (channel-specific or default)
+     */
+    public function getChannelReceivablesAccount(Order $order): ?ChartOfAccount
+    {
+        // If order has a sales channel with a specific receivables account, use it
+        if ($order->sales_channel_id && $order->salesChannel && $order->salesChannel->receivable_account_id) {
+            return ChartOfAccount::find($order->salesChannel->receivable_account_id);
+        }
+
+        // Fall back to default receivables account
+        return $this->getReceivablesAccount();
+    }
+
+    /**
+     * Get the sales account for an order (channel-specific or default)
+     */
+    public function getChannelSalesAccount(Order $order): ?ChartOfAccount
+    {
+        // If order has a sales channel with a specific sales account, use it
+        if ($order->sales_channel_id && $order->salesChannel && $order->salesChannel->sales_account_id) {
+            return ChartOfAccount::find($order->salesChannel->sales_account_id);
+        }
+
+        // Fall back to default sales account
+        return $this->getSalesAccount();
+    }
+
+    /**
+     * Reverse Sales Revenue when an order is cancelled/refunded
+     *
+     * DEBIT: Product Sales (4001 or channel-specific) - decreases revenue
+     * CREDIT: Accounts Receivable (1301 or channel-specific) - decreases asset
+     *
+     * @param Order $order The cancelled order
+     * @param OrderItem $orderItem The specific item
+     * @return JournalEntry|null
+     */
+    public function reverseSalesRevenue(Order $order, OrderItem $orderItem): ?JournalEntry
+    {
+        // Use channel-specific accounts
+        $receivablesAccount = $this->getChannelReceivablesAccount($order);
+        $salesAccount = $this->getChannelSalesAccount($order);
+
+        if (!$receivablesAccount || !$salesAccount) {
+            return null;
+        }
+
+        $saleAmount = round($orderItem->unit_price * $orderItem->quantity, 2);
+
+        if ($saleAmount <= 0) {
+            return null;
+        }
+
+        // Get channel name for narration
+        $channelName = $order->salesChannel ? $order->salesChannel->name : 'Direct';
+
+        $journalEntry = JournalEntry::create([
+            'entry_number' => JournalEntry::generateEntryNumber(),
+            'entry_date' => now(),
+            'reference_type' => 'order_cancellation',
+            'reference_id' => $order->id,
+            'narration' => "Sales Reversal [{$channelName}]: {$orderItem->title} (Order #{$order->order_number}) - Qty: {$orderItem->quantity}",
+            'is_posted' => true,
+            'created_by' => Auth::id(),
+        ]);
+
+        // DEBIT: Product Sales (decreases revenue)
+        JournalEntryLine::create([
+            'journal_entry_id' => $journalEntry->id,
+            'account_id' => $salesAccount->id,
+            'description' => "Sales reversal: {$orderItem->title}",
+            'debit' => $saleAmount,
+            'credit' => 0,
+        ]);
+
+        // CREDIT: Accounts Receivable (decreases asset)
+        JournalEntryLine::create([
+            'journal_entry_id' => $journalEntry->id,
+            'account_id' => $receivablesAccount->id,
+            'description' => "Receivable reversal: {$orderItem->title} ({$orderItem->quantity} units)",
+            'debit' => 0,
+            'credit' => $saleAmount,
+        ]);
+
+        Log::info('Inventory accounting: Sales Revenue reversed', [
+            'journal_entry_id' => $journalEntry->id,
+            'order_id' => $order->id,
+            'sales_channel' => $channelName,
+            'product_title' => $orderItem->title,
+            'quantity' => $orderItem->quantity,
+            'sale_amount' => $saleAmount,
         ]);
 
         return $journalEntry;

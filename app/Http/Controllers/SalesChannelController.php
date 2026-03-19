@@ -8,15 +8,18 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Services\Ebay\EbayNotificationService;
 use App\Services\Ebay\EbayApiClient;
+use App\Services\SalesChannelAccountService;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class SalesChannelController extends Controller
 {
     protected EbayNotificationService $notificationService;
+    protected SalesChannelAccountService $accountService;
 
-    public function __construct(EbayNotificationService $notificationService)
+    public function __construct(EbayNotificationService $notificationService, SalesChannelAccountService $accountService)
     {
         $this->notificationService = $notificationService;
+        $this->accountService = $accountService;
         $this->middleware(PermissionMiddleware::using('view sales-channels'), ['only' => ['index']]);
         $this->middleware(PermissionMiddleware::using('add sales-channels'), ['only' => ['create', 'store']]);
         $this->middleware(PermissionMiddleware::using('edit sales-channels'), ['only' => ['edit', 'update']]);
@@ -83,6 +86,9 @@ class SalesChannelController extends Controller
             $sales_channel->ru_name = $request->input('ru_name');
             $sales_channel->user_scopes = $request->input('user_scopes');
             $sales_channel->save();
+
+            // Create accounting accounts for this sales channel
+            $this->accountService->createAccountsForChannel($sales_channel);
 
             session(['sales_channel_id' => $sales_channel->id]);
 

@@ -140,11 +140,20 @@ class OrderItem extends Model
             'cost_at_sale' => $avgCostAtSale,
         ]);
 
-        // Record COGS journal entry
-        // DEBIT: Cost of Goods Sold (expense), CREDIT: Inventory Asset
+        // Record accounting journal entries
         $order = $this->order;
-        if ($order && $avgCostAtSale > 0) {
-            $inventoryAccountingService->recordCOGS($order, $this, $avgCostAtSale);
+        if ($order) {
+            // Record COGS journal entry
+            // DEBIT: Cost of Goods Sold (expense), CREDIT: Inventory Asset
+            if ($avgCostAtSale > 0) {
+                $inventoryAccountingService->recordCOGS($order, $this, $avgCostAtSale);
+            }
+
+            // Record Sales Revenue journal entry
+            // DEBIT: Accounts Receivable (asset), CREDIT: Product Sales (revenue)
+            if ($this->unit_price > 0) {
+                $inventoryAccountingService->recordSalesRevenue($order, $this);
+            }
         }
 
         // Sync inventory to all linked sales channels
@@ -209,11 +218,20 @@ class OrderItem extends Model
         // Mark as not updated
         $this->update(['inventory_updated' => false]);
 
-        // Reverse COGS journal entry
-        // DEBIT: Inventory Asset, CREDIT: Cost of Goods Sold
+        // Reverse accounting journal entries
         $order = $this->order;
-        if ($order && $costAtSale > 0) {
-            $inventoryAccountingService->reverseCOGS($order, $this, $costAtSale);
+        if ($order) {
+            // Reverse COGS journal entry
+            // DEBIT: Inventory Asset, CREDIT: Cost of Goods Sold
+            if ($costAtSale > 0) {
+                $inventoryAccountingService->reverseCOGS($order, $this, $costAtSale);
+            }
+
+            // Reverse Sales Revenue journal entry
+            // DEBIT: Product Sales, CREDIT: Accounts Receivable
+            if ($this->unit_price > 0) {
+                $inventoryAccountingService->reverseSalesRevenue($order, $this);
+            }
         }
 
         // Sync inventory to all linked sales channels

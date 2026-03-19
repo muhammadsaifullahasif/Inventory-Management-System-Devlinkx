@@ -71,6 +71,17 @@ class ChartOfAccountsSeeder extends Seeder
                     ['code' => '1201', 'name' => 'Stock in Hand'],
                 ],
             ],
+            [
+                'code' => '1300',
+                'name' => 'Accounts Receivable',
+                'nature' => 'asset',
+                'type' => 'group',
+                'is_system' => true,
+                'children' => [
+                    ['code' => '1301', 'name' => 'Trade Receivables', 'is_system' => true],
+                    ['code' => '1302', 'name' => 'Marketplace Receivables'],
+                ],
+            ],
 
             // ==================== LIABILITY ACCOUNTS ====================
             [
