@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Bill;
+use App\Models\BillItem;
 use App\Models\ChartOfAccount;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
@@ -151,16 +153,16 @@ class InventoryAccountingService
     }
 
     /**
-     * Record Purchase Bill journal entry when a purchase is created
-     * This recognizes the liability immediately when the purchase order is entered
+     * Record Purchase Bill when a purchase is created
+     * Creates a Bill record and associated journal entry
      *
-     * DEBIT: Purchase Expense (temporary) or Inventory Asset (1201)
+     * DEBIT: Inventory Asset (1201) - increases inventory value
      * CREDIT: Accounts Payable (2001) - increases liability to supplier
      *
      * @param Purchase $purchase The purchase order
-     * @return JournalEntry|null
+     * @return Bill|null
      */
-    public function recordPurchaseBill(Purchase $purchase): ?JournalEntry
+    public function recordPurchaseBill(Purchase $purchase): ?Bill
     {
         $inventoryAccount = $this->getInventoryAccount();
         $payablesAccount = $this->getPayablesAccount();
@@ -173,15 +175,16 @@ class InventoryAccountingService
             return null;
         }
 
-        // Calculate total purchase value
-        $totalValue = 0;
+        // Calculate total purchase value (items only)
+        $itemsValue = 0;
         foreach ($purchase->purchase_items as $item) {
-            $totalValue += round((float) $item->quantity * (float) $item->price, 2);
+            $itemsValue += round((float) $item->quantity * (float) $item->price, 2);
         }
 
-        // Add duties and freight to the bill
-        $totalValue += (float) ($purchase->duties_customs ?? 0);
-        $totalValue += (float) ($purchase->freight_charges ?? 0);
+        // Get duties and freight
+        $dutiesValue = (float) ($purchase->duties_customs ?? 0);
+        $freightValue = (float) ($purchase->freight_charges ?? 0);
+        $totalValue = $itemsValue + $dutiesValue + $freightValue;
 
         if ($totalValue <= 0) {
             return null;
@@ -190,11 +193,62 @@ class InventoryAccountingService
         // Use supplier's specific payable account if set
         $supplierPayableId = $purchase->supplier->payable_account_id ?? $payablesAccount->id;
 
+        // Create Bill record
+        $bill = Bill::create([
+            'bill_number' => Bill::generateBillNumber(),
+            'bill_date' => $purchase->created_at ? $purchase->created_at->toDateString() : now()->toDateString(),
+            'due_date' => null,
+            'supplier_id' => $purchase->supplier_id,
+            'total_amount' => $totalValue,
+            'paid_amount' => 0,
+            'status' => 'unpaid',
+            'notes' => "Auto-generated from PO #{$purchase->purchase_number}",
+            'created_by' => Auth::id(),
+        ]);
+
+        // Create Bill Items
+        // Items value
+        if ($itemsValue > 0) {
+            BillItem::create([
+                'bill_id' => $bill->id,
+                'expense_account_id' => $inventoryAccount->id,
+                'description' => "Inventory from PO #{$purchase->purchase_number}",
+                'amount' => $itemsValue,
+            ]);
+        }
+
+        // Duties & Customs
+        if ($dutiesValue > 0) {
+            $dutiesAccount = $this->getDutiesAccount();
+            if ($dutiesAccount) {
+                BillItem::create([
+                    'bill_id' => $bill->id,
+                    'expense_account_id' => $dutiesAccount->id,
+                    'description' => "Duties & Customs for PO #{$purchase->purchase_number}",
+                    'amount' => $dutiesValue,
+                ]);
+            }
+        }
+
+        // Freight Charges
+        if ($freightValue > 0) {
+            $freightAccount = $this->getFreightAccount();
+            if ($freightAccount) {
+                BillItem::create([
+                    'bill_id' => $bill->id,
+                    'expense_account_id' => $freightAccount->id,
+                    'description' => "Freight Charges for PO #{$purchase->purchase_number}",
+                    'amount' => $freightValue,
+                ]);
+            }
+        }
+
+        // Create Journal Entry linked to the Bill
         $journalEntry = JournalEntry::create([
             'entry_number' => JournalEntry::generateEntryNumber(),
             'entry_date' => $purchase->created_at ?? now(),
-            'reference_type' => 'purchase_bill',
-            'reference_id' => $purchase->id,
+            'reference_type' => 'bill',
+            'reference_id' => $bill->id,
             'narration' => "Purchase Bill: PO #{$purchase->purchase_number} - {$purchase->supplier->first_name} {$purchase->supplier->last_name}",
             'is_posted' => true,
             'created_by' => Auth::id(),
@@ -205,9 +259,37 @@ class InventoryAccountingService
             'journal_entry_id' => $journalEntry->id,
             'account_id' => $inventoryAccount->id,
             'description' => "Purchase bill: PO #{$purchase->purchase_number}",
-            'debit' => $totalValue,
+            'debit' => $itemsValue,
             'credit' => 0,
         ]);
+
+        // DEBIT: Duties & Customs (if any)
+        if ($dutiesValue > 0) {
+            $dutiesAccount = $this->getDutiesAccount();
+            if ($dutiesAccount) {
+                JournalEntryLine::create([
+                    'journal_entry_id' => $journalEntry->id,
+                    'account_id' => $dutiesAccount->id,
+                    'description' => "Duties & Customs: PO #{$purchase->purchase_number}",
+                    'debit' => $dutiesValue,
+                    'credit' => 0,
+                ]);
+            }
+        }
+
+        // DEBIT: Freight Charges (if any)
+        if ($freightValue > 0) {
+            $freightAccount = $this->getFreightAccount();
+            if ($freightAccount) {
+                JournalEntryLine::create([
+                    'journal_entry_id' => $journalEntry->id,
+                    'account_id' => $freightAccount->id,
+                    'description' => "Freight Charges: PO #{$purchase->purchase_number}",
+                    'debit' => $freightValue,
+                    'credit' => 0,
+                ]);
+            }
+        }
 
         // CREDIT: Accounts Payable (increases liability)
         JournalEntryLine::create([
@@ -219,85 +301,84 @@ class InventoryAccountingService
         ]);
 
         Log::info('Inventory accounting: Purchase Bill recorded', [
+            'bill_id' => $bill->id,
+            'bill_number' => $bill->bill_number,
             'journal_entry_id' => $journalEntry->id,
             'purchase_id' => $purchase->id,
             'purchase_number' => $purchase->purchase_number,
             'total_value' => $totalValue,
         ]);
 
-        return $journalEntry;
+        return $bill;
     }
 
     /**
      * Reverse Purchase Bill when a purchase is deleted/cancelled
-     *
-     * DEBIT: Accounts Payable (2001) - decreases liability
-     * CREDIT: Inventory Asset (1201) - decreases asset
+     * Finds and deletes the associated Bill and Journal Entry
      *
      * @param Purchase $purchase The purchase being deleted
-     * @return JournalEntry|null
+     * @return bool
      */
-    public function reversePurchaseBill(Purchase $purchase): ?JournalEntry
+    public function reversePurchaseBill(Purchase $purchase): bool
     {
-        $inventoryAccount = $this->getInventoryAccount();
-        $payablesAccount = $this->getPayablesAccount();
+        // Find the Bill that was created for this purchase (by matching supplier and notes)
+        $bill = Bill::where('supplier_id', $purchase->supplier_id)
+            ->where('notes', 'like', "%PO #{$purchase->purchase_number}%")
+            ->first();
 
-        if (!$inventoryAccount || !$payablesAccount) {
-            return null;
+        if ($bill) {
+            // Check if bill can be deleted (not paid)
+            if ($bill->paid_amount > 0) {
+                Log::warning('Cannot reverse bill - has payments', [
+                    'bill_id' => $bill->id,
+                    'paid_amount' => $bill->paid_amount,
+                ]);
+                return false;
+            }
+
+            // Delete the associated journal entry
+            $journalEntry = $bill->journalEntry;
+            if ($journalEntry) {
+                JournalEntryLine::where('journal_entry_id', $journalEntry->id)->delete();
+                $journalEntry->delete();
+            }
+
+            // Delete bill items and bill
+            $bill->items()->delete();
+            $bill->delete();
+
+            Log::info('Inventory accounting: Purchase Bill reversed', [
+                'bill_id' => $bill->id,
+                'purchase_id' => $purchase->id,
+                'purchase_number' => $purchase->purchase_number,
+            ]);
+
+            return true;
         }
 
-        // Calculate total purchase value
-        $totalValue = 0;
-        foreach ($purchase->purchase_items as $item) {
-            $totalValue += round((float) $item->quantity * (float) $item->price, 2);
+        // If no bill found, try to find old-style journal entry (for backwards compatibility)
+        $journalEntry = JournalEntry::where('reference_type', 'purchase_bill')
+            ->where('reference_id', $purchase->id)
+            ->first();
+
+        if ($journalEntry) {
+            JournalEntryLine::where('journal_entry_id', $journalEntry->id)->delete();
+            $journalEntry->delete();
+
+            Log::info('Inventory accounting: Legacy Purchase Bill journal entry reversed', [
+                'journal_entry_id' => $journalEntry->id,
+                'purchase_id' => $purchase->id,
+            ]);
+
+            return true;
         }
 
-        // Add duties and freight
-        $totalValue += (float) ($purchase->duties_customs ?? 0);
-        $totalValue += (float) ($purchase->freight_charges ?? 0);
-
-        if ($totalValue <= 0) {
-            return null;
-        }
-
-        $supplierPayableId = $purchase->supplier->payable_account_id ?? $payablesAccount->id;
-
-        $journalEntry = JournalEntry::create([
-            'entry_number' => JournalEntry::generateEntryNumber(),
-            'entry_date' => now(),
-            'reference_type' => 'purchase_bill_reversal',
-            'reference_id' => $purchase->id,
-            'narration' => "Purchase Bill Reversal: PO #{$purchase->purchase_number}",
-            'is_posted' => true,
-            'created_by' => Auth::id(),
-        ]);
-
-        // DEBIT: Accounts Payable (decreases liability)
-        JournalEntryLine::create([
-            'journal_entry_id' => $journalEntry->id,
-            'account_id' => $supplierPayableId,
-            'description' => "Bill reversal for PO #{$purchase->purchase_number}",
-            'debit' => $totalValue,
-            'credit' => 0,
-        ]);
-
-        // CREDIT: Inventory Asset (decreases asset)
-        JournalEntryLine::create([
-            'journal_entry_id' => $journalEntry->id,
-            'account_id' => $inventoryAccount->id,
-            'description' => "Purchase bill reversal: PO #{$purchase->purchase_number}",
-            'debit' => 0,
-            'credit' => $totalValue,
-        ]);
-
-        Log::info('Inventory accounting: Purchase Bill reversed', [
-            'journal_entry_id' => $journalEntry->id,
+        Log::info('No bill found to reverse for purchase', [
             'purchase_id' => $purchase->id,
             'purchase_number' => $purchase->purchase_number,
-            'total_value' => $totalValue,
         ]);
 
-        return $journalEntry;
+        return false;
     }
 
     /**

@@ -155,14 +155,8 @@ class SyncInventoryAccounting extends Command
         $this->info('📋 Backfilling purchase bills for old purchases...');
         $this->info('');
 
-        // Get all purchases that don't have a purchase_bill journal entry
-        $purchaseQuery = Purchase::with(['purchase_items.product', 'supplier'])
-            ->whereNotExists(function ($query) {
-                $query->select(DB::raw(1))
-                    ->from('journal_entries')
-                    ->whereColumn('journal_entries.reference_id', 'purchases.id')
-                    ->where('journal_entries.reference_type', 'purchase_bill');
-            });
+        // Get all purchases
+        $purchaseQuery = Purchase::with(['purchase_items.product', 'supplier']);
 
         if ($fromDate) {
             $purchaseQuery->whereDate('created_at', '>=', $fromDate);
@@ -171,7 +165,16 @@ class SyncInventoryAccounting extends Command
             $purchaseQuery->whereDate('created_at', '<=', $toDate);
         }
 
-        $purchases = $purchaseQuery->get();
+        $allPurchases = $purchaseQuery->get();
+
+        // Filter purchases that don't have a bill in the bills table
+        // Check by matching supplier_id and notes containing PO number
+        $purchases = $allPurchases->filter(function ($purchase) {
+            $existingBill = \App\Models\Bill::where('supplier_id', $purchase->supplier_id)
+                ->where('notes', 'like', "%PO #{$purchase->purchase_number}%")
+                ->exists();
+            return !$existingBill;
+        });
 
         if ($purchases->isEmpty()) {
             $this->info('✓ All purchases already have bills. Nothing to backfill.');
@@ -187,9 +190,17 @@ class SyncInventoryAccounting extends Command
         foreach ($purchases as $purchase) {
             if (!$dryRun) {
                 DB::transaction(function () use ($purchase) {
-                    $entry = $this->accountingService->recordPurchaseBill($purchase);
-                    if ($entry) {
-                        $entry->update(['entry_date' => $purchase->created_at]);
+                    $bill = $this->accountingService->recordPurchaseBill($purchase);
+                    if ($bill) {
+                        // Update the bill date to match purchase creation date
+                        $bill->update(['bill_date' => $purchase->created_at->toDateString()]);
+
+                        // Also update the associated journal entry date
+                        $journalEntry = $bill->journalEntry;
+                        if ($journalEntry) {
+                            $journalEntry->update(['entry_date' => $purchase->created_at]);
+                        }
+
                         $this->purchaseReceiptsCreated++;
 
                         $purchaseValue = 0;
@@ -414,7 +425,7 @@ class SyncInventoryAccounting extends Command
     }
 
     /**
-     * Process a purchase - create purchase bill journal entry
+     * Process a purchase - create purchase bill and journal entry
      */
     protected function processPurchase(Purchase $purchase): void
     {
@@ -425,10 +436,18 @@ class SyncInventoryAccounting extends Command
         }
 
         // Record purchase bill (includes items, duties and freight)
-        $entry = $this->accountingService->recordPurchaseBill($purchase);
+        $bill = $this->accountingService->recordPurchaseBill($purchase);
 
-        if ($entry) {
-            $entry->update(['entry_date' => $purchase->created_at]);
+        if ($bill) {
+            // Update the bill date to match purchase creation date
+            $bill->update(['bill_date' => $purchase->created_at->toDateString()]);
+
+            // Also update the associated journal entry date
+            $journalEntry = $bill->journalEntry;
+            if ($journalEntry) {
+                $journalEntry->update(['entry_date' => $purchase->created_at]);
+            }
+
             $this->purchaseReceiptsCreated++;
             $this->totalPurchaseValue += $purchaseValue;
             $this->totalDutiesValue += (float) ($purchase->duties_customs ?? 0);
