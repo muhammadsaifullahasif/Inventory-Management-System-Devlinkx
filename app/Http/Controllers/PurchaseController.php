@@ -101,6 +101,7 @@ class PurchaseController extends Controller
     /**
      * Store a newly created resource in storage.
      * Note: Stock is NOT added here. Stock is added when items are received via receiveStock().
+     * A Purchase Bill (journal entry) is created to recognize the liability immediately.
      */
     public function store(Request $request)
     {
@@ -149,9 +150,16 @@ class PurchaseController extends Controller
                 ]);
             }
 
+            // Load supplier for accounting
+            $purchase->load('supplier', 'purchase_items');
+
+            // Record Purchase Bill (creates liability in Accounts Payable)
+            $inventoryAccountingService = new InventoryAccountingService();
+            $inventoryAccountingService->recordPurchaseBill($purchase);
+
             DB::commit();
 
-            return redirect()->route('purchases.index')->with('success', 'Purchase created successfully. Use "Receive Stock" to add items to inventory.');
+            return redirect()->route('purchases.index')->with('success', 'Purchase created successfully. Bill recorded. Use "Receive Stock" to add items to inventory.');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Purchase creation failed', ['error' => $e->getMessage()]);
@@ -323,15 +331,6 @@ class PurchaseController extends Controller
                             }
                         }
 
-                        // Reverse the accounting journal entry for this receipt
-                        $unitCost = (float) $removedItem->price;
-                        $inventoryAccountingService->reversePurchaseReceipt(
-                            $purchase,
-                            $removedItem,
-                            $receivedQty,
-                            $unitCost
-                        );
-
                         // Track for sales channel sync
                         $productsToSync[$product->id] = $product;
 
@@ -349,6 +348,14 @@ class PurchaseController extends Controller
 
             // Delete the removed purchase items
             $purchase->purchase_items()->whereNotIn('id', $existingItemIds)->delete();
+
+            // Update the purchase bill (reverse old and create new)
+            // First reverse the existing bill
+            $inventoryAccountingService->reversePurchaseBill($purchase);
+
+            // Reload purchase items and create new bill
+            $purchase->load('purchase_items', 'supplier');
+            $inventoryAccountingService->recordPurchaseBill($purchase);
 
             // Update purchase status
             $this->updatePurchaseStatus($purchase);
@@ -370,7 +377,7 @@ class PurchaseController extends Controller
 
     /**
      * Remove the specified resource from storage.
-     * Only subtracts RECEIVED quantities from stock (not ordered quantities).
+     * Subtracts RECEIVED quantities from stock and reverses the purchase bill.
      */
     public function destroy(string $id)
     {
@@ -409,15 +416,6 @@ class PurchaseController extends Controller
                         }
                     }
 
-                    // Reverse the accounting journal entry for this receipt
-                    $unitCost = (float) $purchaseItem->price;
-                    $inventoryAccountingService->reversePurchaseReceipt(
-                        $purchase,
-                        $purchaseItem,
-                        $receivedQty,
-                        $unitCost
-                    );
-
                     // Track for eBay sync
                     $productsToSync[$product->id] = $product;
 
@@ -432,6 +430,9 @@ class PurchaseController extends Controller
                 }
             }
 
+            // Reverse the purchase bill (reverses the accounting entry)
+            $inventoryAccountingService->reversePurchaseBill($purchase);
+
             // Delete the purchase (this will cascade delete purchase_items)
             $purchase->delete();
 
@@ -442,7 +443,7 @@ class PurchaseController extends Controller
                 ProductController::syncProductInventoryToChannels($productToSync);
             }
 
-            return redirect()->route('purchases.index')->with('success', 'Purchase deleted successfully. Accounting entries reversed.');
+            return redirect()->route('purchases.index')->with('success', 'Purchase deleted successfully. Bill reversed.');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Purchase deletion failed', ['error' => $e->getMessage()]);
@@ -554,14 +555,8 @@ class PurchaseController extends Controller
                     // Update avg_cost on all ProductStock records for this product
                     $inventoryAccountingService->updateProductStockCost($product->id, $newAvgCost);
 
-                    // Record journal entry for inventory receipt
-                    // DEBIT: Inventory Asset, CREDIT: Accounts Payable
-                    $inventoryAccountingService->recordPurchaseReceipt(
-                        $purchase,
-                        $purchaseItem,
-                        $actualReceiveQty,
-                        $unitCost
-                    );
+                    // Note: Journal entry for purchase was already recorded when the bill was created
+                    // We only update stock quantities and average costs here
 
                     $productsToSync[$product->id] = $product;
                 }
@@ -572,19 +567,8 @@ class PurchaseController extends Controller
             // Update purchase status based on received quantities
             $this->updatePurchaseStatus($purchase);
 
-            // Record duties and freight charges as journal entries (only once when purchase is fully received)
-            $purchase->refresh();
-            if ($purchase->purchase_status === 'received') {
-                // Record duties & customs if any
-                if ((float) $purchase->duties_customs > 0) {
-                    $inventoryAccountingService->recordPurchaseCharges($purchase, 'duties', (float) $purchase->duties_customs);
-                }
-
-                // Record freight charges if any
-                if ((float) $purchase->freight_charges > 0) {
-                    $inventoryAccountingService->recordPurchaseCharges($purchase, 'freight', (float) $purchase->freight_charges);
-                }
-            }
+            // Note: Duties and freight charges are included in the purchase bill
+            // recorded when the purchase was created, so no additional entries needed here
 
             DB::commit();
 
@@ -896,26 +880,12 @@ class PurchaseController extends Controller
                     // Update avg_cost on all ProductStock records for this product
                     $inventoryAccountingService->updateProductStockCost($product->id, $newAvgCost);
 
-                    // Record journal entry for inventory receipt
-                    $inventoryAccountingService->recordPurchaseReceipt(
-                        $purchase,
-                        $purchaseItem,
-                        $incomingQty,
-                        $purchasePrice
-                    );
-
                     $productsToSync[$product->id] = $product;
                 }
 
-                // Record duties & customs if any
-                if ((float) ($purchase_row['duties_customs'] ?? 0) > 0) {
-                    $inventoryAccountingService->recordPurchaseCharges($purchase, 'duties', (float) $purchase_row['duties_customs']);
-                }
-
-                // Record freight charges if any
-                if ((float) ($purchase_row['freight_charges'] ?? 0) > 0) {
-                    $inventoryAccountingService->recordPurchaseCharges($purchase, 'freight', (float) $purchase_row['freight_charges']);
-                }
+                // Record Purchase Bill (includes all items, duties and freight)
+                $purchase->load('purchase_items');
+                $inventoryAccountingService->recordPurchaseBill($purchase);
             }
 
             DB::commit();
@@ -998,17 +968,12 @@ class PurchaseController extends Controller
                             }
                         }
 
-                        $unitCost = (float) $purchaseItem->price;
-                        $inventoryAccountingService->reversePurchaseReceipt(
-                            $purchase,
-                            $purchaseItem,
-                            $receivedQty,
-                            $unitCost
-                        );
-
                         $productsToSync[$product->id] = $product;
                     }
                 }
+
+                // Reverse the purchase bill
+                $inventoryAccountingService->reversePurchaseBill($purchase);
 
                 $purchase->delete();
                 $count++;

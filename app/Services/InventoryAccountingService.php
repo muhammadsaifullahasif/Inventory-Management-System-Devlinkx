@@ -151,6 +151,156 @@ class InventoryAccountingService
     }
 
     /**
+     * Record Purchase Bill journal entry when a purchase is created
+     * This recognizes the liability immediately when the purchase order is entered
+     *
+     * DEBIT: Purchase Expense (temporary) or Inventory Asset (1201)
+     * CREDIT: Accounts Payable (2001) - increases liability to supplier
+     *
+     * @param Purchase $purchase The purchase order
+     * @return JournalEntry|null
+     */
+    public function recordPurchaseBill(Purchase $purchase): ?JournalEntry
+    {
+        $inventoryAccount = $this->getInventoryAccount();
+        $payablesAccount = $this->getPayablesAccount();
+
+        if (!$inventoryAccount || !$payablesAccount) {
+            Log::warning('Inventory accounting: Required accounts not found for Purchase Bill', [
+                'inventory_account' => $inventoryAccount ? 'found' : 'missing',
+                'payables_account' => $payablesAccount ? 'found' : 'missing',
+            ]);
+            return null;
+        }
+
+        // Calculate total purchase value
+        $totalValue = 0;
+        foreach ($purchase->purchase_items as $item) {
+            $totalValue += round((float) $item->quantity * (float) $item->price, 2);
+        }
+
+        // Add duties and freight to the bill
+        $totalValue += (float) ($purchase->duties_customs ?? 0);
+        $totalValue += (float) ($purchase->freight_charges ?? 0);
+
+        if ($totalValue <= 0) {
+            return null;
+        }
+
+        // Use supplier's specific payable account if set
+        $supplierPayableId = $purchase->supplier->payable_account_id ?? $payablesAccount->id;
+
+        $journalEntry = JournalEntry::create([
+            'entry_number' => JournalEntry::generateEntryNumber(),
+            'entry_date' => $purchase->created_at ?? now(),
+            'reference_type' => 'purchase_bill',
+            'reference_id' => $purchase->id,
+            'narration' => "Purchase Bill: PO #{$purchase->purchase_number} - {$purchase->supplier->first_name} {$purchase->supplier->last_name}",
+            'is_posted' => true,
+            'created_by' => Auth::id(),
+        ]);
+
+        // DEBIT: Inventory Asset (increases asset - goods on order)
+        JournalEntryLine::create([
+            'journal_entry_id' => $journalEntry->id,
+            'account_id' => $inventoryAccount->id,
+            'description' => "Purchase bill: PO #{$purchase->purchase_number}",
+            'debit' => $totalValue,
+            'credit' => 0,
+        ]);
+
+        // CREDIT: Accounts Payable (increases liability)
+        JournalEntryLine::create([
+            'journal_entry_id' => $journalEntry->id,
+            'account_id' => $supplierPayableId,
+            'description' => "Payable for PO #{$purchase->purchase_number}",
+            'debit' => 0,
+            'credit' => $totalValue,
+        ]);
+
+        Log::info('Inventory accounting: Purchase Bill recorded', [
+            'journal_entry_id' => $journalEntry->id,
+            'purchase_id' => $purchase->id,
+            'purchase_number' => $purchase->purchase_number,
+            'total_value' => $totalValue,
+        ]);
+
+        return $journalEntry;
+    }
+
+    /**
+     * Reverse Purchase Bill when a purchase is deleted/cancelled
+     *
+     * DEBIT: Accounts Payable (2001) - decreases liability
+     * CREDIT: Inventory Asset (1201) - decreases asset
+     *
+     * @param Purchase $purchase The purchase being deleted
+     * @return JournalEntry|null
+     */
+    public function reversePurchaseBill(Purchase $purchase): ?JournalEntry
+    {
+        $inventoryAccount = $this->getInventoryAccount();
+        $payablesAccount = $this->getPayablesAccount();
+
+        if (!$inventoryAccount || !$payablesAccount) {
+            return null;
+        }
+
+        // Calculate total purchase value
+        $totalValue = 0;
+        foreach ($purchase->purchase_items as $item) {
+            $totalValue += round((float) $item->quantity * (float) $item->price, 2);
+        }
+
+        // Add duties and freight
+        $totalValue += (float) ($purchase->duties_customs ?? 0);
+        $totalValue += (float) ($purchase->freight_charges ?? 0);
+
+        if ($totalValue <= 0) {
+            return null;
+        }
+
+        $supplierPayableId = $purchase->supplier->payable_account_id ?? $payablesAccount->id;
+
+        $journalEntry = JournalEntry::create([
+            'entry_number' => JournalEntry::generateEntryNumber(),
+            'entry_date' => now(),
+            'reference_type' => 'purchase_bill_reversal',
+            'reference_id' => $purchase->id,
+            'narration' => "Purchase Bill Reversal: PO #{$purchase->purchase_number}",
+            'is_posted' => true,
+            'created_by' => Auth::id(),
+        ]);
+
+        // DEBIT: Accounts Payable (decreases liability)
+        JournalEntryLine::create([
+            'journal_entry_id' => $journalEntry->id,
+            'account_id' => $supplierPayableId,
+            'description' => "Bill reversal for PO #{$purchase->purchase_number}",
+            'debit' => $totalValue,
+            'credit' => 0,
+        ]);
+
+        // CREDIT: Inventory Asset (decreases asset)
+        JournalEntryLine::create([
+            'journal_entry_id' => $journalEntry->id,
+            'account_id' => $inventoryAccount->id,
+            'description' => "Purchase bill reversal: PO #{$purchase->purchase_number}",
+            'debit' => 0,
+            'credit' => $totalValue,
+        ]);
+
+        Log::info('Inventory accounting: Purchase Bill reversed', [
+            'journal_entry_id' => $journalEntry->id,
+            'purchase_id' => $purchase->id,
+            'purchase_number' => $purchase->purchase_number,
+            'total_value' => $totalValue,
+        ]);
+
+        return $journalEntry;
+    }
+
+    /**
      * Record journal entry when stock is received from a purchase
      *
      * DEBIT: Inventory Asset (1201) - increases inventory value

@@ -25,7 +25,8 @@ class SyncInventoryAccounting extends Command
                             {--from= : Start date (Y-m-d format)}
                             {--to= : End date (Y-m-d format)}
                             {--skip-clear : Skip clearing existing journal entries}
-                            {--skip-channel-accounts : Skip creating sales channel accounts}';
+                            {--skip-channel-accounts : Skip creating sales channel accounts}
+                            {--backfill-bills : Only create bills for purchases that don\'t have one}';
 
     /**
      * The console command description.
@@ -59,6 +60,7 @@ class SyncInventoryAccounting extends Command
         $toDate = $this->option('to');
         $skipClear = $this->option('skip-clear');
         $skipChannelAccounts = $this->option('skip-channel-accounts');
+        $backfillBills = $this->option('backfill-bills');
 
         $this->info('');
         $this->info('╔══════════════════════════════════════════════════════════════╗');
@@ -83,6 +85,11 @@ class SyncInventoryAccounting extends Command
         // Step 2: Create sales channel accounts (if not skipped)
         if (!$skipChannelAccounts) {
             $this->createSalesChannelAccounts($dryRun);
+        }
+
+        // If backfill-bills mode, only create bills for purchases without them
+        if ($backfillBills) {
+            return $this->backfillPurchaseBills($dryRun, $fromDate, $toDate);
         }
 
         // Step 3: Clear existing journal entries (unless skipped)
@@ -136,6 +143,110 @@ class SyncInventoryAccounting extends Command
 
         // Step 6: Display summary
         $this->displaySummary($dryRun);
+
+        return 0;
+    }
+
+    /**
+     * Backfill purchase bills for purchases that don't have one
+     */
+    protected function backfillPurchaseBills(bool $dryRun, ?string $fromDate, ?string $toDate): int
+    {
+        $this->info('📋 Backfilling purchase bills for old purchases...');
+        $this->info('');
+
+        // Get all purchases that don't have a purchase_bill journal entry
+        $purchaseQuery = Purchase::with(['purchase_items.product', 'supplier'])
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('journal_entries')
+                    ->whereColumn('journal_entries.reference_id', 'purchases.id')
+                    ->where('journal_entries.reference_type', 'purchase_bill');
+            });
+
+        if ($fromDate) {
+            $purchaseQuery->whereDate('created_at', '>=', $fromDate);
+        }
+        if ($toDate) {
+            $purchaseQuery->whereDate('created_at', '<=', $toDate);
+        }
+
+        $purchases = $purchaseQuery->get();
+
+        if ($purchases->isEmpty()) {
+            $this->info('✓ All purchases already have bills. Nothing to backfill.');
+            return 0;
+        }
+
+        $this->info("   Found {$purchases->count()} purchase(s) without bills");
+        $this->info('');
+
+        $progressBar = $this->output->createProgressBar($purchases->count());
+        $progressBar->start();
+
+        foreach ($purchases as $purchase) {
+            if (!$dryRun) {
+                DB::transaction(function () use ($purchase) {
+                    $entry = $this->accountingService->recordPurchaseBill($purchase);
+                    if ($entry) {
+                        $entry->update(['entry_date' => $purchase->created_at]);
+                        $this->purchaseReceiptsCreated++;
+
+                        $purchaseValue = 0;
+                        foreach ($purchase->purchase_items as $item) {
+                            $purchaseValue += round((float) $item->quantity * (float) $item->price, 2);
+                        }
+                        $this->totalPurchaseValue += $purchaseValue;
+                        $this->totalDutiesValue += (float) ($purchase->duties_customs ?? 0);
+                        $this->totalFreightValue += (float) ($purchase->freight_charges ?? 0);
+                    }
+                });
+            } else {
+                // Count for dry run
+                $purchaseValue = 0;
+                foreach ($purchase->purchase_items as $item) {
+                    $purchaseValue += round((float) $item->quantity * (float) $item->price, 2);
+                }
+                $this->purchaseReceiptsCreated++;
+                $this->totalPurchaseValue += $purchaseValue;
+                $this->totalDutiesValue += (float) ($purchase->duties_customs ?? 0);
+                $this->totalFreightValue += (float) ($purchase->freight_charges ?? 0);
+            }
+
+            $progressBar->advance();
+        }
+
+        $progressBar->finish();
+        $this->info('');
+        $this->info('');
+
+        // Display summary
+        $totalValue = $this->totalPurchaseValue + $this->totalDutiesValue + $this->totalFreightValue;
+
+        $this->info('╔══════════════════════════════════════════════════════════════╗');
+        $this->info('║                   BACKFILL SUMMARY                           ║');
+        $this->info('╚══════════════════════════════════════════════════════════════╝');
+        $this->info('');
+
+        $this->table(['Category', 'Count', 'Amount'], [
+            ['Purchase Bills Created', $this->purchaseReceiptsCreated, '$' . number_format($totalValue, 2)],
+            ['  └─ Items Value', '-', '$' . number_format($this->totalPurchaseValue, 2)],
+            ['  └─ Duties & Customs', '-', '$' . number_format($this->totalDutiesValue, 2)],
+            ['  └─ Freight Charges', '-', '$' . number_format($this->totalFreightValue, 2)],
+        ]);
+
+        $this->info('');
+
+        if ($dryRun) {
+            $this->warn('═══════════════════════════════════════════════════════════════');
+            $this->warn('  This was a DRY RUN. No changes were made to the database.');
+            $this->warn('  Run without --dry-run to apply changes.');
+            $this->warn('═══════════════════════════════════════════════════════════════');
+        } else {
+            $this->info('═══════════════════════════════════════════════════════════════');
+            $this->info('  ✅ Purchase bills backfilled successfully!');
+            $this->info('═══════════════════════════════════════════════════════════════');
+        }
 
         return 0;
     }
@@ -235,15 +346,14 @@ class SyncInventoryAccounting extends Command
     }
 
     /**
-     * Collect all purchase receipts and fulfilled orders, sorted by date
+     * Collect all purchases and fulfilled orders, sorted by date
      */
     protected function collectAllTransactions(?string $fromDate, ?string $toDate)
     {
         $transactions = collect();
 
-        // Get received purchases (status = received or partial)
-        $purchaseQuery = Purchase::with(['purchase_items.product', 'supplier'])
-            ->whereIn('purchase_status', ['received', 'partial']);
+        // Get ALL purchases (bills are created when purchase is entered, not when received)
+        $purchaseQuery = Purchase::with(['purchase_items.product', 'supplier']);
 
         if ($fromDate) {
             $purchaseQuery->whereDate('created_at', '>=', $fromDate);
@@ -304,48 +414,25 @@ class SyncInventoryAccounting extends Command
     }
 
     /**
-     * Process a purchase - create journal entries for received items
+     * Process a purchase - create purchase bill journal entry
      */
     protected function processPurchase(Purchase $purchase): void
     {
+        // Calculate total purchase value for statistics
+        $purchaseValue = 0;
         foreach ($purchase->purchase_items as $item) {
-            $receivedQty = (float) $item->received_quantity;
-            $unitCost = (float) $item->price;
-
-            if ($receivedQty > 0 && $unitCost > 0) {
-                $entry = $this->accountingService->recordPurchaseReceipt(
-                    $purchase,
-                    $item,
-                    $receivedQty,
-                    $unitCost
-                );
-
-                if ($entry) {
-                    $entry->update(['entry_date' => $purchase->created_at]);
-                    $this->purchaseReceiptsCreated++;
-                    $this->totalPurchaseValue += ($receivedQty * $unitCost);
-                }
-            }
+            $purchaseValue += round((float) $item->quantity * (float) $item->price, 2);
         }
 
-        // Process duties & customs
-        if ($purchase->duties_customs > 0) {
-            $entry = $this->accountingService->recordPurchaseCharges($purchase, 'duties', $purchase->duties_customs);
-            if ($entry) {
-                $entry->update(['entry_date' => $purchase->created_at]);
-                $this->purchaseChargesCreated++;
-                $this->totalDutiesValue += $purchase->duties_customs;
-            }
-        }
+        // Record purchase bill (includes items, duties and freight)
+        $entry = $this->accountingService->recordPurchaseBill($purchase);
 
-        // Process freight charges
-        if ($purchase->freight_charges > 0) {
-            $entry = $this->accountingService->recordPurchaseCharges($purchase, 'freight', $purchase->freight_charges);
-            if ($entry) {
-                $entry->update(['entry_date' => $purchase->created_at]);
-                $this->purchaseChargesCreated++;
-                $this->totalFreightValue += $purchase->freight_charges;
-            }
+        if ($entry) {
+            $entry->update(['entry_date' => $purchase->created_at]);
+            $this->purchaseReceiptsCreated++;
+            $this->totalPurchaseValue += $purchaseValue;
+            $this->totalDutiesValue += (float) ($purchase->duties_customs ?? 0);
+            $this->totalFreightValue += (float) ($purchase->freight_charges ?? 0);
         }
     }
 
@@ -406,24 +493,17 @@ class SyncInventoryAccounting extends Command
         if ($transaction['type'] === 'purchase') {
             $purchase = $transaction['data'];
 
+            // Count purchase bill (one entry per purchase)
+            $purchaseValue = 0;
             foreach ($purchase->purchase_items as $item) {
-                $receivedQty = (float) $item->received_quantity;
-                $unitCost = (float) $item->price;
-
-                if ($receivedQty > 0 && $unitCost > 0) {
-                    $this->purchaseReceiptsCreated++;
-                    $this->totalPurchaseValue += ($receivedQty * $unitCost);
-                }
+                $purchaseValue += round((float) $item->quantity * (float) $item->price, 2);
             }
 
-            if ($purchase->duties_customs > 0) {
-                $this->purchaseChargesCreated++;
-                $this->totalDutiesValue += $purchase->duties_customs;
-            }
-
-            if ($purchase->freight_charges > 0) {
-                $this->purchaseChargesCreated++;
-                $this->totalFreightValue += $purchase->freight_charges;
+            if ($purchaseValue > 0) {
+                $this->purchaseReceiptsCreated++;
+                $this->totalPurchaseValue += $purchaseValue;
+                $this->totalDutiesValue += (float) ($purchase->duties_customs ?? 0);
+                $this->totalFreightValue += (float) ($purchase->freight_charges ?? 0);
             }
         } else {
             $order = $transaction['data'];
@@ -477,11 +557,13 @@ class SyncInventoryAccounting extends Command
             $rows[] = ['─────────────────────', '─────────', '──────────────────'];
         }
 
+        $totalPurchaseWithCharges = $this->totalPurchaseValue + $this->totalDutiesValue + $this->totalFreightValue;
+
         $rows = array_merge($rows, [
-            ['Purchase Receipts', $this->purchaseReceiptsCreated, '$' . number_format($this->totalPurchaseValue, 2)],
-            ['Purchase Charges (Duties)', '-', '$' . number_format($this->totalDutiesValue, 2)],
-            ['Purchase Charges (Freight)', '-', '$' . number_format($this->totalFreightValue, 2)],
-            ['Purchase Charges (Total)', $this->purchaseChargesCreated, '$' . number_format($this->totalDutiesValue + $this->totalFreightValue, 2)],
+            ['Purchase Bills', $this->purchaseReceiptsCreated, '$' . number_format($totalPurchaseWithCharges, 2)],
+            ['  └─ Items Value', '-', '$' . number_format($this->totalPurchaseValue, 2)],
+            ['  └─ Duties & Customs', '-', '$' . number_format($this->totalDutiesValue, 2)],
+            ['  └─ Freight Charges', '-', '$' . number_format($this->totalFreightValue, 2)],
             ['─────────────────────', '─────────', '──────────────────'],
             ['Sales Revenue', $this->salesEntriesCreated, '$' . number_format($this->totalSalesValue, 2)],
             ['Cost of Goods Sold', $this->cogsEntriesCreated, '$' . number_format($this->totalCogsValue, 2)],
@@ -491,8 +573,7 @@ class SyncInventoryAccounting extends Command
 
         $this->table(['Category', 'Entries', 'Amount'], $rows);
 
-        $totalEntries = $this->purchaseReceiptsCreated + $this->purchaseChargesCreated +
-                        $this->salesEntriesCreated + $this->cogsEntriesCreated;
+        $totalEntries = $this->purchaseReceiptsCreated + $this->salesEntriesCreated + $this->cogsEntriesCreated;
 
         $this->info('');
         $this->info("Total Journal Entries: {$totalEntries}");
