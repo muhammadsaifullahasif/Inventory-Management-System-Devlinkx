@@ -347,10 +347,18 @@ class EbayOrderService
                 'shipping_carrier' => $ebayOrder['shipping_carrier'] ?? null,
                 'shipment_deadline' => !empty($ebayOrder['shipment_deadline']) ? new \DateTime($ebayOrder['shipment_deadline']) : null,
                 'handling_time_days' => $ebayOrder['handling_time_days'] ?? null,
+                'notification_type' => 'api_sync',
+                'notification_received_at' => now(),
             ]);
 
             foreach ($ebayOrder['line_items'] as $lineItem) {
-                $product = Product::where('sku', $lineItem['item_id'])->first();
+                // Try to find product by SKU first, then by eBay item ID
+                $sku = $lineItem['sku'] ?: $lineItem['item_id'];
+                $product = Product::where('sku', $sku)->first();
+                if (!$product) {
+                    // Fallback: try to find by eBay item ID
+                    $product = Product::where('sku', $lineItem['item_id'])->first();
+                }
 
                 // Check if this is a bundle product
                 if ($product && $product->is_bundle) {
