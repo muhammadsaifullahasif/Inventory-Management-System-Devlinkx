@@ -589,6 +589,12 @@ class InventoryAccountingService
             'credit' => $saleAmount,
         ]);
 
+        // Update the bank/cash account balance if it's a bank account
+        // DEBIT increases asset accounts (bank balance goes up when we make a sale)
+        if ($receivablesAccount->is_bank_cash) {
+            $receivablesAccount->updateBalance($saleAmount, 'debit');
+        }
+
         Log::info('Inventory accounting: Sales Revenue recorded', [
             'journal_entry_id' => $journalEntry->id,
             'order_id' => $order->id,
@@ -688,6 +694,12 @@ class InventoryAccountingService
             'debit' => 0,
             'credit' => $saleAmount,
         ]);
+
+        // Update the bank/cash account balance if it's a bank account
+        // CREDIT decreases asset accounts (bank balance goes down when we reverse a sale)
+        if ($receivablesAccount->is_bank_cash) {
+            $receivablesAccount->updateBalance($saleAmount, 'credit');
+        }
 
         Log::info('Inventory accounting: Sales Revenue reversed', [
             'journal_entry_id' => $journalEntry->id,
