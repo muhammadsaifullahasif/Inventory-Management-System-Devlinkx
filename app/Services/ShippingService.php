@@ -172,12 +172,17 @@ class ShippingService
         }
 
         // Build package weight/dimensions from order items
+        // Filter to only include main items (bundles + regular products), exclude bundle components
+        $mainItems = $order->items->filter(function ($item) {
+            return !$item->bundle_product_id || $item->is_bundle_summary;
+        });
+
         $totalWeight = 0.0;
         $maxLength   = 0.0;
         $maxWidth    = 0.0;
         $maxHeight   = 0.0;
 
-        foreach ($order->items as $item) {
+        foreach ($mainItems as $item) {
             $qty      = (int) ($item->quantity ?? 1);
             $override = $overrideMap[$item->id] ?? null;
 
@@ -427,12 +432,17 @@ class ShippingService
         }
 
         // Build package weight/dimensions from order items
+        // Filter to only include main items (bundles + regular products), exclude bundle components
+        $mainItems = $order->items->filter(function ($item) {
+            return !$item->bundle_product_id || $item->is_bundle_summary;
+        });
+
         $totalWeight = 0.0;
         $maxLength   = 0.0;
         $maxWidth    = 0.0;
         $maxHeight   = 0.0;
 
-        foreach ($order->items as $item) {
+        foreach ($mainItems as $item) {
             $qty      = (int) ($item->quantity ?? 1);
             $override = $overrideMap[$item->id] ?? null;
 
