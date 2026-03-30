@@ -427,9 +427,16 @@
                     @endif
 
                     @if ($order->order_status === 'shipped' && $order->fulfillment_status === 'fulfilled' && !is_null($order->shipping_label_path))
-                        <a href="{{ route('orders.label', $order->id) }}" class="btn btn-primary w-100 mb-2">
+                        <a href="{{ route('orders.label', $order->id) }}" class="btn btn-primary w-100 mb-2" target="_blank">
                             <i class="feather-download me-1"></i> Download Shipping Label
                         </a>
+                        <button type="button" class="btn btn-warning w-100 mb-2" id="cancelLabelBtn"
+                            data-order-id="{{ $order->id }}"
+                            data-order-number="{{ $order->order_number }}"
+                            data-tracking="{{ $order->tracking_number }}"
+                            data-is-ebay="{{ $order->isEbayOrder() ? '1' : '0' }}">
+                            <i class="feather-x-circle me-1"></i> Cancel Label & Remove Tracking
+                        </button>
                     @endif
 
                     @if($order->order_status !== 'cancelled')
@@ -968,6 +975,66 @@
                     $('#otherReasonContainer').hide();
                     $('#otherReason').prop('required', false);
                 }
+            });
+
+            // ----------------------------------------------------------------
+            // Cancel shipping label
+            // ----------------------------------------------------------------
+            $('#cancelLabelBtn').on('click', function() {
+                var $btn = $(this);
+                var orderId = $btn.data('order-id');
+                var orderNumber = $btn.data('order-number');
+                var trackingNumber = $btn.data('tracking');
+                var isEbay = $btn.data('is-ebay') === '1';
+
+                var confirmMsg = 'Are you sure you want to cancel the shipping label for order ' + orderNumber + '?\n\n';
+                confirmMsg += 'Tracking #: ' + trackingNumber + '\n\n';
+                confirmMsg += 'This will:\n';
+                confirmMsg += '- Void the label with FedEx\n';
+                confirmMsg += '- Remove tracking information from the order\n';
+                confirmMsg += '- Restore inventory\n';
+                confirmMsg += '- Revert order status to Processing\n';
+                if (isEbay) {
+                    confirmMsg += '- Remove tracking from eBay\n';
+                }
+
+                if (!confirm(confirmMsg)) {
+                    return;
+                }
+
+                $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Cancelling Label...');
+
+                $.ajax({
+                    url: '/orders/' + orderId + '/cancel-label',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            var message = response.message;
+                            if (response.ebay_sync) {
+                                if (response.ebay_sync.success) {
+                                    message += '\n\n✓ Successfully removed tracking from eBay';
+                                } else {
+                                    message += '\n\n⚠ Warning: Failed to remove tracking from eBay';
+                                    if (response.ebay_sync.message) {
+                                        message += '\nReason: ' + response.ebay_sync.message;
+                                    }
+                                }
+                            }
+                            alert(message);
+                            location.reload();
+                        } else {
+                            alert(response.message || 'Failed to cancel label');
+                            $btn.prop('disabled', false).html('<i class="feather-x-circle me-1"></i> Cancel Label & Remove Tracking');
+                        }
+                    },
+                    error: function(xhr) {
+                        alert('Failed to cancel label: ' + (xhr.responseJSON?.message || 'Unknown error'));
+                        $btn.prop('disabled', false).html('<i class="feather-x-circle me-1"></i> Cancel Label & Remove Tracking');
+                    }
+                });
             });
 
             // ----------------------------------------------------------------

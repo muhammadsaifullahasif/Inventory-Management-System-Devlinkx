@@ -488,4 +488,77 @@ class FedexService
             throw new \RuntimeException("FedEx tracking failed: {$e->getMessage()}");
         }
     }
+
+    /**
+     * Cancel/void a shipment by tracking number.
+     *
+     * @param string $trackingNumber The FedEx tracking number to cancel
+     * @return array ['success' => bool, 'message' => string]
+     * @throws \RuntimeException on failure
+     */
+    public function cancelShipment(string $trackingNumber): array
+    {
+        $token = $this->getAccessToken();
+        if (!$token) {
+            throw new \RuntimeException('FedEx: Unable to obtain access token');
+        }
+
+        $endpoint = $this->carrier->is_sandbox
+            ? ($this->carrier->sandbox_endpoint ?: 'https://apis-sandbox.fedex.com')
+            : ($this->carrier->api_endpoint     ?: 'https://apis.fedex.com');
+
+        $payload = [
+            'accountNumber' => [
+                'value' => $this->carrier->account_number ?? '',
+            ],
+            'trackingNumber' => $trackingNumber,
+        ];
+
+        Log::info('FedEx: cancelShipment request', [
+            'endpoint' => $endpoint,
+            'tracking_number' => $trackingNumber,
+            'account_number' => $this->carrier->account_number,
+        ]);
+
+        try {
+            $response = Http::withToken($token)
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                    'x-locale'     => 'en_US',
+                ])
+                ->put("{$endpoint}/ship/v1/shipments/cancel", $payload);
+
+            $data = $response->json();
+
+            if (!$response->successful()) {
+                $errorMessage = $data['errors'][0]['message']
+                    ?? $data['error_description']
+                    ?? $response->body();
+
+                Log::warning('FedEx: cancelShipment failed', [
+                    'status'          => $response->status(),
+                    'body'            => $response->body(),
+                    'tracking_number' => $trackingNumber,
+                ]);
+
+                throw new \RuntimeException("FedEx cancel shipment failed: {$errorMessage}");
+            }
+
+            Log::info('FedEx: cancelShipment success', [
+                'tracking_number' => $trackingNumber,
+                'response' => $data,
+            ]);
+
+            return [
+                'success' => true,
+                'message' => 'Shipment cancelled successfully',
+                'raw' => $data,
+            ];
+        } catch (\RuntimeException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('FedEx: cancelShipment exception', ['message' => $e->getMessage()]);
+            throw new \RuntimeException("FedEx cancel shipment failed: {$e->getMessage()}");
+        }
+    }
 }

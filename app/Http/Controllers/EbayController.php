@@ -1657,6 +1657,70 @@ class EbayController extends Controller
     }
 
     /**
+     * Mark an order as not shipped on eBay (removes shipped status).
+     * Note: This does not remove tracking numbers that have already been uploaded,
+     * but it marks the order as not yet shipped.
+     */
+    public function markOrderAsNotShipped(
+        SalesChannel $channel,
+        string $ebayOrderId,
+        ?string $itemId = null,
+        ?string $transactionId = null
+    ): array {
+        try {
+            $channel = $this->client->ensureValidToken($channel);
+
+            Log::info('Marking order as NOT shipped on eBay', [
+                'ebay_order_id' => $ebayOrderId,
+                'channel_id' => $channel->id,
+            ]);
+
+            // Use OrderID if available (preferred for multi-item orders)
+            if (!empty($ebayOrderId)) {
+                $result = $this->ebayService->completeSaleByOrderId(
+                    $channel,
+                    $ebayOrderId,
+                    '',  // Empty carrier
+                    '',  // Empty tracking number
+                    false  // Shipped = false
+                );
+            } elseif (!empty($itemId) && !empty($transactionId)) {
+                // Fallback to ItemID + TransactionID for single item orders
+                $result = $this->ebayService->completeSale(
+                    $channel,
+                    $itemId,
+                    $transactionId,
+                    '',  // Empty carrier
+                    '',  // Empty tracking number
+                    false  // Shipped = false
+                );
+            } else {
+                return [
+                    'success' => false,
+                    'message' => 'Either ebay_order_id or itemId+transactionId is required',
+                ];
+            }
+
+            Log::info('eBay mark as NOT shipped result', [
+                'ebay_order_id' => $ebayOrderId,
+                'result' => $result,
+            ]);
+
+            return $result;
+        } catch (Exception $e) {
+            Log::error('Failed to mark order as not shipped on eBay', [
+                'ebay_order_id' => $ebayOrderId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Relist an ended eBay item
      */
     public function relistEbayItem(SalesChannel $channel, Product $product, string $itemId): array

@@ -1098,9 +1098,9 @@ class OrderController extends Controller
 
             // Sync shipment to eBay if this is an eBay order
             $ebayResult = null;
-            if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
-                $ebayResult = $this->syncShipmentToEbay($order, $carrierName, $trackingNumber);
-            }
+            // if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+            //     $ebayResult = $this->syncShipmentToEbay($order, $carrierName, $trackingNumber);
+            // }
 
             $message = 'Shipping label generated and order marked as shipped';
             if ($ebayResult) {
@@ -1156,6 +1156,174 @@ class OrderController extends Controller
         $filename = "label-{$order->order_number}.pdf";
 
         return Storage::download($order->shipping_label_path, $filename);
+    }
+
+    /**
+     * Cancel/void a shipping label for an order.
+     * Cancels the shipment with FedEx, clears tracking info, and removes tracking from eBay if applicable.
+     */
+    public function cancelLabel(Request $request, string $id): JsonResponse
+    {
+        $order = Order::with('salesChannel')->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        if (!$order->tracking_number) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order has no tracking number to cancel',
+            ], 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $trackingNumber = $order->tracking_number;
+            $carrierName = $order->shipping_carrier;
+
+            // Cancel the shipment with the carrier (FedEx)
+            $cancelResult = $this->shippingService->cancelLabelForOrder($order);
+
+            if (!$cancelResult['success']) {
+                throw new Exception($cancelResult['message'] ?? 'Failed to cancel shipment with carrier');
+            }
+
+            // Clear shipping info from order and revert status
+            $order->update([
+                'tracking_number'      => null,
+                'tracking_url'         => null,
+                'shipping_label_path'  => null,
+                'label_generated_at'   => null,
+                'shipping_carrier'     => null,
+                'shipping_id'          => null,
+                'fulfillment_status'   => 'unfulfilled',
+                'order_status'         => 'processing',
+                'shipped_at'           => null,
+            ]);
+
+            // Restore inventory for all items (since we're un-shipping)
+            foreach ($order->items as $item) {
+                if ($item->inventory_updated) {
+                    $item->restoreInventory();
+                }
+            }
+
+            DB::commit();
+
+            // Remove tracking from eBay if this is an eBay order
+            $ebayResult = null;
+            if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+                $ebayResult = $this->removeTrackingFromEbay($order);
+            }
+
+            $message = 'Shipping label cancelled successfully';
+            if ($ebayResult) {
+                if ($ebayResult['success']) {
+                    $message .= ' and tracking removed from eBay';
+                } else {
+                    $message .= '. eBay tracking removal failed: ' . ($ebayResult['message'] ?? 'Unknown error');
+                }
+            }
+
+            // Log the cancellation
+            $order->setMeta('label_cancelled_' . time(), [
+                'tracking_number' => $trackingNumber,
+                'carrier' => $carrierName,
+                'cancelled_at' => now()->toIso8601String(),
+                'cancelled_by' => auth()->user()?->name ?? 'System',
+                'ebay_result' => $ebayResult,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => $order->fresh(['items']),
+                'ebay_sync' => $ebayResult,
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to cancel shipping label', [
+                'order_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to cancel shipping label: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove tracking information from eBay order.
+     * Marks the order as not shipped on eBay.
+     */
+    protected function removeTrackingFromEbay(Order $order): array
+    {
+        try {
+            $salesChannel = $order->salesChannel;
+            if (!$salesChannel || !$salesChannel->isEbay()) {
+                return [
+                    'success' => false,
+                    'message' => 'Not an eBay sales channel',
+                ];
+            }
+
+            $ebayController = app(EbayController::class);
+
+            // Get item ID and transaction ID from order items for fallback
+            $firstItem = $order->items->first();
+            $itemId = $firstItem?->ebay_item_id;
+            $transactionId = $firstItem?->ebay_transaction_id;
+
+            // Mark as not shipped (this removes the shipped status on eBay)
+            // Note: eBay doesn't allow removing tracking once added, but marking as not shipped
+            // effectively tells eBay the item hasn't been shipped yet
+            $result = $ebayController->markOrderAsNotShipped(
+                $salesChannel,
+                $order->ebay_order_id,
+                $itemId,
+                $transactionId
+            );
+
+            // Log the sync attempt
+            $order->setMeta('ebay_tracking_removed_' . time(), [
+                'result' => $result,
+                'removed_at' => now()->toIso8601String(),
+            ]);
+
+            if ($result['success']) {
+                Log::info('Tracking removed from eBay order', [
+                    'order_id' => $order->id,
+                    'ebay_order_id' => $order->ebay_order_id,
+                ]);
+            } else {
+                Log::warning('Failed to remove tracking from eBay', [
+                    'order_id' => $order->id,
+                    'ebay_order_id' => $order->ebay_order_id,
+                    'result' => $result,
+                ]);
+            }
+
+            return $result;
+
+        } catch (Exception $e) {
+            Log::error('Exception removing tracking from eBay', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
     }
 
     /**

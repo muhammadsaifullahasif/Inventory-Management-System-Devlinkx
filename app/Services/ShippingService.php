@@ -878,4 +878,51 @@ class ShippingService
         // Fallback: Order number
         return 'Order #' . ($order->order_number ?? $order->id);
     }
+
+    /**
+     * Cancel/void a shipping label for an order.
+     * Cancels the shipment with the carrier and clears the order's shipping info.
+     *
+     * @param Order $order The order whose label should be cancelled
+     * @return array ['success' => bool, 'message' => string]
+     * @throws \RuntimeException on failure
+     */
+    public function cancelLabelForOrder(Order $order): array
+    {
+        if (!$order->tracking_number) {
+            throw new \RuntimeException('Order has no tracking number to cancel');
+        }
+
+        if (!$order->shipping_id) {
+            throw new \RuntimeException('Order has no shipping carrier assigned');
+        }
+
+        $carrier = Shipping::find($order->shipping_id);
+        if (!$carrier) {
+            throw new \RuntimeException("Carrier ID {$order->shipping_id} not found");
+        }
+
+        $service = $this->resolveCarrierService($carrier);
+        if (!$service) {
+            throw new \RuntimeException("Carrier type '{$carrier->type}' is not supported for label cancellation");
+        }
+
+        // Cancel the shipment with the carrier
+        $result = $service->cancelShipment($order->tracking_number);
+
+        if ($result['success']) {
+            // Delete the label file if it exists
+            if ($order->shipping_label_path && Storage::exists($order->shipping_label_path)) {
+                Storage::delete($order->shipping_label_path);
+            }
+
+            Log::info('ShippingService: label cancelled', [
+                'order_id'        => $order->id,
+                'tracking_number' => $order->tracking_number,
+                'carrier'         => $carrier->name,
+            ]);
+        }
+
+        return $result;
+    }
 }
