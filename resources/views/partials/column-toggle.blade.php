@@ -121,13 +121,23 @@ $(document).ready(function() {
         if (columnIndex >= 0) {
             if (isVisible) {
                 $table.find('thead th').eq(columnIndex).show();
-                $table.find('tbody tr').each(function() {
-                    $(this).find('td').eq(columnIndex).show();
+                $table.find('> tbody > tr').each(function() {
+                    // Skip rows that have a colspan (like subtable/detail rows)
+                    var $firstTd = $(this).find('> td').first();
+                    if ($firstTd.attr('colspan')) {
+                        return; // Skip this row
+                    }
+                    $(this).find('> td').eq(columnIndex).show();
                 });
             } else {
                 $table.find('thead th').eq(columnIndex).hide();
-                $table.find('tbody tr').each(function() {
-                    $(this).find('td').eq(columnIndex).hide();
+                $table.find('> tbody > tr').each(function() {
+                    // Skip rows that have a colspan (like subtable/detail rows)
+                    var $firstTd = $(this).find('> td').first();
+                    if ($firstTd.attr('colspan')) {
+                        return; // Skip this row
+                    }
+                    $(this).find('> td').eq(columnIndex).hide();
                 });
             }
         }
