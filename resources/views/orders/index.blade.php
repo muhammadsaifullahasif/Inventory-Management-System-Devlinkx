@@ -1278,6 +1278,9 @@
                             $('#labelResult').show();
                             $btn.hide();
 
+                            // Open label in new window for printing
+                            window.open(response.label_url, '_blank');
+
                             // Reload after 3 seconds to update order status
                             setTimeout(function() {
                                 location.reload();
