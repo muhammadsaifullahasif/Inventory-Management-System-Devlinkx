@@ -654,6 +654,33 @@
                                         <input type="text" id="showCustomerReference" class="form-control form-control-sm" maxlength="30" placeholder="Auto-generated from item names if empty">
                                     </div>
 
+                                    <!-- Multi-Package Option -->
+                                    <div class="mt-3 p-3 border rounded bg-light">
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="showMultiPackageCheckbox">
+                                            <label class="form-check-label fw-bold" for="showMultiPackageCheckbox">
+                                                <i class="feather-package me-1"></i> Multi-Package Shipment
+                                            </label>
+                                            <small class="text-muted d-block">Create multiple labels for this order (e.g., 2 boxes)</small>
+                                        </div>
+                                        <div id="showMultiPackageOptions" style="display:none;">
+                                            <div class="row g-2 mb-2">
+                                                <div class="col-md-4">
+                                                    <label class="form-label small mb-1">Number of Packages</label>
+                                                    <select id="showPackageCount" class="form-select form-select-sm">
+                                                        <option value="2">2 Packages</option>
+                                                        <option value="3">3 Packages</option>
+                                                        <option value="4">4 Packages</option>
+                                                        <option value="5">5 Packages</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div id="showPackageDimensionsContainer">
+                                                <!-- Package dimension fields will be dynamically added here -->
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <!-- Generate Label Button -->
                                     <button type="button" id="showGenerateLabelBtn" class="btn btn-success w-100 mt-3" style="display:none;" disabled>
                                         <i class="feather-printer me-1"></i> Generate Label & Mark Shipped
@@ -662,10 +689,12 @@
                                     <!-- Label Result (shown after label is generated) -->
                                     <div id="showLabelResult" class="alert alert-success mt-3" style="display:none;">
                                         <h6 class="mb-2"><i class="feather-check-circle me-1"></i> Label Generated Successfully!</h6>
-                                        <p class="mb-2">Tracking Number: <strong id="showTrackingNumber"></strong></p>
-                                        <a href="#" id="showDownloadLabelLink" class="btn btn-primary btn-sm" target="_blank">
-                                            <i class="feather-download me-1"></i> Download Label
-                                        </a>
+                                        <p class="mb-2">Tracking Number(s): <strong id="showTrackingNumber"></strong></p>
+                                        <div id="showDownloadLabelLinks">
+                                            <a href="#" id="showDownloadLabelLink" class="btn btn-primary btn-sm" target="_blank">
+                                                <i class="feather-download me-1"></i> Download Label
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -894,6 +923,67 @@
             });
 
             // ----------------------------------------------------------------
+            // Multi-Package Checkbox Toggle
+            // ----------------------------------------------------------------
+            $('#showMultiPackageCheckbox').on('change', function() {
+                if ($(this).is(':checked')) {
+                    $('#showMultiPackageOptions').slideDown();
+                    updateShowPackageDimensionFields();
+                } else {
+                    $('#showMultiPackageOptions').slideUp();
+                }
+            });
+
+            $('#showPackageCount').on('change', function() {
+                updateShowPackageDimensionFields();
+            });
+
+            function updateShowPackageDimensionFields() {
+                var count = parseInt($('#showPackageCount').val()) || 2;
+                var weightUnit = $('#showWeightUnit').val() || 'lbs';
+                var dimUnit = $('#showDimensionUnit').val() || 'in';
+                var $container = $('#showPackageDimensionsContainer');
+                $container.empty();
+
+                for (var i = 0; i < count; i++) {
+                    var html = `
+                        <div class="border rounded p-2 mb-2 bg-white show-package-dim-row" data-package="${i}">
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-primary me-2">Package ${i + 1}</span>
+                                <small class="text-muted">Enter weight and dimensions</small>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-3">
+                                    <label class="form-label small mb-1">Weight (${weightUnit})</label>
+                                    <input type="number" step="0.1" min="0.1" class="form-control form-control-sm show-pkg-weight" data-pkg="${i}" value="1" required>
+                                </div>
+                                <div class="col-3">
+                                    <label class="form-label small mb-1">L (${dimUnit})</label>
+                                    <input type="number" step="0.1" min="1" class="form-control form-control-sm show-pkg-length" data-pkg="${i}" value="12">
+                                </div>
+                                <div class="col-3">
+                                    <label class="form-label small mb-1">W (${dimUnit})</label>
+                                    <input type="number" step="0.1" min="1" class="form-control form-control-sm show-pkg-width" data-pkg="${i}" value="12">
+                                </div>
+                                <div class="col-3">
+                                    <label class="form-label small mb-1">H (${dimUnit})</label>
+                                    <input type="number" step="0.1" min="1" class="form-control form-control-sm show-pkg-height" data-pkg="${i}" value="12">
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    $container.append(html);
+                }
+            }
+
+            // Update package dimension labels when units change
+            $('#showWeightUnit, #showDimensionUnit').on('change', function() {
+                if ($('#showMultiPackageCheckbox').is(':checked')) {
+                    updateShowPackageDimensionFields();
+                }
+            });
+
+            // ----------------------------------------------------------------
             // Generate Label button click
             // ----------------------------------------------------------------
             $('#showGenerateLabelBtn').on('click', function() {
@@ -905,17 +995,7 @@
 
                 var carrierId   = $('#showRateCarrierId').val();
                 var serviceCode = $radio.val();
-
-                // Collect dimension overrides
-                var itemOverrides = [];
-                $('#showItemsDimTbody tr').each(function() {
-                    var itemId = $(this).find('.show-dim-input').first().data('item-id');
-                    var entry  = { order_item_id: itemId };
-                    $(this).find('.show-dim-input').each(function() {
-                        entry[$(this).data('dim')] = parseFloat($(this).val()) || 0;
-                    });
-                    itemOverrides.push(entry);
-                });
+                var isMultiPackage = $('#showMultiPackageCheckbox').is(':checked');
 
                 // Get selected units
                 var weightUnit = $('#showWeightUnit').val();
@@ -923,45 +1003,127 @@
                 var customerReference = $('#showCustomerReference').val();
 
                 var $btn = $(this);
-                $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generating Label...');
 
-                $.ajax({
-                    url: '{{ route('orders.generate-label', $order->id) }}',
-                    type: 'POST',
-                    data: {
-                        _token:       '{{ csrf_token() }}',
-                        carrier_id:   carrierId,
-                        service_code: serviceCode,
-                        items:        itemOverrides,
-                        weight_unit:  weightUnit,
-                        dimension_unit: dimensionUnit,
-                        customer_reference: customerReference
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            $('#showTrackingNumber').text(response.tracking_number);
-                            $('#showDownloadLabelLink').attr('href', response.label_url);
-                            $('#showLabelResult').show();
-                            $btn.hide();
+                if (isMultiPackage) {
+                    // Multi-package label generation
+                    var packageCount = parseInt($('#showPackageCount').val()) || 2;
+                    var packages = [];
 
-                            // Open label in new window for printing
-                            window.open(response.label_url, '_blank');
+                    $('.show-package-dim-row').each(function() {
+                        packages.push({
+                            weight: parseFloat($(this).find('.show-pkg-weight').val()) || 1,
+                            length: parseFloat($(this).find('.show-pkg-length').val()) || 12,
+                            width:  parseFloat($(this).find('.show-pkg-width').val()) || 12,
+                            height: parseFloat($(this).find('.show-pkg-height').val()) || 12
+                        });
+                    });
 
-                            // Reload after 3 seconds to update order status
-                            setTimeout(function() {
-                                location.reload();
-                            }, 3000);
-                        } else {
-                            alert(response.message || 'Failed to generate label.');
-                            $btn.prop('disabled', false).html('<i class="fas fa-print mr-1"></i> Generate Label & Mark Shipped');
+                    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generating ' + packageCount + ' Labels...');
+
+                    $.ajax({
+                        url: '{{ route('orders.generate-multi-labels', $order->id) }}',
+                        type: 'POST',
+                        data: {
+                            _token:         '{{ csrf_token() }}',
+                            carrier_id:     carrierId,
+                            service_code:   serviceCode,
+                            package_count:  packageCount,
+                            packages:       packages,
+                            weight_unit:    weightUnit,
+                            dimension_unit: dimensionUnit,
+                            customer_reference: customerReference
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                // Display all tracking numbers
+                                $('#showTrackingNumber').text(response.tracking_numbers.join(', '));
+
+                                // Create download links for all packages
+                                var $linksContainer = $('#showDownloadLabelLinks');
+                                $linksContainer.empty();
+                                response.label_urls.forEach(function(url, index) {
+                                    $linksContainer.append(
+                                        '<a href="' + url + '" class="btn btn-primary btn-sm me-1 mb-1" target="_blank">' +
+                                        '<i class="feather-download me-1"></i> Package ' + (index + 1) +
+                                        '</a>'
+                                    );
+                                    // Open each label in new window
+                                    window.open(url, '_blank');
+                                });
+
+                                $('#showLabelResult').show();
+                                $btn.hide();
+
+                                // Reload after 4 seconds to update order status
+                                setTimeout(function() {
+                                    location.reload();
+                                }, 4000);
+                            } else {
+                                alert(response.message || 'Failed to generate labels.');
+                                $btn.prop('disabled', false).html('<i class="feather-printer me-1"></i> Generate Label & Mark Shipped');
+                            }
+                        },
+                        error: function(xhr) {
+                            var msg = xhr.responseJSON?.message || 'Failed to generate labels.';
+                            alert(msg);
+                            $btn.prop('disabled', false).html('<i class="feather-printer me-1"></i> Generate Label & Mark Shipped');
                         }
-                    },
-                    error: function(xhr) {
-                        var msg = xhr.responseJSON?.message || 'Failed to generate label.';
-                        alert(msg);
-                        $btn.prop('disabled', false).html('<i class="fas fa-print mr-1"></i> Generate Label & Mark Shipped');
-                    }
-                });
+                    });
+                } else {
+                    // Single package label generation (existing logic)
+                    var itemOverrides = [];
+                    $('#showItemsDimTbody tr').each(function() {
+                        var itemId = $(this).find('.show-dim-input').first().data('item-id');
+                        var entry  = { order_item_id: itemId };
+                        $(this).find('.show-dim-input').each(function() {
+                            entry[$(this).data('dim')] = parseFloat($(this).val()) || 0;
+                        });
+                        itemOverrides.push(entry);
+                    });
+
+                    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generating Label...');
+
+                    $.ajax({
+                        url: '{{ route('orders.generate-label', $order->id) }}',
+                        type: 'POST',
+                        data: {
+                            _token:       '{{ csrf_token() }}',
+                            carrier_id:   carrierId,
+                            service_code: serviceCode,
+                            items:        itemOverrides,
+                            weight_unit:  weightUnit,
+                            dimension_unit: dimensionUnit,
+                            customer_reference: customerReference
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                $('#showTrackingNumber').text(response.tracking_number);
+                                $('#showDownloadLabelLinks').html(
+                                    '<a href="' + response.label_url + '" class="btn btn-primary btn-sm" target="_blank">' +
+                                    '<i class="feather-download me-1"></i> Download Label</a>'
+                                );
+                                $('#showLabelResult').show();
+                                $btn.hide();
+
+                                // Open label in new window for printing
+                                window.open(response.label_url, '_blank');
+
+                                // Reload after 3 seconds to update order status
+                                setTimeout(function() {
+                                    location.reload();
+                                }, 3000);
+                            } else {
+                                alert(response.message || 'Failed to generate label.');
+                                $btn.prop('disabled', false).html('<i class="feather-printer me-1"></i> Generate Label & Mark Shipped');
+                            }
+                        },
+                        error: function(xhr) {
+                            var msg = xhr.responseJSON?.message || 'Failed to generate label.';
+                            alert(msg);
+                            $btn.prop('disabled', false).html('<i class="feather-printer me-1"></i> Generate Label & Mark Shipped');
+                        }
+                    });
+                }
             });
 
             // ----------------------------------------------------------------

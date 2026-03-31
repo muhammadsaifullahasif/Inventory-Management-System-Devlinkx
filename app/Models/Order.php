@@ -291,6 +291,72 @@ class Order extends Model
     }
 
     /**
+     * Get all tracking numbers for this order (supports multi-package shipments).
+     * Returns array of ['tracking_number' => string, 'carrier' => string, 'label_path' => string]
+     */
+    public function getAllTrackingNumbers(): array
+    {
+        $packages = $this->getMetaArray('shipping_packages', []);
+
+        // If no packages stored in meta, check if we have a single tracking number
+        if (empty($packages) && $this->tracking_number) {
+            return [[
+                'tracking_number' => $this->tracking_number,
+                'carrier' => $this->shipping_carrier,
+                'label_path' => $this->shipping_label_path,
+            ]];
+        }
+
+        return $packages;
+    }
+
+    /**
+     * Add a tracking number to this order (for multi-package shipments).
+     */
+    public function addTrackingNumber(string $trackingNumber, string $carrier, ?string $labelPath = null): void
+    {
+        $packages = $this->getMetaArray('shipping_packages', []);
+
+        $packages[] = [
+            'tracking_number' => $trackingNumber,
+            'carrier' => $carrier,
+            'label_path' => $labelPath,
+            'created_at' => now()->toIso8601String(),
+        ];
+
+        $this->setMeta('shipping_packages', $packages);
+    }
+
+    /**
+     * Clear all tracking numbers from this order.
+     */
+    public function clearAllTrackingNumbers(): void
+    {
+        $this->deleteMeta('shipping_packages');
+    }
+
+    /**
+     * Check if this order has multiple packages/tracking numbers.
+     */
+    public function hasMultiplePackages(): bool
+    {
+        $packages = $this->getMetaArray('shipping_packages', []);
+        return count($packages) > 1;
+    }
+
+    /**
+     * Get total package count for this order.
+     */
+    public function getPackageCount(): int
+    {
+        $packages = $this->getMetaArray('shipping_packages', []);
+        if (!empty($packages)) {
+            return count($packages);
+        }
+        return $this->tracking_number ? 1 : 0;
+    }
+
+    /**
      * Record a partial refund
      */
     public function recordPartialRefund(float $amount, ?string $refundId = null): void

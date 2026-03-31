@@ -446,12 +446,19 @@ class EbayService
 
     /**
      * Complete a sale by OrderID (for multi-item orders).
+     * Supports multiple tracking numbers for multi-package shipments.
+     *
+     * @param SalesChannel $channel The sales channel
+     * @param string $orderId The eBay order ID
+     * @param string|array $shippingCarrier Single carrier or array of carriers
+     * @param string|array $trackingNumber Single tracking number or array of tracking numbers
+     * @param bool $shipped Whether the order is shipped
      */
     public function completeSaleByOrderId(
         SalesChannel $channel,
         string $orderId,
-        string $shippingCarrier,
-        string $trackingNumber,
+        string|array $shippingCarrier,
+        string|array $trackingNumber,
         bool $shipped = true
     ): array {
         $xml = EbayXmlBuilder::completeSaleByOrderId($orderId, $shippingCarrier, $trackingNumber, $shipped);

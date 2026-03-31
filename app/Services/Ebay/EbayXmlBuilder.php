@@ -467,25 +467,56 @@ XML;
 
     /**
      * Build CompleteSale request XML (mark order shipped by OrderID).
+     * Supports multiple tracking numbers for multi-package shipments.
+     *
+     * @param string $orderId The eBay order ID
+     * @param string|array $shippingCarrier Single carrier string or array of carriers for each package
+     * @param string|array $trackingNumber Single tracking number or array of tracking numbers
+     * @param bool $shipped Whether the order is shipped
      */
     public static function completeSaleByOrderId(
         string $orderId,
-        string $shippingCarrier,
-        string $trackingNumber,
+        string|array $shippingCarrier,
+        string|array $trackingNumber,
         bool $shipped = true
     ): string {
         $shippedValue = $shipped ? 'true' : 'false';
+
+        // Build tracking details XML - supports multiple packages
+        $trackingDetailsXml = '';
+
+        if (is_array($trackingNumber)) {
+            // Multiple tracking numbers
+            foreach ($trackingNumber as $index => $tracking) {
+                $carrier = is_array($shippingCarrier)
+                    ? ($shippingCarrier[$index] ?? $shippingCarrier[0] ?? '')
+                    : $shippingCarrier;
+
+                if (!empty($tracking)) {
+                    $trackingDetailsXml .= "
+        <ShipmentTrackingDetails>
+            <ShipmentTrackingNumber>{$tracking}</ShipmentTrackingNumber>
+            <ShippingCarrierUsed>{$carrier}</ShippingCarrierUsed>
+        </ShipmentTrackingDetails>";
+                }
+            }
+        } else {
+            // Single tracking number
+            if (!empty($trackingNumber)) {
+                $trackingDetailsXml = "
+        <ShipmentTrackingDetails>
+            <ShipmentTrackingNumber>{$trackingNumber}</ShipmentTrackingNumber>
+            <ShippingCarrierUsed>{$shippingCarrier}</ShippingCarrierUsed>
+        </ShipmentTrackingDetails>";
+            }
+        }
 
         return <<<XML
 <?xml version="1.0" encoding="utf-8"?>
 <CompleteSaleRequest xmlns="urn:ebay:apis:eBLBaseComponents">
     <OrderID>{$orderId}</OrderID>
     <Shipped>{$shippedValue}</Shipped>
-    <Shipment>
-        <ShipmentTrackingDetails>
-            <ShipmentTrackingNumber>{$trackingNumber}</ShipmentTrackingNumber>
-            <ShippingCarrierUsed>{$shippingCarrier}</ShippingCarrierUsed>
-        </ShipmentTrackingDetails>
+    <Shipment>{$trackingDetailsXml}
     </Shipment>
 </CompleteSaleRequest>
 XML;

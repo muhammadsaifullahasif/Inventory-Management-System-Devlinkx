@@ -694,6 +694,226 @@ class ShippingService
         ];
     }
 
+    /**
+     * Generate multiple shipping labels for an order (multi-package shipment).
+     * Creates multiple shipments with the carrier, saves label PDFs, and returns tracking info for all packages.
+     *
+     * @param Order $order The order to ship
+     * @param Shipping $carrier The carrier to use
+     * @param string $serviceCode The service type code (e.g., 'FEDEX_GROUND')
+     * @param int $packageCount Number of packages to generate labels for
+     * @param array $packageOverrides Array of package-specific overrides [['weight' => x, 'length' => y, ...], ...]
+     * @param array $unitOverrides Optional unit overrides ['weight_unit' => 'lbs|kg|oz', 'dimension_unit' => 'in|cm']
+     * @return array ['packages' => [['tracking_number' => string, 'label_path' => string], ...], 'carrier_name' => string]
+     * @throws \RuntimeException on failure
+     */
+    public function generateMultipleLabelsForOrder(
+        Order $order,
+        Shipping $carrier,
+        string $serviceCode,
+        int $packageCount,
+        array $packageOverrides = [],
+        array $unitOverrides = []
+    ): array {
+        $service = $this->resolveCarrierService($carrier);
+
+        if (!$service) {
+            throw new \RuntimeException("Carrier type '{$carrier->type}' is not supported for label generation.");
+        }
+
+        $packages = [];
+
+        for ($i = 0; $i < $packageCount; $i++) {
+            $packageOverride = $packageOverrides[$i] ?? [];
+
+            // Get weight and dimensions for this package
+            $weight = (float) ($packageOverride['weight'] ?? 1.0);
+            $length = (float) ($packageOverride['length'] ?? 12.0);
+            $width  = (float) ($packageOverride['width']  ?? 12.0);
+            $height = (float) ($packageOverride['height'] ?? 12.0);
+
+            // Use unit overrides if provided, otherwise fall back to carrier settings
+            $userWeightUnit    = $unitOverrides['weight_unit']    ?? $carrier->weight_unit    ?? 'lbs';
+            $userDimensionUnit = $unitOverrides['dimension_unit'] ?? $carrier->dimension_unit ?? 'in';
+
+            // Convert weight if user selected a different unit than carrier default
+            $weight = $this->convertWeightToCarrierUnit($weight, $userWeightUnit, $carrier->weight_unit ?? 'lbs');
+
+            // Convert dimensions if user selected a different unit than carrier default
+            $length = $this->convertDimensionToCarrierUnit($length, $userDimensionUnit, $carrier->dimension_unit ?? 'in');
+            $width  = $this->convertDimensionToCarrierUnit($width,  $userDimensionUnit, $carrier->dimension_unit ?? 'in');
+            $height = $this->convertDimensionToCarrierUnit($height, $userDimensionUnit, $carrier->dimension_unit ?? 'in');
+
+            // Use carrier's configured unit for the API call
+            $weightUnit    = $carrier->weight_unit    ?? 'lbs';
+            $dimensionUnit = $carrier->dimension_unit ?? 'inches';
+
+            // FedEx accepts only 'LB' or 'KG'
+            $fedexWeightUnit = in_array(strtolower($weightUnit), ['kg', 'kgs', 'kilogram', 'kilograms']) ? 'KG' : 'LB';
+            $fedexDimUnit    = strtolower($dimensionUnit) === 'cm' ? 'CM' : 'IN';
+
+            // Build shipper address from carrier
+            $shipperStreetLines = array_values(array_filter([
+                $carrier->shipper_address ?? '',
+            ]));
+            if (empty($shipperStreetLines)) {
+                $shipperStreetLines = ['123 Shipper Street'];
+            }
+
+            // Build recipient address from order
+            $recipientStreetLines = array_values(array_filter([
+                $order->shipping_address_line1 ?? '',
+                $order->shipping_address_line2 ?? null,
+            ]));
+
+            // Get shipper phone
+            $shipperPhone = $carrier->shipper_phone ?? config('shipping.shipper_phone', '0000000000');
+            $shipperPhone = preg_replace('/[^0-9]/', '', $shipperPhone);
+
+            // Get recipient phone
+            $recipientPhone = $order->buyer_phone ?? $order->shipping_phone ?? '0000000000';
+            $recipientPhone = preg_replace('/[^0-9]/', '', $recipientPhone);
+
+            // Determine if residential address
+            $isResidential = in_array($order->address_type, ['RESIDENTIAL', 'MIXED']);
+
+            // Build customer reference for this package
+            $customerRef = !empty($unitOverrides['customer_reference'])
+                ? $unitOverrides['customer_reference']
+                : $this->getCustomerReference($order);
+            $customerRef = substr($customerRef . ' (Pkg ' . ($i + 1) . '/' . $packageCount . ')', 0, 30);
+
+            // Build the FedEx Ship API payload for this package
+            $shipmentPayload = [
+                'labelResponseOptions' => 'LABEL',
+                'accountNumber'        => ['value' => $carrier->account_number ?? ''],
+                'processingOptionType' => 'STANDARD',
+                'requestedShipment'    => [
+                    'shipper' => [
+                        'contact' => [
+                            'personName'  => $carrier->shipper_name ?? 'Shipper',
+                            'companyName' => $carrier->shipper_name ?? 'Shipper',
+                            'phoneNumber' => $shipperPhone,
+                        ],
+                        'address' => [
+                            'streetLines'         => $shipperStreetLines,
+                            'city'                => $carrier->shipper_city          ?? 'New York',
+                            'stateOrProvinceCode' => $carrier->shipper_state         ?? 'NY',
+                            'postalCode'          => $carrier->shipper_postal_code   ?? '10001',
+                            'countryCode'         => $carrier->shipper_country       ?? 'US',
+                            'residential'         => false,
+                        ],
+                    ],
+                    'accountNumber'        => ['value' => $carrier->account_number ?? ''],
+                    'shipmentVisibility'   => 'INSIGHT_ON',
+                    'blockInsightVisibility' => false,
+                    'recipients' => [[
+                        'contact' => [
+                            'personName'  => $order->shipping_name ?? $order->buyer_name ?? 'Recipient',
+                            'companyName'  => $order->shipping_name ?? $order->buyer_name ?? 'Recipient',
+                            'phoneNumber' => $recipientPhone,
+                        ],
+                        'address' => [
+                            'streetLines'         => $recipientStreetLines,
+                            'city'                => $order->shipping_city          ?? '',
+                            'stateOrProvinceCode' => $order->shipping_state         ?? '',
+                            'postalCode'          => substr($order->shipping_postal_code, 0, 5) ?? '',
+                            'countryCode'         => $order->shipping_country       ?? 'US',
+                            'residential'         => $isResidential,
+                        ],
+                    ]],
+                    'shipDatestamp'        => date('Y-m-d'),
+                    'serviceType'          => $serviceCode,
+                    'packagingType'        => 'YOUR_PACKAGING',
+                    'pickupType'           => 'USE_SCHEDULED_PICKUP',
+                    'shippingChargesPayment' => [
+                        'paymentType' => 'SENDER',
+                        'payor'       => [
+                            'responsibleParty' => [
+                                'accountNumber' => ['value' => $carrier->account_number ?? ''],
+                                'contact' => [
+                                    'personName'  => $carrier->shipper_name ?? 'Shipper',
+                                    'companyName' => $carrier->shipper_name ?? 'Shipper',
+                                    'phoneNumber' => $shipperPhone,
+                                ],
+                                'address' => [
+                                    'streetLines'         => $shipperStreetLines,
+                                    'city'                => $carrier->shipper_city          ?? 'New York',
+                                    'stateOrProvinceCode' => $carrier->shipper_state         ?? 'NY',
+                                    'postalCode'          => $carrier->shipper_postal_code   ?? '10001',
+                                    'countryCode'         => $carrier->shipper_country       ?? 'US',
+                                ],
+                            ],
+                        ],
+                    ],
+                    'labelSpecification' => [
+                        'labelFormatType' => 'COMMON2D',
+                        'imageType'       => 'PDF',
+                        'labelStockType'  => 'STOCK_4X6',
+                        'labelPrintingOrientation' => 'TOP_EDGE_OF_TEXT_FIRST',
+                        'labelOrder' => 'SHIPPING_LABEL_FIRST',
+                    ],
+                    'requestedPackageLineItems' => [[
+                        'sequenceNumber' => 1,
+                        'weight' => [
+                            'units' => $fedexWeightUnit,
+                            'value' => round($weight, 2),
+                        ],
+                        'dimensions' => [
+                            'length' => (int) ceil($length),
+                            'width'  => (int) ceil($width),
+                            'height' => (int) ceil($height),
+                            'units'  => $fedexDimUnit,
+                        ],
+                        'customerReferences' => [[
+                            'customerReferenceType' => 'CUSTOMER_REFERENCE',
+                            'value' => $customerRef,
+                        ]],
+                    ]],
+                    'totalPackageCount' => 1,
+                    'shipmentConfirmationType' => 'CONFIRM_AND_CARRIER_PACKAGE_LABEL'
+                ],
+            ];
+
+            Log::info('Multi-package Label Payload (Package ' . ($i + 1) . '/' . $packageCount . '): ', [
+                'payload' => $shipmentPayload
+            ]);
+
+            // Call FedEx to create shipment for this package
+            $result = $service->createShipment($shipmentPayload);
+
+            // Save the label PDF to storage
+            $trackingNumber = $result['tracking_number'];
+            $labelBase64    = $result['label_base64'];
+            $labelFormat    = strtolower($result['label_format'] ?? 'pdf');
+
+            $filename  = "shipping-labels/order-{$order->id}-pkg" . ($i + 1) . "-{$trackingNumber}.{$labelFormat}";
+            $labelData = base64_decode($labelBase64);
+
+            Storage::put($filename, $labelData);
+
+            Log::info('ShippingService: multi-package label generated', [
+                'order_id'        => $order->id,
+                'package_number'  => $i + 1,
+                'total_packages'  => $packageCount,
+                'tracking_number' => $trackingNumber,
+                'label_path'      => $filename,
+                'carrier'         => $carrier->name,
+            ]);
+
+            $packages[] = [
+                'tracking_number' => $trackingNumber,
+                'label_path'      => $filename,
+                'package_number'  => $i + 1,
+            ];
+        }
+
+        return [
+            'packages'     => $packages,
+            'carrier_name' => $carrier->name,
+        ];
+    }
+
     // -------------------------------------------------------------------------
     // Delivery Status Tracking
     // -------------------------------------------------------------------------

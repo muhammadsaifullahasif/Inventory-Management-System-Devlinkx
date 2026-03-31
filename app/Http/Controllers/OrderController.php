@@ -563,9 +563,14 @@ class OrderController extends Controller
     }
 
     /**
-     * Sync shipment tracking to eBay
+     * Sync shipment tracking to eBay.
+     * Supports multiple tracking numbers for multi-package shipments.
+     *
+     * @param Order $order The order to sync
+     * @param string|array $shippingCarrier Single carrier or array of carriers
+     * @param string|array $trackingNumber Single tracking number or array of tracking numbers
      */
-    protected function syncShipmentToEbay(Order $order, string $shippingCarrier, string $trackingNumber): array
+    protected function syncShipmentToEbay(Order $order, string|array $shippingCarrier, string|array $trackingNumber): array
     {
         try {
             $salesChannel = $order->salesChannel;
@@ -596,6 +601,8 @@ class OrderController extends Controller
             $order->setMeta('ebay_shipment_sync_' . time(), [
                 'shipping_carrier' => $shippingCarrier,
                 'tracking_number' => $trackingNumber,
+                'is_multi_package' => is_array($trackingNumber),
+                'package_count' => is_array($trackingNumber) ? count($trackingNumber) : 1,
                 'result' => $result,
                 'synced_at' => now()->toIso8601String(),
             ]);
@@ -605,6 +612,7 @@ class OrderController extends Controller
                     'order_id' => $order->id,
                     'ebay_order_id' => $order->ebay_order_id,
                     'tracking_number' => $trackingNumber,
+                    'is_multi_package' => is_array($trackingNumber),
                 ]);
             } else {
                 Log::warning('Failed to sync shipment to eBay', [
@@ -1135,9 +1143,156 @@ class OrderController extends Controller
     }
 
     /**
-     * Download the shipping label for an order.
+     * Generate multiple shipping labels for an order (multi-package shipment).
+     * Creates multiple shipments with the carrier and pushes all tracking numbers to eBay.
      */
-    public function downloadLabel(string $id)
+    public function generateMultiPackageLabels(Request $request, string $id): JsonResponse
+    {
+        $order = Order::with(['items.product.product_meta', 'salesChannel'])->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        $validated = $request->validate([
+            'carrier_id'                => 'required|integer|exists:shippings,id',
+            'service_code'              => 'required|string',
+            'package_count'             => 'required|integer|min:1|max:10',
+            'packages'                  => 'required|array|min:1',
+            'packages.*.weight'         => 'required|numeric|min:0.1',
+            'packages.*.length'         => 'nullable|numeric|min:0',
+            'packages.*.width'          => 'nullable|numeric|min:0',
+            'packages.*.height'         => 'nullable|numeric|min:0',
+            'weight_unit'               => 'nullable|string|in:lbs,kg,oz',
+            'dimension_unit'            => 'nullable|string|in:in,cm',
+            'customer_reference'        => 'nullable|string|max:30',
+        ]);
+
+        $carrier       = Shipping::findOrFail($validated['carrier_id']);
+        $serviceCode   = $validated['service_code'];
+        $packageCount  = (int) $validated['package_count'];
+        $packageOverrides = $validated['packages'] ?? [];
+
+        // Get unit overrides and customer reference
+        $unitOverrides = [
+            'weight_unit'        => $request->input('weight_unit'),
+            'dimension_unit'     => $request->input('dimension_unit'),
+            'customer_reference' => $request->input('customer_reference'),
+        ];
+
+        try {
+            DB::beginTransaction();
+
+            // Generate multiple labels via ShippingService
+            $labelResult = $this->shippingService->generateMultipleLabelsForOrder(
+                $order,
+                $carrier,
+                $serviceCode,
+                $packageCount,
+                $packageOverrides,
+                $unitOverrides
+            );
+
+            $packages    = $labelResult['packages'];
+            $carrierName = $labelResult['carrier_name'];
+
+            // Store all tracking numbers
+            $trackingNumbers = [];
+            $labelPaths = [];
+
+            // Clear any previous multi-package data
+            $order->clearAllTrackingNumbers();
+
+            foreach ($packages as $package) {
+                $trackingNumbers[] = $package['tracking_number'];
+                $labelPaths[] = $package['label_path'];
+
+                // Store in order meta for multi-package tracking
+                $order->addTrackingNumber(
+                    $package['tracking_number'],
+                    $carrierName,
+                    $package['label_path']
+                );
+            }
+
+            // Build tracking URL from carrier's tracking_url base + first tracking number
+            $trackingUrl = null;
+            if ($carrier->tracking_url && !empty($trackingNumbers[0])) {
+                $trackingUrl = $carrier->tracking_url . $trackingNumbers[0];
+            }
+
+            // Update order with primary shipping info (first package) and mark as shipped
+            $order->update([
+                'shipping_carrier'     => $carrierName,
+                'shipping_id'          => $carrier->id,
+                'tracking_number'      => implode(', ', $trackingNumbers), // Store all tracking numbers comma-separated
+                'tracking_url'         => $trackingUrl,
+                'shipping_label_path'  => $labelPaths[0], // Store first label path
+                'label_generated_at'   => now(),
+                'fulfillment_status'   => 'fulfilled',
+                'order_status'         => 'shipped',
+                'shipped_at'           => now(),
+            ]);
+
+            // Deduct inventory for all items
+            foreach ($order->items as $item) {
+                if (!$item->inventory_updated) {
+                    $item->updateInventory();
+                }
+            }
+
+            DB::commit();
+
+            // Sync ALL tracking numbers to eBay if this is an eBay order
+            $ebayResult = null;
+            if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+                $ebayResult = $this->syncShipmentToEbay($order, $carrierName, $trackingNumbers);
+            }
+
+            $message = $packageCount . ' shipping labels generated and order marked as shipped';
+            if ($ebayResult) {
+                if ($ebayResult['success']) {
+                    $message .= ' and all ' . count($trackingNumbers) . ' tracking numbers synced to eBay';
+                } else {
+                    $message .= '. eBay sync failed: ' . ($ebayResult['message'] ?? 'Unknown error');
+                }
+            }
+
+            return response()->json([
+                'success'          => true,
+                'message'          => $message,
+                'tracking_numbers' => $trackingNumbers,
+                'packages'         => $packages,
+                'label_urls'       => array_map(function ($pkg) use ($order) {
+                    return route('orders.label', $order->id) . '?package=' . $pkg['package_number'];
+                }, $packages),
+                'data'             => $order->fresh(['items']),
+                'ebay_sync'        => $ebayResult,
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to generate multi-package shipping labels', [
+                'order_id'      => $id,
+                'package_count' => $packageCount,
+                'error'         => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate shipping labels: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Download the shipping label for an order.
+     * Supports multi-package orders via ?package=N query parameter.
+     */
+    public function downloadLabel(Request $request, string $id)
     {
         $order = Order::find($id);
 
@@ -1145,6 +1300,28 @@ class OrderController extends Controller
             abort(404, 'Order not found');
         }
 
+        // Check if a specific package is requested
+        $packageNumber = $request->query('package');
+
+        if ($packageNumber) {
+            // Multi-package: get label from order meta
+            $packages = $order->getMetaArray('shipping_packages', []);
+            $packageIndex = (int) $packageNumber - 1;
+
+            if (!isset($packages[$packageIndex])) {
+                abort(404, 'Package not found');
+            }
+
+            $labelPath = $packages[$packageIndex]['label_path'] ?? null;
+            if (!$labelPath || !Storage::exists($labelPath)) {
+                abort(404, 'Shipping label file not found for package ' . $packageNumber);
+            }
+
+            $filename = "label-{$order->order_number}-pkg{$packageNumber}.pdf";
+            return Storage::download($labelPath, $filename);
+        }
+
+        // Single package or first label
         if (!$order->shipping_label_path) {
             abort(404, 'No shipping label found for this order');
         }

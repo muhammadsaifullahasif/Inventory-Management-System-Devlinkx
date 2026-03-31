@@ -1591,13 +1591,21 @@ class EbayController extends Controller
     }
 
     /**
-     * Mark an eBay order as shipped with tracking information
+     * Mark an eBay order as shipped with tracking information.
+     * Supports multiple tracking numbers for multi-package shipments.
+     *
+     * @param SalesChannel $channel The sales channel
+     * @param string $ebayOrderId The eBay order ID
+     * @param string|array $shippingCarrier Single carrier or array of carriers for each package
+     * @param string|array $trackingNumber Single tracking number or array of tracking numbers
+     * @param string|null $itemId Optional item ID for single item orders
+     * @param string|null $transactionId Optional transaction ID for single item orders
      */
     public function markOrderAsShipped(
         SalesChannel $channel,
         string $ebayOrderId,
-        string $shippingCarrier,
-        string $trackingNumber,
+        string|array $shippingCarrier,
+        string|array $trackingNumber,
         ?string $itemId = null,
         ?string $transactionId = null
     ): array {
@@ -1609,6 +1617,7 @@ class EbayController extends Controller
                 'shipping_carrier' => $shippingCarrier,
                 'tracking_number' => $trackingNumber,
                 'channel_id' => $channel->id,
+                'is_multi_package' => is_array($trackingNumber),
             ]);
 
             // Use OrderID if available (preferred for multi-item orders)
@@ -1622,12 +1631,16 @@ class EbayController extends Controller
                 );
             } elseif (!empty($itemId) && !empty($transactionId)) {
                 // Fallback to ItemID + TransactionID for single item orders
+                // Note: This path only supports single tracking number
+                $singleTracking = is_array($trackingNumber) ? ($trackingNumber[0] ?? '') : $trackingNumber;
+                $singleCarrier = is_array($shippingCarrier) ? ($shippingCarrier[0] ?? '') : $shippingCarrier;
+
                 $result = $this->ebayService->completeSale(
                     $channel,
                     $itemId,
                     $transactionId,
-                    $shippingCarrier,
-                    $trackingNumber,
+                    $singleCarrier,
+                    $singleTracking,
                     true
                 );
             } else {
