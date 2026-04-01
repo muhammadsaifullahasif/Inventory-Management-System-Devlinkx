@@ -515,16 +515,51 @@
                     </div>
                     <hr class="my-2">
 
-                    <!-- Items & Dimensions (server-rendered — product_meta already loaded) -->
+                    <!-- Order Items (Display Only) -->
+                    <div class="card mb-3">
+                        <div class="card-header py-2">
+                            <h6 class="card-title mb-0"><i class="feather-shopping-bag me-2"></i>Order Items</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-sm mb-0" style="font-size:12px;">
+                                    <thead class="bg-light">
+                                        <tr>
+                                            <th>Item</th>
+                                            <th class="text-center" style="width:60px;">Qty</th>
+                                            <th class="text-end" style="width:100px;">Price</th>
+                                        </tr>
+                                    </thead>
+                                    @php
+                                        $shippingItems = $order->items->filter(fn($item) => !$item->bundle_product_id || $item->is_bundle_summary);
+                                    @endphp
+                                    <tbody>
+                                        @foreach($shippingItems as $item)
+                                            <tr>
+                                                <td>
+                                                    <strong>{{ \Illuminate\Support\Str::limit($item->title, 40) }}</strong>
+                                                    <span class="d-block text-muted fs-11">{{ $item->sku ?? 'N/A' }}</span>
+                                                </td>
+                                                <td class="text-center">{{ $item->quantity }}</td>
+                                                <td class="text-end">${{ number_format($item->price ?? 0, 2) }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Package Dimensions -->
                     <div class="card mb-3">
                         <div class="card-header py-2 d-flex align-items-center justify-content-between">
-                            <h6 class="card-title mb-0"><i class="feather-package me-2"></i>Items & Dimensions</h6>
-                            <small class="text-muted">Edit weight/dims to override product defaults</small>
+                            <h6 class="card-title mb-0"><i class="feather-package me-2"></i>Package Dimensions</h6>
+                            <small class="text-muted">Enter the total weight and dimensions of your package(s)</small>
                         </div>
                         <div class="card-body py-2">
                             <!-- Unit Selectors -->
-                            <div class="row g-2 mb-2">
-                                <div class="col-md-6">
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-4">
                                     <label class="form-label small mb-1">Weight Unit</label>
                                     <select id="showWeightUnit" class="form-select form-select-sm">
                                         <option value="lbs" selected>Pounds (lbs)</option>
@@ -532,63 +567,28 @@
                                         <option value="oz">Ounces (oz)</option>
                                     </select>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <label class="form-label small mb-1">Dimension Unit</label>
                                     <select id="showDimensionUnit" class="form-select form-select-sm">
                                         <option value="in" selected>Inches (in)</option>
                                         <option value="cm">Centimeters (cm)</option>
                                     </select>
                                 </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1">Number of Packages</label>
+                                    <select id="showPackageCount" class="form-select form-select-sm">
+                                        <option value="1" selected>1 Package</option>
+                                        <option value="2">2 Packages</option>
+                                        <option value="3">3 Packages</option>
+                                        <option value="4">4 Packages</option>
+                                        <option value="5">5 Packages</option>
+                                    </select>
+                                </div>
                             </div>
-                        </div>
-                        <div class="card-body p-0 pt-0">
-                            <div class="table-responsive">
-                                <table class="table table-sm mb-0" style="font-size:12px;">
-                                    <thead class="bg-light">
-                                        <tr>
-                                            <th>Item</th>
-                                            <th class="text-center" style="width:40px;">Qty</th>
-                                            <th class="text-center" style="width:90px;">Weight <span class="text-muted unit-label" id="weightUnitLabel">(lbs)</span></th>
-                                            <th class="text-center" style="width:90px;">L <span class="text-muted unit-label" id="dimUnitLabelL">(in)</span></th>
-                                            <th class="text-center" style="width:90px;">W <span class="text-muted unit-label" id="dimUnitLabelW">(in)</span></th>
-                                            <th class="text-center" style="width:90px;">H <span class="text-muted unit-label" id="dimUnitLabelH">(in)</span></th>
-                                        </tr>
-                                    </thead>
-                                    @php
-                                        // Filter to only show main items (bundles + regular products), exclude bundle components
-                                        $shippingItems = $order->items->filter(fn($item) => !$item->bundle_product_id || $item->is_bundle_summary);
-                                    @endphp
-                                    <tbody id="showItemsDimTbody">
-                                        @foreach($shippingItems as $item)
-                                            @php
-                                                $meta   = $item->product?->product_meta ?? [];
-                                                $weight = (float) ($meta['weight'] ?? 0);
-                                                $length = (float) ($meta['length'] ?? 0);
-                                                $width  = (float) ($meta['width']  ?? 0);
-                                                $height = (float) ($meta['height'] ?? 0);
-                                            @endphp
-                                            <tr>
-                                                <td>
-                                                    <strong>{{ \Illuminate\Support\Str::limit($item->title, 40) }}</strong>
-                                                    <span class="d-block text-muted fs-11">{{ $item->sku ?? 'N/A' }}</span>
-                                                </td>
-                                                <td class="text-center">{{ $item->quantity }}</td>
-                                                <td><input type="number" class="form-control form-control-sm show-dim-input"
-                                                    data-item-id="{{ $item->id }}" data-dim="weight"
-                                                    value="{{ $weight }}" step="0.01" min="0" placeholder="0"></td>
-                                                <td><input type="number" class="form-control form-control-sm show-dim-input"
-                                                    data-item-id="{{ $item->id }}" data-dim="length"
-                                                    value="{{ $length }}" step="0.1" min="0" placeholder="0"></td>
-                                                <td><input type="number" class="form-control form-control-sm show-dim-input"
-                                                    data-item-id="{{ $item->id }}" data-dim="width"
-                                                    value="{{ $width }}" step="0.1" min="0" placeholder="0"></td>
-                                                <td><input type="number" class="form-control form-control-sm show-dim-input"
-                                                    data-item-id="{{ $item->id }}" data-dim="height"
-                                                    value="{{ $height }}" step="0.1" min="0" placeholder="0"></td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
+
+                            <!-- Package Dimension Fields Container -->
+                            <div id="showPackageDimensionsContainer">
+                                <!-- Will be populated dynamically -->
                             </div>
                         </div>
                     </div>
@@ -803,7 +803,7 @@
             });
 
             // ----------------------------------------------------------------
-            // Get Rates — collect dimension overrides, populate service dropdown
+            // Get Rates — collect package dimensions, populate service dropdown
             // ----------------------------------------------------------------
             $('#showGetRatesBtn').on('click', function() {
                 var carrierId = $('#showRateCarrierId').val();
@@ -812,16 +812,22 @@
                     return;
                 }
 
-                // Collect dimension overrides
-                var itemOverrides = [];
-                $('#showItemsDimTbody tr').each(function() {
-                    var itemId = $(this).find('.show-dim-input').first().data('item-id');
-                    var entry  = { order_item_id: itemId };
-                    $(this).find('.show-dim-input').each(function() {
-                        entry[$(this).data('dim')] = parseFloat($(this).val()) || 0;
+                // Collect package dimensions
+                var packages = [];
+                $('.show-package-dim-row').each(function() {
+                    packages.push({
+                        weight: parseFloat($(this).find('.show-pkg-weight').val()) || 1,
+                        length: parseFloat($(this).find('.show-pkg-length').val()) || 12,
+                        width:  parseFloat($(this).find('.show-pkg-width').val()) || 12,
+                        height: parseFloat($(this).find('.show-pkg-height').val()) || 12,
+                        customer_reference: $(this).find('.show-pkg-reference').val() || ''
                     });
-                    itemOverrides.push(entry);
                 });
+
+                if (packages.length === 0) {
+                    alert('Please enter package dimensions.');
+                    return;
+                }
 
                 $('#showRatesResult').show();
                 $('#showRatesLoading').show();
@@ -838,11 +844,11 @@
                     url: '{{ route('orders.shipping-rates') }}',
                     type: 'POST',
                     data: {
-                        _token:       '{{ csrf_token() }}',
-                        order_id:     {{ $order->id }},
-                        carrier_id:   carrierId,
-                        items:        itemOverrides,
-                        weight_unit:  weightUnit,
+                        _token:        '{{ csrf_token() }}',
+                        order_id:      {{ $order->id }},
+                        carrier_id:    carrierId,
+                        packages:      packages,
+                        weight_unit:   weightUnit,
                         dimension_unit: dimensionUnit
                     },
                     success: function(response) {
@@ -923,38 +929,30 @@
             });
 
             // ----------------------------------------------------------------
-            // Multi-Package Checkbox Toggle
+            // Package Count Change Handler
             // ----------------------------------------------------------------
-            $('#showMultiPackageCheckbox').on('change', function() {
-                if ($(this).is(':checked')) {
-                    $('#showMultiPackageOptions').slideDown();
-                    updateShowPackageDimensionFields();
-                } else {
-                    $('#showMultiPackageOptions').slideUp();
-                }
-            });
-
             $('#showPackageCount').on('change', function() {
                 updateShowPackageDimensionFields();
             });
 
             function updateShowPackageDimensionFields() {
-                var count = parseInt($('#showPackageCount').val()) || 2;
+                var count = parseInt($('#showPackageCount').val()) || 1;
                 var weightUnit = $('#showWeightUnit').val() || 'lbs';
                 var dimUnit = $('#showDimensionUnit').val() || 'in';
                 var $container = $('#showPackageDimensionsContainer');
                 $container.empty();
 
                 for (var i = 0; i < count; i++) {
+                    var pkgLabel = count > 1 ? 'Package ' + (i + 1) : 'Package';
                     var html = `
                         <div class="border rounded p-2 mb-2 bg-white show-package-dim-row" data-package="${i}">
-                            <div class="d-flex align-items-center mb-2">
-                                <span class="badge bg-primary me-2">Package ${i + 1}</span>
-                                <small class="text-muted">Enter weight and dimensions</small>
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="badge bg-primary">${pkgLabel}</span>
+                                <small class="text-muted">Enter weight and box dimensions</small>
                             </div>
-                            <div class="row g-2">
+                            <div class="row g-2 mb-2">
                                 <div class="col-3">
-                                    <label class="form-label small mb-1">Weight (${weightUnit})</label>
+                                    <label class="form-label small mb-1">Weight (${weightUnit}) *</label>
                                     <input type="number" step="0.1" min="0.1" class="form-control form-control-sm show-pkg-weight" data-pkg="${i}" value="1" required>
                                 </div>
                                 <div class="col-3">
@@ -970,6 +968,12 @@
                                     <input type="number" step="0.1" min="1" class="form-control form-control-sm show-pkg-height" data-pkg="${i}" value="12">
                                 </div>
                             </div>
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <label class="form-label small mb-1">Customer Reference <small class="text-muted">(max 30 chars, shown on label)</small></label>
+                                    <input type="text" class="form-control form-control-sm show-pkg-reference" data-pkg="${i}" maxlength="30" placeholder="Auto-generated from item names if empty">
+                                </div>
+                            </div>
                         </div>
                     `;
                     $container.append(html);
@@ -978,9 +982,12 @@
 
             // Update package dimension labels when units change
             $('#showWeightUnit, #showDimensionUnit').on('change', function() {
-                if ($('#showMultiPackageCheckbox').is(':checked')) {
-                    updateShowPackageDimensionFields();
-                }
+                updateShowPackageDimensionFields();
+            });
+
+            // Initialize package dimension fields when modal opens
+            $('#shipModal').on('shown.bs.modal', function() {
+                updateShowPackageDimensionFields();
             });
 
             // ----------------------------------------------------------------
@@ -995,52 +1002,57 @@
 
                 var carrierId   = $('#showRateCarrierId').val();
                 var serviceCode = $radio.val();
-                var isMultiPackage = $('#showMultiPackageCheckbox').is(':checked');
+                var packageCount = parseInt($('#showPackageCount').val()) || 1;
 
                 // Get selected units
                 var weightUnit = $('#showWeightUnit').val();
                 var dimensionUnit = $('#showDimensionUnit').val();
-                var customerReference = $('#showCustomerReference').val();
+
+                // Collect package data
+                var packages = [];
+                $('.show-package-dim-row').each(function() {
+                    packages.push({
+                        weight: parseFloat($(this).find('.show-pkg-weight').val()) || 1,
+                        length: parseFloat($(this).find('.show-pkg-length').val()) || 12,
+                        width:  parseFloat($(this).find('.show-pkg-width').val()) || 12,
+                        height: parseFloat($(this).find('.show-pkg-height').val()) || 12,
+                        customer_reference: $(this).find('.show-pkg-reference').val() || ''
+                    });
+                });
 
                 var $btn = $(this);
+                var labelText = packageCount > 1 ? packageCount + ' Labels' : 'Label';
+                $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generating ' + labelText + '...');
 
-                if (isMultiPackage) {
-                    // Multi-package label generation
-                    var packageCount = parseInt($('#showPackageCount').val()) || 2;
-                    var packages = [];
+                $.ajax({
+                    url: '{{ route('orders.generate-multi-labels', $order->id) }}',
+                    type: 'POST',
+                    data: {
+                        _token:         '{{ csrf_token() }}',
+                        carrier_id:     carrierId,
+                        service_code:   serviceCode,
+                        package_count:  packageCount,
+                        packages:       packages,
+                        weight_unit:    weightUnit,
+                        dimension_unit: dimensionUnit
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            // Display all tracking numbers
+                            var trackingText = response.tracking_numbers.join(', ');
+                            $('#showTrackingNumber').text(trackingText);
 
-                    $('.show-package-dim-row').each(function() {
-                        packages.push({
-                            weight: parseFloat($(this).find('.show-pkg-weight').val()) || 1,
-                            length: parseFloat($(this).find('.show-pkg-length').val()) || 12,
-                            width:  parseFloat($(this).find('.show-pkg-width').val()) || 12,
-                            height: parseFloat($(this).find('.show-pkg-height').val()) || 12
-                        });
-                    });
+                            // Create download links for all packages
+                            var $linksContainer = $('#showDownloadLabelLinks');
+                            $linksContainer.empty();
 
-                    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generating ' + packageCount + ' Labels...');
-
-                    $.ajax({
-                        url: '{{ route('orders.generate-multi-labels', $order->id) }}',
-                        type: 'POST',
-                        data: {
-                            _token:         '{{ csrf_token() }}',
-                            carrier_id:     carrierId,
-                            service_code:   serviceCode,
-                            package_count:  packageCount,
-                            packages:       packages,
-                            weight_unit:    weightUnit,
-                            dimension_unit: dimensionUnit,
-                            customer_reference: customerReference
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                // Display all tracking numbers
-                                $('#showTrackingNumber').text(response.tracking_numbers.join(', '));
-
-                                // Create download links for all packages
-                                var $linksContainer = $('#showDownloadLabelLinks');
-                                $linksContainer.empty();
+                            if (response.label_urls.length === 1) {
+                                $linksContainer.append(
+                                    '<a href="' + response.label_urls[0] + '" class="btn btn-primary btn-sm" target="_blank">' +
+                                    '<i class="feather-download me-1"></i> Download Label</a>'
+                                );
+                                window.open(response.label_urls[0], '_blank');
+                            } else {
                                 response.label_urls.forEach(function(url, index) {
                                     $linksContainer.append(
                                         '<a href="' + url + '" class="btn btn-primary btn-sm me-1 mb-1" target="_blank">' +
@@ -1050,80 +1062,26 @@
                                     // Open each label in new window
                                     window.open(url, '_blank');
                                 });
-
-                                $('#showLabelResult').show();
-                                $btn.hide();
-
-                                // Reload after 4 seconds to update order status
-                                setTimeout(function() {
-                                    location.reload();
-                                }, 4000);
-                            } else {
-                                alert(response.message || 'Failed to generate labels.');
-                                $btn.prop('disabled', false).html('<i class="feather-printer me-1"></i> Generate Label & Mark Shipped');
                             }
-                        },
-                        error: function(xhr) {
-                            var msg = xhr.responseJSON?.message || 'Failed to generate labels.';
-                            alert(msg);
-                            $btn.prop('disabled', false).html('<i class="feather-printer me-1"></i> Generate Label & Mark Shipped');
+
+                            $('#showLabelResult').show();
+                            $btn.hide();
+
+                            // Reload after 4 seconds to update order status
+                            setTimeout(function() {
+                                location.reload();
+                            }, 4000);
+                        } else {
+                            alert(response.message || 'Failed to generate labels.');
+                            $btn.prop('disabled', false).html('<i class="feather-printer me-1"></i> Generate Label(s) & Mark Shipped');
                         }
-                    });
-                } else {
-                    // Single package label generation (existing logic)
-                    var itemOverrides = [];
-                    $('#showItemsDimTbody tr').each(function() {
-                        var itemId = $(this).find('.show-dim-input').first().data('item-id');
-                        var entry  = { order_item_id: itemId };
-                        $(this).find('.show-dim-input').each(function() {
-                            entry[$(this).data('dim')] = parseFloat($(this).val()) || 0;
-                        });
-                        itemOverrides.push(entry);
-                    });
-
-                    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Generating Label...');
-
-                    $.ajax({
-                        url: '{{ route('orders.generate-label', $order->id) }}',
-                        type: 'POST',
-                        data: {
-                            _token:       '{{ csrf_token() }}',
-                            carrier_id:   carrierId,
-                            service_code: serviceCode,
-                            items:        itemOverrides,
-                            weight_unit:  weightUnit,
-                            dimension_unit: dimensionUnit,
-                            customer_reference: customerReference
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                $('#showTrackingNumber').text(response.tracking_number);
-                                $('#showDownloadLabelLinks').html(
-                                    '<a href="' + response.label_url + '" class="btn btn-primary btn-sm" target="_blank">' +
-                                    '<i class="feather-download me-1"></i> Download Label</a>'
-                                );
-                                $('#showLabelResult').show();
-                                $btn.hide();
-
-                                // Open label in new window for printing
-                                window.open(response.label_url, '_blank');
-
-                                // Reload after 3 seconds to update order status
-                                setTimeout(function() {
-                                    location.reload();
-                                }, 3000);
-                            } else {
-                                alert(response.message || 'Failed to generate label.');
-                                $btn.prop('disabled', false).html('<i class="feather-printer me-1"></i> Generate Label & Mark Shipped');
-                            }
-                        },
-                        error: function(xhr) {
-                            var msg = xhr.responseJSON?.message || 'Failed to generate label.';
-                            alert(msg);
-                            $btn.prop('disabled', false).html('<i class="feather-printer me-1"></i> Generate Label & Mark Shipped');
-                        }
-                    });
-                }
+                    },
+                    error: function(xhr) {
+                        var msg = xhr.responseJSON?.message || 'Failed to generate label.';
+                        alert(msg);
+                        $btn.prop('disabled', false).html('<i class="feather-printer me-1"></i> Generate Label(s) & Mark Shipped');
+                    }
+                });
             });
 
             // ----------------------------------------------------------------

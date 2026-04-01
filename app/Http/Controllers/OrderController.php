@@ -434,6 +434,7 @@ class OrderController extends Controller
 
     /**
      * Get estimated shipping rates for an order from a specific carrier.
+     * Accepts package-level dimensions for accurate multi-package rate quotes.
      * Does NOT create a shipment — read-only cost estimate only.
      */
     public function getShippingRates(Request $request): JsonResponse
@@ -441,19 +442,18 @@ class OrderController extends Controller
         $request->validate([
             'order_id'                  => 'required|integer|exists:orders,id',
             'carrier_id'                => 'required|integer|exists:shippings,id',
-            'items'                     => 'nullable|array',
-            'items.*.order_item_id'     => 'nullable|integer',
-            'items.*.weight'            => 'nullable|numeric|min:0',
-            'items.*.length'            => 'nullable|numeric|min:0',
-            'items.*.width'             => 'nullable|numeric|min:0',
-            'items.*.height'            => 'nullable|numeric|min:0',
+            'packages'                  => 'nullable|array',
+            'packages.*.weight'         => 'nullable|numeric|min:0',
+            'packages.*.length'         => 'nullable|numeric|min:0',
+            'packages.*.width'          => 'nullable|numeric|min:0',
+            'packages.*.height'         => 'nullable|numeric|min:0',
             'weight_unit'               => 'nullable|string|in:lbs,kg,oz',
             'dimension_unit'            => 'nullable|string|in:in,cm',
         ]);
 
-        $order        = Order::with(['items.product.product_meta'])->findOrFail($request->order_id);
-        $carrier      = Shipping::findOrFail($request->carrier_id);
-        $itemOverrides = $request->input('items', []);
+        $order    = Order::with(['items.product.product_meta'])->findOrFail($request->order_id);
+        $carrier  = Shipping::findOrFail($request->carrier_id);
+        $packages = $request->input('packages', []);
 
         // Get unit overrides (defaults to carrier settings if not provided)
         $unitOverrides = [
@@ -462,7 +462,7 @@ class OrderController extends Controller
         ];
 
         try {
-            $rates = $this->shippingService->getRatesForOrder($order, $carrier, $itemOverrides, $unitOverrides);
+            $rates = $this->shippingService->getRatesForOrder($order, $carrier, $packages, $unitOverrides);
 
             $shipperAddress = implode(', ', array_filter([
                 $carrier->shipper_name,
@@ -479,6 +479,7 @@ class OrderController extends Controller
                 'shipper'         => $shipperAddress ?: null,
                 'carrier_name'    => $carrier->name,
                 'default_service' => $carrier->default_service,
+                'package_count'   => count($packages) ?: 1,
             ]);
         } catch (\Throwable $e) {
             Log::error('getShippingRates failed', ['order_id' => $request->order_id, 'error' => $e->getMessage()]);
@@ -1158,17 +1159,17 @@ class OrderController extends Controller
         }
 
         $validated = $request->validate([
-            'carrier_id'                => 'required|integer|exists:shippings,id',
-            'service_code'              => 'required|string',
-            'package_count'             => 'required|integer|min:1|max:10',
-            'packages'                  => 'required|array|min:1',
-            'packages.*.weight'         => 'required|numeric|min:0.1',
-            'packages.*.length'         => 'nullable|numeric|min:0',
-            'packages.*.width'          => 'nullable|numeric|min:0',
-            'packages.*.height'         => 'nullable|numeric|min:0',
-            'weight_unit'               => 'nullable|string|in:lbs,kg,oz',
-            'dimension_unit'            => 'nullable|string|in:in,cm',
-            'customer_reference'        => 'nullable|string|max:30',
+            'carrier_id'                    => 'required|integer|exists:shippings,id',
+            'service_code'                  => 'required|string',
+            'package_count'                 => 'required|integer|min:1|max:10',
+            'packages'                      => 'required|array|min:1',
+            'packages.*.weight'             => 'required|numeric|min:0.1',
+            'packages.*.length'             => 'nullable|numeric|min:0',
+            'packages.*.width'              => 'nullable|numeric|min:0',
+            'packages.*.height'             => 'nullable|numeric|min:0',
+            'packages.*.customer_reference' => 'nullable|string|max:30',
+            'weight_unit'                   => 'nullable|string|in:lbs,kg,oz',
+            'dimension_unit'                => 'nullable|string|in:in,cm',
         ]);
 
         $carrier       = Shipping::findOrFail($validated['carrier_id']);
@@ -1176,11 +1177,10 @@ class OrderController extends Controller
         $packageCount  = (int) $validated['package_count'];
         $packageOverrides = $validated['packages'] ?? [];
 
-        // Get unit overrides and customer reference
+        // Get unit overrides
         $unitOverrides = [
-            'weight_unit'        => $request->input('weight_unit'),
-            'dimension_unit'     => $request->input('dimension_unit'),
-            'customer_reference' => $request->input('customer_reference'),
+            'weight_unit'    => $request->input('weight_unit'),
+            'dimension_unit' => $request->input('dimension_unit'),
         ];
 
         try {
