@@ -1386,9 +1386,9 @@
                             $btn.hide();
 
                             // Reload after 4 seconds to update order status
-                            setTimeout(function() {
-                                location.reload();
-                            }, 4000);
+                            // setTimeout(function() {
+                            //     location.reload();
+                            // }, 4000);
                         } else {
                             alert(response.message || 'Failed to generate labels.');
                             $btn.prop('disabled', false).html('<i class="feather-printer me-1"></i> Generate Label(s) & Mark Shipped');
