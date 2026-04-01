@@ -634,9 +634,9 @@ class ShippingService
             ],
         ];
 
-        Log::info('Shippment Label Payload: ', [
-            'payload' => $shipmentPayload
-        ]);
+        // Log::info('Shippment Label Payload: ', [
+        //     'payload' => $shipmentPayload
+        // ]);
 
         // Remove email notification if no buyer email
         // if (empty($order->buyer_email)) {
@@ -657,17 +657,17 @@ class ShippingService
 
         Storage::put($filename, $labelData);
 
-        Log::info('ShippingService: label generated and saved', [
-            'order_id'        => $order->id,
-            'tracking_number' => $trackingNumber,
-            'label_path'      => $filename,
-            'carrier'         => $carrier->name,
-            'payload'         => $shipmentPayload,
-        ]);
+        // Log::info('ShippingService: label generated and saved', [
+        //     'order_id'        => $order->id,
+        //     'tracking_number' => $trackingNumber,
+        //     'label_path'      => $filename,
+        //     'carrier'         => $carrier->name,
+        //     'payload'         => $shipmentPayload,
+        // ]);
 
-        Log::info('ShippingService: response from shipping carrier', [
-            'result'          => $result,
-        ]);
+        // Log::info('ShippingService: response from shipping carrier', [
+        //     'result'          => $result,
+        // ]);
 
         return [
             'tracking_number' => $trackingNumber,
@@ -862,9 +862,9 @@ class ShippingService
                 ],
             ];
 
-            Log::info('Multi-package Label Payload (Package ' . ($i + 1) . '/' . $packageCount . '): ', [
-                'payload' => $shipmentPayload
-            ]);
+            // Log::info('Multi-package Label Payload (Package ' . ($i + 1) . '/' . $packageCount . '): ', [
+            //     'payload' => $shipmentPayload
+            // ]);
 
             // Call FedEx to create shipment for this package
             $result = $service->createShipment($shipmentPayload);
@@ -879,20 +879,20 @@ class ShippingService
 
             Storage::put($filename, $labelData);
 
-            Log::info('ShippingService: multi-package label generated', [
-                'order_id'        => $order->id,
-                'package_number'  => $i + 1,
-                'total_packages'  => $packageCount,
-                'tracking_number' => $trackingNumber,
-                'label_path'      => $filename,
-                'carrier'         => $carrier->name,
-            ]);
+            // Log::info('ShippingService: multi-package label generated', [
+            //     'order_id'        => $order->id,
+            //     'package_number'  => $i + 1,
+            //     'total_packages'  => $packageCount,
+            //     'tracking_number' => $trackingNumber,
+            //     'label_path'      => $filename,
+            //     'carrier'         => $carrier->name,
+            // ]);
 
-            $packages[] = [
-                'tracking_number' => $trackingNumber,
-                'label_path'      => $filename,
-                'package_number'  => $i + 1,
-            ];
+            // $packages[] = [
+            //     'tracking_number' => $trackingNumber,
+            //     'label_path'      => $filename,
+            //     'package_number'  => $i + 1,
+            // ];
         }
 
         return [

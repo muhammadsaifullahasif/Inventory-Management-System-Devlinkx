@@ -1196,9 +1196,9 @@ class OrderController extends Controller
                 $unitOverrides
             );
 
-            Log::info('Shipping Labels Details: ', [
-                'data' => $labelResult, 
-            ]);
+            // Log::info('Shipping Labels Details: ', [
+            //     'data' => $labelResult, 
+            // ]);
 
             $packages    = $labelResult['packages'];
             $carrierName = $labelResult['carrier_name'];
