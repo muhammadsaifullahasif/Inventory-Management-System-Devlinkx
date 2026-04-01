@@ -9,7 +9,7 @@
             </div>
             <ul class="breadcrumb">
                 <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
-                <li class="breadcrumb-item"><a href="{{ route('reports.index') }}">Reports</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('orders.index') }}">Orders</a></li>
                 <li class="breadcrumb-item">Shipping Checklist</li>
             </ul>
         </div>
@@ -80,14 +80,14 @@
             /* Table styles for print */
             .table {
                 width: 100% !important;
-                font-size: 10px !important;
+                font-size: 9px !important;
                 border-collapse: collapse !important;
             }
 
             .table th, .table td {
-                padding: 4px 6px !important;
+                padding: 3px 5px !important;
                 border: 1px solid #333 !important;
-                vertical-align: middle !important;
+                vertical-align: top !important;
             }
 
             .table th {
@@ -102,20 +102,20 @@
 
             /* Product image in print */
             .product-img-print {
-                width: 40px !important;
-                height: 40px !important;
+                width: 35px !important;
+                height: 35px !important;
                 object-fit: contain !important;
             }
 
             /* Checkbox column */
             .checkbox-col {
-                width: 25px !important;
+                width: 20px !important;
                 text-align: center !important;
             }
 
             .print-checkbox {
-                width: 14px;
-                height: 14px;
+                width: 12px;
+                height: 12px;
                 border: 2px solid #333;
                 display: inline-block;
             }
@@ -128,6 +128,25 @@
 
             .stock-ok {
                 color: #198754 !important;
+            }
+
+            /* Bundle component styles */
+            .bundle-component {
+                padding-left: 15px !important;
+                font-size: 8px !important;
+                color: #666 !important;
+            }
+
+            .component-arrow {
+                margin-right: 3px;
+            }
+
+            /* Warehouse stock badges */
+            .stock-badge {
+                font-size: 8px !important;
+                padding: 1px 3px !important;
+                margin-bottom: 2px !important;
+                display: inline-block !important;
             }
         }
 
@@ -165,6 +184,39 @@
 
         .stock-ok {
             color: #198754;
+        }
+
+        .bundle-component {
+            padding-left: 20px;
+            border-left: 2px solid #e0e0e0;
+            margin-top: 8px;
+            padding-top: 5px;
+        }
+
+        .bundle-component .component-item {
+            margin-bottom: 6px;
+            padding-bottom: 6px;
+            border-bottom: 1px dashed #eee;
+        }
+
+        .bundle-component .component-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .component-arrow {
+            color: #999;
+            margin-right: 5px;
+        }
+
+        .warehouse-stock {
+            font-size: 0.8em;
+        }
+
+        .warehouse-stock .badge {
+            font-size: 0.75em;
+            font-weight: normal;
         }
     </style>
 
@@ -264,15 +316,15 @@
                     <table class="table table-bordered table-hover">
                         <thead class="table-light">
                             <tr>
-                                <th class="checkbox-col d-print-table-cell" style="width: 30px;">
+                                <th class="checkbox-col" style="width: 30px;">
                                     <span class="d-none d-print-inline">&#9744;</span>
                                 </th>
-                                <th style="width: 140px;">Order ID</th>
-                                <th style="width: 60px;">Image</th>
+                                <th style="width: 130px;">Order ID</th>
+                                <th style="width: 55px;">Image</th>
                                 <th>Product (SKU, Weight, Dimensions)</th>
-                                <th style="width: 120px;">Sales Channel</th>
-                                <th style="width: 80px; text-align: center;">Qty Ordered</th>
-                                <th style="width: 80px; text-align: center;">Qty in Warehouse</th>
+                                <th style="width: 100px;">Sales Channel</th>
+                                <th style="width: 60px; text-align: center;">Qty</th>
+                                <th style="width: 180px;">Qty in Warehouse</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -298,6 +350,9 @@
                                     <td>
                                         <div class="product-details">
                                             <strong>{{ $item['product_name'] }}</strong>
+                                            @if($item['is_bundle'])
+                                                <span class="badge bg-soft-primary text-primary ms-1">Bundle</span>
+                                            @endif
                                             @if($item['sku'])
                                                 <div class="sku">SKU: {{ $item['sku'] }}</div>
                                             @endif
@@ -313,16 +368,74 @@
                                                     <span class="text-muted">No dimensions</span>
                                                 @endif
                                             </div>
+
+                                            {{-- Bundle Components --}}
+                                            @if($item['is_bundle'] && !empty($item['components']))
+                                                <div class="bundle-component">
+                                                    @foreach($item['components'] as $component)
+                                                        <div class="component-item">
+                                                            <i class="feather-corner-down-right component-arrow"></i>
+                                                            <strong>{{ $component['product_name'] }}</strong>
+                                                            @if($component['sku'])
+                                                                <span class="text-muted">({{ $component['sku'] }})</span>
+                                                            @endif
+                                                            <div class="ms-4">
+                                                                <small class="text-muted">
+                                                                    @if($component['weight'])
+                                                                        Weight: {{ $component['weight'] }} {{ $component['weight_unit'] }}
+                                                                    @endif
+                                                                    @if($component['length'] && $component['width'] && $component['height'])
+                                                                        @if($component['weight']) | @endif
+                                                                        {{ $component['length'] }} x {{ $component['width'] }} x {{ $component['height'] }} {{ $component['dimension_unit'] }}
+                                                                    @endif
+                                                                </small>
+                                                                <div class="warehouse-stock mt-1">
+                                                                    <small><strong>Qty: {{ $component['quantity_ordered'] }}</strong></small>
+                                                                    @if(!empty($component['warehouse_stocks']))
+                                                                        <span class="ms-2">|</span>
+                                                                        @foreach($component['warehouse_stocks'] as $stock)
+                                                                            <span class="badge bg-soft-info text-info stock-badge">{{ $stock['warehouse'] }}</span>
+                                                                            <span class="badge bg-soft-secondary text-secondary stock-badge">{{ $stock['rack'] }}</span>
+                                                                            <span class="{{ $stock['quantity'] < $component['quantity_ordered'] ? 'stock-warning' : 'stock-ok' }}">({{ $stock['quantity'] }})</span>
+                                                                        @endforeach
+                                                                    @else
+                                                                        <span class="text-muted ms-2">No stock</span>
+                                                                    @endif
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            @endif
                                         </div>
                                     </td>
                                     <td>{{ $item['sales_channel'] }}</td>
                                     <td class="text-center">
                                         <strong>{{ $item['quantity_ordered'] }}</strong>
                                     </td>
-                                    <td class="text-center {{ $item['quantity_in_warehouse'] < $item['quantity_ordered'] ? 'stock-warning' : 'stock-ok' }}">
-                                        {{ $item['quantity_in_warehouse'] }}
-                                        @if($item['quantity_in_warehouse'] < $item['quantity_ordered'])
-                                            <i class="feather-alert-triangle d-print-none" title="Low stock"></i>
+                                    <td>
+                                        @if($item['is_bundle'])
+                                            <span class="text-muted fs-11">See components</span>
+                                        @elseif(!empty($item['warehouse_stocks']))
+                                            <div class="warehouse-stock">
+                                                @foreach($item['warehouse_stocks'] as $stock)
+                                                    <div class="mb-1">
+                                                        <span class="badge bg-soft-info text-info">{{ $stock['warehouse'] }}</span>
+                                                        <span class="badge bg-soft-secondary text-secondary">{{ $stock['rack'] }}</span>
+                                                        <span class="{{ $stock['quantity'] < $item['quantity_ordered'] ? 'stock-warning' : 'stock-ok' }}">({{ $stock['quantity'] }})</span>
+                                                    </div>
+                                                @endforeach
+                                                <div class="mt-1 pt-1 border-top">
+                                                    <strong class="{{ $item['total_stock'] < $item['quantity_ordered'] ? 'stock-warning' : 'stock-ok' }}">
+                                                        Total: {{ $item['total_stock'] }}
+                                                    </strong>
+                                                    @if($item['total_stock'] < $item['quantity_ordered'])
+                                                        <i class="feather-alert-triangle text-danger ms-1 d-print-none" title="Low stock"></i>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @else
+                                            <span class="stock-warning">No stock</span>
                                         @endif
                                     </td>
                                 </tr>

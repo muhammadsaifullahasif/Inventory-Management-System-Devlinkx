@@ -28,11 +28,22 @@
 
                 <!-- Orders -->
                 @canany(['view orders', 'add orders', 'edit orders', 'delete orders'])
-                    <li class="nxl-item {{ request()->routeIs('orders.*') ? 'active' : '' }}">
-                        <a href="{{ route('orders.index') }}" class="nxl-link">
+                    <li class="nxl-item nxl-hasmenu {{ request()->routeIs(['orders.*', 'reports.shipping-checklist']) ? 'active nxl-trigger' : '' }}">
+                        <a href="javascript:void(0);" class="nxl-link">
                             <span class="nxl-micon"><i class="feather-shopping-cart"></i></span>
                             <span class="nxl-mtext">Orders</span>
+                            <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
                         </a>
+                        <ul class="nxl-submenu">
+                            @canany(['view orders', 'edit orders', 'delete orders'])
+                            <li class="nxl-item {{ request()->routeIs(['orders.index', 'orders.show', 'orders.edit']) ? 'active' : '' }}">
+                                <a class="nxl-link" href="{{ route('orders.index') }}">All Orders</a>
+                            </li>
+                            @endcan
+                            <li class="nxl-item {{ request()->routeIs('reports.shipping-checklist') ? 'active' : '' }}">
+                                <a class="nxl-link" href="{{ route('reports.shipping-checklist') }}">Shipping Checklist</a>
+                            </li>
+                        </ul>
                     </li>
                 @endcan
 
