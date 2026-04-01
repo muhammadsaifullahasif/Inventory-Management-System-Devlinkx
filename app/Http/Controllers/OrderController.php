@@ -1241,6 +1241,10 @@ class OrderController extends Controller
                 'shipped_at'           => now(),
             ]);
 
+            $order->update([
+                'tracking_number' => implode(', ', $trackingNumbers), 
+            ]);
+
             Log::info('Order Details: ', [
                 'data' => $order_details, 
             ]);
