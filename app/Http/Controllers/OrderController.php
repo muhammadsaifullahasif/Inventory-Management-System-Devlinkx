@@ -1232,7 +1232,7 @@ class OrderController extends Controller
             $order_details = $order->update([
                 'shipping_carrier'     => $carrierName,
                 'shipping_id'          => $carrier->id,
-                'tracking_number'      => implode(', ', $trackingNumbers), // Store all tracking numbers comma-separated
+                // 'tracking_number'      => implode(', ', $trackingNumbers), // Store all tracking numbers comma-separated
                 'tracking_url'         => $trackingUrl,
                 'shipping_label_path'  => $labelPaths[0], // Store first label path
                 'label_generated_at'   => now(),
@@ -1241,9 +1241,8 @@ class OrderController extends Controller
                 'shipped_at'           => now(),
             ]);
 
-            $order->update([
-                'tracking_number' => implode(', ', $trackingNumbers), 
-            ]);
+            $order->tracking_number = implode(', ', $trackingNumbers);
+            $order->save();
 
             Log::info('Order Details: ', [
                 'data' => $order_details, 
