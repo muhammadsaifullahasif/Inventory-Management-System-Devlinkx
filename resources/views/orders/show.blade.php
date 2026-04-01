@@ -131,17 +131,38 @@
                                     <td>{{ \Carbon\Carbon::parse($order->shipped_at)->format('d M, Y h:i A') }}</td>
                                 </tr>
                                 @endif
-                                @if($order->tracking_number)
+                                @php
+                                    $allTrackingNumbers = $order->getAllTrackingNumbers();
+                                @endphp
+                                @if(count($allTrackingNumbers) > 0 || $order->tracking_number)
                                 <tr>
-                                    <td class="text-muted">Tracking:</td>
+                                    <td class="text-muted align-top">Tracking:</td>
                                     <td>
-                                        <strong>{{ $order->shipping_carrier }}</strong>:
-                                        @if($order->tracking_url)
-                                            <a href="{{ $order->tracking_url }}" target="_blank" class="text-primary">
-                                                {{ $order->tracking_number }} <i class="feather-external-link fs-10"></i>
-                                            </a>
-                                        @else
-                                            {{ $order->tracking_number }}
+                                        @if(count($allTrackingNumbers) > 1)
+                                            {{-- Multi-package tracking --}}
+                                            @foreach($allTrackingNumbers as $index => $pkg)
+                                                <div class="mb-1">
+                                                    <span class="badge bg-soft-info text-info">Package {{ $index + 1 }}</span>
+                                                    <strong>{{ $pkg['carrier'] ?? $order->shipping_carrier }}</strong>:
+                                                    @if($order->tracking_url)
+                                                        <a href="{{ $order->tracking_url }}{{ $pkg['tracking_number'] }}" target="_blank" class="text-primary">
+                                                            {{ $pkg['tracking_number'] }} <i class="feather-external-link fs-10"></i>
+                                                        </a>
+                                                    @else
+                                                        {{ $pkg['tracking_number'] }}
+                                                    @endif
+                                                </div>
+                                            @endforeach
+                                        @elseif($order->tracking_number)
+                                            {{-- Single tracking --}}
+                                            <strong>{{ $order->shipping_carrier }}</strong>:
+                                            @if($order->tracking_url)
+                                                <a href="{{ $order->tracking_url }}" target="_blank" class="text-primary">
+                                                    {{ $order->tracking_number }} <i class="feather-external-link fs-10"></i>
+                                                </a>
+                                            @else
+                                                {{ $order->tracking_number }}
+                                            @endif
                                         @endif
                                     </td>
                                 </tr>
@@ -426,16 +447,74 @@
                         </button>
                     @endif
 
-                    @if ($order->order_status === 'shipped' && $order->fulfillment_status === 'fulfilled' && !is_null($order->shipping_label_path))
-                        <a href="{{ route('orders.label', $order->id) }}" class="btn btn-primary w-100 mb-2" target="_blank">
-                            <i class="feather-download me-1"></i> Download Shipping Label
-                        </a>
+                    @php
+                        $shippingPackages = $order->getAllTrackingNumbers();
+                        $hasLabels = count($shippingPackages) > 0 || !is_null($order->shipping_label_path);
+                    @endphp
+                    @if ($order->order_status === 'shipped' && $order->fulfillment_status === 'fulfilled' && $hasLabels)
+                        @if(count($shippingPackages) > 1)
+                            {{-- Multi-package labels --}}
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold mb-2">
+                                    <i class="feather-package me-1"></i> Shipping Labels ({{ count($shippingPackages) }} packages)
+                                </label>
+                                <div class="d-grid gap-2">
+                                    {{-- Download/Print All Labels --}}
+                                    <button type="button" class="btn btn-primary btn-sm" id="openAllLabelsBtn">
+                                        <i class="feather-printer me-1"></i> Open All Labels for Printing
+                                    </button>
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <i class="feather-download me-1"></i> Download Individual
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            @foreach($shippingPackages as $index => $pkg)
+                                                <li>
+                                                    <a class="dropdown-item" href="{{ route('orders.label', ['id' => $order->id, 'package' => $index]) }}" target="_blank">
+                                                        <i class="feather-file me-2"></i> Package {{ $index + 1 }}
+                                                        <small class="text-muted ms-1">({{ $pkg['tracking_number'] }})</small>
+                                                    </a>
+                                                </li>
+                                            @endforeach
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <a class="dropdown-item" href="#" id="downloadAllLabelsLink">
+                                                    <i class="feather-download-cloud me-2"></i> Download All Labels
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                {{-- Individual package checkboxes for selective printing --}}
+                                <div class="mt-2 p-2 bg-light rounded">
+                                    <small class="text-muted d-block mb-2">Select packages to print:</small>
+                                    @foreach($shippingPackages as $index => $pkg)
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input package-label-check" type="checkbox" value="{{ $index }}" id="pkgCheck{{ $index }}" checked
+                                                data-label-url="{{ route('orders.label', ['id' => $order->id, 'package' => $index]) }}">
+                                            <label class="form-check-label small" for="pkgCheck{{ $index }}">
+                                                Pkg {{ $index + 1 }}
+                                            </label>
+                                        </div>
+                                    @endforeach
+                                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="printSelectedLabelsBtn">
+                                        <i class="feather-printer me-1"></i> Print Selected
+                                    </button>
+                                </div>
+                            </div>
+                        @else
+                            {{-- Single label --}}
+                            <a href="{{ route('orders.label', $order->id) }}" class="btn btn-primary w-100 mb-2" target="_blank">
+                                <i class="feather-download me-1"></i> Download Shipping Label
+                            </a>
+                        @endif
                         <button type="button" class="btn btn-warning w-100 mb-2" id="cancelLabelBtn"
                             data-order-id="{{ $order->id }}"
                             data-order-number="{{ $order->order_number }}"
                             data-tracking="{{ $order->tracking_number }}"
+                            data-package-count="{{ count($shippingPackages) }}"
                             data-is-ebay="{{ $order->isEbayOrder() ? '1' : '0' }}">
-                            <i class="feather-x-circle me-1"></i> Cancel Label & Remove Tracking
+                            <i class="feather-x-circle me-1"></i> Cancel Label(s) & Remove Tracking
                         </button>
                     @endif
 
@@ -1105,13 +1184,19 @@
                 var orderId = $btn.data('order-id');
                 var orderNumber = $btn.data('order-number');
                 var trackingNumber = $btn.data('tracking');
+                var packageCount = parseInt($btn.data('package-count')) || 1;
                 var isEbay = $btn.data('is-ebay') === '1';
 
-                var confirmMsg = 'Are you sure you want to cancel the shipping label for order ' + orderNumber + '?\n\n';
-                confirmMsg += 'Tracking #: ' + trackingNumber + '\n\n';
+                var labelText = packageCount > 1 ? packageCount + ' shipping labels' : 'the shipping label';
+                var confirmMsg = 'Are you sure you want to cancel ' + labelText + ' for order ' + orderNumber + '?\n\n';
+                if (packageCount > 1) {
+                    confirmMsg += 'This order has ' + packageCount + ' packages/tracking numbers.\n\n';
+                } else {
+                    confirmMsg += 'Tracking #: ' + trackingNumber + '\n\n';
+                }
                 confirmMsg += 'This will:\n';
-                confirmMsg += '- Void the label with FedEx\n';
-                confirmMsg += '- Remove tracking information from the order\n';
+                confirmMsg += '- Void ' + (packageCount > 1 ? 'all labels' : 'the label') + ' with FedEx\n';
+                confirmMsg += '- Remove all tracking information from the order\n';
                 confirmMsg += '- Restore inventory\n';
                 confirmMsg += '- Revert order status to Processing\n';
                 if (isEbay) {
@@ -1237,6 +1322,71 @@
                     error: function(xhr) {
                         alert('Failed to update order: ' + (xhr.responseJSON?.message || 'Unknown error'));
                     }
+                });
+            });
+
+            // ----------------------------------------------------------------
+            // Multi-package label handling
+            // ----------------------------------------------------------------
+
+            // Open all labels in new tabs for printing
+            $('#openAllLabelsBtn').on('click', function() {
+                var labelUrls = [];
+                $('.package-label-check').each(function() {
+                    labelUrls.push($(this).data('label-url'));
+                });
+
+                if (labelUrls.length === 0) {
+                    alert('No labels found.');
+                    return;
+                }
+
+                // Open each label in a new tab with a small delay to prevent popup blocking
+                labelUrls.forEach(function(url, index) {
+                    setTimeout(function() {
+                        window.open(url, '_blank');
+                    }, index * 300); // 300ms delay between each
+                });
+            });
+
+            // Print selected labels only
+            $('#printSelectedLabelsBtn').on('click', function() {
+                var selectedUrls = [];
+                $('.package-label-check:checked').each(function() {
+                    selectedUrls.push($(this).data('label-url'));
+                });
+
+                if (selectedUrls.length === 0) {
+                    alert('Please select at least one package to print.');
+                    return;
+                }
+
+                // Open selected labels in new tabs
+                selectedUrls.forEach(function(url, index) {
+                    setTimeout(function() {
+                        window.open(url, '_blank');
+                    }, index * 300);
+                });
+            });
+
+            // Download all labels (opens all in new tabs for saving)
+            $('#downloadAllLabelsLink').on('click', function(e) {
+                e.preventDefault();
+                var labelUrls = [];
+                $('.package-label-check').each(function() {
+                    labelUrls.push($(this).data('label-url'));
+                });
+
+                if (labelUrls.length === 0) {
+                    alert('No labels found.');
+                    return;
+                }
+
+                // Open each label in a new tab
+                labelUrls.forEach(function(url, index) {
+                    setTimeout(function() {
+                        window.open(url, '_blank');
+                    }, index * 300);
                 });
             });
 
