@@ -951,4 +951,111 @@ class ReportController extends Controller
 
         return collect($grouped)->sortByDesc('total_value')->values();
     }
+
+    /**
+     * Shipping Checklist Report
+     * Shows orders ready for shipping with product details and warehouse stock
+     */
+    public function shippingChecklist(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-d'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $fulfillmentStatus = $request->get('fulfillment_status', 'unfulfilled');
+
+        // Get filter options
+        $salesChannels = SalesChannel::where('delete_status', '0')
+            ->orderBy('name')
+            ->get();
+
+        // Build orders query - get orders that need to be shipped
+        $orderQuery = Order::with(['salesChannel', 'items.product.product_stocks'])
+            ->whereDate('order_date', '>=', $dateFrom)
+            ->whereDate('order_date', '<=', $dateTo)
+            ->where('payment_status', 'paid')
+            ->whereNotIn('order_status', ['cancelled', 'refunded']);
+
+        if ($channelId) {
+            $orderQuery->where('sales_channel_id', $channelId);
+        }
+
+        if ($fulfillmentStatus === 'unfulfilled') {
+            $orderQuery->where('fulfillment_status', 'unfulfilled');
+        } elseif ($fulfillmentStatus === 'fulfilled') {
+            $orderQuery->where('fulfillment_status', 'fulfilled');
+        }
+        // 'all' shows everything
+
+        $orders = $orderQuery->orderBy('order_date', 'asc')->get();
+
+        // Build checklist items
+        $checklistItems = [];
+
+        foreach ($orders as $order) {
+            foreach ($order->items as $item) {
+                // Skip bundle summary items
+                if ($item->is_bundle_summary) {
+                    continue;
+                }
+
+                $product = $item->product;
+
+                // Get product details
+                $productMeta = $product ? $product->product_meta : [];
+                $weight = $productMeta['weight'] ?? null;
+                $weightUnit = $productMeta['weight_unit'] ?? 'lbs';
+                $length = $productMeta['length'] ?? null;
+                $width = $productMeta['width'] ?? null;
+                $height = $productMeta['height'] ?? null;
+                $dimensionUnit = $productMeta['dimension_unit'] ?? 'in';
+
+                // Get warehouse stock
+                $warehouseStock = 0;
+                if ($product) {
+                    $warehouseStock = $product->product_stocks->sum('quantity');
+                }
+
+                // Get product image
+                $imageUrl = null;
+                if ($product) {
+                    $imageUrl = $product->getImageUrl();
+                }
+
+                $checklistItems[] = [
+                    'order' => $order,
+                    'item' => $item,
+                    'ebay_order_id' => $order->ebay_order_id ?: $order->order_number,
+                    'image_url' => $imageUrl,
+                    'product_name' => $item->title ?? ($product->name ?? 'Unknown Product'),
+                    'sku' => $item->sku ?? ($product->sku ?? ''),
+                    'weight' => $weight,
+                    'weight_unit' => $weightUnit,
+                    'length' => $length,
+                    'width' => $width,
+                    'height' => $height,
+                    'dimension_unit' => $dimensionUnit,
+                    'sales_channel' => $order->salesChannel->name ?? 'Direct',
+                    'quantity_ordered' => (int) $item->quantity,
+                    'quantity_in_warehouse' => (int) $warehouseStock,
+                ];
+            }
+        }
+
+        // Summary statistics
+        $summary = [
+            'total_orders' => $orders->count(),
+            'total_items' => count($checklistItems),
+            'total_quantity' => collect($checklistItems)->sum('quantity_ordered'),
+        ];
+
+        return view('reports.shipping-checklist', compact(
+            'checklistItems',
+            'summary',
+            'salesChannels',
+            'dateFrom',
+            'dateTo',
+            'channelId',
+            'fulfillmentStatus'
+        ));
+    }
 }

@@ -122,5 +122,20 @@
                 </div>
             </a>
         </div>
+
+        <!-- Shipping Checklist -->
+        <div class="col-lg-3 col-md-6">
+            <a href="{{ route('reports.shipping-checklist') }}" class="text-decoration-none">
+                <div class="card mb-4">
+                    <div class="card-body text-center py-4">
+                        <div class="avatar-text avatar-xl bg-soft-primary text-primary rounded-circle mx-auto mb-3">
+                            <i class="feather-truck" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <h5 class="card-title mb-1 fw-semibold">Shipping Checklist</h5>
+                        <p class="text-muted small mb-0">Printable order checklist for shipping</p>
+                    </div>
+                </div>
+            </a>
+        </div>
     </div>
 @endsection

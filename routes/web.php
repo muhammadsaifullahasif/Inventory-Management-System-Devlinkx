@@ -299,6 +299,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports/purchase', [ReportController::class, 'purchaseReport'])->name('reports.purchase');
     Route::get('reports/sales', [ReportController::class, 'salesReport'])->name('reports.sales');
     Route::get('reports/inventory-valuation', [ReportController::class, 'inventoryValuation'])->name('reports.inventory-valuation');
+    Route::get('reports/shipping-checklist', [ReportController::class, 'shippingChecklist'])->name('reports.shipping-checklist');
 });
 
 
