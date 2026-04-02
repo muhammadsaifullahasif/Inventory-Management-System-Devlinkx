@@ -778,10 +778,17 @@ class ShippingService
             $isResidential = in_array($order->address_type, ['RESIDENTIAL', 'MIXED']);
 
             // Build customer reference for this package
-            $customerRef = !empty($unitOverrides['customer_reference'])
-                ? $unitOverrides['customer_reference']
-                : $this->getCustomerReference($order);
-            $customerRef = substr($customerRef . ' (Pkg ' . ($i + 1) . '/' . $packageCount . ')', 0, 30);
+            // Check package-specific customer_reference first, then unitOverrides, then auto-generate
+            if (!empty($packageOverride['customer_reference'])) {
+                $customerRef = $packageOverride['customer_reference'];
+            } elseif (!empty($unitOverrides['customer_reference'])) {
+                $customerRef = $unitOverrides['customer_reference'];
+            } else {
+                $customerRef = $this->getCustomerReference($order);
+            }
+
+            // Truncate to 30 characters for FedEx requirement
+            $customerRef = substr($customerRef, 0, 30);
 
             // Build the FedEx Ship API payload for this package
             $shipmentPayload = [

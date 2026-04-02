@@ -1177,7 +1177,7 @@ class OrderController extends Controller
         $packageCount  = (int) $validated['package_count'];
         $packageOverrides = $validated['packages'] ?? [];
 
-        // Get unit overrides
+        // Get unit overrides (customer_reference will be handled per-package in ShippingService)
         $unitOverrides = [
             'weight_unit'    => $request->input('weight_unit'),
             'dimension_unit' => $request->input('dimension_unit'),
@@ -1229,16 +1229,35 @@ class OrderController extends Controller
             }
 
             // Update order with primary shipping info (first package) and mark as shipped
+            $trackingNumbersString = implode(', ', $trackingNumbers);
+
+            Log::info('Before updating order', [
+                'order_id' => $order->id,
+                'carrier_name' => $carrierName,
+                'tracking_numbers' => $trackingNumbers,
+                'tracking_numbers_string' => $trackingNumbersString,
+            ]);
+
             $order->update([
                 'shipping_carrier'     => $carrierName,
                 'shipping_id'          => $carrier->id,
-                'tracking_number'      => implode(', ', $trackingNumbers), // Store all tracking numbers comma-separated
+                'tracking_number'      => $trackingNumbersString, // Store all tracking numbers comma-separated
                 'tracking_url'         => $trackingUrl,
                 'shipping_label_path'  => $labelPaths[0], // Store first label path
                 'label_generated_at'   => now(),
                 'fulfillment_status'   => 'fulfilled',
                 'order_status'         => 'shipped',
                 'shipped_at'           => now(),
+            ]);
+
+            // Refresh the order from database to verify the update
+            $order->refresh();
+
+            Log::info('After updating order', [
+                'order_id' => $order->id,
+                'shipping_carrier' => $order->shipping_carrier,
+                'tracking_number' => $order->tracking_number,
+                'shipping_id' => $order->shipping_id,
             ]);
 
             // Deduct inventory for all items

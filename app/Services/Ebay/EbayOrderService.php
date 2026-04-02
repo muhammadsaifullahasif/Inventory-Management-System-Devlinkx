@@ -284,6 +284,11 @@ class EbayOrderService
             if (!empty($ebayOrder['shipped_time']) && empty($existingOrder->shipped_at)) {
                 $updateData['shipped_at'] = new \DateTime($ebayOrder['shipped_time']);
             }
+
+            // IMPORTANT: Only update tracking info if:
+            // 1. eBay has tracking data (!empty check)
+            // 2. Local order doesn't have tracking yet (empty check)
+            // This prevents clearing locally-generated tracking numbers that eBay hasn't synced yet
             if (!empty($ebayOrder['tracking_number']) && empty($existingOrder->tracking_number)) {
                 $updateData['tracking_number'] = $ebayOrder['tracking_number'];
             }
