@@ -1229,27 +1229,16 @@ class OrderController extends Controller
             }
 
             // Update order with primary shipping info (first package) and mark as shipped
-            $order_details = $order->update([
+            $order->update([
                 'shipping_carrier'     => $carrierName,
                 'shipping_id'          => $carrier->id,
-                // 'tracking_number'      => implode(', ', $trackingNumbers), // Store all tracking numbers comma-separated
+                'tracking_number'      => implode(', ', $trackingNumbers), // Store all tracking numbers comma-separated
                 'tracking_url'         => $trackingUrl,
                 'shipping_label_path'  => $labelPaths[0], // Store first label path
                 'label_generated_at'   => now(),
                 'fulfillment_status'   => 'fulfilled',
                 'order_status'         => 'shipped',
                 'shipped_at'           => now(),
-            ]);
-
-            $order->tracking_number = implode(', ', $trackingNumbers);
-            $order->save();
-
-            Log::info('Order Details: ', [
-                'data' => $order_details, 
-            ]);
-
-            Log::info('Tracking Numbers: ', [
-                'data' => $trackingNumbers,
             ]);
 
             // Deduct inventory for all items
