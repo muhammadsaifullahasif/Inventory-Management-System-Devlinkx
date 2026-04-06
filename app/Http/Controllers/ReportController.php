@@ -962,6 +962,7 @@ class ReportController extends Controller
         $dateTo = $request->get('date_to', date('Y-m-d'));
         $channelId = $request->get('channel_id');
         $fulfillmentStatus = $request->get('fulfillment_status', 'unfulfilled');
+        $order_status = $request->get('order_status', 'processing');
 
         // Get filter options
         $salesChannels = SalesChannel::where('delete_status', '0')
@@ -978,6 +979,7 @@ class ReportController extends Controller
             ->whereDate('order_date', '>=', $dateFrom)
             ->whereDate('order_date', '<=', $dateTo)
             ->where('payment_status', 'paid')
+            ->where('order_status', $order_status)
             ->whereNotIn('order_status', ['cancelled', 'refunded']);
 
         if ($channelId) {

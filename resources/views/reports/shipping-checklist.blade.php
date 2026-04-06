@@ -254,6 +254,20 @@
                         <option value="all" {{ $fulfillmentStatus == 'all' ? 'selected' : '' }}>All</option>
                     </select>
                 </div>
+                <div class="col-md-2">
+                    <label class="form-label">Order Status</label>
+                    <select name="order_status" class="form-select">
+                        <option value="pending">Pending</option>
+                        <option value="processing">Processing</option>
+                        <option value="shipped">Shipped</option>
+                        <option value="delivered">Delivered</option>
+                        {{-- <option value="cancelled">Cancelled</option> --}}
+                        {{-- <option value="refunded">Refunded</option> --}}
+                        {{-- <option value="cancellation_requested">Cancellation Requested</option> --}}
+                        <option value="awaiting_payment">Awaiting Payment</option>
+                        <option value="ready_for_pickup">Ready for Pickup</option>
+                    </select>
+                </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary me-2">
                         <i class="feather-filter me-1"></i> Filter
