@@ -299,7 +299,7 @@ class ShippingService
                 'shipDatestamp'            => date('Y-m-d'), // Ship date affects rates
                 'packagingType'            => 'YOUR_PACKAGING', // Important for rate calculation
                 'pickupType'               => 'USE_SCHEDULED_PICKUP',
-                'rateRequestType'          => ['ACCOUNT'], // Only request ACCOUNT rates (your contracted rates)
+                'rateRequestType'          => ['ACCOUNT', 'LIST'], // Request both ACCOUNT (contracted) and LIST (published) rates
                 'requestedPackageLineItems' => [[
                     'weight' => [
                         'units' => $fedexWeightUnit,
@@ -425,15 +425,17 @@ class ShippingService
                 $amount   = null;
                 $currency = 'USD';
                 $rateBreakdown = null;
+                $listAmount = null;
+                $accountAmount = null;
 
-                // Prefer ACCOUNT rate; fall back to LIST
+                // Collect both LIST and ACCOUNT rates
                 foreach ($ratedShipmentDetails as $detail) {
-                    if (($detail['rateType'] ?? '') === 'ACCOUNT') {
-                        $amount   = $detail['totalNetCharge']   ?? $detail['totalNetFedExCharge'] ?? null;
-                        $currency = $detail['currency'] ?? 'USD';
+                    $rateType = $detail['rateType'] ?? '';
+                    $netCharge = $detail['totalNetCharge'] ?? $detail['totalNetFedExCharge'] ?? null;
 
-                        // Capture rate breakdown for logging
-                        $rateBreakdown = [
+                    if ($rateType === 'LIST') {
+                        $listAmount = $netCharge;
+                        $listBreakdown = [
                             'rate_type' => $detail['rateType'] ?? null,
                             'total_base_charge' => $detail['totalBaseCharge'] ?? null,
                             'total_net_charge' => $detail['totalNetCharge'] ?? null,
@@ -443,15 +445,33 @@ class ShippingService
                             'total_billing_weight' => $detail['totalBillingWeight'] ?? null,
                             'currency' => $detail['currency'] ?? 'USD',
                         ];
-                        break;
+                    } elseif ($rateType === 'ACCOUNT') {
+                        $accountAmount = $netCharge;
+                        $accountBreakdown = [
+                            'rate_type' => $detail['rateType'] ?? null,
+                            'total_base_charge' => $detail['totalBaseCharge'] ?? null,
+                            'total_net_charge' => $detail['totalNetCharge'] ?? null,
+                            'total_net_fedex_charge' => $detail['totalNetFedExCharge'] ?? null,
+                            'total_surcharges' => $detail['totalSurcharges'] ?? null,
+                            'surcharges' => $detail['surcharges'] ?? [],
+                            'total_billing_weight' => $detail['totalBillingWeight'] ?? null,
+                            'currency' => $detail['currency'] ?? 'USD',
+                        ];
                     }
                 }
-                if ($amount === null && !empty($ratedShipmentDetails)) {
-                    $first    = $ratedShipmentDetails[0];
-                    $amount   = $first['totalNetCharge'] ?? $first['totalNetFedExCharge'] ?? null;
-                    $currency = $first['currency'] ?? 'USD';
 
-                    // Capture rate breakdown for logging
+                // Prefer LIST rate (published rates to match FedEx portal), fall back to ACCOUNT
+                if ($listAmount !== null) {
+                    $amount = $listAmount;
+                    $rateBreakdown = $listBreakdown ?? null;
+                } elseif ($accountAmount !== null) {
+                    $amount = $accountAmount;
+                    $rateBreakdown = $accountBreakdown ?? null;
+                } elseif (!empty($ratedShipmentDetails)) {
+                    // Fallback to first available rate
+                    $first = $ratedShipmentDetails[0];
+                    $amount = $first['totalNetCharge'] ?? $first['totalNetFedExCharge'] ?? null;
+                    $currency = $first['currency'] ?? 'USD';
                     $rateBreakdown = [
                         'rate_type' => $first['rateType'] ?? null,
                         'total_base_charge' => $first['totalBaseCharge'] ?? null,
