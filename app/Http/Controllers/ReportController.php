@@ -979,7 +979,9 @@ class ReportController extends Controller
             ->whereDate('order_date', '>=', $dateFrom)
             ->whereDate('order_date', '<=', $dateTo)
             ->where('payment_status', 'paid')
-            ->where('order_status', $order_status)
+            ->when($order_status !== 'all', function ($query) use ($order_status) {
+                $query->where('order_status', $order_status);
+            })
             ->whereNotIn('order_status', ['cancelled', 'refunded']);
 
         if ($channelId) {

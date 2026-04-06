@@ -257,6 +257,7 @@
                 <div class="col-md-2">
                     <label class="form-label">Order Status</label>
                     <select name="order_status" class="form-select">
+                        <option value="all">All</option>
                         <option value="pending">Pending</option>
                         <option value="processing">Processing</option>
                         <option value="shipped">Shipped</option>
