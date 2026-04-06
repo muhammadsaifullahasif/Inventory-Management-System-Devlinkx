@@ -201,6 +201,7 @@ class ShippingService
             $maxLength   = 0.0;
             $maxWidth    = 0.0;
             $maxHeight   = 0.0;
+            $maxDeclaredValue = 0.0;
 
             foreach ($mainItems as $item) {
                 $qty      = (int) ($item->quantity ?? 1);
@@ -212,6 +213,9 @@ class ShippingService
                     $length = (float) ($override['length'] ?? 0);
                     $width  = (float) ($override['width']  ?? 0);
                     $height = (float) ($override['height'] ?? 0);
+                    $declaredValue = isset($override['declared_value']) && $override['declared_value'] !== ''
+                                        ? (float) $override['declared_value']
+                                        : 0.0; // default if empty
                 } else {
                     $product = $item->product;
                     // Force fresh load of product meta to avoid stale cached data
@@ -221,12 +225,14 @@ class ShippingService
                     $length  = (float) ($meta['length'] ?? $product?->length ?? 0);
                     $width   = (float) ($meta['width']  ?? $product?->width  ?? 0);
                     $height  = (float) ($meta['height'] ?? $product?->height ?? 0);
+                    $declared_value = (float) (0);
                 }
 
                 $totalWeight += $weight * $qty;
                 $maxLength    = max($maxLength, $length);
                 $maxWidth     = max($maxWidth,  $width);
                 $maxHeight    = max($maxHeight, $height);
+                $maxDeclaredValue = max($maxDeclaredValue, $declared_value);
             }
 
             // Fallback to 1 lb / 12×12×12 if no product dimensions are set
@@ -236,6 +242,8 @@ class ShippingService
             if ($maxLength <= 0) { $maxLength = 12.0; }
             if ($maxWidth  <= 0) { $maxWidth  = 12.0; }
             if ($maxHeight <= 0) { $maxHeight = 12.0; }
+
+            if ($maxDeclaredValue <= 0) { $maxDeclaredValue = 0.0; }
         }
 
         // Use unit overrides if provided, otherwise fall back to carrier settings
@@ -334,6 +342,10 @@ class ShippingService
                         'height' => (int) ceil($maxHeight),
                         'units'  => $fedexDimUnit,
                     ],
+                    'declaredValue' => [
+                        'amount' => (int) ceil($maxDeclaredValue), 
+                        'currency' => 'USD', 
+                    ]
                 ]],
             ],
         ];

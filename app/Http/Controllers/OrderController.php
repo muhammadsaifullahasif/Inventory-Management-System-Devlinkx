@@ -447,6 +447,7 @@ class OrderController extends Controller
             'packages.*.length'         => 'nullable|numeric|min:0',
             'packages.*.width'          => 'nullable|numeric|min:0',
             'packages.*.height'         => 'nullable|numeric|min:0',
+            'packages.*.declared_value' => 'nullable|numeric|min:1', 
             'weight_unit'               => 'nullable|string|in:lbs,kg,oz',
             'dimension_unit'            => 'nullable|string|in:in,cm',
         ]);
