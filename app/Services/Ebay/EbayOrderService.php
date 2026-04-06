@@ -214,7 +214,7 @@ class EbayOrderService
 
         // Check refund
         $refundStatus = $transaction['MonetaryDetails']['Refunds']['Refund']['RefundStatus'] ?? '';
-        if (!empty($refundStatus) && strtolower($refundStatus) === 'successful') {
+        if (!empty($refundStatus) && (strtolower($refundStatus) === 'successful' || strtolower($refundStatus) === 'succeeded')) {
             return 'refunded';
         }
 
@@ -234,7 +234,7 @@ class EbayOrderService
             return 'failed';
         }
 
-        return 'unpaid';
+        return 'pending';
     }
 
     /**
