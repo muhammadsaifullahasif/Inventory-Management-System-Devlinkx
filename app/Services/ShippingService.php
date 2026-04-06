@@ -460,13 +460,13 @@ class ShippingService
                     }
                 }
 
-                // Prefer LIST rate (published rates to match FedEx portal), fall back to ACCOUNT
-                if ($listAmount !== null) {
-                    $amount = $listAmount;
-                    $rateBreakdown = $listBreakdown ?? null;
-                } elseif ($accountAmount !== null) {
+                // Prefer ACCOUNT rate (contracted rates with discounts), fall back to LIST
+                if ($accountAmount !== null) {
                     $amount = $accountAmount;
                     $rateBreakdown = $accountBreakdown ?? null;
+                } elseif ($listAmount !== null) {
+                    $amount = $listAmount;
+                    $rateBreakdown = $listBreakdown ?? null;
                 } elseif (!empty($ratedShipmentDetails)) {
                     // Fallback to first available rate
                     $first = $ratedShipmentDetails[0];
