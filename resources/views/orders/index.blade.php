@@ -1290,10 +1290,23 @@
                                     <input type="number" step="0.1" min="1" class="form-control form-control-sm pkg-height" data-pkg="${i}" value="12">
                                 </div>
                             </div>
-                            <div class="row g-2">
+                            <div class="row g-2 mb-2">
                                 <div class="col-12">
                                     <label class="form-label small mb-1">Customer Reference <small class="text-muted">(max 30 chars, shown on label)</small></label>
                                     <input type="text" class="form-control form-control-sm pkg-reference" data-pkg="${i}" maxlength="30" placeholder="Auto-generated from item names if empty">
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-12">
+                                    <div class="form-check form-switch">
+                                        <input type="checkbox" class="form-check-input liability-checkbox" id="package-${i}" data-pkg="${i}">
+                                        <label class="form-check-label" for="package-${i}">Purchase a higher limit of liability from FedEx</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <input type="number" id="package-${i}-input" class="form-control declared-value form-control-sm" data-pkg="${i}" disabled>
                                 </div>
                             </div>
                         </div>
@@ -1305,6 +1318,14 @@
             // Update package dimension labels when units change
             $('#indexWeightUnit, #indexDimensionUnit').on('change', function() {
                 updatePackageDimensionFields();
+            });
+
+            $(document).on('change', '.liability-checkbox', function() {
+                if ($(this).is(':checked')) {
+                    $('#' + $(this).attr('id') + '-input').removeAttr('disabled');
+                } else {
+                    $('#' + $(this).attr('id') + '-input').attr('disabled', 'disabled').val('');
+                }
             });
 
             // ----------------------------------------------------------------
@@ -1329,12 +1350,17 @@
                 // Collect package data
                 var packages = [];
                 $('.package-dim-row').each(function() {
+                    var declared_value = '';
+                    if ($(this).find('.liability-checkbox').is(':checked')) {
+                        declared_value = $(this).find('.declared_value');
+                    }
                     packages.push({
                         weight: parseFloat($(this).find('.pkg-weight').val()) || 1,
                         length: parseFloat($(this).find('.pkg-length').val()) || 12,
                         width:  parseFloat($(this).find('.pkg-width').val()) || 12,
                         height: parseFloat($(this).find('.pkg-height').val()) || 12,
-                        customer_reference: $(this).find('.pkg-reference').val() || ''
+                        customer_reference: $(this).find('.pkg-reference').val() || '', 
+                        declared_value: declared_value
                     });
                 });
 
