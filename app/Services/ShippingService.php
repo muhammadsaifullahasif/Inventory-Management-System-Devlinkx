@@ -213,7 +213,7 @@ class ShippingService
                     $length = (float) ($override['length'] ?? 0);
                     $width  = (float) ($override['width']  ?? 0);
                     $height = (float) ($override['height'] ?? 0);
-                    $declaredValue = isset($override['declared_value']) && $override['declared_value'] !== ''
+                    $declared_value = isset($override['declared_value']) && $override['declared_value'] !== ''
                                         ? (float) $override['declared_value']
                                         : 0.0; // default if empty
                 } else {
