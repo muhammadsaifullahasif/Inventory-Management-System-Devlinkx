@@ -451,6 +451,8 @@ class OrderController extends Controller
             'dimension_unit'            => 'nullable|string|in:in,cm',
         ]);
 
+        dd($request->all());
+
         $order    = Order::with(['items.product.product_meta'])->findOrFail($request->order_id);
         $carrier  = Shipping::findOrFail($request->carrier_id);
         $packages = $request->input('packages', []);

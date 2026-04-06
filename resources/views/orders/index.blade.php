@@ -1136,12 +1136,17 @@
                 // Collect package dimensions
                 var packages = [];
                 $('.package-dim-row').each(function() {
+                    var declared_value = '';
+                    if ($(this).find('.liability-checkbox').is(':checked')) {
+                        declared_value = $(this).find('.declared_value');
+                    }
                     packages.push({
                         weight: parseFloat($(this).find('.pkg-weight').val()) || 1,
                         length: parseFloat($(this).find('.pkg-length').val()) || 12,
                         width:  parseFloat($(this).find('.pkg-width').val()) || 12,
                         height: parseFloat($(this).find('.pkg-height').val()) || 12,
-                        customer_reference: $(this).find('.pkg-reference').val() || ''
+                        customer_reference: $(this).find('.pkg-reference').val() || '', 
+                        declared_value: declared_value, 
                     });
                 });
 
