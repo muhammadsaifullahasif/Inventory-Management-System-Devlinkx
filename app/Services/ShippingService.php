@@ -235,32 +235,72 @@ class ShippingService
         $fedexWeightUnit = in_array(strtolower($weightUnit), ['kg', 'kgs', 'kilogram', 'kilograms']) ? 'KG' : 'LB';
         $fedexDimUnit    = strtolower($dimensionUnit) === 'cm' ? 'CM' : 'IN';
 
+        // Build shipper address from carrier (match label generation)
+        $shipperStreetLines = array_values(array_filter([
+            $carrier->shipper_address ?? '',
+        ]));
+        if (empty($shipperStreetLines)) {
+            $shipperStreetLines = ['123 Shipper Street'];
+        }
+
+        // Build recipient address from order
+        $recipientStreetLines = array_values(array_filter([
+            $order->shipping_address_line1 ?? '',
+            $order->shipping_address_line2 ?? null,
+        ]));
+
+        // Get shipper phone - use carrier's shipper_phone or fallback
+        $shipperPhone = $carrier->shipper_phone ?? config('shipping.shipper_phone', '0000000000');
+        // FedEx requires phone without special characters
+        $shipperPhone = preg_replace('/[^0-9]/', '', $shipperPhone);
+
+        // Get recipient phone - use order phone or fallback
+        $recipientPhone = $order->buyer_phone ?? $order->shipping_phone ?? '0000000000';
+        $recipientPhone = preg_replace('/[^0-9]/', '', $recipientPhone);
+
+        // Determine if residential address
+        $isResidential = in_array($order->address_type, ['RESIDENTIAL', 'MIXED']);
+
         $shipmentDetails = [
             'accountNumber'       => ['value' => $carrier->account_number ?? ''],
             'requestedShipment'   => [
+                // Shipper information - must match label generation for accurate rates
                 'shipper' => [
+                    'contact' => [
+                        'personName'  => $carrier->shipper_name ?? 'Shipper',
+                        'companyName' => $carrier->shipper_name ?? 'Shipper',
+                        'phoneNumber' => $shipperPhone,
+                    ],
                     'address' => [
-                        'postalCode'  => $carrier->shipper_postal_code ?: config('shipping.shipper_postal_code', '10001'),
-                        'countryCode' => $carrier->shipper_country     ?: config('shipping.shipper_country',     'US'),
+                        'streetLines'         => $shipperStreetLines,
+                        'city'                => $carrier->shipper_city          ?? 'New York',
+                        'stateOrProvinceCode' => $carrier->shipper_state         ?? 'NY',
+                        'postalCode'          => $carrier->shipper_postal_code   ?? '10001',
+                        'countryCode'         => $carrier->shipper_country       ?? 'US',
+                        'residential'         => false,
                     ],
                 ],
+                // Recipient information
                 'recipient' => [
+                    'contact' => [
+                        'personName'  => $order->shipping_name ?? $order->buyer_name ?? 'Recipient',
+                        'companyName' => $order->shipping_name ?? $order->buyer_name ?? 'Recipient',
+                        'phoneNumber' => $recipientPhone,
+                    ],
                     'address' => [
-                        'streetLines'         => array_values(array_filter([
-                            $order->shipping_address_line1 ?? '',
-                            $order->shipping_address_line2 ?? null,
-                        ])),
+                        'streetLines'         => $recipientStreetLines,
                         'city'                => $order->shipping_city          ?? '',
                         'stateOrProvinceCode' => $order->shipping_state         ?? '',
-                        'postalCode'          => $order->shipping_postal_code   ?? '',
+                        'postalCode'          => substr($order->shipping_postal_code ?? '', 0, 5),
                         'countryCode'         => $order->shipping_country       ?? 'US',
-                        'residential'         => in_array($order->address_type, ['RESIDENTIAL', 'MIXED']),
+                        'residential'         => $isResidential,
                     ],
                 ],
+                'shipDatestamp'            => date('Y-m-d'), // Ship date affects rates
+                'packagingType'            => 'YOUR_PACKAGING', // Important for rate calculation
                 'pickupType'               => 'USE_SCHEDULED_PICKUP',
-                'rateRequestType'          => ['ACCOUNT', 'LIST'],
+                'rateRequestType'          => ['ACCOUNT'], // Only request ACCOUNT rates (your contracted rates)
                 'requestedPackageLineItems' => [[
-                    'packageCount' => 1,
                     'weight' => [
                         'units' => $fedexWeightUnit,
                         'value' => round($totalWeight, 2),
@@ -275,7 +315,29 @@ class ShippingService
             ],
         ];
 
+        // Log the rate request payload for debugging
+        Log::info('ShippingService: requesting rates from carrier', [
+            'carrier_id' => $carrier->id,
+            'carrier_type' => $carrier->type,
+            'order_id' => $order->id,
+            'weight' => round($totalWeight, 2) . ' ' . $fedexWeightUnit,
+            'dimensions' => (int) ceil($maxLength) . 'x' . (int) ceil($maxWidth) . 'x' . (int) ceil($maxHeight) . ' ' . $fedexDimUnit,
+            'residential' => $isResidential,
+            'ship_date' => date('Y-m-d'),
+            'shipper_zip' => $carrier->shipper_postal_code,
+            'recipient_zip' => substr($order->shipping_postal_code ?? '', 0, 5),
+        ]);
+
         $rawRates = $service->getRates($shipmentDetails);
+
+        // Log the raw rates received
+        Log::info('ShippingService: rates received from carrier', [
+            'carrier_id' => $carrier->id,
+            'carrier_type' => $carrier->type,
+            'order_id' => $order->id,
+            'rate_count' => count($rawRates),
+            'raw_rates' => $rawRates,
+        ]);
 
         return $this->normalizeRates($rawRates, $carrier->type);
     }
@@ -362,12 +424,25 @@ class ShippingService
                 $ratedShipmentDetails = $rate['ratedShipmentDetails'] ?? [];
                 $amount   = null;
                 $currency = 'USD';
+                $rateBreakdown = null;
 
                 // Prefer ACCOUNT rate; fall back to LIST
                 foreach ($ratedShipmentDetails as $detail) {
                     if (($detail['rateType'] ?? '') === 'ACCOUNT') {
                         $amount   = $detail['totalNetCharge']   ?? $detail['totalNetFedExCharge'] ?? null;
                         $currency = $detail['currency'] ?? 'USD';
+
+                        // Capture rate breakdown for logging
+                        $rateBreakdown = [
+                            'rate_type' => $detail['rateType'] ?? null,
+                            'total_base_charge' => $detail['totalBaseCharge'] ?? null,
+                            'total_net_charge' => $detail['totalNetCharge'] ?? null,
+                            'total_net_fedex_charge' => $detail['totalNetFedExCharge'] ?? null,
+                            'total_surcharges' => $detail['totalSurcharges'] ?? null,
+                            'surcharges' => $detail['surcharges'] ?? [],
+                            'total_billing_weight' => $detail['totalBillingWeight'] ?? null,
+                            'currency' => $detail['currency'] ?? 'USD',
+                        ];
                         break;
                     }
                 }
@@ -375,6 +450,18 @@ class ShippingService
                     $first    = $ratedShipmentDetails[0];
                     $amount   = $first['totalNetCharge'] ?? $first['totalNetFedExCharge'] ?? null;
                     $currency = $first['currency'] ?? 'USD';
+
+                    // Capture rate breakdown for logging
+                    $rateBreakdown = [
+                        'rate_type' => $first['rateType'] ?? null,
+                        'total_base_charge' => $first['totalBaseCharge'] ?? null,
+                        'total_net_charge' => $first['totalNetCharge'] ?? null,
+                        'total_net_fedex_charge' => $first['totalNetFedExCharge'] ?? null,
+                        'total_surcharges' => $first['totalSurcharges'] ?? null,
+                        'surcharges' => $first['surcharges'] ?? [],
+                        'total_billing_weight' => $first['totalBillingWeight'] ?? null,
+                        'currency' => $first['currency'] ?? 'USD',
+                    ];
                 }
 
                 $transitDays = $rate['transitTime'] ?? null;
@@ -389,7 +476,16 @@ class ShippingService
                     'amount'        => $amount !== null ? (float) $amount : null,
                     'currency'      => $currency,
                     'transit_days'  => $transitDays,
+                    'rate_breakdown' => $rateBreakdown, // Include detailed breakdown
                 ];
+
+                // Log detailed rate breakdown
+                Log::info('ShippingService: rate breakdown for service', [
+                    'service_code' => $serviceType,
+                    'service_name' => $serviceName,
+                    'amount' => $amount,
+                    'breakdown' => $rateBreakdown,
+                ]);
             }
         }
 
