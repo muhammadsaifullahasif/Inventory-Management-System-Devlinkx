@@ -73,10 +73,12 @@ class EbayOrderService
             }
         }
 
-        $refundStatus = strtolower(trim($ebayOrder['MonetaryDetails']['Refunds']['Refund']['RefundStatus']));
+        if (isset($ebayOrder['MonetaryDetails']['Refunds']['Refund']['RefundStatus'])) {
+            $refundStatus = strtolower(trim($ebayOrder['MonetaryDetails']['Refunds']['Refund']['RefundStatus']));
 
-        if (!empty($refundStatus) && $refundStatus === 'succeeded') {
-            return 'refunded';
+            if (!empty($refundStatus) && $refundStatus === 'succeeded') {
+                return 'refunded';
+            }
         }
 
         // Only mark as shipped when we have actual shipping evidence
