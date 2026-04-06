@@ -163,59 +163,80 @@ class ShippingService
             throw new \RuntimeException("Carrier type '{$carrier->type}' is not supported for rate quotes.");
         }
 
-        // Build a lookup map from user-supplied overrides keyed by order_item_id
-        $overrideMap = [];
-        foreach ($itemOverrides as $override) {
-            if (!empty($override['order_item_id'])) {
-                $overrideMap[(int) $override['order_item_id']] = $override;
-            }
+        // Check if package-level overrides are provided (for the entire package, not per-item)
+        $packageOverride = null;
+        if (!empty($itemOverrides) && isset($itemOverrides[0]) && !isset($itemOverrides[0]['order_item_id'])) {
+            // This is a package-level override (has weight/dimensions but no order_item_id)
+            $packageOverride = $itemOverrides[0];
         }
 
-        // Build package weight/dimensions from order items
-        // Filter to only include main items (bundles + regular products), exclude bundle components
-        $mainItems = $order->items->filter(function ($item) {
-            return !$item->bundle_product_id || $item->is_bundle_summary;
-        });
+        // If package-level override is provided, use it directly
+        if ($packageOverride &&
+            !empty($packageOverride['weight']) &&
+            !empty($packageOverride['length']) &&
+            !empty($packageOverride['width']) &&
+            !empty($packageOverride['height'])) {
 
-        $totalWeight = 0.0;
-        $maxLength   = 0.0;
-        $maxWidth    = 0.0;
-        $maxHeight   = 0.0;
+            $totalWeight = (float) $packageOverride['weight'];
+            $maxLength   = (float) $packageOverride['length'];
+            $maxWidth    = (float) $packageOverride['width'];
+            $maxHeight   = (float) $packageOverride['height'];
 
-        foreach ($mainItems as $item) {
-            $qty      = (int) ($item->quantity ?? 1);
-            $override = $overrideMap[$item->id] ?? null;
-
-            if ($override) {
-                // Use user-supplied values (may be 0 if field was left blank — fall back below)
-                $weight = (float) ($override['weight'] ?? 0);
-                $length = (float) ($override['length'] ?? 0);
-                $width  = (float) ($override['width']  ?? 0);
-                $height = (float) ($override['height'] ?? 0);
-            } else {
-                $product = $item->product;
-                // Force fresh load of product meta to avoid stale cached data
-                $product?->refresh();
-                $meta    = $product?->product_meta ?? [];
-                $weight  = (float) ($meta['weight'] ?? $product?->weight ?? 0);
-                $length  = (float) ($meta['length'] ?? $product?->length ?? 0);
-                $width   = (float) ($meta['width']  ?? $product?->width  ?? 0);
-                $height  = (float) ($meta['height'] ?? $product?->height ?? 0);
+        } else {
+            // Build a lookup map from user-supplied overrides keyed by order_item_id
+            $overrideMap = [];
+            foreach ($itemOverrides as $override) {
+                if (!empty($override['order_item_id'])) {
+                    $overrideMap[(int) $override['order_item_id']] = $override;
+                }
             }
 
-            $totalWeight += $weight * $qty;
-            $maxLength    = max($maxLength, $length);
-            $maxWidth     = max($maxWidth,  $width);
-            $maxHeight    = max($maxHeight, $height);
-        }
+            // Build package weight/dimensions from order items
+            // Filter to only include main items (bundles + regular products), exclude bundle components
+            $mainItems = $order->items->filter(function ($item) {
+                return !$item->bundle_product_id || $item->is_bundle_summary;
+            });
 
-        // Fallback to 1 lb / 12×12×12 if no product dimensions are set
-        if ($totalWeight <= 0) {
-            $totalWeight = 1.0;
+            $totalWeight = 0.0;
+            $maxLength   = 0.0;
+            $maxWidth    = 0.0;
+            $maxHeight   = 0.0;
+
+            foreach ($mainItems as $item) {
+                $qty      = (int) ($item->quantity ?? 1);
+                $override = $overrideMap[$item->id] ?? null;
+
+                if ($override) {
+                    // Use user-supplied values (may be 0 if field was left blank — fall back below)
+                    $weight = (float) ($override['weight'] ?? 0);
+                    $length = (float) ($override['length'] ?? 0);
+                    $width  = (float) ($override['width']  ?? 0);
+                    $height = (float) ($override['height'] ?? 0);
+                } else {
+                    $product = $item->product;
+                    // Force fresh load of product meta to avoid stale cached data
+                    $product?->refresh();
+                    $meta    = $product?->product_meta ?? [];
+                    $weight  = (float) ($meta['weight'] ?? $product?->weight ?? 0);
+                    $length  = (float) ($meta['length'] ?? $product?->length ?? 0);
+                    $width   = (float) ($meta['width']  ?? $product?->width  ?? 0);
+                    $height  = (float) ($meta['height'] ?? $product?->height ?? 0);
+                }
+
+                $totalWeight += $weight * $qty;
+                $maxLength    = max($maxLength, $length);
+                $maxWidth     = max($maxWidth,  $width);
+                $maxHeight    = max($maxHeight, $height);
+            }
+
+            // Fallback to 1 lb / 12×12×12 if no product dimensions are set
+            if ($totalWeight <= 0) {
+                $totalWeight = 1.0;
+            }
+            if ($maxLength <= 0) { $maxLength = 12.0; }
+            if ($maxWidth  <= 0) { $maxWidth  = 12.0; }
+            if ($maxHeight <= 0) { $maxHeight = 12.0; }
         }
-        if ($maxLength <= 0) { $maxLength = 12.0; }
-        if ($maxWidth  <= 0) { $maxWidth  = 12.0; }
-        if ($maxHeight <= 0) { $maxHeight = 12.0; }
 
         // Use unit overrides if provided, otherwise fall back to carrier settings
         $weightUnit    = $unitOverrides['weight_unit']    ?? $carrier->weight_unit    ?? 'lbs';

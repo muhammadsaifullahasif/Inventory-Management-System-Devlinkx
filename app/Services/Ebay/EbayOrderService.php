@@ -312,7 +312,7 @@ class EbayOrderService
 
             $existingOrder->update($updateData);
 
-            Log::info('Order synced ', [
+            Log::info('Order update ', [
                 'order_id' => $ebayOrder['ebay_order_id'], 
                 'updateData' => $updateData, 
             ]);
