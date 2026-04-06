@@ -194,6 +194,8 @@ class ShippingService
                 $height = (float) ($override['height'] ?? 0);
             } else {
                 $product = $item->product;
+                // Force fresh load of product meta to avoid stale cached data
+                $product?->refresh();
                 $meta    = $product?->product_meta ?? [];
                 $weight  = (float) ($meta['weight'] ?? $product?->weight ?? 0);
                 $length  = (float) ($meta['length'] ?? $product?->length ?? 0);
@@ -569,6 +571,8 @@ class ShippingService
                 $height = (float) ($override['height'] ?? 0);
             } else {
                 $product = $item->product;
+                // Force fresh load of product meta to avoid stale cached data
+                $product?->refresh();
                 $meta    = $product?->product_meta ?? [];
                 $weight  = (float) ($meta['weight'] ?? $product?->weight ?? 0);
                 $length  = (float) ($meta['length'] ?? $product?->length ?? 0);
