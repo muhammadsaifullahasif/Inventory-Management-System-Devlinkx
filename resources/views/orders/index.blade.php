@@ -1138,7 +1138,7 @@
                 $('.package-dim-row').each(function() {
                     var declared_value = '';
                     if ($(this).find('.liability-checkbox').is(':checked')) {
-                        declared_value = $(this).find('.declared_value');
+                        declared_value = parseFloat($(this).find('.declared_value'));
                     }
                     packages.push({
                         weight: parseFloat($(this).find('.pkg-weight').val()) || 1,
