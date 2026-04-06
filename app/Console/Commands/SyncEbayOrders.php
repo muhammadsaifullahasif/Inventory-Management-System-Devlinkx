@@ -69,7 +69,7 @@ class SyncEbayOrders extends Command
             $dateFrom = now()->subDays($days)->startOfDay();
         } else {
             // Default: today's orders only
-            $dateFrom = now()->startOfDay();
+            $dateFrom = now()->startOfYear();
         }
 
         $this->info("Fetching orders from {$dateFrom->toDateTimeString()} to {$dateTo->toDateTimeString()}");
