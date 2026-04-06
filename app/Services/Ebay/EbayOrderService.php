@@ -281,7 +281,7 @@ class EbayOrderService
                 'fulfillment_status' => $this->mapFulfillmentStatus($ebayOrder),
             ];
 
-            if (!empty($ebayOrder['shipped_time']) && empty($existingOrder->shipped_at)) {
+            if (!empty($ebayOrder['shipped_time']) && (empty($existingOrder->shipped_at) || is_null($existingOrder->shipped_at))) {
                 $updateData['shipped_at'] = new \DateTime($ebayOrder['shipped_time']);
             }
 
@@ -289,28 +289,33 @@ class EbayOrderService
             // 1. eBay has tracking data (!empty check)
             // 2. Local order doesn't have tracking yet (empty check)
             // This prevents clearing locally-generated tracking numbers that eBay hasn't synced yet
-            if (!empty($ebayOrder['tracking_number']) && empty($existingOrder->tracking_number)) {
+            if (!empty($ebayOrder['tracking_number']) && (empty($existingOrder->tracking_number) || is_null($existingOrder->tracking_number))) {
                 $updateData['tracking_number'] = $ebayOrder['tracking_number'];
             }
-            if (!empty($ebayOrder['raw_data']['TransactionArray']['Transaction']['ShippingDetails']['ShipmentTrackingDetails']['ShipmentTrackingNumber']) && empty($existingOrder->tracking_number)) {
+            if (!empty($ebayOrder['raw_data']['TransactionArray']['Transaction']['ShippingDetails']['ShipmentTrackingDetails']['ShipmentTrackingNumber']) && (empty($existingOrder->tracking_number) || is_null($existingOrder->tracking_number))) {
                 $updateData['tracking_number'] = $ebayOrder['raw_data']['TransactionArray']['Transaction']['ShippingDetails']['ShipmentTrackingDetails']['ShipmentTrackingNumber'];
             }
-            if (!empty($ebayOrder['shipping_carrier']) && empty($existingOrder->shipping_carrier)) {
+            if (!empty($ebayOrder['shipping_carrier']) && (empty($existingOrder->shipping_carrier) || is_null($existingOrder->shipping_carrier))) {
                 $updateData['shipping_carrier'] = $ebayOrder['shipping_carrier'];
             }
-            if (!empty($ebayOrder['raw_data']['TransactionArray']['Transaction']['ShippingDetails']['ShipmentTrackingDetails']['ShipmentTrackingNumber']) && empty($existingOrder->shipping_carrier)) {
+            if (!empty($ebayOrder['raw_data']['TransactionArray']['Transaction']['ShippingDetails']['ShipmentTrackingDetails']['ShipmentTrackingNumber']) && (empty($existingOrder->shipping_carrier) || is_null($existingOrder->shipping_carrier))) {
                 $updateData['shipping_carrier'] = $ebayOrder['raw_data']['TransactionArray']['Transaction']['ShippingDetails']['ShipmentTrackingDetails']['ShipmentTrackingNumber'];
             }
 
             // Update shipment deadline if not already set
-            if (!empty($ebayOrder['shipment_deadline']) && empty($existingOrder->shipment_deadline)) {
+            if (!empty($ebayOrder['shipment_deadline']) && (empty($existingOrder->shipment_deadline) || is_null($existingOrder->shipment_deadline))) {
                 $updateData['shipment_deadline'] = new \DateTime($ebayOrder['shipment_deadline']);
             }
-            if (!empty($ebayOrder['handling_time_days']) && empty($existingOrder->handling_time_days)) {
+            if (!empty($ebayOrder['handling_time_days']) && (empty($existingOrder->handling_time_days) || is_null($existingOrder->handling_time_days))) {
                 $updateData['handling_time_days'] = $ebayOrder['handling_time_days'];
             }
 
             $existingOrder->update($updateData);
+
+            Log::info('Order synced ', [
+                'order_id' => $ebayOrder['ebay_order_id'], 
+                'updateData' => $updateData, 
+            ]);
 
             // Update inventory for items that weren't updated yet
             if ($this->mapPaymentStatus($ebayOrder['payment_status'], $ebayOrder) === 'paid') {
