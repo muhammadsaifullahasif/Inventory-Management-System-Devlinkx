@@ -292,8 +292,14 @@ class EbayOrderService
             if (!empty($ebayOrder['tracking_number']) && empty($existingOrder->tracking_number)) {
                 $updateData['tracking_number'] = $ebayOrder['tracking_number'];
             }
+            if (!empty($ebayOrder['raw_data']['TransactionArray']['Transaction']['ShippingDetails']['ShipmentTrackingDetails']['ShipmentTrackingNumber']) && empty($existingOrder->tracking_number)) {
+                $updateData['tracking_number'] = $ebayOrder['raw_data']['TransactionArray']['Transaction']['ShippingDetails']['ShipmentTrackingDetails']['ShipmentTrackingNumber'];
+            }
             if (!empty($ebayOrder['shipping_carrier']) && empty($existingOrder->shipping_carrier)) {
                 $updateData['shipping_carrier'] = $ebayOrder['shipping_carrier'];
+            }
+            if (!empty($ebayOrder['raw_data']['TransactionArray']['Transaction']['ShippingDetails']['ShipmentTrackingDetails']['ShipmentTrackingNumber']) && empty($existingOrder->shipping_carrier)) {
+                $updateData['shipping_carrier'] = $ebayOrder['raw_data']['TransactionArray']['Transaction']['ShippingDetails']['ShipmentTrackingDetails']['ShipmentTrackingNumber'];
             }
 
             // Update shipment deadline if not already set
