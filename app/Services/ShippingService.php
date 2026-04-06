@@ -175,12 +175,14 @@ class ShippingService
             !empty($packageOverride['weight']) &&
             !empty($packageOverride['length']) &&
             !empty($packageOverride['width']) &&
-            !empty($packageOverride['height'])) {
+            !empty($packageOverride['height']) && 
+            !empty($packageOverride['declared_value'])) {
 
             $totalWeight = (float) $packageOverride['weight'];
             $maxLength   = (float) $packageOverride['length'];
             $maxWidth    = (float) $packageOverride['width'];
             $maxHeight   = (float) $packageOverride['height'];
+            $maxDeclaredValue = (float) $packageOverride['declared_value'];
 
         } else {
             // Build a lookup map from user-supplied overrides keyed by order_item_id
