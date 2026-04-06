@@ -73,8 +73,8 @@ class EbayOrderService
             }
         }
 
-        if (isset($ebayOrder['MonetaryDetails']['Refunds']['Refund']['RefundStatus'])) {
-            $refundStatus = strtolower(trim($ebayOrder['MonetaryDetails']['Refunds']['Refund']['RefundStatus']));
+        if (isset($ebayOrder['raw_data']['MonetaryDetails']['Refunds']['Refund']['RefundStatus'])) {
+            $refundStatus = strtolower(trim($ebayOrder['raw_data']['MonetaryDetails']['Refunds']['Refund']['RefundStatus']));
 
             if (!empty($refundStatus) && $refundStatus === 'succeeded') {
                 return 'refunded';
@@ -116,8 +116,8 @@ class EbayOrderService
             return 'refunded';
         }
 
-        if (isset($ebayOrder['MonetaryDetails']['Refunds']['Refund']['RefundStatus'])) {
-            $refundStatus = strtolower(trim($ebayOrder['MonetaryDetails']['Refunds']['Refund']['RefundStatus']));
+        if (isset($ebayOrder['raw_data']['MonetaryDetails']['Refunds']['Refund']['RefundStatus'])) {
+            $refundStatus = strtolower(trim($ebayOrder['raw_data']['MonetaryDetails']['Refunds']['Refund']['RefundStatus']));
 
             if (!empty($refundStatus) && $refundStatus === 'succeeded') {
                 Log::info('Refund Status: ', ['ebayOrder' => $ebayOrder]);
