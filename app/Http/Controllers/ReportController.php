@@ -1149,7 +1149,8 @@ class ReportController extends Controller
             'dateFrom',
             'dateTo',
             'channelId',
-            'fulfillmentStatus'
+            'fulfillmentStatus', 
+            'order_status'
         ));
     }
 }

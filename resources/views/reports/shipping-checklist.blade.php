@@ -257,16 +257,16 @@
                 <div class="col-md-2">
                     <label class="form-label">Order Status</label>
                     <select name="order_status" class="form-select">
-                        <option value="all">All</option>
-                        <option value="pending">Pending</option>
-                        <option value="processing">Processing</option>
-                        <option value="shipped">Shipped</option>
-                        <option value="delivered">Delivered</option>
-                        {{-- <option value="cancelled">Cancelled</option> --}}
-                        {{-- <option value="refunded">Refunded</option> --}}
-                        {{-- <option value="cancellation_requested">Cancellation Requested</option> --}}
-                        <option value="awaiting_payment">Awaiting Payment</option>
-                        <option value="ready_for_pickup">Ready for Pickup</option>
+                        <option value="all" {{ $order_status == 'all' ? 'selected' : '' }}>All</option>
+                        <option value="pending" {{ $order_status == 'pending' ? 'selected' : '' }}>Pending</option>
+                        <option value="processing" {{ $order_status == 'processing' ? 'selected' : '' }}>Processing</option>
+                        <option value="shipped" {{ $order_status == 'shipped' ? 'selected' : '' }}>Shipped</option>
+                        <option value="delivered" {{ $order_status == 'delivered' ? 'selected' : '' }}>Delivered</option>
+                        {{-- <option value="cancelled" {{ $order_status == 'cancelled' ? 'selected' : '' }}>Cancelled</option> --}}
+                        {{-- <option value="refunded" {{ $order_status == 'refunded' ? 'selected' : '' }}>Refunded</option> --}}
+                        {{-- <option value="cancellation_requested" {{ $order_status == 'cancellation_requested' ? 'selected' ? '' }}>Cancellation Requested</option> --}}
+                        <option value="awaiting_payment" {{ $order_status == 'awaiting_payment' ? 'selected' : '' }}>Awaiting Payment</option>
+                        <option value="ready_for_pickup" {{ $order_status == 'ready_for_pickup' ? 'selected' : '' }}>Ready for Pickup</option>
                     </select>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
