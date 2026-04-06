@@ -120,6 +120,7 @@ class EbayOrderService
             $refundStatus = strtolower(trim($ebayOrder['MonetaryDetails']['Refunds']['Refund']['RefundStatus']));
 
             if (!empty($refundStatus) && $refundStatus === 'succeeded') {
+                Log::info('Refund Status: ', ['ebayOrder' => $ebayOrder]);
                 return 'refunded';
             }
         }
