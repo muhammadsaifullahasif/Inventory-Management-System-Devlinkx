@@ -73,13 +73,13 @@ class EbayOrderService
             }
         }
 
-        // if (isset($ebayOrder['MonetaryDetails']['Refunds']['Refund']['RefundStatus'])) {
-        //     $refundStatus = strtolower(trim($ebayOrder['MonetaryDetails']['Refunds']['Refund']['RefundStatus']));
+        if (isset($ebayOrder['MonetaryDetails']['Refunds']['Refund']['RefundStatus'])) {
+            $refundStatus = strtolower(trim($ebayOrder['MonetaryDetails']['Refunds']['Refund']['RefundStatus']));
 
-        //     if (!empty($refundStatus) && $refundStatus === 'succeeded') {
-        //         return 'refunded';
-        //     }
-        // }
+            if (!empty($refundStatus) && $refundStatus === 'succeeded') {
+                return 'refunded';
+            }
+        }
 
         // Only mark as shipped when we have actual shipping evidence
         if (!empty($ebayOrder['shipped_time'])) {
@@ -114,6 +114,14 @@ class EbayOrderService
         // Check refund status
         if (!empty($ebayOrder['refund_status']) && strtolower($ebayOrder['refund_status']) === 'successful') {
             return 'refunded';
+        }
+
+        if (isset($ebayOrder['MonetaryDetails']['Refunds']['Refund']['RefundStatus'])) {
+            $refundStatus = strtolower(trim($ebayOrder['MonetaryDetails']['Refunds']['Refund']['RefundStatus']));
+
+            if (!empty($refundStatus) && $refundStatus === 'succeeded') {
+                return 'refunded';
+            }
         }
 
         // Use reliable payment indicators from order data
