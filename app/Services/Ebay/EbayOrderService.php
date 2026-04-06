@@ -243,7 +243,7 @@ class EbayOrderService
             return 'failed';
         }
 
-        return 'pending';
+        return 'unpaid';
     }
 
     /**
