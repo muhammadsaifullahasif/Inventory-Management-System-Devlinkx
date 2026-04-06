@@ -331,9 +331,9 @@
                     <table class="table table-bordered table-hover">
                         <thead class="table-light">
                             <tr>
-                                <th class="checkbox-col" style="width: 30px;">
+                                {{-- <th class="checkbox-col" style="width: 30px;">
                                     <span class="d-none d-print-inline">&#9744;</span>
-                                </th>
+                                </th> --}}
                                 <th style="width: 130px;">Order ID</th>
                                 <th style="width: 55px;">Image</th>
                                 <th>Product (SKU, Weight, Dimensions)</th>
@@ -345,10 +345,10 @@
                         <tbody>
                             @foreach($checklistItems as $item)
                                 <tr>
-                                    <td class="checkbox-col text-center">
+                                    {{-- <td class="checkbox-col text-center">
                                         <span class="print-checkbox d-none d-print-inline-block"></span>
                                         <input type="checkbox" class="form-check-input d-print-none" style="margin: 0;">
-                                    </td>
+                                    </td> --}}
                                     <td>
                                         <strong>{{ $item['ebay_order_id'] }}</strong>
                                     </td>
