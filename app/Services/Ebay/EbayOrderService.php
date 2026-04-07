@@ -348,6 +348,10 @@ class EbayOrderService
 
         DB::beginTransaction();
         try {
+            $shippingCost = (float) ($ebayOrder['shipping_cost'] ?? 0);
+            $tax = (float) ($ebayOrder['tax'] ?? 0);
+            $discount = (float) ($ebayOrder['discount'] ?? 0);
+
             $order = Order::create([
                 'order_number' => Order::generateOrderNumber(),
                 'sales_channel_id' => $salesChannelId,
@@ -363,9 +367,11 @@ class EbayOrderService
                 'shipping_state' => $ebayOrder['shipping_address']['state'] ?? null,
                 'shipping_postal_code' => $ebayOrder['shipping_address']['postal_code'] ?? null,
                 'shipping_country' => $ebayOrder['shipping_address']['country'] ?? null,
-                'subtotal' => $ebayOrder['subtotal'],
-                'shipping_cost' => $ebayOrder['shipping_cost'],
-                'total' => $ebayOrder['total'],
+                'subtotal' => 0, // compute after item creation
+                'shipping_cost' => $shippingCost,
+                'tax' => $tax, 
+                'discount' => $discount, 
+                'total' => 0, // compute after item creation
                 'currency' => $ebayOrder['currency'],
                 'order_status' => $this->mapOrderStatus($ebayOrder['order_status'], $ebayOrder),
                 'payment_status' => $this->mapPaymentStatus($ebayOrder['payment_status'], $ebayOrder),
@@ -398,6 +404,10 @@ class EbayOrderService
                     // Process bundle: create summary + components
                     $this->createBundleOrderItems($order, $product, $lineItem, $ebayOrder, $this->mapPaymentStatus($ebayOrder['payment_status'], $ebayOrder) === 'paid');
                 } else {
+                    $qty = (int) ($lineItem['quantity'] ?? 1);
+                    $price = (float) ($lineItem['unit_price'] ?? 0);
+                    $lineTotal = round($qty * $price, 2);
+
                     // Regular product
                     $orderItem = OrderItem::create([
                         'order_id' => $order->id,
@@ -407,9 +417,9 @@ class EbayOrderService
                         'ebay_line_item_id' => $lineItem['line_item_id'],
                         'sku' => $lineItem['sku'] ?: $lineItem['item_id'],
                         'title' => $lineItem['title'],
-                        'quantity' => $lineItem['quantity'],
-                        'unit_price' => $lineItem['unit_price'],
-                        'total_price' => $lineItem['unit_price'] * $lineItem['quantity'],
+                        'quantity' => $qty,
+                        'unit_price' => $price,
+                        'total_price' => $lineTotal,
                         'currency' => $ebayOrder['currency'],
                         'variation_attributes' => $lineItem['variation_attributes'],
                     ]);
@@ -417,8 +427,27 @@ class EbayOrderService
                     if ($this->mapPaymentStatus($ebayOrder['payment_status'], $ebayOrder) === 'paid') {
                         $orderItem->updateInventory();
                     }
+
+                    $order->subtotal += ($lineItem['unit_price'] * $lineItem['quantity']);
+                    $order->save();
                 }
             }
+
+            // subtotal = only main lines (regular OR bundle summary), not components
+            $subtotal = (float) $order->items()
+                ->where(function ($q) {
+                    $q->whereNull('bundle_product_id')
+                        ->orWhere('is_bundle_summary', true);
+                })
+                ->sum('total_price');
+
+            $subtotal = round($subtotal, 2);
+            $total = round($subtotal + $shippingCost + $tax - $discount, 2);
+
+            $order->update([
+                'subtotal' => $subtotal, 
+                'total' => $total, 
+            ]);
 
             DB::commit();
 

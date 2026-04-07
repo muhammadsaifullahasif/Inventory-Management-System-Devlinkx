@@ -211,6 +211,7 @@ class OrderController extends Controller
                     'total_price' => $itemData['quantity'] * $itemData['unit_price'],
                     'currency' => $request->input('currency', 'USD'),
                 ]);
+
             }
 
             DB::commit();
