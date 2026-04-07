@@ -1149,8 +1149,455 @@ class ReportController extends Controller
             'dateFrom',
             'dateTo',
             'channelId',
-            'fulfillmentStatus', 
+            'fulfillmentStatus',
             'order_status'
         ));
+    }
+
+    /**
+     * Out of Stock Items Report
+     * Shows products with zero or low stock levels
+     */
+    public function outOfStock(Request $request)
+    {
+        $categoryId = $request->get('category_id');
+        $warehouseId = $request->get('warehouse_id');
+        $threshold = (int) $request->get('threshold', 0); // Show items at or below this quantity
+        $includeInactive = $request->get('include_inactive', false);
+
+        // Get filter options
+        $categories = Category::orderBy('name')->get();
+        $warehouses = Warehouse::where('delete_status', '0')->orderBy('name')->get();
+
+        // Build query for products
+        $query = Product::with(['category', 'product_stocks.warehouse', 'product_stocks.rack'])
+            ->where('delete_status', '0');
+
+        if (!$includeInactive) {
+            $query->where('active_status', '1');
+        }
+
+        if ($categoryId) {
+            $query->where('category_id', $categoryId);
+        }
+
+        $products = $query->get();
+
+        // Process products to find out of stock items
+        $outOfStockItems = [];
+
+        foreach ($products as $product) {
+            // Filter stocks by warehouse if specified
+            $stocks = $product->product_stocks;
+            if ($warehouseId) {
+                $stocks = $stocks->where('warehouse_id', $warehouseId);
+            }
+
+            $totalStock = $stocks->sum('quantity');
+
+            // Include if stock is at or below threshold
+            if ($totalStock <= $threshold) {
+                // Get stock breakdown by warehouse
+                $warehouseBreakdown = [];
+                foreach ($product->product_stocks as $stock) {
+                    if (!$warehouseId || $stock->warehouse_id == $warehouseId) {
+                        $warehouseBreakdown[] = [
+                            'warehouse_name' => $stock->warehouse->name ?? 'Unknown',
+                            'rack_name' => $stock->rack->name ?? 'N/A',
+                            'quantity' => (float) $stock->quantity,
+                        ];
+                    }
+                }
+
+                // Get last order date for this product
+                $lastOrderItem = OrderItem::where('product_id', $product->id)
+                    ->whereHas('order', function ($q) {
+                        $q->whereIn('payment_status', ['paid']);
+                    })
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+
+                // Get last purchase date for this product
+                $lastPurchaseItem = PurchaseItem::where('product_id', $product->id)
+                    ->whereHas('purchase', function ($q) {
+                        $q->where('delete_status', '0');
+                    })
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+
+                $outOfStockItems[] = [
+                    'product_id' => $product->id,
+                    'product_name' => $product->name,
+                    'product_sku' => $product->sku,
+                    'category_name' => $product->category->name ?? 'Uncategorized',
+                    'total_stock' => $totalStock,
+                    'warehouse_breakdown' => $warehouseBreakdown,
+                    'last_order_date' => $lastOrderItem?->created_at,
+                    'last_purchase_date' => $lastPurchaseItem?->created_at,
+                    'price' => $product->price,
+                    'is_active' => $product->active_status == '1',
+                ];
+            }
+        }
+
+        // Sort by stock level (lowest first), then by name
+        $outOfStockItems = collect($outOfStockItems)
+            ->sortBy([['total_stock', 'asc'], ['product_name', 'asc']])
+            ->values();
+
+        // Summary statistics
+        $summary = [
+            'total_out_of_stock' => $outOfStockItems->where('total_stock', 0)->count(),
+            'total_low_stock' => $outOfStockItems->where('total_stock', '>', 0)->count(),
+            'total_items' => $outOfStockItems->count(),
+            'categories_affected' => $outOfStockItems->pluck('category_name')->unique()->count(),
+        ];
+
+        return view('reports.out-of-stock', compact(
+            'outOfStockItems',
+            'summary',
+            'categories',
+            'warehouses',
+            'categoryId',
+            'warehouseId',
+            'threshold',
+            'includeInactive'
+        ));
+    }
+
+    /**
+     * Slow Moving Items Report
+     * Shows products with low sales velocity relative to stock
+     */
+    public function slowMovingItems(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-d', strtotime(now()->startOfMonth())));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $categoryId = $request->get('category_id');
+        $warehouseId = $request->get('warehouse_id');
+        $minStock = (int) $request->get('min_stock', 1); // Minimum stock to be considered
+        $maxSales = (int) $request->get('max_sales', 5); // Maximum sales to be considered slow
+
+        // Get filter options
+        $categories = Category::orderBy('name')->get();
+        $warehouses = Warehouse::where('delete_status', '0')->orderBy('name')->get();
+
+        // Get products with their stock
+        $query = Product::with(['category', 'product_stocks.warehouse'])
+            ->where('delete_status', '0')
+            ->where('active_status', '1');
+
+        if ($categoryId) {
+            $query->where('category_id', $categoryId);
+        }
+
+        $products = $query->get();
+
+        // Get sales data for the period
+        $salesData = OrderItem::select(
+                'order_items.product_id',
+                DB::raw('SUM(order_items.quantity) as total_sold'),
+                DB::raw('COUNT(DISTINCT order_items.order_id) as order_count'),
+                DB::raw('MAX(orders.order_date) as last_sale_date')
+            )
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->where('orders.payment_status', 'paid')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->groupBy('order_items.product_id')
+            ->get()
+            ->keyBy('product_id');
+
+        // Process products to find slow moving items
+        $slowMovingItems = [];
+        $daysDiff = max(1, (strtotime($dateTo) - strtotime($dateFrom)) / 86400);
+
+        foreach ($products as $product) {
+            // Calculate total stock
+            $stocks = $product->product_stocks;
+            if ($warehouseId) {
+                $stocks = $stocks->where('warehouse_id', $warehouseId);
+            }
+            $totalStock = $stocks->sum('quantity');
+
+            // Skip if below minimum stock threshold
+            if ($totalStock < $minStock) {
+                continue;
+            }
+
+            // Get sales data for this product
+            $sales = $salesData->get($product->id);
+            $totalSold = $sales?->total_sold ?? 0;
+            $orderCount = $sales?->order_count ?? 0;
+            $lastSaleDate = $sales?->last_sale_date;
+
+            // Skip if sales exceed maximum threshold
+            if ($totalSold > $maxSales) {
+                continue;
+            }
+
+            // Calculate metrics
+            $dailySalesRate = $totalSold / $daysDiff;
+            $daysOfStock = $dailySalesRate > 0 ? $totalStock / $dailySalesRate : null;
+            $turnoverRate = $totalStock > 0 ? $totalSold / $totalStock : 0;
+
+            // Calculate inventory value
+            $avgCost = $stocks->avg('avg_cost') ?? 0;
+            $inventoryValue = $totalStock * $avgCost;
+
+            $slowMovingItems[] = [
+                'product_id' => $product->id,
+                'product_name' => $product->name,
+                'product_sku' => $product->sku,
+                'category_name' => $product->category->name ?? 'Uncategorized',
+                'total_stock' => $totalStock,
+                'total_sold' => $totalSold,
+                'order_count' => $orderCount,
+                'last_sale_date' => $lastSaleDate,
+                'daily_sales_rate' => round($dailySalesRate, 4),
+                'days_of_stock' => $daysOfStock ? round($daysOfStock, 0) : null,
+                'turnover_rate' => round($turnoverRate, 4),
+                'avg_cost' => $avgCost,
+                'inventory_value' => round($inventoryValue, 2),
+                'price' => $product->price,
+            ];
+        }
+
+        // Sort by turnover rate (lowest first - most slow moving)
+        $slowMovingItems = collect($slowMovingItems)
+            ->sortBy([['turnover_rate', 'asc'], ['inventory_value', 'desc']])
+            ->values();
+
+        // Summary statistics
+        $summary = [
+            'total_items' => $slowMovingItems->count(),
+            'total_stock_value' => $slowMovingItems->sum('inventory_value'),
+            'zero_sales_items' => $slowMovingItems->where('total_sold', 0)->count(),
+            'avg_turnover_rate' => $slowMovingItems->avg('turnover_rate'),
+            'period_days' => (int) $daysDiff,
+        ];
+
+        return view('reports.slow-moving-items', compact(
+            'slowMovingItems',
+            'summary',
+            'categories',
+            'warehouses',
+            'dateFrom',
+            'dateTo',
+            'categoryId',
+            'warehouseId',
+            'minStock',
+            'maxSales'
+        ));
+    }
+
+    /**
+     * Frequently Ordered Items Report
+     * Shows products with highest order frequency
+     */
+    public function frequentlyOrderedItems(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $categoryId = $request->get('category_id');
+        $channelId = $request->get('channel_id');
+        $limit = (int) $request->get('limit', 50);
+        $groupBy = $request->get('group_by', 'product'); // product, category, channel
+
+        // Get filter options
+        $categories = Category::orderBy('name')->get();
+        $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
+
+        // Build base query for order items
+        $query = OrderItem::select(
+                'order_items.product_id',
+                'order_items.sku',
+                'order_items.title',
+                DB::raw('SUM(order_items.quantity) as total_quantity'),
+                DB::raw('COUNT(DISTINCT order_items.order_id) as order_count'),
+                DB::raw('SUM(order_items.total_price) as total_revenue'),
+                DB::raw('AVG(order_items.unit_price) as avg_unit_price'),
+                DB::raw('MIN(orders.order_date) as first_order_date'),
+                DB::raw('MAX(orders.order_date) as last_order_date')
+            )
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->where('orders.payment_status', 'paid')
+            ->whereNotIn('orders.order_status', ['cancelled', 'refunded'])
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->whereNull('order_items.bundle_product_id') // Exclude bundle components
+            ->where('order_items.is_bundle_summary', false); // Exclude bundle summaries too if you want individual products only
+
+        if ($channelId) {
+            $query->where('orders.sales_channel_id', $channelId);
+        }
+
+        if ($categoryId) {
+            $query->whereHas('product', function ($q) use ($categoryId) {
+                $q->where('category_id', $categoryId);
+            });
+        }
+
+        $query->groupBy('order_items.product_id', 'order_items.sku', 'order_items.title');
+
+        $orderItemsData = $query->orderBy('total_quantity', 'desc')
+            ->limit($limit)
+            ->get();
+
+        // Get product details
+        $productIds = $orderItemsData->pluck('product_id')->filter()->unique();
+        $products = Product::with(['category', 'product_stocks'])
+            ->whereIn('id', $productIds)
+            ->get()
+            ->keyBy('id');
+
+        // Build report data
+        $frequentItems = [];
+        $daysDiff = max(1, (strtotime($dateTo) - strtotime($dateFrom)) / 86400);
+
+        foreach ($orderItemsData as $item) {
+            $product = $products->get($item->product_id);
+            $currentStock = $product ? $product->product_stocks->sum('quantity') : 0;
+
+            // Calculate metrics
+            $dailySalesRate = $item->total_quantity / $daysDiff;
+            $daysOfStock = $dailySalesRate > 0 ? $currentStock / $dailySalesRate : null;
+
+            $frequentItems[] = [
+                'product_id' => $item->product_id,
+                'product_name' => $product?->name ?? $item->title ?? 'Unknown Product',
+                'product_sku' => $product?->sku ?? $item->sku ?? '',
+                'category_name' => $product?->category?->name ?? 'Uncategorized',
+                'total_quantity' => (int) $item->total_quantity,
+                'order_count' => (int) $item->order_count,
+                'total_revenue' => round((float) $item->total_revenue, 2),
+                'avg_unit_price' => round((float) $item->avg_unit_price, 2),
+                'first_order_date' => $item->first_order_date,
+                'last_order_date' => $item->last_order_date,
+                'current_stock' => $currentStock,
+                'daily_sales_rate' => round($dailySalesRate, 2),
+                'days_of_stock' => $daysOfStock ? round($daysOfStock, 0) : null,
+                'avg_per_order' => $item->order_count > 0 ? round($item->total_quantity / $item->order_count, 2) : 0,
+            ];
+        }
+
+        $frequentItems = collect($frequentItems);
+
+        // Group data if requested
+        $groupedData = collect();
+        if ($groupBy === 'category') {
+            $groupedData = $this->groupFrequentItemsByCategory($frequentItems);
+        } elseif ($groupBy === 'channel') {
+            // Re-query with channel grouping
+            $groupedData = $this->getFrequentItemsByChannel($dateFrom, $dateTo, $categoryId, $limit);
+        }
+
+        // Summary statistics
+        $summary = [
+            'total_items' => $frequentItems->count(),
+            'total_quantity_sold' => $frequentItems->sum('total_quantity'),
+            'total_revenue' => $frequentItems->sum('total_revenue'),
+            'total_orders' => Order::where('payment_status', 'paid')
+                ->whereNotIn('order_status', ['cancelled', 'refunded'])
+                ->whereDate('order_date', '>=', $dateFrom)
+                ->whereDate('order_date', '<=', $dateTo)
+                ->when($channelId, fn($q) => $q->where('sales_channel_id', $channelId))
+                ->count(),
+            'period_days' => (int) $daysDiff,
+            'avg_daily_items' => round($frequentItems->sum('total_quantity') / $daysDiff, 2),
+        ];
+
+        return view('reports.frequently-ordered-items', compact(
+            'frequentItems',
+            'groupedData',
+            'summary',
+            'categories',
+            'salesChannels',
+            'dateFrom',
+            'dateTo',
+            'categoryId',
+            'channelId',
+            'limit',
+            'groupBy'
+        ));
+    }
+
+    /**
+     * Group frequent items by category
+     */
+    protected function groupFrequentItemsByCategory($items)
+    {
+        $grouped = [];
+
+        foreach ($items as $item) {
+            $categoryName = $item['category_name'];
+
+            if (!isset($grouped[$categoryName])) {
+                $grouped[$categoryName] = [
+                    'name' => $categoryName,
+                    'total_quantity' => 0,
+                    'total_revenue' => 0,
+                    'order_count' => 0,
+                    'item_count' => 0,
+                    'items' => [],
+                ];
+            }
+
+            $grouped[$categoryName]['total_quantity'] += $item['total_quantity'];
+            $grouped[$categoryName]['total_revenue'] += $item['total_revenue'];
+            $grouped[$categoryName]['order_count'] += $item['order_count'];
+            $grouped[$categoryName]['item_count']++;
+            $grouped[$categoryName]['items'][] = $item;
+        }
+
+        return collect($grouped)->sortByDesc('total_quantity')->values();
+    }
+
+    /**
+     * Get frequent items grouped by sales channel
+     */
+    protected function getFrequentItemsByChannel($dateFrom, $dateTo, $categoryId, $limit)
+    {
+        $query = OrderItem::select(
+                'orders.sales_channel_id',
+                DB::raw('SUM(order_items.quantity) as total_quantity'),
+                DB::raw('COUNT(DISTINCT order_items.order_id) as order_count'),
+                DB::raw('SUM(order_items.total_price) as total_revenue'),
+                DB::raw('COUNT(DISTINCT order_items.product_id) as unique_products')
+            )
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->where('orders.payment_status', 'paid')
+            ->whereNotIn('orders.order_status', ['cancelled', 'refunded'])
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->whereNull('order_items.bundle_product_id');
+
+        if ($categoryId) {
+            $query->whereHas('product', function ($q) use ($categoryId) {
+                $q->where('category_id', $categoryId);
+            });
+        }
+
+        $channelData = $query->groupBy('orders.sales_channel_id')
+            ->orderBy('total_quantity', 'desc')
+            ->get();
+
+        // Get channel names
+        $channelIds = $channelData->pluck('sales_channel_id')->filter();
+        $channels = SalesChannel::whereIn('id', $channelIds)->get()->keyBy('id');
+
+        $result = [];
+        foreach ($channelData as $data) {
+            $channel = $channels->get($data->sales_channel_id);
+            $result[] = [
+                'name' => $channel?->name ?? 'Direct Sales',
+                'total_quantity' => (int) $data->total_quantity,
+                'order_count' => (int) $data->order_count,
+                'total_revenue' => round((float) $data->total_revenue, 2),
+                'unique_products' => (int) $data->unique_products,
+            ];
+        }
+
+        return collect($result);
     }
 }

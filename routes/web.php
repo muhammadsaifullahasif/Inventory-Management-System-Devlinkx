@@ -300,6 +300,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports/sales', [ReportController::class, 'salesReport'])->name('reports.sales');
     Route::get('reports/inventory-valuation', [ReportController::class, 'inventoryValuation'])->name('reports.inventory-valuation');
     Route::get('reports/shipping-checklist', [ReportController::class, 'shippingChecklist'])->name('reports.shipping-checklist');
+    Route::get('reports/out-of-stock', [ReportController::class, 'outOfStock'])->name('reports.out-of-stock');
+    Route::get('reports/slow-moving-items', [ReportController::class, 'slowMovingItems'])->name('reports.slow-moving-items');
+    Route::get('reports/frequently-ordered-items', [ReportController::class, 'frequentlyOrderedItems'])->name('reports.frequently-ordered-items');
 });
 
 

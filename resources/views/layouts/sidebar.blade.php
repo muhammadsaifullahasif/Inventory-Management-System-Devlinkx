@@ -43,6 +43,15 @@
                             <li class="nxl-item {{ request()->routeIs('reports.shipping-checklist') ? 'active' : '' }}">
                                 <a class="nxl-link" href="{{ route('reports.shipping-checklist') }}">Shipping Checklist</a>
                             </li>
+                            <li class="nxl-item {{ request()->routeIs('reports.out-of-stock') ? 'active' : '' }}">
+                                <a class="nxl-link" href="{{ route('reports.out-of-stock') }}">Out of Stock</a>
+                            </li>
+                            <li class="nxl-item {{ request()->routeIs('reports.slow-moving-items') ? 'active' : '' }}">
+                                <a class="nxl-link" href="{{ route('reports.slow-moving-items') }}">Slow Moving Items</a>
+                            </li>
+                            <li class="nxl-item {{ request()->routeIs('reports.frequently-ordered-items') ? 'active' : '' }}">
+                                <a class="nxl-link" href="{{ route('reports.frequently-ordered-items') }}">Frequently Ordered Items</a>
+                            </li>
                         </ul>
                     </li>
                 @endcan
