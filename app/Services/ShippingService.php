@@ -155,7 +155,7 @@ class ShippingService
      *
      * @throws \RuntimeException if the carrier type is unsupported or token is unavailable
      */
-    public function getRatesForOrder(Order $order, Shipping $carrier, array $itemOverrides = [], array $unitOverrides = []): array
+    public function getRatesForOrder(Order $order, Shipping $carrier, array $packageOverrides = [], array $unitOverrides = []): array
     {
         $service = $this->resolveCarrierService($carrier);
 
@@ -163,36 +163,73 @@ class ShippingService
             throw new \RuntimeException("Carrier type '{$carrier->type}' is not supported for rate quotes.");
         }
 
-        // Check if package-level overrides are provided (for the entire package, not per-item)
-        $packageOverride = null;
-        if (!empty($itemOverrides) && isset($itemOverrides[0]) && !isset($itemOverrides[0]['order_item_id'])) {
-            // This is a package-level override (has weight/dimensions but no order_item_id)
-            $packageOverride = $itemOverrides[0];
+        // Use unit overrides if provided, otherwise fall back to carrier settings
+        $weightUnit    = $unitOverrides['weight_unit']    ?? $carrier->weight_unit    ?? 'lbs';
+        $dimensionUnit = $unitOverrides['dimension_unit'] ?? $carrier->dimension_unit ?? 'in';
+
+        // FedEx accepts only 'LB' or 'KG' — not 'LBS', 'KGS', etc.
+        $fedexWeightUnit = in_array(strtolower($weightUnit), ['kg', 'kgs', 'kilogram', 'kilograms']) ? 'KG' : 'LB';
+        $fedexDimUnit    = strtolower($dimensionUnit) === 'cm' ? 'CM' : 'IN';
+
+        // Build requestedPackageLineItems array
+        $requestedPackageLineItems = [];
+
+        // Check if package-level overrides are provided (each package has its own dimensions/weight)
+        if (!empty($packageOverrides) && isset($packageOverrides[0]) &&
+            (isset($packageOverrides[0]['weight']) || isset($packageOverrides[0]['length']))) {
+
+            // User provided package overrides - use them directly
+            foreach ($packageOverrides as $index => $pkg) {
+                $pkgWeight = (float) ($pkg['weight'] ?? 0);
+                $pkgLength = (float) ($pkg['length'] ?? 0);
+                $pkgWidth  = (float) ($pkg['width']  ?? 0);
+                $pkgHeight = (float) ($pkg['height'] ?? 0);
+                $pkgDeclaredValue = (float) ($pkg['declared_value'] ?? 0);
+
+                // Skip packages with no weight or dimensions
+                if ($pkgWeight <= 0 && $pkgLength <= 0) {
+                    continue;
+                }
+
+                // Apply defaults if any value is missing
+                if ($pkgWeight <= 0) { $pkgWeight = 1.0; }
+                if ($pkgLength <= 0) { $pkgLength = 12.0; }
+                if ($pkgWidth  <= 0) { $pkgWidth  = 12.0; }
+                if ($pkgHeight <= 0) { $pkgHeight = 12.0; }
+
+                // Convert to carrier units
+                $pkgWeight = $this->convertWeightToCarrierUnit($pkgWeight, $weightUnit, $carrier->weight_unit ?? 'lbs');
+                $pkgLength = $this->convertDimensionToCarrierUnit($pkgLength, $dimensionUnit, $carrier->dimension_unit ?? 'in');
+                $pkgWidth  = $this->convertDimensionToCarrierUnit($pkgWidth, $dimensionUnit, $carrier->dimension_unit ?? 'in');
+                $pkgHeight = $this->convertDimensionToCarrierUnit($pkgHeight, $dimensionUnit, $carrier->dimension_unit ?? 'in');
+
+                $packageItem = [
+                    'weight' => [
+                        'units' => $fedexWeightUnit,
+                        'value' => round($pkgWeight, 2),
+                    ],
+                    'dimensions' => [
+                        'length' => (int) ceil($pkgLength),
+                        'width'  => (int) ceil($pkgWidth),
+                        'height' => (int) ceil($pkgHeight),
+                        'units'  => $fedexDimUnit,
+                    ],
+                ];
+
+                // Add declared value if provided
+                if ($pkgDeclaredValue > 0) {
+                    $packageItem['declaredValue'] = [
+                        'amount' => round($pkgDeclaredValue, 2),
+                        'currency' => 'USD',
+                    ];
+                }
+
+                $requestedPackageLineItems[] = $packageItem;
+            }
         }
 
-        // If package-level override is provided, use it directly
-        if ($packageOverride &&
-            !empty($packageOverride['weight']) &&
-            !empty($packageOverride['length']) &&
-            !empty($packageOverride['width']) &&
-            !empty($packageOverride['height']) && 
-            !empty($packageOverride['declared_value'])) {
-
-            $totalWeight = (float) $packageOverride['weight'];
-            $maxLength   = (float) $packageOverride['length'];
-            $maxWidth    = (float) $packageOverride['width'];
-            $maxHeight   = (float) $packageOverride['height'];
-            $maxDeclaredValue = (float) $packageOverride['declared_value'];
-
-        } else {
-            // Build a lookup map from user-supplied overrides keyed by order_item_id
-            $overrideMap = [];
-            foreach ($itemOverrides as $override) {
-                if (!empty($override['order_item_id'])) {
-                    $overrideMap[(int) $override['order_item_id']] = $override;
-                }
-            }
-
+        // If no valid package overrides, fall back to product dimensions
+        if (empty($requestedPackageLineItems)) {
             // Build package weight/dimensions from order items
             // Filter to only include main items (bundles + regular products), exclude bundle components
             $mainItems = $order->items->filter(function ($item) {
@@ -203,70 +240,50 @@ class ShippingService
             $maxLength   = 0.0;
             $maxWidth    = 0.0;
             $maxHeight   = 0.0;
-            $maxDeclaredValue = 0.0;
 
             foreach ($mainItems as $item) {
-                $qty      = (int) ($item->quantity ?? 1);
-                $override = $overrideMap[$item->id] ?? null;
+                $qty = (int) ($item->quantity ?? 1);
+                $product = $item->product;
+                // Force fresh load of product meta to avoid stale cached data
+                $product?->refresh();
+                $meta = $product?->product_meta ?? [];
 
-                if ($override) {
-                    // Use user-supplied values (may be 0 if field was left blank — fall back below)
-                    $weight = (float) ($override['weight'] ?? 0);
-                    $length = (float) ($override['length'] ?? 0);
-                    $width  = (float) ($override['width']  ?? 0);
-                    $height = (float) ($override['height'] ?? 0);
-                    $declared_value = isset($override['declared_value']) && $override['declared_value'] !== ''
-                                        ? (float) $override['declared_value']
-                                        : 0.0; // default if empty
-                } else {
-                    $product = $item->product;
-                    // Force fresh load of product meta to avoid stale cached data
-                    $product?->refresh();
-                    $meta    = $product?->product_meta ?? [];
-                    $weight  = (float) ($meta['weight'] ?? $product?->weight ?? 0);
-                    $length  = (float) ($meta['length'] ?? $product?->length ?? 0);
-                    $width   = (float) ($meta['width']  ?? $product?->width  ?? 0);
-                    $height  = (float) ($meta['height'] ?? $product?->height ?? 0);
-                    $declared_value = (float) (0);
-                }
+                $weight = (float) ($meta['weight'] ?? $product?->weight ?? 0);
+                $length = (float) ($meta['length'] ?? $product?->length ?? 0);
+                $width  = (float) ($meta['width']  ?? $product?->width  ?? 0);
+                $height = (float) ($meta['height'] ?? $product?->height ?? 0);
 
                 $totalWeight += $weight * $qty;
                 $maxLength    = max($maxLength, $length);
                 $maxWidth     = max($maxWidth,  $width);
                 $maxHeight    = max($maxHeight, $height);
-                $maxDeclaredValue = max($maxDeclaredValue, $declared_value);
             }
 
             // Fallback to 1 lb / 12×12×12 if no product dimensions are set
-            if ($totalWeight <= 0) {
-                $totalWeight = 1.0;
-            }
+            if ($totalWeight <= 0) { $totalWeight = 1.0; }
             if ($maxLength <= 0) { $maxLength = 12.0; }
             if ($maxWidth  <= 0) { $maxWidth  = 12.0; }
             if ($maxHeight <= 0) { $maxHeight = 12.0; }
 
-            if ($maxDeclaredValue <= 0) { $maxDeclaredValue = 0.0; }
+            // Convert to carrier units
+            $totalWeight = $this->convertWeightToCarrierUnit($totalWeight, $weightUnit, $carrier->weight_unit ?? 'lbs');
+            $maxLength = $this->convertDimensionToCarrierUnit($maxLength, $dimensionUnit, $carrier->dimension_unit ?? 'in');
+            $maxWidth  = $this->convertDimensionToCarrierUnit($maxWidth, $dimensionUnit, $carrier->dimension_unit ?? 'in');
+            $maxHeight = $this->convertDimensionToCarrierUnit($maxHeight, $dimensionUnit, $carrier->dimension_unit ?? 'in');
+
+            $requestedPackageLineItems[] = [
+                'weight' => [
+                    'units' => $fedexWeightUnit,
+                    'value' => round($totalWeight, 2),
+                ],
+                'dimensions' => [
+                    'length' => (int) ceil($maxLength),
+                    'width'  => (int) ceil($maxWidth),
+                    'height' => (int) ceil($maxHeight),
+                    'units'  => $fedexDimUnit,
+                ],
+            ];
         }
-
-        // Use unit overrides if provided, otherwise fall back to carrier settings
-        $weightUnit    = $unitOverrides['weight_unit']    ?? $carrier->weight_unit    ?? 'lbs';
-        $dimensionUnit = $unitOverrides['dimension_unit'] ?? $carrier->dimension_unit ?? 'in';
-
-        // Convert weight if user selected a different unit than carrier default
-        $totalWeight = $this->convertWeightToCarrierUnit($totalWeight, $weightUnit, $carrier->weight_unit ?? 'lbs');
-
-        // Convert dimensions if user selected a different unit than carrier default
-        $maxLength = $this->convertDimensionToCarrierUnit($maxLength, $dimensionUnit, $carrier->dimension_unit ?? 'in');
-        $maxWidth  = $this->convertDimensionToCarrierUnit($maxWidth,  $dimensionUnit, $carrier->dimension_unit ?? 'in');
-        $maxHeight = $this->convertDimensionToCarrierUnit($maxHeight, $dimensionUnit, $carrier->dimension_unit ?? 'in');
-
-        // Use carrier's configured unit for the API call
-        $weightUnit    = $carrier->weight_unit    ?? 'lbs';
-        $dimensionUnit = $carrier->dimension_unit ?? 'in';
-
-        // FedEx accepts only 'LB' or 'KG' — not 'LBS', 'KGS', etc.
-        $fedexWeightUnit = in_array(strtolower($weightUnit), ['kg', 'kgs', 'kilogram', 'kilograms']) ? 'KG' : 'LB';
-        $fedexDimUnit    = strtolower($dimensionUnit) === 'cm' ? 'CM' : 'IN';
 
         // Build shipper address from carrier (match label generation)
         $shipperStreetLines = array_values(array_filter([
@@ -333,32 +350,22 @@ class ShippingService
                 'packagingType'            => 'YOUR_PACKAGING', // Important for rate calculation
                 'pickupType'               => 'USE_SCHEDULED_PICKUP',
                 'rateRequestType'          => ['ACCOUNT', 'LIST'], // Request both ACCOUNT (contracted) and LIST (published) rates
-                'requestedPackageLineItems' => [[
-                    'weight' => [
-                        'units' => $fedexWeightUnit,
-                        'value' => round($totalWeight, 2),
-                    ],
-                    'dimensions' => [
-                        'length' => (int) ceil($maxLength),
-                        'width'  => (int) ceil($maxWidth),
-                        'height' => (int) ceil($maxHeight),
-                        'units'  => $fedexDimUnit,
-                    ],
-                    'declaredValue' => [
-                        'amount' => (int) ceil($maxDeclaredValue), 
-                        'currency' => 'USD', 
-                    ]
-                ]],
+                'requestedPackageLineItems' => $requestedPackageLineItems,
             ],
         ];
 
         // Log the rate request payload for debugging
+        $packageSummary = array_map(function ($pkg) use ($fedexWeightUnit, $fedexDimUnit) {
+            return $pkg['weight']['value'] . $fedexWeightUnit . ' ' .
+                   $pkg['dimensions']['length'] . 'x' . $pkg['dimensions']['width'] . 'x' . $pkg['dimensions']['height'] . $fedexDimUnit;
+        }, $requestedPackageLineItems);
+
         Log::info('ShippingService: requesting rates from carrier', [
             'carrier_id' => $carrier->id,
             'carrier_type' => $carrier->type,
             'order_id' => $order->id,
-            'weight' => round($totalWeight, 2) . ' ' . $fedexWeightUnit,
-            'dimensions' => (int) ceil($maxLength) . 'x' . (int) ceil($maxWidth) . 'x' . (int) ceil($maxHeight) . ' ' . $fedexDimUnit,
+            'package_count' => count($requestedPackageLineItems),
+            'packages' => $packageSummary,
             'residential' => $isResidential,
             'ship_date' => date('Y-m-d'),
             'shipper_zip' => $carrier->shipper_postal_code,
