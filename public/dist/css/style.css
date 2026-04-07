@@ -208,3 +208,12 @@ body.modal-open .theme-customizer {
 [data-bs-toggle="dropdown"] {
     cursor: pointer;
 }
+
+html.app-skin-dark .pagination .page-item:not(.active, :hover) span.page-link, 
+html.app-skin-dark .pagination .page-item:not(.active, :hover) a.page-link {
+    background-color: #121a2d !important;
+}
+
+html.app-skin-dark .pagination .page-item a.page-link:hover {
+    color: #6c757d !important;
+}
