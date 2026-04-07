@@ -620,7 +620,7 @@
                                                     <span class="d-block text-muted fs-11">{{ $item->sku ?? 'N/A' }}</span>
                                                 </td>
                                                 <td class="text-center">{{ $item->quantity }}</td>
-                                                <td class="text-end">${{ number_format($item->price ?? 0, 2) }}</td>
+                                                <td class="text-end">${{ number_format($item->unit_price ?? 0, 2) }}</td>
                                             </tr>
                                         @endforeach
                                     </tbody>
@@ -726,39 +726,6 @@
                                         </table>
                                     </div>
                                     <small class="text-muted d-block mt-1"><i class="feather-info me-1"></i>Rates are estimates only. Actual cost may vary.</small>
-
-                                    <!-- Customer Reference -->
-                                    <div class="mt-3">
-                                        <label class="form-label small mb-1">Customer Reference <small class="text-muted">(max 30 chars, shown on label)</small></label>
-                                        <input type="text" id="showCustomerReference" class="form-control form-control-sm" maxlength="30" placeholder="Auto-generated from item names if empty">
-                                    </div>
-
-                                    <!-- Multi-Package Option -->
-                                    <div class="mt-3 p-3 border rounded bg-light">
-                                        <div class="form-check mb-2">
-                                            <input class="form-check-input" type="checkbox" id="showMultiPackageCheckbox">
-                                            <label class="form-check-label fw-bold" for="showMultiPackageCheckbox">
-                                                <i class="feather-package me-1"></i> Multi-Package Shipment
-                                            </label>
-                                            <small class="text-muted d-block">Create multiple labels for this order (e.g., 2 boxes)</small>
-                                        </div>
-                                        <div id="showMultiPackageOptions" style="display:none;">
-                                            <div class="row g-2 mb-2">
-                                                <div class="col-md-4">
-                                                    <label class="form-label small mb-1">Number of Packages</label>
-                                                    <select id="showPackageCount" class="form-select form-select-sm">
-                                                        <option value="2">2 Packages</option>
-                                                        <option value="3">3 Packages</option>
-                                                        <option value="4">4 Packages</option>
-                                                        <option value="5">5 Packages</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div id="showPackageDimensionsContainer">
-                                                <!-- Package dimension fields will be dynamically added here -->
-                                            </div>
-                                        </div>
-                                    </div>
 
                                     <!-- Generate Label Button -->
                                     <button type="button" id="showGenerateLabelBtn" class="btn btn-success w-100 mt-3" style="display:none;" disabled>
@@ -894,12 +861,17 @@
                 // Collect package dimensions
                 var packages = [];
                 $('.show-package-dim-row').each(function() {
+                    var declared_value = '';
+                    if ($(this).find('.liability-checkbox').is(':checked')) {
+                        declared_value = parseFloat($(this).find('.declared-value').val());
+                    }
                     packages.push({
                         weight: parseFloat($(this).find('.show-pkg-weight').val()) || 1,
                         length: parseFloat($(this).find('.show-pkg-length').val()) || 12,
                         width:  parseFloat($(this).find('.show-pkg-width').val()) || 12,
                         height: parseFloat($(this).find('.show-pkg-height').val()) || 12,
-                        customer_reference: $(this).find('.show-pkg-reference').val() || ''
+                        customer_reference: $(this).find('.show-pkg-reference').val() || '', 
+                        declared_value: declared_value, 
                     });
                 });
 
@@ -1047,10 +1019,24 @@
                                     <input type="number" step="0.1" min="1" class="form-control form-control-sm show-pkg-height" data-pkg="${i}" value="12">
                                 </div>
                             </div>
-                            <div class="row g-2">
+                            <div class="row g-2 mb-2">
                                 <div class="col-12">
                                     <label class="form-label small mb-1">Customer Reference <small class="text-muted">(max 30 chars, shown on label)</small></label>
                                     <input type="text" class="form-control form-control-sm show-pkg-reference" data-pkg="${i}" maxlength="30" placeholder="Auto-generated from item names if empty">
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-12">
+                                    <div class="form-check form-switch">
+                                        <input type="checkbox" class="form-check-input liability-checkbox" id="show-package-${i}" data-pkg="${i}">
+                                        <label class="form-check-label" for="show-package-${i}">Purchase a higher limit of liability from FedEx</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <label class="form-label small mb-1">Declared Value ($)</label>
+                                    <input type="number" id="show-package-${i}-input" class="form-control form-control-sm declared-value" data-pkg="${i}" step="0.01" min="0" placeholder="Enter declared value" disabled>
                                 </div>
                             </div>
                         </div>
@@ -1062,6 +1048,15 @@
             // Update package dimension labels when units change
             $('#showWeightUnit, #showDimensionUnit').on('change', function() {
                 updateShowPackageDimensionFields();
+            });
+
+            // Toggle declared value input when liability checkbox changes
+            $(document).on('change', '.liability-checkbox', function() {
+                if ($(this).is(':checked')) {
+                    $('#' + $(this).attr('id') + '-input').removeAttr('disabled');
+                } else {
+                    $('#' + $(this).attr('id') + '-input').attr('disabled', 'disabled').val('');
+                }
             });
 
             // Initialize package dimension fields when modal opens
@@ -1090,12 +1085,17 @@
                 // Collect package data
                 var packages = [];
                 $('.show-package-dim-row').each(function() {
+                    var declared_value = '';
+                    if ($(this).find('.liability-checkbox').is(':checked')) {
+                        declared_value = $(this).find('.declared-value');
+                    }
                     packages.push({
                         weight: parseFloat($(this).find('.show-pkg-weight').val()) || 1,
                         length: parseFloat($(this).find('.show-pkg-length').val()) || 12,
                         width:  parseFloat($(this).find('.show-pkg-width').val()) || 12,
                         height: parseFloat($(this).find('.show-pkg-height').val()) || 12,
-                        customer_reference: $(this).find('.show-pkg-reference').val() || ''
+                        customer_reference: $(this).find('.show-pkg-reference').val() || '', 
+                        declared_value: declared_value
                     });
                 });
 

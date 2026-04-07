@@ -1311,7 +1311,8 @@
                             </div>
                             <div class="row g-2">
                                 <div class="col-12">
-                                    <input type="number" id="package-${i}-input" class="form-control declared-value form-control-sm" data-pkg="${i}" disabled>
+                                    <label class="form-label small mb-1">Declared Value ($)</label>
+                                    <input type="number" id="package-${i}-input" class="form-control declared-value form-control-sm" data-pkg="${i}" step="0.01" min="0" placeholder="Enter declared value" disabled>
                                 </div>
                             </div>
                         </div>

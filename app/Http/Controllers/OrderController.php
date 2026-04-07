@@ -421,7 +421,7 @@ class OrderController extends Controller
                 'order_item_id' => $item->id,
                 'title'         => $item->title,
                 'sku'           => $item->sku ?? 'N/A',
-                'price'         => (float) ($item->total_price ?? 0), 
+                'price'         => (float) ($item->unit_price ?? 0), 
                 'quantity'      => (int) $item->quantity,
                 'weight'        => (float) ($meta['weight'] ?? 0),
                 'length'        => (float) ($meta['length'] ?? 0),
