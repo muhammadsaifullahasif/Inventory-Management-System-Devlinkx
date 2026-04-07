@@ -1155,6 +1155,14 @@ class ReportController extends Controller
     }
 
     /**
+     * Stock Movement
+     */
+    public function stockMovement()
+    {
+        return view('reports.stock-movement');
+    }
+
+    /**
      * Out of Stock Items Report
      * Shows products with zero or low stock levels
      */

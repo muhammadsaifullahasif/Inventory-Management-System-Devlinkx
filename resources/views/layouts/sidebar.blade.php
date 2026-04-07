@@ -28,7 +28,7 @@
 
                 <!-- Orders -->
                 @canany(['view orders', 'add orders', 'edit orders', 'delete orders'])
-                    <li class="nxl-item nxl-hasmenu {{ request()->routeIs(['orders.*', 'reports.shipping-checklist']) ? 'active nxl-trigger' : '' }}">
+                    <li class="nxl-item nxl-hasmenu {{ request()->routeIs(['orders.*']) ? 'active nxl-trigger' : '' }}">
                         <a href="javascript:void(0);" class="nxl-link">
                             <span class="nxl-micon"><i class="feather-shopping-cart"></i></span>
                             <span class="nxl-mtext">Orders</span>
@@ -40,7 +40,7 @@
                                 <a class="nxl-link" href="{{ route('orders.index') }}">All Orders</a>
                             </li>
                             @endcan
-                            <li class="nxl-item {{ request()->routeIs('reports.shipping-checklist') ? 'active' : '' }}">
+                            {{-- <li class="nxl-item {{ request()->routeIs('reports.shipping-checklist') ? 'active' : '' }}">
                                 <a class="nxl-link" href="{{ route('reports.shipping-checklist') }}">Shipping Checklist</a>
                             </li>
                             <li class="nxl-item {{ request()->routeIs('reports.out-of-stock') ? 'active' : '' }}">
@@ -51,7 +51,7 @@
                             </li>
                             <li class="nxl-item {{ request()->routeIs('reports.frequently-ordered-items') ? 'active' : '' }}">
                                 <a class="nxl-link" href="{{ route('reports.frequently-ordered-items') }}">Frequently Ordered Items</a>
-                            </li>
+                            </li> --}}
                         </ul>
                     </li>
                 @endcan
