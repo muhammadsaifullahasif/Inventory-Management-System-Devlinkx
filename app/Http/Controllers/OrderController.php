@@ -1188,7 +1188,7 @@ class OrderController extends Controller
             'dimension_unit' => $request->input('dimension_unit'),
         ];
 
-        dd($request-all());
+        // dd($request->all());
 
         try {
             DB::beginTransaction();
