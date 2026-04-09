@@ -426,9 +426,18 @@ class ProductController extends Controller
     {
         try {
             $product = Product::findOrFail($id);
-            $product->delete();
+            if ($product->is_bundle) {
+                $product->delete();
+            } else {
+                if ($product->product_stocks->sum('quantity') > 0) {
+                    return redirect()->back()->with('error', 'You can\'t delete the product which has stock.');
+                } else {
+                    $product->delete();
+                    return redirect()->route('products.index')->with('success', 'Product deleted successfully.');
+                }
+            }
+            // $product->delete();
 
-            return redirect()->route('products.index')->with('success', 'Product deleted successfully.');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'An error occurred while deleting the product: ' . $e->getMessage());
         }
