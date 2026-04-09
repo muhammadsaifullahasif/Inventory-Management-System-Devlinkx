@@ -374,11 +374,11 @@
                                                     <i class="feather-dollar-sign"></i>
                                                 </a>
                                             @endif
-                                            @if($order->order_status !== 'cancelled' && $order->order_status !== 'refunded')
+                                            {{-- @if($order->order_status !== 'cancelled' && $order->order_status !== 'refunded')
                                                 <a href="javascript:void(0);" class="avatar-text avatar-md text-danger cancel-btn" data-id="{{ $order->id }}" data-bs-toggle="tooltip" title="Cancel Order">
                                                     <i class="feather-x"></i>
                                                 </a>
-                                            @endif
+                                            @endif --}}
                                         </div>
                                     </td>
                                 </tr>
@@ -1437,78 +1437,78 @@
             // ----------------------------------------------------------------
             // Cancel order
             // ----------------------------------------------------------------
-            $(document).on('click', '.cancel-btn', function() {
-                var orderId = $(this).data('id');
-                if (confirm('Are you sure you want to cancel this order?')) {
-                    $.ajax({
-                        url: '/orders/' + orderId + '/cancel',
-                        type: 'POST',
-                        data: {
-                            _token: '{{ csrf_token() }}',
-                            reason: 'Cancelled by admin'
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                location.reload();
-                            } else {
-                                alert(response.message || 'Failed to cancel order');
-                            }
-                        },
-                        error: function(xhr) {
-                            alert('Failed to cancel order: ' + (xhr.responseJSON?.message || 'Unknown error'));
-                        }
-                    });
-                }
-            });
+            // $(document).on('click', '.cancel-btn', function() {
+            //     var orderId = $(this).data('id');
+            //     if (confirm('Are you sure you want to cancel this order?')) {
+            //         $.ajax({
+            //             url: '/orders/' + orderId + '/cancel',
+            //             type: 'POST',
+            //             data: {
+            //                 _token: '{{ csrf_token() }}',
+            //                 reason: 'Cancelled by admin'
+            //             },
+            //             success: function(response) {
+            //                 if (response.success) {
+            //                     location.reload();
+            //                 } else {
+            //                     alert(response.message || 'Failed to cancel order');
+            //                 }
+            //             },
+            //             error: function(xhr) {
+            //                 alert('Failed to cancel order: ' + (xhr.responseJSON?.message || 'Unknown error'));
+            //             }
+            //         });
+            //     }
+            // });
 
             // ----------------------------------------------------------------
             // Cancel shipping label
             // ----------------------------------------------------------------
-            $(document).on('click', '.cancel-label-btn', function() {
-                var $btn = $(this);
-                var orderId = $btn.data('id');
-                var orderNumber = $btn.data('order-number');
-                var trackingNumber = $btn.data('tracking');
-                var isEbay = $btn.data('is-ebay') === '1';
+            // $(document).on('click', '.cancel-label-btn', function() {
+            //     var $btn = $(this);
+            //     var orderId = $btn.data('id');
+            //     var orderNumber = $btn.data('order-number');
+            //     var trackingNumber = $btn.data('tracking');
+            //     var isEbay = $btn.data('is-ebay') === '1';
 
-                var confirmMsg = 'Are you sure you want to cancel the shipping label for order ' + orderNumber + '?\n\n';
-                confirmMsg += 'Tracking #: ' + trackingNumber + '\n\n';
-                confirmMsg += 'This will:\n';
-                confirmMsg += '- Void the label with FedEx\n';
-                confirmMsg += '- Remove tracking information from the order\n';
-                confirmMsg += '- Restore inventory\n';
-                confirmMsg += '- Revert order status to Processing\n';
-                if (isEbay) {
-                    confirmMsg += '- Remove tracking from eBay\n';
-                }
+            //     var confirmMsg = 'Are you sure you want to cancel the shipping label for order ' + orderNumber + '?\n\n';
+            //     confirmMsg += 'Tracking #: ' + trackingNumber + '\n\n';
+            //     confirmMsg += 'This will:\n';
+            //     confirmMsg += '- Void the label with FedEx\n';
+            //     confirmMsg += '- Remove tracking information from the order\n';
+            //     confirmMsg += '- Restore inventory\n';
+            //     confirmMsg += '- Revert order status to Processing\n';
+            //     if (isEbay) {
+            //         confirmMsg += '- Remove tracking from eBay\n';
+            //     }
 
-                if (!confirm(confirmMsg)) {
-                    return;
-                }
+            //     if (!confirm(confirmMsg)) {
+            //         return;
+            //     }
 
-                $btn.addClass('disabled').find('i').removeClass('feather-x-circle').addClass('spinner-border spinner-border-sm');
+            //     $btn.addClass('disabled').find('i').removeClass('feather-x-circle').addClass('spinner-border spinner-border-sm');
 
-                $.ajax({
-                    url: '/orders/' + orderId + '/cancel-label',
-                    type: 'POST',
-                    data: {
-                        _token: '{{ csrf_token() }}'
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            alert(response.message);
-                            location.reload();
-                        } else {
-                            alert(response.message || 'Failed to cancel label');
-                            $btn.removeClass('disabled').find('i').removeClass('spinner-border spinner-border-sm').addClass('feather-x-circle');
-                        }
-                    },
-                    error: function(xhr) {
-                        alert('Failed to cancel label: ' + (xhr.responseJSON?.message || 'Unknown error'));
-                        $btn.removeClass('disabled').find('i').removeClass('spinner-border spinner-border-sm').addClass('feather-x-circle');
-                    }
-                });
-            });
+            //     $.ajax({
+            //         url: '/orders/' + orderId + '/cancel-label',
+            //         type: 'POST',
+            //         data: {
+            //             _token: '{{ csrf_token() }}'
+            //         },
+            //         success: function(response) {
+            //             if (response.success) {
+            //                 alert(response.message);
+            //                 location.reload();
+            //             } else {
+            //                 alert(response.message || 'Failed to cancel label');
+            //                 $btn.removeClass('disabled').find('i').removeClass('spinner-border spinner-border-sm').addClass('feather-x-circle');
+            //             }
+            //         },
+            //         error: function(xhr) {
+            //             alert('Failed to cancel label: ' + (xhr.responseJSON?.message || 'Unknown error'));
+            //             $btn.removeClass('disabled').find('i').removeClass('spinner-border spinner-border-sm').addClass('feather-x-circle');
+            //         }
+            //     });
+            // });
 
             // ----------------------------------------------------------------
             // Submit ship form (mark as shipped)
