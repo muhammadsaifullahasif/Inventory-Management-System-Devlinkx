@@ -806,9 +806,29 @@ class EbayService
         }
 
         // Handle single or multiple tracking entries
+        // First check at order level
         $trackingDetails = $order['ShippingDetails']['ShipmentTrackingDetails'] ?? [];
         if (isset($trackingDetails[0])) {
             $trackingDetails = $trackingDetails[0]; // Use first tracking entry
+        }
+
+        // If no tracking at order level, check transaction level
+        if (empty($trackingDetails) || (empty($trackingDetails['ShipmentTrackingNumber']) && empty($trackingDetails['ShippingCarrierUsed']))) {
+            foreach ($transactions as $tx) {
+                $txTracking = $tx['ShippingDetails']['ShipmentTrackingDetails'] ?? [];
+                if (!empty($txTracking)) {
+                    // Handle array of tracking details
+                    if (isset($txTracking[0])) {
+                        $trackingDetails = $txTracking[0];
+                    } else {
+                        $trackingDetails = $txTracking;
+                    }
+                    // If we found tracking details, use them
+                    if (!empty($trackingDetails['ShipmentTrackingNumber']) || !empty($trackingDetails['ShippingCarrierUsed'])) {
+                        break;
+                    }
+                }
+            }
         }
 
         // Calculate shipment deadline from handling time (DispatchTimeMax)

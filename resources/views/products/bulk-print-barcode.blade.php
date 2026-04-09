@@ -121,10 +121,10 @@
                                     </div>
                                     {{-- <input type="checkbox" id="selectPageCheckbox" title="Select all on this page"> --}}
                                 </th>
-                                <th>Product Name</th>
+                                <th style="min-width: 200px; max-width: 500px; width: 500px;">Product Name</th>
                                 <th>SKU</th>
                                 <th>Barcode</th>
-                                <th style="width: 120px;">Quantity</th>
+                                <th style="width: 200px;">Quantity</th>
                             </tr>
                         </thead>
                         <tbody id="productsTableBody">
@@ -148,7 +148,7 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td>{{ $product->name }}</td>
+                                    <td><span style="white-space: normal; width: 500px; display: block;">{{ $product->name }}</span></td>
                                     <td>{{ $product->sku }}</td>
                                     <td>{{ $product->barcode }}</td>
                                     <td>

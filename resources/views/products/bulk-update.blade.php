@@ -168,7 +168,7 @@
                                             </div>
                                         </div>
                                     </th>
-                                    <th style="min-width: 200px;">Product</th>
+                                    <th style="min-width: 200px; max-width: 300px;">Product</th>
                                     <th style="min-width: 130px;">SKU</th>
                                     <th style="min-width: 130px;">Barcode</th>
                                     <th style="min-width: 110px;">Weight (lbs)</th>
@@ -200,7 +200,7 @@
                                         </td>
 
                                         <td class="align-middle">
-                                            <span class="font-weight-bold">{{ $product->name }}</span>
+                                            <span style="white-space: normal; width: 300px; display: block;" class="font-weight-bold">{{ $product->name }}</span>
                                             <br>
                                             <small class="text-muted">{{ $product->category->name ?? '—' }}</small>
                                         </td>
