@@ -341,6 +341,7 @@
                                 <th style="width: 100px;">Sales Channel</th>
                                 <th style="width: 60px; text-align: center;">Qty</th>
                                 <th style="width: 180px;">Qty in Warehouse</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -456,6 +457,41 @@
                                             </div>
                                         @else
                                             <span class="stock-warning">No stock</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @php
+                                            $allTrackingNumbers = $item['order']->getAllTrackingNumbers();
+                                        @endphp
+                                        @if (count($allTrackingNumbers) > 0 || $item['order']->tracking_number)
+                                            @if(count($allTrackingNumbers) > 1)
+                                                {{-- Multi-package tracking --}}
+                                                @foreach($allTrackingNumbers as $index => $pkg)
+                                                    <div class="mb-1">
+                                                        <span class="badge bg-soft-info text-info">Package {{ $index + 1 }}</span>
+                                                        <strong>{{ $pkg['carrier'] ?? $item['order']->shipping_carrier }}</strong>:
+                                                        @if($item['order']->tracking_url)
+                                                            <a href="{{ $item['order']->tracking_url }}{{ $pkg['tracking_number'] }}" target="_blank" class="text-primary">
+                                                                {{ $pkg['tracking_number'] }} <i class="feather-external-link fs-10"></i>
+                                                            </a>
+                                                        @else
+                                                            {{ $pkg['tracking_number'] }}
+                                                        @endif
+                                                    </div>
+                                                @endforeach
+                                            @elseif($item['order']->tracking_number)
+                                                {{-- Single tracking --}}
+                                                <strong>{{ $item['order']->shipping_carrier }}</strong>:
+                                                @if($item['order']->tracking_url)
+                                                    <a href="{{ $item['order']->tracking_url }}" target="_blank" class="text-primary">
+                                                        {{ $item['order']->tracking_number }} <i class="feather-external-link fs-10"></i>
+                                                    </a>
+                                                @else
+                                                    {{ $item['order']->tracking_number }}
+                                                @endif
+                                            @endif
+                                        @else
+                                            Processing
                                         @endif
                                     </td>
                                 </tr>
