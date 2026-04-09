@@ -246,15 +246,22 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-2 d-flex justify-content-end flex-column">
+                    <label for="fulfilled" class="form-label">Order Status</label>
+                    <div class="form-check form-switch">
+                        <input type="checkbox" class="form-check-input" id="fulfilled" name="order_status" value="fulfilled" role="switch" {{ $order_status == 'fulfilled' ? 'checked' : '' }}>
+                        <label for="fulfilled" class="form-check-label">Fulfilled</label>
+                    </div>
+                </div>
+                {{-- <div class="col-md-2">
                     <label class="form-label">Fulfillment Status</label>
                     <select name="fulfillment_status" class="form-select">
                         <option value="unfulfilled" {{ $fulfillmentStatus == 'unfulfilled' ? 'selected' : '' }}>Unfulfilled</option>
                         <option value="fulfilled" {{ $fulfillmentStatus == 'fulfilled' ? 'selected' : '' }}>Fulfilled</option>
                         <option value="all" {{ $fulfillmentStatus == 'all' ? 'selected' : '' }}>All</option>
                     </select>
-                </div>
-                <div class="col-md-2">
+                </div> --}}
+                {{-- <div class="col-md-2">
                     <label class="form-label">Order Status</label>
                     <select name="order_status" class="form-select">
                         <option value="all" {{ $order_status == 'all' ? 'selected' : '' }}>All</option>
@@ -265,7 +272,7 @@
                         <option value="awaiting_payment" {{ $order_status == 'awaiting_payment' ? 'selected' : '' }}>Awaiting Payment</option>
                         <option value="ready_for_pickup" {{ $order_status == 'ready_for_pickup' ? 'selected' : '' }}>Ready for Pickup</option>
                     </select>
-                </div>
+                </div> --}}
                 <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary me-2">
                         <i class="feather-filter me-1"></i> Filter
@@ -489,7 +496,39 @@
                                                     @endif
                                                 @endif
                                             @else
-                                                Processing
+                                                @php
+                                                    $deadlineStatus = $item['order']->getShipmentDeadlineStatus();
+                                                    $deadlineColors = [
+                                                        'overdue' => 'danger',
+                                                        'urgent' => 'warning',
+                                                        'upcoming' => 'info',
+                                                        'ok' => 'success',
+                                                    ];
+                                                    $deadlineLabels = [
+                                                        'overdue' => 'OVERDUE',
+                                                        'urgent' => 'URGENT',
+                                                        'upcoming' => 'Soon',
+                                                        'ok' => '',
+                                                    ];
+                                                @endphp
+                                                @if($item['order']->shipment_deadline && $deadlineStatus)
+                                                    <span class="fs-12 {{ $deadlineStatus === 'overdue' ? 'text-danger fw-bold' : ($deadlineStatus === 'urgent' ? 'text-warning fw-semibold' : '') }}">
+                                                        {{ $item['order']->shipment_deadline->format('d M, Y') }}
+                                                    </span>
+                                                    @if($deadlineLabels[$deadlineStatus])
+                                                        <span class="d-block">
+                                                            <span class="badge bg-soft-{{ $deadlineColors[$deadlineStatus] }} text-{{ $deadlineColors[$deadlineStatus] }} fs-10">
+                                                                {{ $deadlineLabels[$deadlineStatus] }}
+                                                            </span>
+                                                        </span>
+                                                    @else
+                                                        <span class="d-block fs-11 text-muted">{{ $item['order']->shipment_deadline->diffForHumans() }}</span>
+                                                    @endif
+                                                @elseif($item['order']->shipment_deadline)
+                                                    <span class="fs-12 text-muted">{{ $item['order']->shipment_deadline->format('d M, Y') }}</span>
+                                                @else
+                                                    <span class="text-muted fs-12">-</span>
+                                                @endif
                                             @endif
                                         </span>
                                     </td>

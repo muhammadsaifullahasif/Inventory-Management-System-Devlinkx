@@ -979,8 +979,13 @@ class ReportController extends Controller
             ->whereDate('order_date', '>=', $dateFrom)
             ->whereDate('order_date', '<=', $dateTo)
             ->where('payment_status', 'paid')
-            ->when($order_status !== 'all', function ($query) use ($order_status) {
-                $query->where('order_status', $order_status);
+            ->when($order_status != '', function ($query) use ($order_status) {
+                if ($order_status == 'fulfilled') {
+                    $query->where('fulfillment_status', 'fulfilled');
+                } else {
+                    $query->where('fulfillment_status', 'unfulfilled');
+                }
+                // $query->where('fulfillment_status', $order_status);
             })
             ->whereNotIn('order_status', ['cancelled', 'refunded']);
 
@@ -988,11 +993,11 @@ class ReportController extends Controller
             $orderQuery->where('sales_channel_id', $channelId);
         }
 
-        if ($fulfillmentStatus === 'unfulfilled') {
-            $orderQuery->where('fulfillment_status', 'unfulfilled');
-        } elseif ($fulfillmentStatus === 'fulfilled') {
-            $orderQuery->where('fulfillment_status', 'fulfilled');
-        }
+        // if ($fulfillmentStatus === 'unfulfilled') {
+        //     $orderQuery->where('fulfillment_status', 'unfulfilled');
+        // } elseif ($fulfillmentStatus === 'fulfilled') {
+        //     $orderQuery->where('fulfillment_status', 'fulfilled');
+        // }
         // 'all' shows everything
 
         $orders = $orderQuery->orderBy('order_date', 'asc')->get();
@@ -1149,7 +1154,7 @@ class ReportController extends Controller
             'dateFrom',
             'dateTo',
             'channelId',
-            'fulfillmentStatus',
+            // 'fulfillmentStatus',
             'order_status'
         ));
     }
