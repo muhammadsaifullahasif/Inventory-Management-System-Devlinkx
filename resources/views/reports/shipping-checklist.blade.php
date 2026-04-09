@@ -262,9 +262,6 @@
                         <option value="processing" {{ $order_status == 'processing' ? 'selected' : '' }}>Processing</option>
                         <option value="shipped" {{ $order_status == 'shipped' ? 'selected' : '' }}>Shipped</option>
                         <option value="delivered" {{ $order_status == 'delivered' ? 'selected' : '' }}>Delivered</option>
-                        {{-- <option value="cancelled" {{ $order_status == 'cancelled' ? 'selected' : '' }}>Cancelled</option> --}}
-                        {{-- <option value="refunded" {{ $order_status == 'refunded' ? 'selected' : '' }}>Refunded</option> --}}
-                        {{-- <option value="cancellation_requested" {{ $order_status == 'cancellation_requested' ? 'selected' ? '' }}>Cancellation Requested</option> --}}
                         <option value="awaiting_payment" {{ $order_status == 'awaiting_payment' ? 'selected' : '' }}>Awaiting Payment</option>
                         <option value="ready_for_pickup" {{ $order_status == 'ready_for_pickup' ? 'selected' : '' }}>Ready for Pickup</option>
                     </select>
