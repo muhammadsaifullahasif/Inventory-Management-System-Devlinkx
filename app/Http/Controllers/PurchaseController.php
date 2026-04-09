@@ -181,12 +181,27 @@ class PurchaseController extends Controller
      */
     public function edit(string $id)
     {
-        $purchase = Purchase::findOrFail($id);
+        $purchase = Purchase::with('purchase_items')->findOrFail($id);
         $suppliers = Supplier::all();
         $warehouses = Warehouse::all();
         $brands = Brand::all();
         $categories = Category::all();
-        $products = Product::withSum('product_stocks', 'quantity')->orderBy('name')->get();
+
+        // Get all products with their stock quantities
+        $allProducts = Product::withSum('product_stocks', 'quantity')->get();
+
+        // Get product IDs that are already in this purchase
+        $purchaseProductIds = $purchase->purchase_items->pluck('product_id')->toArray();
+
+        // Separate products into two groups:
+        // 1. Products already in this purchase (sorted by name)
+        // 2. Remaining products (sorted by name)
+        $productsInPurchase = $allProducts->whereIn('id', $purchaseProductIds)->sortBy('name')->values();
+        $productsNotInPurchase = $allProducts->whereNotIn('id', $purchaseProductIds)->sortBy('name')->values();
+
+        // Merge: products in purchase first, then remaining products
+        $products = $productsInPurchase->merge($productsNotInPurchase);
+
         return view('purchases.edit', compact('purchase', 'suppliers', 'warehouses', 'brands', 'categories', 'products'));
     }
 
@@ -458,6 +473,46 @@ class PurchaseController extends Controller
     {
         $purchase = Purchase::with(['supplier', 'warehouse', 'purchase_items.product', 'purchase_items.rack'])
             ->findOrFail($id);
+
+        // Sort purchase items by receive status:
+        // 1. Pending items (received_quantity = 0) - not received at all
+        // 2. Partially received items (0 < received_quantity < quantity)
+        // 3. Fully received items (received_quantity >= quantity)
+        $sortedItems = $purchase->purchase_items->sort(function ($a, $b) {
+            $aReceived = (float) $a->received_quantity;
+            $aTotal = (float) $a->quantity;
+            $bReceived = (float) $b->received_quantity;
+            $bTotal = (float) $b->quantity;
+
+            // Determine status for item A
+            if ($aReceived == 0) {
+                $aStatus = 1; // Pending
+            } elseif ($aReceived < $aTotal) {
+                $aStatus = 2; // Partially received
+            } else {
+                $aStatus = 3; // Fully received
+            }
+
+            // Determine status for item B
+            if ($bReceived == 0) {
+                $bStatus = 1; // Pending
+            } elseif ($bReceived < $bTotal) {
+                $bStatus = 2; // Partially received
+            } else {
+                $bStatus = 3; // Fully received
+            }
+
+            // Sort by status (pending first, then partial, then received)
+            if ($aStatus != $bStatus) {
+                return $aStatus - $bStatus;
+            }
+
+            // If same status, sort by product name
+            return strcasecmp($a->product->name ?? $a->name, $b->product->name ?? $b->name);
+        })->values();
+
+        // Replace the purchase items collection with sorted items
+        $purchase->setRelation('purchase_items', $sortedItems);
 
         // Get racks for the purchase's warehouse
         $racks = Rack::where('warehouse_id', $purchase->warehouse_id)

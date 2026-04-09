@@ -180,7 +180,7 @@
                                             <td>{{ $index + 1 }}</td>
                                             <td>
                                                 @if($item->product && $item->product->getImageUrl())
-                                                    <img src="{{ $item->product->getImageUrl() }}" alt="{{ $item->name }}" class="rounded" style="width: 45px; height: 45px; object-fit: cover;">
+                                                    {{-- <img src="{{ $item->product->getImageUrl() }}" alt="{{ $item->name }}" class="rounded" style="width: 45px; height: 45px; object-fit: cover;"> --}}
                                                 @else
                                                     <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
                                                         <i class="feather-image text-muted fs-12"></i>
@@ -204,9 +204,8 @@
                                             <td class="text-center">
                                                 @if($isFullyReceived)
                                                     <input type="hidden" name="items[{{ $index }}][receive_quantity]" value="0">
-                                                    <input type="number" value="0" min="0" max="0"
-                                                           class="form-control form-control-sm receive-input text-center bg-light"
-                                                           readonly>
+                                                    <input type="number" value="{{ number_format($received, 0) }}" min="0" max="{{ number_format($ordered, 0) }}"
+                                                           class="form-control form-control-sm receive-input text-center bg-light">
                                                 @else
                                                     <input type="number" name="items[{{ $index }}][receive_quantity]"
                                                            value="0" min="0" max="{{ (int) $pending }}" step="1"

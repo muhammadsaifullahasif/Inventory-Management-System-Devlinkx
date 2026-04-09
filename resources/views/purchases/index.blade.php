@@ -179,11 +179,14 @@
                                     <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($purchase->created_at)->format('M d, Y') }}</span></td>
                                     <td>
                                         <div class="hstack gap-2 justify-content-end">
-                                            @if($purchase->purchase_status !== 'received')
+                                            <a href="{{ route('purchases.receive', $purchase->id) }}" class="avatar-text avatar-md text-success" data-bs-toggle="tooltip" title="Receive Stock">
+                                                <i class="feather-download"></i>
+                                            </a>
+                                            {{-- @if($purchase->purchase_status !== 'received')
                                                 <a href="{{ route('purchases.receive', $purchase->id) }}" class="avatar-text avatar-md text-success" data-bs-toggle="tooltip" title="Receive Stock">
                                                     <i class="feather-download"></i>
                                                 </a>
-                                            @endif
+                                            @endif --}}
                                             <a href="{{ route('purchases.show', $purchase->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="View">
                                                 <i class="feather-eye"></i>
                                             </a>
