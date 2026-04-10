@@ -890,6 +890,8 @@ class ProductController extends Controller
         $request->validate([
             'stock_id' => 'required|array',
             'stock_id.*' => 'required|exists:product_stocks,id',
+            'rack' => 'required|array', 
+            'rack.*' => 'required|exists:racks,id', 
             'quantity' => 'required|array',
             'quantity.*' => 'required|numeric|min:0',
         ]);
@@ -902,6 +904,7 @@ class ProductController extends Controller
             foreach ($request->stock_id as $index => $stockId) {
                 $stock = $product->product_stocks()->find($stockId);
                 if ($stock) {
+                    $stock->rack_id = $request->rack[$index];
                     $stock->quantity = $request->quantity[$index];
                     $stock->save();
                 }

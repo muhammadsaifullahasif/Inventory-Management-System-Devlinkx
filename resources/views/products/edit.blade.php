@@ -320,7 +320,7 @@
                                 <thead>
                                     <tr>
                                         <th>Warehouse</th>
-                                        <th>Rack</th>
+                                        <th style="width: 250px;">Rack</th>
                                         <th>SKU</th>
                                         <th>Barcode</th>
                                         <th width="150">Quantity</th>
@@ -330,7 +330,15 @@
                                     @foreach ($product->product_stocks as $stock)
                                         <tr>
                                             <td>{{ $stock->warehouse->name ?? 'N/A' }}</td>
-                                            <td>{{ $stock->rack->name ?? 'N/A' }}</td>
+                                            {{-- <td>{{ $stock->rack->name ?? 'N/A' }}</td> --}}
+                                            <td>
+                                                <select name="rack[]" class="form-select form-control-sm" style="width: 200px;">
+                                                    <option value="">Select Rack</option>
+                                                    @foreach ($stock->warehouse->racks as $rack)
+                                                        <option value="{{ $rack->id }}" {{ ($stock->rack_id === $rack->id) ? 'selected' : '' }}>{{ $rack->name }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </td>
                                             <td><span class="text-muted fs-12">{{ $product->sku }}</span></td>
                                             <td><span class="text-muted fs-12">{{ $product->barcode }}</span></td>
                                             <td>
