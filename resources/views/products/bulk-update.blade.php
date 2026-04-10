@@ -312,102 +312,102 @@
 @endsection
 
 @push('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', function () {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
 
-    const allRows        = Array.from(document.querySelectorAll('.product-row'));
-    const tbody          = document.getElementById('productsTableBody');
-    const selectPageCb   = document.getElementById('selectPageCheckbox');
-    const selectAllBtn   = document.getElementById('selectAllBtn');
-    const deselectAllBtn = document.getElementById('deselectAllBtn');
-    const saveBtn        = document.getElementById('saveBtn');
-    const selectedCount  = document.getElementById('selectedCount');
-    const inlineSearch   = document.getElementById('inlineSearch');
+            const allRows        = Array.from(document.querySelectorAll('.product-row'));
+            const tbody          = document.getElementById('productsTableBody');
+            const selectPageCb   = document.getElementById('selectPageCheckbox');
+            const selectAllBtn   = document.getElementById('selectAllBtn');
+            const deselectAllBtn = document.getElementById('deselectAllBtn');
+            const saveBtn        = document.getElementById('saveBtn');
+            const selectedCount  = document.getElementById('selectedCount');
+            const inlineSearch   = document.getElementById('inlineSearch');
 
-    // ── Inline quick-filter ──────────────────────────────────────────────────
-    inlineSearch.addEventListener('input', function () {
-        const q = this.value.trim().toLowerCase();
-        let visible = 0;
-        allRows.forEach(row => {
-            const match = !q
-                || row.dataset.name.includes(q)
-                || row.dataset.sku.includes(q)
-                || row.dataset.barcode.includes(q);
-            row.style.display = match ? '' : 'none';
-            if (match) visible++;
+            // ── Inline quick-filter ──────────────────────────────────────────────────
+            inlineSearch.addEventListener('input', function () {
+                const q = this.value.trim().toLowerCase();
+                let visible = 0;
+                allRows.forEach(row => {
+                    const match = !q
+                        || row.dataset.name.includes(q)
+                        || row.dataset.sku.includes(q)
+                        || row.dataset.barcode.includes(q);
+                    row.style.display = match ? '' : 'none';
+                    if (match) visible++;
+                });
+                document.getElementById('totalCount').textContent = visible + ' product(s)';
+                syncPageCheckbox();
+            });
+
+            // ── Select/Deselect All (visible) ────────────────────────────────────────
+            selectPageCb.addEventListener('change', function () {
+                visibleRows().forEach(row => toggleRow(row, this.checked));
+                updateCounts();
+            });
+
+            selectAllBtn.addEventListener('click', function () {
+                visibleRows().forEach(row => toggleRow(row, true));
+                syncPageCheckbox();
+                updateCounts();
+            });
+
+            deselectAllBtn.addEventListener('click', function () {
+                allRows.forEach(row => toggleRow(row, false));
+                syncPageCheckbox();
+                updateCounts();
+            });
+
+            // ── Individual checkbox ──────────────────────────────────────────────────
+            tbody.addEventListener('change', function (e) {
+                if (e.target.classList.contains('product-checkbox')) {
+                    toggleRow(e.target.closest('tr'), e.target.checked);
+                    syncPageCheckbox();
+                    updateCounts();
+                }
+            });
+
+            // ── Helpers ──────────────────────────────────────────────────────────────
+            function visibleRows() {
+                return allRows.filter(r => r.style.display !== 'none');
+            }
+
+            function toggleRow(row, checked) {
+                const cb = row.querySelector('.product-checkbox');
+                cb.checked = checked;
+                row.querySelectorAll('.row-input').forEach(input => {
+                    input.disabled = !checked;
+                });
+                row.classList.toggle('table-active', checked);
+            }
+
+            function syncPageCheckbox() {
+                const vis     = visibleRows();
+                const checked = vis.filter(r => r.querySelector('.product-checkbox').checked);
+                selectPageCb.checked       = vis.length > 0 && checked.length === vis.length;
+                selectPageCb.indeterminate = checked.length > 0 && checked.length < vis.length;
+            }
+
+            function updateCounts() {
+                const n = document.querySelectorAll('.product-checkbox:checked').length;
+                selectedCount.textContent = n + ' product(s) selected';
+                saveBtn.disabled = n === 0;
+            }
+
+            // ── Form submit — strip unchecked rows so they don't submit ──────────────
+            document.getElementById('bulkUpdateForm').addEventListener('submit', function (e) {
+                const unchecked = document.querySelectorAll('.product-checkbox:not(:checked)');
+                unchecked.forEach(cb => {
+                    const row = cb.closest('tr');
+                    // Remove name attributes so fields are excluded from POST data
+                    row.querySelectorAll('[name]').forEach(el => el.removeAttribute('name'));
+                });
+
+                if (document.querySelectorAll('.product-checkbox:checked').length === 0) {
+                    e.preventDefault();
+                    alert('Please select at least one product to update.');
+                }
+            });
         });
-        document.getElementById('totalCount').textContent = visible + ' product(s)';
-        syncPageCheckbox();
-    });
-
-    // ── Select/Deselect All (visible) ────────────────────────────────────────
-    selectPageCb.addEventListener('change', function () {
-        visibleRows().forEach(row => toggleRow(row, this.checked));
-        updateCounts();
-    });
-
-    selectAllBtn.addEventListener('click', function () {
-        visibleRows().forEach(row => toggleRow(row, true));
-        syncPageCheckbox();
-        updateCounts();
-    });
-
-    deselectAllBtn.addEventListener('click', function () {
-        allRows.forEach(row => toggleRow(row, false));
-        syncPageCheckbox();
-        updateCounts();
-    });
-
-    // ── Individual checkbox ──────────────────────────────────────────────────
-    tbody.addEventListener('change', function (e) {
-        if (e.target.classList.contains('product-checkbox')) {
-            toggleRow(e.target.closest('tr'), e.target.checked);
-            syncPageCheckbox();
-            updateCounts();
-        }
-    });
-
-    // ── Helpers ──────────────────────────────────────────────────────────────
-    function visibleRows() {
-        return allRows.filter(r => r.style.display !== 'none');
-    }
-
-    function toggleRow(row, checked) {
-        const cb = row.querySelector('.product-checkbox');
-        cb.checked = checked;
-        row.querySelectorAll('.row-input').forEach(input => {
-            input.disabled = !checked;
-        });
-        row.classList.toggle('table-active', checked);
-    }
-
-    function syncPageCheckbox() {
-        const vis     = visibleRows();
-        const checked = vis.filter(r => r.querySelector('.product-checkbox').checked);
-        selectPageCb.checked       = vis.length > 0 && checked.length === vis.length;
-        selectPageCb.indeterminate = checked.length > 0 && checked.length < vis.length;
-    }
-
-    function updateCounts() {
-        const n = document.querySelectorAll('.product-checkbox:checked').length;
-        selectedCount.textContent = n + ' product(s) selected';
-        saveBtn.disabled = n === 0;
-    }
-
-    // ── Form submit — strip unchecked rows so they don't submit ──────────────
-    document.getElementById('bulkUpdateForm').addEventListener('submit', function (e) {
-        const unchecked = document.querySelectorAll('.product-checkbox:not(:checked)');
-        unchecked.forEach(cb => {
-            const row = cb.closest('tr');
-            // Remove name attributes so fields are excluded from POST data
-            row.querySelectorAll('[name]').forEach(el => el.removeAttribute('name'));
-        });
-
-        if (document.querySelectorAll('.product-checkbox:checked').length === 0) {
-            e.preventDefault();
-            alert('Please select at least one product to update.');
-        }
-    });
-});
-</script>
+    </script>
 @endpush

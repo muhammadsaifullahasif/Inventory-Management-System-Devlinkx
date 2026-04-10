@@ -172,7 +172,48 @@ class PurchaseController extends Controller
      */
     public function show(string $id)
     {
-        $purchase = Purchase::findOrFail($id);
+        $purchase = Purchase::with('purchase_items')->findOrFail($id);
+
+        // Sort purchase items by receive status:
+        // 1. Pending items (received_quantity = 0) - not received at all
+        // 2. Partially received items (0 < received_quantity < quantity)
+        // 3. Fully received items (received_quantity >= quantity)
+        $sortedItems = $purchase->purchase_items->sort(function ($a, $b) {
+            $aReceived = (float) $a->received_quantity;
+            $aTotal = (float) $a->quantity;
+            $bReceived = (float) $b->received_quantity;
+            $bTotal = (float) $b->quantity;
+
+            // Determine status for item A
+            if ($aReceived == 0) {
+                $aStatus = 1; // Pending
+            } elseif ($aReceived < $aTotal) {
+                $aStatus = 2; // Partially received
+            } else {
+                $aStatus = 3; // Fully received
+            }
+
+            // Determine status for item B
+            if ($bReceived == 0) {
+                $bStatus = 1; // Pending
+            } elseif ($bReceived < $bTotal) {
+                $bStatus = 2; // Partially received
+            } else {
+                $bStatus = 3; // Fully received
+            }
+
+            // Sort by status (pending first, then partial, then received)
+            if ($aStatus != $bStatus) {
+                return $aStatus - $bStatus;
+            }
+
+            // If same status, sort by product name
+            return strcasecmp($a->product->name ?? $a->name, $b->product->name ?? $b->name);
+        })->values();
+
+        // Replace the purchase items collection with sorted items
+        $purchase->setRelation('purchase_items', $sortedItems);
+        
         return view('purchases.view', compact('purchase'));
     }
 
@@ -525,44 +566,54 @@ class PurchaseController extends Controller
 
     /**
      * Process the receive stock form.
+     * Supports both adding new received quantities and editing existing ones.
+     * The receive_quantity field represents the NEW TOTAL received quantity (not additional).
      */
     public function processReceiveStock(Request $request, string $id)
     {
         $request->validate([
             'items' => 'required|array|min:1',
             'items.*.item_id' => 'required|exists:purchase_items,id',
-            'items.*.receive_quantity' => 'nullable|numeric|min:0',
+            'items.*.receive_quantity' => 'nullable|min:0',
             'items.*.rack_id' => 'nullable|exists:racks,id',
         ]);
 
+        
         try {
             DB::beginTransaction();
-
-            $purchase = Purchase::with(['purchase_items', 'supplier'])->findOrFail($id);
+            
+            $purchase = Purchase::with(['purchase_items.product', 'supplier'])->findOrFail($id);
             $productsToSync = [];
-            $itemsReceived = 0;
-
+            $itemsProcessed = 0;
+            
             // Initialize inventory accounting service
             $inventoryAccountingService = new InventoryAccountingService();
-
+            
             foreach ($request->items as $itemData) {
-                $receiveQty = (float) $itemData['receive_quantity'];
-
-                // Skip items with 0 receive quantity
-                if ($receiveQty <= 0) {
-                    continue;
-                }
-
+                // New total received quantity (not additional)
+                $newReceivedQty = (float) ($itemData['receive_quantity'] ?? 0);
+                
                 $purchaseItem = $purchase->purchase_items->find($itemData['item_id']);
                 if (!$purchaseItem) {
                     continue;
                 }
+                    
+                // Current received quantity
+                $currentReceivedQty = (float) $purchaseItem->received_quantity;
+                $orderedQty = (float) $purchaseItem->quantity;
+                
+                // Validate: Cannot receive more than ordered quantity
+                if ($newReceivedQty > $orderedQty) {
+                    return redirect()->back()
+                        ->with('error', "Cannot receive more than ordered quantity for {$purchaseItem->name}. Ordered: {$orderedQty}, Attempted: {$newReceivedQty}")
+                        ->withInput();
+                }
 
-                // Calculate how much can still be received
-                $pendingQty = (float) $purchaseItem->quantity - (float) $purchaseItem->received_quantity;
-                $actualReceiveQty = min($receiveQty, $pendingQty);
+                // Calculate the difference (positive = increase, negative = decrease)
+                $quantityDifference = $newReceivedQty - $currentReceivedQty;
 
-                if ($actualReceiveQty <= 0) {
+                // Skip if no change
+                if ($quantityDifference == 0) {
                     continue;
                 }
 
@@ -572,35 +623,35 @@ class PurchaseController extends Controller
                 // Get purchase unit cost for this item
                 $unitCost = (float) $purchaseItem->price;
 
-                // Update purchase item received quantity
-                $purchaseItem->received_quantity = (float) $purchaseItem->received_quantity + $actualReceiveQty;
-                $purchaseItem->received_at = now();
-                $purchaseItem->save();
-
                 // Update product stock
                 $product = Product::find($purchaseItem->product_id);
-                if ($product) {
-                    // Calculate new weighted average cost before updating stock
+                if (!$product) {
+                    continue;
+                }
+
+                $existingStock = $product->product_stocks()
+                    ->where('warehouse_id', $purchase->warehouse_id)
+                    ->where('rack_id', $rackId)
+                    ->first();
+
+                // Handle stock adjustment based on difference
+                if ($quantityDifference > 0) {
+                    // INCREASING received quantity - Add to stock
                     $newAvgCost = $inventoryAccountingService->calculateWeightedAverageCost(
                         $product->id,
-                        $actualReceiveQty,
+                        $quantityDifference,
                         $unitCost
                     );
 
-                    $existingStock = $product->product_stocks()
-                        ->where('warehouse_id', $purchase->warehouse_id)
-                        ->where('rack_id', $rackId)
-                        ->first();
-
                     if ($existingStock) {
-                        $existingStock->quantity = (float) $existingStock->quantity + $actualReceiveQty;
+                        $existingStock->quantity = (float) $existingStock->quantity + $quantityDifference;
                         $existingStock->avg_cost = $newAvgCost;
                         $existingStock->save();
                     } else {
                         $product->product_stocks()->create([
                             'warehouse_id'  => $purchase->warehouse_id,
                             'rack_id'       => $rackId,
-                            'quantity'      => $actualReceiveQty,
+                            'quantity'      => $quantityDifference,
                             'avg_cost'      => $newAvgCost,
                             'active_status' => '1',
                             'delete_status' => '0',
@@ -610,21 +661,46 @@ class PurchaseController extends Controller
                     // Update avg_cost on all ProductStock records for this product
                     $inventoryAccountingService->updateProductStockCost($product->id, $newAvgCost);
 
-                    // Note: Journal entry for purchase was already recorded when the bill was created
-                    // We only update stock quantities and average costs here
+                } else {
+                    // DECREASING received quantity - Remove from stock
+                    $decreaseQty = abs($quantityDifference);
 
-                    $productsToSync[$product->id] = $product;
+                    if (!$existingStock) {
+                        return redirect()->back()
+                            ->with('error', "Cannot decrease received quantity for {$purchaseItem->name}. Stock record not found.")
+                            ->withInput();
+                    }
+
+                    // Check if there's enough stock to decrease
+                    if ((float) $existingStock->quantity < $decreaseQty) {
+                        return redirect()->back()
+                            ->with('error', "Cannot decrease received quantity for {$purchaseItem->name}. Current stock: {$existingStock->quantity}, Attempted decrease: {$decreaseQty}")
+                            ->withInput();
+                    }
+
+                    // Decrease the stock
+                    $existingStock->quantity = (float) $existingStock->quantity - $decreaseQty;
+                    $existingStock->save();
+                    
+                    // Note: avg_cost remains the same when decreasing quantity
+                    // In a more sophisticated system, you might recalculate based on remaining inventory
                 }
-
-                $itemsReceived++;
+                    
+                // Update purchase item received quantity
+                $purchaseItem->received_quantity = $newReceivedQty;
+                $purchaseItem->received_at = $newReceivedQty > 0 ? now() : null;
+                $purchaseItem->save();
+                
+                $productsToSync[$product->id] = $product;
+                $itemsProcessed++;
             }
-
+                
             // Update purchase status based on received quantities
             $this->updatePurchaseStatus($purchase);
-
+            
             // Note: Duties and freight charges are included in the purchase bill
             // recorded when the purchase was created, so no additional entries needed here
-
+            
             DB::commit();
 
             // Sync inventory to all linked sales channels
@@ -632,11 +708,11 @@ class PurchaseController extends Controller
                 ProductController::syncProductInventoryToChannels($productToSync);
             }
 
-            if ($itemsReceived > 0) {
+            if ($itemsProcessed > 0) {
                 return redirect()->route('purchases.show', $purchase->id)
-                    ->with('success', "Stock received successfully. {$itemsReceived} item(s) updated. Accounting entries recorded.");
+                    ->with('success', "Stock updated successfully. {$itemsProcessed} item(s) processed. Inventory synchronized.");
             } else {
-                return redirect()->back()->with('warning', 'No items were received. Please enter quantities to receive.');
+                return redirect()->back()->with('warning', 'No items were updated. Please enter quantities to receive.');
             }
 
         } catch (\Exception $e) {
@@ -651,14 +727,18 @@ class PurchaseController extends Controller
      */
     protected function updatePurchaseStatus(Purchase $purchase): void
     {
+        // Reload the purchase and its items to get the latest data
         $purchase->refresh();
+        $purchase->load('purchase_items');
 
-        $totalOrdered = $purchase->purchase_items->sum('quantity');
-        $totalReceived = $purchase->purchase_items->sum('received_quantity');
+        // Round to 2 decimal places to avoid floating point precision issues
+        $totalOrdered = round((float) $purchase->purchase_items->sum('quantity'), 2);
+        $totalReceived = round((float) $purchase->purchase_items->sum('received_quantity'), 2);
 
-        if ($totalReceived <= 0) {
+        if ($totalReceived == 0) {
             $purchase->purchase_status = 'pending';
         } elseif ($totalReceived >= $totalOrdered) {
+            // Fully received (or over-received)
             $purchase->purchase_status = 'received';
         } else {
             $purchase->purchase_status = 'partial';

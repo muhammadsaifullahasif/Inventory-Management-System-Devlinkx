@@ -116,7 +116,7 @@
                         $totalOrdered = $purchase->purchase_items->sum('quantity');
                         $totalReceived = $purchase->purchase_items->sum('received_quantity');
                         $totalPending = $totalOrdered - $totalReceived;
-                        $percentReceived = $totalOrdered > 0 ? round(($totalReceived / $totalOrdered) * 100) : 0;
+                        $percentReceived = $totalOrdered > 0 ? round(floor(($totalReceived / $totalOrdered) * 100)) : 0;
                         $itemsTotal = $purchase->purchase_items->sum(function($item) { return $item->quantity * $item->price; });
                         $dutiesFreight = (float) ($purchase->duties_customs ?? 0) + (float) ($purchase->freight_charges ?? 0);
                         $grandTotal = $itemsTotal + $dutiesFreight;

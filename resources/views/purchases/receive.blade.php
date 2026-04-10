@@ -41,6 +41,16 @@
     .partially-received {
         background-color: #fff3cd !important;
     }
+    .bg-soft-success {
+        background-color: #d4edda !important;
+    }
+    .receive-qty-input:focus {
+        border-color: #28a745;
+        box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+    }
+    .bg-soft-success:focus {
+        background-color: #c3e6cb !important;
+    }
 </style>
 @endpush
 
@@ -53,8 +63,8 @@
     @endif
 
     <div class="row">
-        <!-- Purchase Info Card -->
         <div class="col-md-4">
+            <!-- Purchase Info Card -->
             <div class="card">
                 <div class="card-header">
                     <h5 class="card-title mb-0"><i class="feather-file-text me-2"></i>Purchase Information</h5>
@@ -100,7 +110,9 @@
                     @endif
                 </div>
             </div>
+        </div>
 
+        <div class="col-md-8">
             <!-- Summary Card -->
             <div class="card">
                 <div class="card-header">
@@ -111,7 +123,7 @@
                         $totalOrdered = $purchase->purchase_items->sum('quantity');
                         $totalReceived = $purchase->purchase_items->sum('received_quantity');
                         $totalPending = $totalOrdered - $totalReceived;
-                        $percentReceived = $totalOrdered > 0 ? round(($totalReceived / $totalOrdered) * 100) : 0;
+                        $percentReceived = $totalOrdered > 0 ? round(floor(($totalReceived / $totalOrdered) * 100)) : 0;
                     @endphp
                     <div class="mb-3">
                         <div class="d-flex justify-content-between mb-1">
@@ -139,21 +151,33 @@
                 </div>
             </div>
         </div>
+    </div>
 
+    <div class="row">
         <!-- Receive Items Card -->
-        <div class="col-md-8">
+        <div class="col-md-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0"><i class="feather-package me-2"></i>Items to Receive</h5>
-                    <button type="button" class="btn btn-sm btn-outline-primary" id="receiveAllBtn">
-                        <i class="feather-check-square me-1"></i>Receive All Pending
-                    </button>
+                    <h5 class="card-title mb-0"><i class="feather-package me-2"></i>Receive / Edit Items</h5>
+                    <div class="card-tools d-flex align-items-center gap-2">
+                        <select id="inlineBrandSearch" class="form-select form-control-sm" style="width:200px;">
+                            <option value="">Filter Brand</option>
+                        </select>
+                        <select id="inlineCategorySearch" class="form-select form-control-sm" style="width:200px;">
+                            <option value="">Filter Category</option>
+                        </select>
+                        <input type="text" id="inlineSearch" class="form-control form-control-sm"
+                            placeholder="Quick filter..." style="width:200px;">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="receiveAllBtn">
+                            <i class="feather-check-square me-1"></i>Receive All Items
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body p-0">
                     <form action="{{ route('purchases.receive.store', $purchase->id) }}" method="POST" id="receiveForm">
                         @csrf
                         <div class="table-responsive">
-                            <table class="table table-hover mb-0">
+                            <table class="table table-hover mb-0" id="productsTable">
                                 <thead class="bg-light">
                                     <tr>
                                         <th style="width: 40px;">#</th>
@@ -162,12 +186,16 @@
                                         <th style="width: 90px;" class="text-center">Ordered</th>
                                         <th style="width: 90px;" class="text-center">Received</th>
                                         <th style="width: 90px;" class="text-center">Pending</th>
-                                        <th style="width: 120px;" class="text-center">Receive Qty</th>
+                                        <th style="width: 120px;" class="text-center">
+                                            New Qty
+                                            <i class="feather-info fs-12 text-muted" data-bs-toggle="tooltip"
+                                               title="Set the new total received quantity. You can increase or decrease as needed."></i>
+                                        </th>
                                         <th style="width: 140px;">Rack</th>
                                         <th style="width: 80px;">Status</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody id="productsTableBody">
                                     @foreach ($purchase->purchase_items as $index => $item)
                                         @php
                                             $ordered = (float) $item->quantity;
@@ -176,11 +204,17 @@
                                             $isFullyReceived = $received >= $ordered;
                                             $isPartiallyReceived = $received > 0 && $received < $ordered;
                                         @endphp
-                                        <tr class="{{ $isFullyReceived ? 'fully-received' : ($isPartiallyReceived ? 'partially-received' : '') }}">
+                                        <tr class="product-row {{ $isFullyReceived ? 'fully-received' : ($isPartiallyReceived ? 'partially-received' : '') }}"
+                                            data-id="{{ $item->product->id }}"
+                                            data-name="{{ strtolower($item->product->name) }}"
+                                            data-sku="{{ strtolower($item->product->sku) }}"
+                                            data-barcode="{{ strtolower($item->product->barcode) }}"
+                                            data-brand="{{ $item->product->brand->name }}"
+                                            data-category="{{ $item->product->category->name }}">
                                             <td>{{ $index + 1 }}</td>
                                             <td>
                                                 @if($item->product && $item->product->getImageUrl())
-                                                    {{-- <img src="{{ $item->product->getImageUrl() }}" alt="{{ $item->name }}" class="rounded" style="width: 45px; height: 45px; object-fit: cover;"> --}}
+                                                    <img src="{{ $item->product->getImageUrl() }}" alt="{{ $item->name }}" class="rounded" style="width: 45px; height: 45px; object-fit: cover;">
                                                 @else
                                                     <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
                                                         <i class="feather-image text-muted fs-12"></i>
@@ -202,36 +236,23 @@
                                                 <span class="badge bg-soft-warning text-warning pending-qty" data-pending="{{ $pending }}">{{ number_format($pending, 0) }}</span>
                                             </td>
                                             <td class="text-center">
-                                                @if($isFullyReceived)
-                                                    <input type="hidden" name="items[{{ $index }}][receive_quantity]" value="0">
-                                                    <input type="number" value="{{ number_format($received, 0) }}" min="0" max="{{ number_format($ordered, 0) }}"
-                                                           class="form-control form-control-sm receive-input text-center bg-light">
-                                                @else
-                                                    <input type="number" name="items[{{ $index }}][receive_quantity]"
-                                                           value="0" min="0" max="{{ (int) $pending }}" step="1"
-                                                           class="form-control form-control-sm receive-input text-center receive-qty-input"
-                                                           data-max="{{ (int) $pending }}">
-                                                @endif
+                                                {{-- All items are now editable, including fully received ones --}}
+                                                <input type="number" name="items[{{ $index }}][receive_quantity]"
+                                                       value="{{ (int) $received }}" min="0" max="{{ (int) $ordered }}" step="1"
+                                                       class="form-control form-control-sm receive-input text-center receive-qty-input {{ $isFullyReceived ? 'bg-soft-success' : '' }}"
+                                                       data-max="{{ (int) $ordered }}"
+                                                       data-current="{{ (int) $received }}"
+                                                       data-ordered="{{ (int) $ordered }}">
                                             </td>
                                             <td>
-                                                @if($isFullyReceived)
-                                                    <input type="hidden" name="items[{{ $index }}][rack_id]" value="{{ $item->rack_id }}">
-                                                    <select class="form-select form-select-sm bg-light" disabled>
-                                                        @foreach ($racks as $rack)
-                                                            <option value="{{ $rack->id }}" {{ $item->rack_id == $rack->id ? 'selected' : '' }}>
-                                                                {{ $rack->name }}
-                                                            </option>
-                                                        @endforeach
-                                                    </select>
-                                                @else
-                                                    <select name="items[{{ $index }}][rack_id]" class="form-select form-select-sm">
-                                                        @foreach ($racks as $rack)
-                                                            <option value="{{ $rack->id }}" {{ $item->rack_id == $rack->id ? 'selected' : '' }}>
-                                                                {{ $rack->name }}
-                                                            </option>
-                                                        @endforeach
-                                                    </select>
-                                                @endif
+                                                {{-- All rack selectors are now enabled --}}
+                                                <select name="items[{{ $index }}][rack_id]" class="form-select form-select-sm {{ $isFullyReceived ? 'bg-soft-success' : '' }}">
+                                                    @foreach ($racks as $rack)
+                                                        <option value="{{ $rack->id }}" {{ $item->rack_id == $rack->id ? 'selected' : '' }}>
+                                                            {{ $rack->name }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
                                             </td>
                                             <td>
                                                 @if($isFullyReceived)
@@ -250,13 +271,14 @@
 
                         <div class="card-footer d-flex justify-content-between align-items-center">
                             <div>
-                                <span class="text-muted">Total to receive this session: </span>
-                                <strong id="totalToReceive" class="text-primary">0</strong>
+                                <span class="text-muted">Additional quantity to receive: </span>
+                                <strong id="totalToReceive" class="text-success">0</strong>
+                                <small class="text-muted ms-3">(You can also decrease previously received quantities)</small>
                             </div>
                             <div class="d-flex gap-2">
                                 <a href="{{ route('purchases.index') }}" class="btn btn-light-brand">Cancel</a>
                                 <button type="submit" class="btn btn-primary" id="submitBtn">
-                                    <i class="feather-check me-2"></i>Confirm Receive
+                                    <i class="feather-save me-2"></i>Save Changes
                                 </button>
                             </div>
                         </div>
@@ -268,67 +290,196 @@
 @endsection
 
 @push('scripts')
-<script>
-$(document).ready(function(){
-    // Calculate total to receive
-    function calculateTotal() {
-        var total = 0;
-        $('.receive-qty-input').each(function(){
-            var val = parseFloat($(this).val()) || 0;
-            total += val;
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+
+            const allRows = Array.from(document.querySelectorAll('.product-row'));
+
+            const inlineSearch = document.getElementById('inlineSearch');
+            const inlineBrandSearch = document.getElementById('inlineBrandSearch');
+            const inlineCategorySearch = document.getElementById('inlineCategorySearch');
+
+            function applyFilters() {
+                const searchQuery = (inlineSearch?.value || '').trim().toLowerCase();
+                const brandQuery = (inlineBrandSearch?.value || '').trim().toLowerCase();
+                const categoryQuery = (inlineCategorySearch?.value || '').trim().toLowerCase();
+
+                let visible = 0;
+
+                allRows.forEach(row => {
+                    const name = (row.dataset.name || '').toLowerCase();
+                    const sku = (row.dataset.sku || '').toLowerCase();
+                    const barcode = (row.dataset.barcode || '').toLowerCase();
+                    const brand = (row.dataset.brand || '').toLowerCase();
+                    const category = (row.dataset.category || '').toLowerCase();
+
+                    const matchSearch = !searchQuery ||
+                        name.includes(searchQuery) ||
+                        sku.includes(searchQuery) ||
+                        barcode.includes(searchQuery);
+
+                    const matchBrand = !brandQuery || brand === brandQuery;
+                    const matchCategory = !categoryQuery || category === categoryQuery;
+
+                    const match = matchSearch && matchBrand && matchCategory;
+
+                    row.style.display = match ? '' : 'none';
+
+                    if (match) visible++;
+                });
+            }
+
+            // Events
+            if (inlineSearch) {
+                inlineSearch.addEventListener('input', applyFilters);
+            }
+
+            if (inlineBrandSearch) {
+                inlineBrandSearch.addEventListener('change', applyFilters);
+            }
+
+            if (inlineCategorySearch) {
+                inlineCategorySearch.addEventListener('change', applyFilters);
+            }
+
         });
-        $('#totalToReceive').text(total);
 
-        // Disable submit if nothing to receive
-        if (total <= 0) {
-            $('#submitBtn').prop('disabled', true).addClass('btn-secondary').removeClass('btn-primary');
-        } else {
-            $('#submitBtn').prop('disabled', false).addClass('btn-primary').removeClass('btn-secondary');
-        }
-    }
+        $(document).ready(function(){
 
-    // Update total on input change
-    $(document).on('input change', '.receive-qty-input', function(){
-        var max = parseFloat($(this).attr('data-max')) || 0;
-        var val = parseFloat($(this).val()) || 0;
+            // Populate Brands and Categories
+            function populateBrandsAndCategories() {
+                let brands = new Set();
+                let categories = new Set();
+                $('#productsTableBody tr').each(function () {
+                    let brand = $(this).data('brand');
+                    let category = $(this).data('category');
 
-        // Ensure value doesn't exceed max
-        if (val > max) {
-            $(this).val(Math.floor(max));
-        }
-        if (val < 0) {
-            $(this).val(0);
-        }
+                    if (brand) brands.add(brand);
+                    if (category) categories.add(category);
+                });
 
-        calculateTotal();
-    });
+                // Populate Brand Filter
+                brands.forEach(function (brand) {
+                    $('#inlineBrandSearch').append(`<option value="${brand}">${brand}</option>`);
+                });
 
-    // Receive all pending button
-    $('#receiveAllBtn').click(function(e){
-        e.preventDefault();
-        $('.receive-qty-input').each(function(){
-            var max = parseFloat($(this).attr('data-max')) || 0;
-            $(this).val(Math.floor(max));
+                // Populate Category Filter
+                categories.forEach(function (category) {
+                    $('#inlineCategorySearch').append(`<option value="${category}">${category}</option>`);
+                });
+            }
+            populateBrandsAndCategories();
+
+            // Calculate total to receive
+            function calculateTotal() {
+                var totalNewlyReceiving = 0;
+                var hasChanges = false;
+
+                $('.receive-qty-input').each(function(){
+                    var val = parseFloat($(this).val()) || 0;
+                    var current = parseFloat($(this).attr('data-current')) || 0;
+                    var pending = parseFloat($(this).attr('data-ordered')) || 0;
+
+                    // Calculate how much is newly being received (compared to current)
+                    var difference = val - current;
+                    if (difference > 0) {
+                        totalNewlyReceiving += difference;
+                    }
+
+                    // Check if there are any changes from current state
+                    if (val !== current) {
+                        hasChanges = true;
+                    }
+                });
+
+                $('#totalToReceive').text(totalNewlyReceiving);
+
+                // Enable submit button always - allow editing of existing received quantities
+                // The backend will validate the changes
+                $('#submitBtn').prop('disabled', false).addClass('btn-primary').removeClass('btn-secondary');
+            }
+
+            // Update total on input change
+            $(document).on('input change', '.receive-qty-input', function(){
+                var max = parseFloat($(this).attr('data-max')) || 0;
+                var val = parseFloat($(this).val()) || 0;
+
+                // Ensure value doesn't exceed max (ordered quantity)
+                if (val > max) {
+                    $(this).val(Math.floor(max));
+                }
+                if (val < 0) {
+                    $(this).val(0);
+                }
+
+                calculateTotal();
+            });
+
+            // Receive all pending button - sets all items to their ordered quantity
+            $('#receiveAllBtn').click(function(e){
+                e.preventDefault();
+                $('.receive-qty-input').each(function(){
+                    var ordered = parseFloat($(this).attr('data-ordered')) || 0;
+                    $(this).val(Math.floor(ordered));
+                });
+                calculateTotal();
+            });
+
+            // Initial calculation
+            calculateTotal();
+
+            // Form submission - only send changed items
+            $('#receiveForm').submit(function(e){
+                e.preventDefault();
+
+                var hasChanges = false;
+                var changedItems = [];
+
+                // Find all items that have changed
+                $('.receive-qty-input').each(function(){
+                    var $input = $(this);
+                    var newValue = parseFloat($input.val()) || 0;
+                    var currentValue = parseFloat($input.attr('data-current')) || 0;
+
+                    // Check if value has changed
+                    if (newValue !== currentValue) {
+                        hasChanges = true;
+
+                        // Get the row index from the input name
+                        var name = $input.attr('name');
+                        var match = name.match(/items\[(\d+)\]/);
+                        if (match) {
+                            var index = match[1];
+                            changedItems.push(index);
+                        }
+                    }
+                });
+
+                if (!hasChanges) {
+                    alert('No changes detected. Please modify at least one item.');
+                    return false;
+                }
+
+                // Remove unchanged items from form submission
+                $('input[name^="items["], select[name^="items["]').each(function(){
+                    var $input = $(this);
+                    var name = $input.attr('name');
+                    var match = name.match(/items\[(\d+)\]/);
+
+                    if (match) {
+                        var index = match[1];
+
+                        // If this item hasn't changed, remove it from submission
+                        if (!changedItems.includes(index)) {
+                            $input.prop('disabled', true);
+                        }
+                        // console.log(name);
+                    }
+                });
+
+                // Submit the form
+                this.submit();
+            });
         });
-        calculateTotal();
-    });
-
-    // Initial calculation
-    calculateTotal();
-
-    // Form validation
-    $('#receiveForm').submit(function(e){
-        var total = 0;
-        $('.receive-qty-input').each(function(){
-            total += parseFloat($(this).val()) || 0;
-        });
-
-        if (total <= 0) {
-            e.preventDefault();
-            alert('Please enter at least one quantity to receive.');
-            return false;
-        }
-    });
-});
-</script>
+    </script>
 @endpush
