@@ -213,7 +213,7 @@ class PurchaseController extends Controller
 
         // Replace the purchase items collection with sorted items
         $purchase->setRelation('purchase_items', $sortedItems);
-        
+
         return view('purchases.view', compact('purchase'));
     }
 
@@ -679,8 +679,19 @@ class PurchaseController extends Controller
                     }
 
                     // Decrease the stock
-                    $existingStock->quantity = (float) $existingStock->quantity - $decreaseQty;
-                    $existingStock->save();
+                    // $existingStock->quantity = (float) $existingStock->quantity - $decreaseQty;
+                    // $existingStock->save();
+
+                    if ($existingStock) {
+                        $existingStock->quantity = max(0, (float) $existingStock->quantity - $decreaseQty);
+                        if ($existingStock->quantity <= 0) {
+                            $existingStock->delete();
+                        } else {
+                            $existingStock->save();
+                        }
+                    }
+
+                    // $existingStock->save();
                     
                     // Note: avg_cost remains the same when decreasing quantity
                     // In a more sophisticated system, you might recalculate based on remaining inventory

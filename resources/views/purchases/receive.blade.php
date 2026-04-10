@@ -214,7 +214,7 @@
                                             <td>{{ $index + 1 }}</td>
                                             <td>
                                                 @if($item->product && $item->product->getImageUrl())
-                                                    <img src="{{ $item->product->getImageUrl() }}" alt="{{ $item->name }}" class="rounded" style="width: 45px; height: 45px; object-fit: cover;">
+                                                    {{-- <img src="{{ $item->product->getImageUrl() }}" alt="{{ $item->name }}" class="rounded" style="width: 45px; height: 45px; object-fit: cover;"> --}}
                                                 @else
                                                     <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
                                                         <i class="feather-image text-muted fs-12"></i>
