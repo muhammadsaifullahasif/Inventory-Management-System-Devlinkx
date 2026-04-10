@@ -181,6 +181,9 @@ class WarehouseController extends Controller
     {
         try {
             $warehouse = Warehouse::findOrFail($id);
+            if ($warehouse->racks->count() > 0) {
+                return redirect()->back()->with('error', 'Can\'t delete warehouse having racks');
+            }
             $warehouse->delete();
 
             return redirect()->route('warehouses.index')->with('success', 'Warehouse deleted successfully.');

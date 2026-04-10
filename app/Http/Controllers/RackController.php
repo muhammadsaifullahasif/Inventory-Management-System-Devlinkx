@@ -160,6 +160,9 @@ class RackController extends Controller
     {
         try {
             $rack = Rack::findOrFail($id);
+            if ($rack->rack_stock->count() > 0) {
+                return redirect()->back()->with('error', 'Can\'t delete rack having stock.');
+            }
             $rack->delete();
 
             return redirect()->route('racks.index')->with('success', 'Rack deleted successfully.');
