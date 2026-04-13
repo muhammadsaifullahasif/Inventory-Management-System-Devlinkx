@@ -29,8 +29,13 @@ class BrandController extends Controller
             $query->where('name', 'like', "%{$request->search}%");
         }
 
+        // Sort
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
         $perPage = $request->input('per_page', 25);
-        $brands = $query->orderBy('created_at', 'DESC')->paginate($perPage)->withQueryString();
+        $brands = $query->paginate($perPage)->withQueryString();
 
         return view('brands.index', compact('brands', 'perPage'));
     }
