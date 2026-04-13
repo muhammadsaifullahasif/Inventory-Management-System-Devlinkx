@@ -75,8 +75,17 @@ class PurchaseController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
+        // Sort
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        if ($sortBy != 'total') {
+            $query->orderBy($sortBy, $sortOrder);
+        } else {
+            $query->withSum('purchase_items as total', DB::raw('quantity * price'))->orderBy('total', $sortOrder);
+        }
+
         $perPage = $request->input('per_page', 25);
-        $purchases = $query->orderBy('created_at', 'desc')->paginate($perPage)->withQueryString();
+        $purchases = $query->paginate($perPage)->withQueryString();
 
         // Get filter options
         $suppliers = Supplier::orderBy('first_name')->get();

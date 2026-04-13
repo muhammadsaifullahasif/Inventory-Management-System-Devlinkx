@@ -110,14 +110,29 @@
     <!-- Purchases Table -->
     <div class="col-12">
         <div class="card">
-            <div class="card-body pb-0">
+            <div class="card-body pb-0 d-flex align-items-center justify-content-between">
                 @can('delete purchases')
                     @include('partials.bulk-actions-bar', ['itemName' => 'purchases'])
                 @endcan
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    @php
+                        $purchaseColumns = [
+                            ['key' => 'id', 'label' => '#', 'default' => true],
+                            ['key' => 'purchase_number', 'label' => 'Purchase Number', 'default' => true],
+                            ['key' => 'supplier', 'label' => 'Supplier', 'default' => true],
+                            ['key' => 'warehouse', 'label' => 'Warehouse', 'default' => true],
+                            ['key' => 'status', 'label' => 'Status', 'default' => true],
+                            ['key' => 'total', 'label' => 'Total', 'default' => true],
+                            ['key' => 'received', 'label' => 'Received', 'default' => true],
+                            ['key' => 'created_at', 'label' => 'Created At', 'default' => true],
+                        ];
+                    @endphp
+                    @include('partials.column-toggle', ['tableId' => 'purchaseTable', 'cookieName' => 'purchase_columns', 'columns' => $purchaseColumns])
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0" id="purchaseTable">
                         <thead>
                             <tr>
                                 @can('delete purchases')
@@ -130,14 +145,47 @@
                                         </div>
                                     </th>
                                 @endcan
-                                <th>#</th>
-                                <th>Purchase Number</th>
-                                <th>Supplier</th>
-                                <th>Warehouse</th>
-                                <th>Status</th>
-                                <th>Total</th>
-                                <th>Received</th>
-                                <th>Created at</th>
+                                @php
+                                    $currentSort = request('sort_by', 'id');
+                                    $currentOrder = request('sort_order', 'desc');
+                                    $sortableColumns = [
+                                        'id' => ['label' => '#', 'column' => 'id', 'style' => '', 'sort' => true],
+                                        'purchase_number' => ['label' => 'Purchase Number', 'column' => 'purchase_number', 'style' => '', 'sort' => true],
+                                        'supplier' => ['label' => 'Supplier', 'column' => 'supplier', 'style' => '', 'sort' => false],
+                                        'warehouse' => ['label' => 'Warehouse', 'column' => 'warehouse', 'style' => '', 'sort' => false],
+                                        'status' => ['label' => 'Status', 'column' => 'status', 'style' => '', 'sort' => false],
+                                        'total' => ['label' => 'Total', 'column' => 'total', 'style' => '', 'sort' => true],
+                                        'receiveds' => ['label' => 'Received', 'column' => 'received', 'style' => '', 'sort' => false],
+                                        'created_at' => ['label' => 'Created At', 'column' => 'created_at', 'style' => '', 'sort' => true],
+                                    ];
+                                @endphp
+                                @foreach ($sortableColumns as $key => $col)
+                                    <th data-column="{{ $key }}" @if($col['style']) style="{{ $col['style'] }}" @endif>
+                                        @if($col['sort'])
+                                            @php
+                                                $isActive = $currentSort === $col['column'];
+                                                $nextOrder = ($isActive && $currentOrder === 'asc') ? 'desc' : 'asc';
+                                                $sortUrl = request()->fullUrlWithQuery(['sort_by' => $col['column'], 'sort_order' => $nextOrder]);
+                                            @endphp
+                                            <a href="{{ $sortUrl }}" class="d-flex align-items-center text-dark text-decoration-none sortable-header {{ $isActive ? 'active' : '' }}">
+                                                {{ $col['label'] }}
+                                                <span class="sort-arrows ms-1">
+                                                    @if($isActive)
+                                                        @if($currentOrder === 'asc')
+                                                            <i class="feather-arrow-up fs-12"></i>
+                                                        @else
+                                                            <i class="feather-arrow-down fs-12"></i>
+                                                        @endif
+                                                    @else
+                                                        <i class="feather-chevrons-up fs-10 text-muted opacity-50"></i>
+                                                    @endif
+                                                </span>
+                                            </a>
+                                        @else
+                                            {{ $col['label'] }}
+                                        @endif
+                                    </th>
+                                @endforeach
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -167,16 +215,16 @@
                                             {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $purchase->id }}"> --}}
                                         </td>
                                     @endcan
-                                    <td>{{ $purchase->id }}</td>
-                                    <td><span class="fw-semibold">{{ $purchase->purchase_number }}</span></td>
-                                    <td>{{ (($purchase->supplier->last_name != '') ? $purchase->supplier->first_name . ' ' . $purchase->supplier->last_name : $purchase->supplier->first_name) }}</td>
-                                    <td><span class="badge bg-soft-info text-info">{{ $purchase->warehouse->name }}</span></td>
-                                    <td><span class="badge bg-{{ $statusColor }}">{{ ucfirst($purchase->purchase_status ?? 'pending') }}</span></td>
-                                    <td><span class="fw-semibold">${{ number_format($purchase->purchase_items->sum(function($item) { return $item->quantity * $item->price; }), 2) }}</span></td>
-                                    <td>
+                                    <td data-column="id">{{ $purchase->id }}</td>
+                                    <td data-column="purchase_number"><span class="fw-semibold">{{ $purchase->purchase_number }}</span></td>
+                                    <td data-column="supplier">{{ (($purchase->supplier->last_name != '') ? $purchase->supplier->first_name . ' ' . $purchase->supplier->last_name : $purchase->supplier->first_name) }}</td>
+                                    <td data-column="warehouse"><span class="badge bg-soft-info text-info">{{ $purchase->warehouse->name }}</span></td>
+                                    <td data-column="status"><span class="badge bg-{{ $statusColor }}">{{ ucfirst($purchase->purchase_status ?? 'pending') }}</span></td>
+                                    <td data-column="total"><span class="fw-semibold">${{ number_format($purchase->purchase_items->sum(function($item) { return $item->quantity * $item->price; }), 2) }}</span></td>
+                                    <td data-column="received">
                                         <span class="badge bg-soft-primary text-primary">{{ number_format($totalReceived, 0) }} / {{ number_format($totalOrdered, 0) }}</span>
                                     </td>
-                                    <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($purchase->created_at)->format('M d, Y') }}</span></td>
+                                    <td data-column="created_at"><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($purchase->created_at)->format('M d, Y') }}</span></td>
                                     <td>
                                         <div class="hstack gap-2 justify-content-end">
                                             <a href="{{ route('purchases.receive', $purchase->id) }}" class="avatar-text avatar-md text-success" data-bs-toggle="tooltip" title="Receive Stock">
