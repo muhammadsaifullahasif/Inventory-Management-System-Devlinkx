@@ -1547,8 +1547,30 @@ class ReportController extends Controller
             $avgCost = $stocks->avg('avg_cost') ?? 0;
             $inventoryValue = $totalStock * $avgCost;
 
+            // Get last order date for this product
+            $OrderItem = OrderItem::where('product_id', $product->id)
+                ->whereHas('order', function ($q) {
+                    $q->whereIn('payment_status', ['paid']);
+                });
+
+            // ✅ 1. Total Quantity
+            $totalSold = (clone $OrderItem)->sum('quantity');
+
+            // ✅ 2. Last Order Item
+            $lastOrderItem = (clone $OrderItem)->orderBy('created_at', 'desc')
+                ->first();
+
+            // Get last purchase date for this product
+            $lastPurchaseItem = PurchaseItem::where('product_id', $product->id)
+                ->whereHas('purchase', function ($q) {
+                    $q->where('delete_status', '0');
+                })
+                ->orderBy('created_at', 'desc')
+                ->first();
+
             $slowMovingItems[] = [
                 'product_id' => $product->id,
+                'product_image' => $product->getImageUrl(), 
                 'product_name' => $product->name,
                 'product_sku' => $product->sku,
                 'category_name' => $product->category->name ?? 'Uncategorized',
@@ -1562,6 +1584,10 @@ class ReportController extends Controller
                 'avg_cost' => $avgCost,
                 'inventory_value' => round($inventoryValue, 2),
                 'price' => $product->price,
+                'last_purchase_date' => $lastPurchaseItem?->created_at,
+                'last_purchase_quantity' => $lastPurchaseItem?->received_quantity, 
+                'last_order_date' => $lastOrderItem?->created_at,
+                'sold_quantity' => $totalSold, 
             ];
         }
 

@@ -165,51 +165,98 @@
         <div class="card">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h5 class="card-title mb-0"><i class="feather-trending-down me-2"></i>Slow Moving Items</h5>
-                <span class="badge bg-warning text-dark">{{ $slowMovingItems->count() }} items</span>
+                <div class="d-flex align-items-center justify-content-end gap-2">
+                    <span class="badge bg-warning text-dark">{{ $slowMovingItems->count() }} items</span>
+                    <div class="ms-auto d-flex align-items-center gap-2">
+                        @php
+                            $slowMovingStockColumns = [
+                                ['key' => 'id', 'label' => '#', 'default' => true],
+                                ['key' => 'image', 'label' => 'Image', 'default' => true],
+                                ['key' => 'product', 'label' => 'Product', 'default' => true],
+                                ['key' => 'category', 'label' => 'Category', 'default' => false],
+                                ['key' => 'last_purchase_quantity', 'label' => 'Last Purchase Qty', 'default' => true],
+                                ['key' => 'last_purchase', 'label' => 'Last Purchase', 'default' => true],
+                                ['key' => 'last_order', 'label' => 'Last Order', 'default' => true],
+                                ['key' => 'sold_quantity', 'label' => 'Sold', 'default' => true],
+                                ['key' => 'stock', 'label' => 'Stock', 'default' => true],
+                                ['key' => 'orders', 'label' => 'Orders', 'default' => false],
+                                ['key' => 'daily_rate', 'label' => 'Daily Rate', 'default' => false],
+                                ['key' => 'days_of_stock', 'label' => 'Days of Stock', 'default' => false],
+                                ['key' => 'turnover', 'label' => 'Turnover', 'default' => false],
+                                ['key' => 'stock_value', 'label' => 'Stock Value', 'default' => false],
+                            ];
+                        @endphp
+                        @include('partials.column-toggle', ['tableId' => 'slowMovingStockTable', 'cookieName' => 'slow_moving_stock_columns', 'columns' => $slowMovingStockColumns])
+                    </div>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0" id="slowMovingStockTable">
                         <thead>
                             <tr>
-                                <th>Product</th>
-                                <th>SKU</th>
-                                <th>Category</th>
-                                <th class="text-end">Stock</th>
-                                <th class="text-end">Sold</th>
-                                <th class="text-end">Orders</th>
-                                <th class="text-end">Daily Rate</th>
-                                <th class="text-end">Days of Stock</th>
-                                <th class="text-end">Turnover</th>
-                                <th class="text-end">Stock Value</th>
-                                <th>Last Sale</th>
+                                <th data-column="id">#</th>
+                                <th data-column="image">Image</th>
+                                <th data-column="product" style="max-width: 200px;">Product</th>
+                                <th data-column="category">Category</th>
+                                <th data-column="last_purchase_quantity">Last Purchase Quantity</th>
+                                <th data-column="last_purchase">Last Purchase</th>
+                                <th data-column="last_order">Last Sale</th>
+                                <th data-column="sold_quantity" class="text-end">Sold</th>
+                                <th data-column="stock" class="text-end">Stock</th>
+                                <th data-column="orders" class="text-end">Orders</th>
+                                <th data-column="daily_rate" class="text-end">Daily Rate</th>
+                                <th data-column="days_of_stock" class="text-end">Days of Stock</th>
+                                <th data-column="turnover" class="text-end">Turnover</th>
+                                <th data-column="stock_value" class="text-end">Stock Value</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse($slowMovingItems as $item)
                                 <tr>
-                                    <td>
+                                    <td data-column="id">{{ ($loop->index + 1) }}</td>
+                                    <td data-column="image">
+                                        @if($item['product_image'])
+                                            <img src="{{ $item['product_image'] }}" alt="{{ $item['product_name'] }}" class="rounded" style="width: 50px; height: 50px; object-fit: cover;">
+                                        @else
+                                            <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                <i class="feather-image text-muted"></i>
+                                            </div>
+                                        @endif
+                                    </td>
+                                    <td data-column="product" style="max-width: 200px; white-space: normal;">
                                         <a href="{{ route('products.show', $item['product_id']) }}" class="fw-semibold">
                                             {{ $item['product_name'] }}
                                         </a>
+                                        <span class="d-block fs-11 text-muted">SKU: {{ $item['product_sku'] }}</span>
                                     </td>
-                                    <td><code>{{ $item['product_sku'] }}</code></td>
-                                    <td>
+                                    <td data-column="category">
                                         <span class="badge bg-soft-secondary text-secondary">{{ $item['category_name'] }}</span>
                                     </td>
-                                    <td class="text-end">{{ number_format($item['total_stock'], 2) }}</td>
-                                    <td class="text-end">
+                                    <td data-column="last_purchase_quantity">{{ $item['last_purchase_quantity'] }}</td>
+                                    <td data-column="last_purchase">{{ \Carbon\Carbon::parse($item['last_purchase_date'])->format('M d, Y') }}</td>
+                                    <td data-column="last_order">
+                                        @if($item['last_sale_date'])
+                                            <span title="{{ \Carbon\Carbon::parse($item['last_sale_date'])->format('M d, Y') }}">
+                                                {{ \Carbon\Carbon::parse($item['last_sale_date'])->diffForHumans() }}
+                                            </span>
+                                        @else
+                                            <span class="text-danger">Never</span>
+                                        @endif
+                                    </td>
+                                    <td data-column="sold_quantity" class="text-end">
                                         @if($item['total_sold'] == 0)
                                             <span class="text-danger fw-bold">0</span>
                                         @else
                                             {{ number_format($item['total_sold']) }}
                                         @endif
                                     </td>
-                                    <td class="text-end">{{ number_format($item['order_count']) }}</td>
-                                    <td class="text-end">
+                                    <td data-column="stock" class="text-end">{{ number_format($item['total_stock'], 2) }}</td>
+                                    <td data-column="orders" class="text-end">{{ number_format($item['order_count']) }}</td>
+                                    <td data-column="daily_rate" class="text-end">
                                         <span class="text-muted">{{ $item['daily_sales_rate'] }}/day</span>
                                     </td>
-                                    <td class="text-end">
+                                    <td data-column="days_of_stock" class="text-end">
                                         @if($item['days_of_stock'])
                                             @if($item['days_of_stock'] > 365)
                                                 <span class="text-danger fw-bold">{{ number_format($item['days_of_stock']) }} days</span>
@@ -222,7 +269,7 @@
                                             <span class="text-danger">Infinite</span>
                                         @endif
                                     </td>
-                                    <td class="text-end">
+                                    <td data-column="turnover" class="text-end">
                                         @if($item['turnover_rate'] == 0)
                                             <span class="badge bg-danger">0.00</span>
                                         @elseif($item['turnover_rate'] < 0.1)
@@ -231,16 +278,7 @@
                                             {{ number_format($item['turnover_rate'], 4) }}
                                         @endif
                                     </td>
-                                    <td class="text-end fw-bold">{{ number_format($item['inventory_value'], 2) }}</td>
-                                    <td>
-                                        @if($item['last_sale_date'])
-                                            <span title="{{ \Carbon\Carbon::parse($item['last_sale_date'])->format('M d, Y') }}">
-                                                {{ \Carbon\Carbon::parse($item['last_sale_date'])->diffForHumans() }}
-                                            </span>
-                                        @else
-                                            <span class="text-danger">Never</span>
-                                        @endif
-                                    </td>
+                                    <td data-column="stock_value" class="text-end fw-bold">{{ number_format($item['inventory_value'], 2) }}</td>
                                 </tr>
                             @empty
                                 <tr>
@@ -252,7 +290,7 @@
                             @endforelse
                         </tbody>
                         @if($slowMovingItems->isNotEmpty())
-                            <tfoot>
+                            {{-- <tfoot>
                                 <tr class="table-light">
                                     <td colspan="3" class="fw-bold">Totals</td>
                                     <td class="text-end fw-bold">{{ number_format($slowMovingItems->sum('total_stock'), 2) }}</td>
@@ -262,7 +300,7 @@
                                     <td class="text-end fw-bold">{{ number_format($slowMovingItems->sum('inventory_value'), 2) }}</td>
                                     <td></td>
                                 </tr>
-                            </tfoot>
+                            </tfoot> --}}
                         @endif
                     </table>
                 </div>
