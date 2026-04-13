@@ -282,9 +282,9 @@
                     </a>
                 </div>
                 <div class="col-md-2 d-flex align-items-end justify-content-end">
-                    <button type="button" class="btn btn-success" onclick="window.print()">
-                        <i class="feather-printer me-1"></i> Print Checklist
-                    </button>
+                    <a href="{{ route('reports.shipping-checklist.pdf', ['date_from' => $dateFrom, 'date_to' => $dateTo, 'channel_id' => $channelId, 'order_status' => $order_status]) }}" class="btn btn-success">
+                        <i class="feather-download me-1"></i> Download PDF
+                    </a>
                 </div>
             </form>
         </div>
@@ -322,30 +322,47 @@
     <div class="card">
         <div class="card-header d-print-none">
             <h5 class="card-title mb-0">Shipping Checklist</h5>
+            <div class="ms-auto d-flex align-items-center gap-2">
+                @php
+                    $shippingChecklistColumns = [
+                        ['key' => 'id', 'label' => '#', 'default' => true],
+                        ['key' => 'order_id', 'label' => 'Order ID', 'default' => true],
+                        ['key' => 'image', 'label' => 'Image', 'default' => false],
+                        ['key' => 'product', 'label' => 'Product (SKU,Weight,Dimensions)', 'default' => true],
+                        ['key' => 'sales_channel', 'label' => 'Sales Channel', 'default' => false],
+                        ['key' => 'quantity', 'label' => 'Qty', 'default' => true],
+                        ['key' => 'quantity_in_warehouse', 'label' => 'Qty in Warehouse', 'default' => true],
+                        ['key' => 'tracking', 'label' => '', 'default' => true],
+                    ];
+                @endphp
+                @include('partials.column-toggle', ['tableId' => 'shippingChecklistTable', 'cookieName' => 'shipping_checklist_columns', 'columns' => $shippingChecklistColumns])
+            </div>
         </div>
         <div class="card-body">
             <!-- Print Header (only visible when printing) -->
             <div class="print-header">
-                <h2>Shipping Checklist</h2>
-                <p>Date Range: {{ \Carbon\Carbon::parse($dateFrom)->format('M d, Y') }} - {{ \Carbon\Carbon::parse($dateTo)->format('M d, Y') }} | Generated: {{ now()->format('M d, Y h:i A') }}</p>
+                <div>
+                    <h2>Shipping Checklist</h2>
+                    <p>Date Range: {{ \Carbon\Carbon::parse($dateFrom)->format('M d, Y') }} - {{ \Carbon\Carbon::parse($dateTo)->format('M d, Y') }} | Generated: {{ now()->format('M d, Y h:i A') }}</p>
+                </div>
             </div>
 
             @if(count($checklistItems) > 0)
                 <div class="table-responsive">
-                    <table class="table table-bordered table-hover">
+                    <table class="table table-bordered table-hover" id="shippingChecklistTable">
                         <thead class="table-light">
                             <tr>
                                 {{-- <th class="checkbox-col" style="width: 30px;">
                                     <span class="d-none d-print-inline">&#9744;</span>
                                 </th> --}}
-                                <th>#</th>
-                                <th style="width: 130px;">Order ID</th>
-                                <th style="width: 55px;">Image</th>
-                                <th>Product (SKU, Weight, Dimensions)</th>
-                                <th style="width: 100px;">Sales Channel</th>
-                                <th style="width: 60px; text-align: center;">Qty</th>
-                                <th style="width: 180px;">Qty in Warehouse</th>
-                                <th></th>
+                                <th data-column="id">#</th>
+                                <th data-column="order_id" style="width: 130px;">Order ID</th>
+                                <th data-column="image" style="width: 55px;">Image</th>
+                                <th data-column="product">Product (SKU, Weight, Dimensions)</th>
+                                <th data-column="sales_channel" style="width: 100px;">Sales Channel</th>
+                                <th data-column="quantity" style="width: 60px; text-align: center;">Qty</th>
+                                <th data-column="quantity_in_warehouse" style="width: 180px;">Qty in Warehouse</th>
+                                <th data-column="tracking"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -354,15 +371,15 @@
                             @endphp
                             @foreach($checklistItems as $item)
                                 <tr>
-                                    <td>{{ $i++; }}</td>
+                                    <td data-column="id">{{ $i++; }}</td>
                                     {{-- <td class="checkbox-col text-center">
                                         <span class="print-checkbox d-none d-print-inline-block"></span>
                                         <input type="checkbox" class="form-check-input d-print-none" style="margin: 0;">
                                     </td> --}}
-                                    <td class="text-center">
+                                    <td data-column="order_id" class="text-center">
                                         <strong>{{ $item['ebay_order_id'] }}</strong>
                                     </td>
-                                    <td class="text-center">
+                                    <td data-column="image" class="text-center">
                                         @if($item['image_url'])
                                             <img src="{{ $item['image_url'] }}" alt="{{ $item['product_name'] }}"
                                                  class="product-img product-img-print">
@@ -372,7 +389,7 @@
                                             </div>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="product">
                                         <div class="product-details">
                                             <strong>{{ $item['product_name'] }}</strong>
                                             @if($item['is_bundle'])
@@ -434,11 +451,11 @@
                                             @endif
                                         </div>
                                     </td>
-                                    <td>{{ $item['sales_channel'] }}</td>
-                                    <td class="text-center">
+                                    <td data-column="sales_channel">{{ $item['sales_channel'] }}</td>
+                                    <td data-column="quantity" class="text-center">
                                         <strong>{{ $item['quantity_ordered'] }}</strong>
                                     </td>
-                                    <td>
+                                    <td data-column="quantity_in_warehouse">
                                         @if($item['is_bundle'])
                                             <span class="text-muted fs-11">See components</span>
                                         @elseif(!empty($item['warehouse_stocks']))
@@ -463,7 +480,7 @@
                                             <span class="stock-warning">No stock</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="tracking">
                                         <span style="white-space: normal; width: 250px; display: block;">
                                             @php
                                                 $allTrackingNumbers = $item['order']->getAllTrackingNumbers();

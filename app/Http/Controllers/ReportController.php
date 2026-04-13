@@ -21,6 +21,7 @@ use App\Models\Category;
 use App\Services\JournalService;
 use App\Services\InventoryAccountingService;
 use Illuminate\Support\Facades\DB;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ReportController extends Controller
 {
@@ -1157,6 +1158,186 @@ class ReportController extends Controller
             // 'fulfillmentStatus',
             'order_status'
         ));
+    }
+
+    /**
+     * Shipping Checklist PDF
+     * Generate PDF with page breaks to keep rows intact
+     */
+    public function shippingChecklistPdf(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-d'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $order_status = $request->get('order_status', 'processing');
+
+        // Build orders query - get orders that need to be shipped
+        $orderQuery = Order::with([
+                'salesChannel',
+                'items.product.product_stocks.warehouse',
+                'items.product.product_stocks.rack',
+                'items.product.product_meta'
+            ])
+            ->whereDate('order_date', '>=', $dateFrom)
+            ->whereDate('order_date', '<=', $dateTo)
+            ->where('payment_status', 'paid')
+            ->when($order_status !== 'all', function ($query) use ($order_status) {
+                if ($order_status == 'fulfilled') {
+                    $query->where('fulfillment_status', 'fulfilled');
+                } else {
+                    $query->where('fulfillment_status', 'unfulfilled');
+                }
+            })
+            ->whereNotIn('order_status', ['cancelled', 'refunded']);
+
+        if ($channelId) {
+            $orderQuery->where('sales_channel_id', $channelId);
+        }
+
+        $orders = $orderQuery->orderBy('order_date', 'asc')->get();
+
+        // Build checklist items - group by order, handle bundles with components
+        $checklistItems = [];
+
+        foreach ($orders as $order) {
+            foreach ($order->items as $item) {
+                if ($item->is_bundle_summary) {
+                    $product = $item->product;
+                    $productMeta = $product ? $product->product_meta : [];
+                    $weight = $productMeta['weight'] ?? null;
+                    $weightUnit = $productMeta['weight_unit'] ?? 'lbs';
+                    $length = $productMeta['length'] ?? null;
+                    $width = $productMeta['width'] ?? null;
+                    $height = $productMeta['height'] ?? null;
+                    $dimensionUnit = $productMeta['dimension_unit'] ?? 'in';
+                    $imageUrl = $product ? $product->getImageUrl() : null;
+
+                    $components = $order->items->filter(function ($i) use ($item) {
+                        return $i->bundle_product_id == $item->product_id && !$i->is_bundle_summary;
+                    });
+
+                    $componentsData = [];
+                    foreach ($components as $component) {
+                        $compProduct = $component->product;
+                        $compMeta = $compProduct ? $compProduct->product_meta : [];
+
+                        $compStocks = [];
+                        $compTotalStock = 0;
+                        if ($compProduct) {
+                            foreach ($compProduct->product_stocks as $stock) {
+                                $compStocks[] = [
+                                    'warehouse' => $stock->warehouse->name ?? 'N/A',
+                                    'rack' => $stock->rack->name ?? 'N/A',
+                                    'quantity' => (int) $stock->quantity,
+                                ];
+                                $compTotalStock += (int) $stock->quantity;
+                            }
+                        }
+
+                        $componentsData[] = [
+                            'product_name' => $component->title ?? ($compProduct->name ?? 'Unknown'),
+                            'sku' => $component->sku ?? ($compProduct->sku ?? ''),
+                            'weight' => $compMeta['weight'] ?? null,
+                            'weight_unit' => $compMeta['weight_unit'] ?? 'lbs',
+                            'length' => $compMeta['length'] ?? null,
+                            'width' => $compMeta['width'] ?? null,
+                            'height' => $compMeta['height'] ?? null,
+                            'dimension_unit' => $compMeta['dimension_unit'] ?? 'in',
+                            'quantity_ordered' => (int) $component->quantity,
+                            'warehouse_stocks' => $compStocks,
+                            'total_stock' => $compTotalStock,
+                        ];
+                    }
+
+                    $checklistItems[] = [
+                        'order' => $order,
+                        'item' => $item,
+                        'ebay_order_id' => $order->ebay_order_id ?: $order->order_number,
+                        'image_url' => $imageUrl,
+                        'product_name' => $item->bundle_name ?? ($item->title ?? ($product->name ?? 'Unknown Bundle')),
+                        'sku' => $item->sku ?? ($product->sku ?? ''),
+                        'weight' => $weight,
+                        'weight_unit' => $weightUnit,
+                        'length' => $length,
+                        'width' => $width,
+                        'height' => $height,
+                        'dimension_unit' => $dimensionUnit,
+                        'sales_channel' => $order->salesChannel->name ?? 'Direct',
+                        'quantity_ordered' => (int) $item->quantity,
+                        'is_bundle' => true,
+                        'components' => $componentsData,
+                        'warehouse_stocks' => [],
+                        'total_stock' => 0,
+                    ];
+
+                } elseif (!$item->bundle_product_id) {
+                    $product = $item->product;
+                    $productMeta = $product ? $product->product_meta : [];
+                    $weight = $productMeta['weight'] ?? null;
+                    $weightUnit = $productMeta['weight_unit'] ?? 'lbs';
+                    $length = $productMeta['length'] ?? null;
+                    $width = $productMeta['width'] ?? null;
+                    $height = $productMeta['height'] ?? null;
+                    $dimensionUnit = $productMeta['dimension_unit'] ?? 'in';
+
+                    $warehouseStocks = [];
+                    $totalStock = 0;
+                    if ($product) {
+                        foreach ($product->product_stocks as $stock) {
+                            $warehouseStocks[] = [
+                                'warehouse' => $stock->warehouse->name ?? 'N/A',
+                                'rack' => $stock->rack->name ?? 'N/A',
+                                'quantity' => (int) $stock->quantity,
+                            ];
+                            $totalStock += (int) $stock->quantity;
+                        }
+                    }
+
+                    $imageUrl = $product ? $product->getImageUrl() : null;
+
+                    $checklistItems[] = [
+                        'order' => $order,
+                        'item' => $item,
+                        'ebay_order_id' => $order->ebay_order_id ?: $order->order_number,
+                        'image_url' => $imageUrl,
+                        'product_name' => $item->title ?? ($product->name ?? 'Unknown Product'),
+                        'sku' => $item->sku ?? ($product->sku ?? ''),
+                        'weight' => $weight,
+                        'weight_unit' => $weightUnit,
+                        'length' => $length,
+                        'width' => $width,
+                        'height' => $height,
+                        'dimension_unit' => $dimensionUnit,
+                        'sales_channel' => $order->salesChannel->name ?? 'Direct',
+                        'quantity_ordered' => (int) $item->quantity,
+                        'is_bundle' => false,
+                        'components' => [],
+                        'warehouse_stocks' => $warehouseStocks,
+                        'total_stock' => $totalStock,
+                    ];
+                }
+            }
+        }
+
+        // Summary statistics
+        $summary = [
+            'total_orders' => $orders->count(),
+            'total_items' => count($checklistItems),
+            'total_quantity' => collect($checklistItems)->sum('quantity_ordered'),
+        ];
+
+        $pdf = Pdf::loadView('reports.shipping-checklist-pdf', compact(
+            'checklistItems',
+            'summary',
+            'dateFrom',
+            'dateTo'
+        ))
+        ->setPaper('a4', 'landscape')
+        ->setOption('isRemoteEnabled', true);
+
+        $filename = 'shipping_checklist_' . $dateFrom . '_to_' . $dateTo . '.pdf';
+
+        return $pdf->download($filename);
     }
 
     /**
