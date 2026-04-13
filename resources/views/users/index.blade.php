@@ -164,15 +164,15 @@
                                             {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $user->id }}"> --}}
                                         </td>
                                     @endcan
-                                    <td>{{ $user->id }}</td>
-                                    <td><span class="fw-semibold">{{ $user->name }}</span></td>
-                                    <td>{{ $user->email }}</td>
-                                    <td>
+                                    <td data-column="id">{{ $user->id }}</td>
+                                    <td data-column="name"><span class="fw-semibold">{{ $user->name }}</span></td>
+                                    <td data-column="email">{{ $user->email }}</td>
+                                    <td data-column="role">
                                         @foreach($user->roles as $role)
                                             <span class="badge bg-soft-primary text-primary">{{ $role->name }}</span>
                                         @endforeach
                                     </td>
-                                    <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($user->created_at)->format('d M, Y') }}</span></td>
+                                    <td data-column="created_at"><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($user->created_at)->format('d M, Y') }}</span></td>
                                     <td>
                                         <div class="hstack gap-2 justify-content-end">
                                             @can('edit users')
