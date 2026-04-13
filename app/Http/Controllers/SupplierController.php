@@ -45,8 +45,18 @@ class SupplierController extends Controller
             $query->where('city', 'like', "%{$request->city}%");
         }
 
+        // Sort
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        if ($sortBy === 'name') {
+            $query->orderBy('first_name', $sortOrder)
+                ->orderBy('last_name', $sortOrder);
+        } else {
+            $query->orderBy($sortBy, $sortOrder);
+        }
+
         $perPage = $request->input('per_page', 25);
-        $suppliers = $query->orderBy('created_at', 'DESC')->paginate($perPage)->withQueryString();
+        $suppliers = $query->paginate($perPage)->withQueryString();
         return view('suppliers.index', compact('suppliers', 'perPage'));
     }
 
