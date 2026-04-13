@@ -38,8 +38,13 @@ class CategoryController extends Controller
             }
         }
 
+        // Sort
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
         $perPage = $request->input('per_page', 25);
-        $categories = $query->orderBy('created_at', 'DESC')->paginate($perPage)->withQueryString();
+        $categories = $query->paginate($perPage)->withQueryString();
         $parentCategories = Category::whereNull('parent_id')->orderBy('name')->get();
 
         return view('categories.index', compact('categories', 'parentCategories', 'perPage'));
