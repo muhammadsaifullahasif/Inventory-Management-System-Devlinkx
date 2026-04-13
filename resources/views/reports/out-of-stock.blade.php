@@ -151,47 +151,101 @@
         <div class="card">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h5 class="card-title mb-0"><i class="feather-alert-circle me-2"></i>Out of Stock / Low Stock Items</h5>
-                <span class="badge bg-danger">{{ $outOfStockItems->count() }} items</span>
+                <div class="d-flex align-items-center justify-content-end gap-2">
+                    <span class="badge bg-danger">{{ $outOfStockItems->count() }} items</span>
+                    <div class="ms-auto d-flex align-items-center gap-2">
+                        @php
+                            $outOfStockColumns = [
+                                ['key' => 'id', 'label' => '#', 'default' => true],
+                                ['key' => 'image', 'label' => 'Image', 'default' => true],
+                                ['key' => 'product', 'label' => 'Product', 'default' => true],
+                                ['key' => 'category', 'label' => 'Category', 'default' => false],
+                                ['key' => 'last_purchase_quantity', 'label' => 'Last Purchase Qty', 'default' => true],
+                                ['key' => 'last_purchase', 'label' => 'Last Purchase', 'default' => true],
+                                ['key' => 'last_order', 'label' => 'Last Order', 'default' => true],
+                                ['key' => 'sold_quantity', 'label' => 'Sold', 'default' => true],
+                                ['key' => 'stock', 'label' => 'Stock', 'default' => true],
+                                ['key' => 'warehouse', 'label' => 'Warehouse Details', 'default' => false],
+                                ['key' => 'price', 'label' => 'Price', 'default' => false],
+                                ['key' => 'status', 'label' => 'Status', 'default' => false],
+                            ];
+                        @endphp
+                        @include('partials.column-toggle', ['tableId' => 'outOfStockTable', 'cookieName' => 'out_of_stock_columns', 'columns' => $outOfStockColumns])
+                    </div>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0" id="outOfStockTable">
                         <thead>
                             <tr>
-                                <th>Product</th>
-                                <th>SKU</th>
-                                <th>Category</th>
-                                <th class="text-center">Stock</th>
-                                <th>Warehouse Details</th>
-                                <th>Last Order</th>
-                                <th>Last Purchase</th>
-                                <th class="text-end">Price</th>
-                                <th class="text-center">Status</th>
+                                <th data-column="id">#</th>
+                                <th data-column="image">Image</th>
+                                <th data-column="product" style="max-width: 200px;">Product</th>
+                                <th data-column="category">Category</th>
+                                <th data-column="last_purchase_quantity">Last Purchase Qty</th>
+                                <th data-column="last_purchase">Last Purchase</th>
+                                <th data-column="last_order">Last Order</th>
+                                <th data-column="sold_quantity">Sold</th>
+                                <th data-column="stock" class="text-center">Stock</th>
+                                <th data-column="warehouse">Warehouse Details</th>
+                                <th data-column="price" class="text-end">Price</th>
+                                <th data-column="status" class="text-center">Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse($outOfStockItems as $item)
                                 <tr>
-                                    <td>
+                                    <td data-column="id">{{ ($loop->index + 1) }}</td>
+                                    <td data-column="image">
+                                        @if($item['product_image'])
+                                            <img src="{{ $item['product_image'] }}" alt="{{ $item['product_name'] }}" class="rounded" style="width: 50px; height: 50px; object-fit: cover;">
+                                        @else
+                                            <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                <i class="feather-image text-muted"></i>
+                                            </div>
+                                        @endif
+                                    </td>
+                                    <td data-column="product" style="max-width: 200px; white-space: normal;">
                                         <a href="{{ route('products.show', $item['product_id']) }}" class="fw-semibold">
                                             {{ $item['product_name'] }}
                                         </a>
+                                        <span class="d-block fs-11 text-muted">SKU: {{ $item['product_sku'] }}</span>
                                         @if(!$item['is_active'])
                                             <span class="badge bg-secondary ms-1">Inactive</span>
                                         @endif
                                     </td>
-                                    <td><code>{{ $item['product_sku'] }}</code></td>
-                                    <td>
+                                    <td data-column="category">
                                         <span class="badge bg-soft-secondary text-secondary">{{ $item['category_name'] }}</span>
                                     </td>
-                                    <td class="text-center">
+                                    <td data-column="last_purchase_quantity" class="text-center">{{ $item['last_purchase_quantity'] ?? 0 }}</td>
+                                    <td data-column="last_purchase">
+                                        @if($item['last_purchase_date'])
+                                            <span title="{{ $item['last_purchase_date']->format('M d, Y H:i') }}">
+                                                {{ $item['last_purchase_date']->diffForHumans() }}
+                                            </span>
+                                        @else
+                                            <span class="text-muted">Never</span>
+                                        @endif
+                                    </td>
+                                    <td data-column="last_order">
+                                        @if($item['last_order_date'])
+                                            <span title="{{ $item['last_order_date']->format('M d, Y H:i') }}">
+                                                {{ $item['last_order_date']->diffForHumans() }}
+                                            </span>
+                                        @else
+                                            <span class="text-muted">Never</span>
+                                        @endif
+                                    </td>
+                                    <td data-column="sold_quantity">{{ $item['sold_quantity'] }}</td>
+                                    <td data-column="stock" class="text-center">
                                         @if($item['total_stock'] == 0)
                                             <span class="badge bg-danger">0</span>
                                         @else
                                             <span class="badge bg-warning text-dark">{{ number_format($item['total_stock'], 2) }}</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="warehouse">
                                         @if(count($item['warehouse_breakdown']) > 0)
                                             @foreach($item['warehouse_breakdown'] as $wh)
                                                 <small class="d-block">
@@ -206,26 +260,8 @@
                                             <span class="text-muted">No stock records</span>
                                         @endif
                                     </td>
-                                    <td>
-                                        @if($item['last_order_date'])
-                                            <span title="{{ $item['last_order_date']->format('M d, Y H:i') }}">
-                                                {{ $item['last_order_date']->diffForHumans() }}
-                                            </span>
-                                        @else
-                                            <span class="text-muted">Never</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if($item['last_purchase_date'])
-                                            <span title="{{ $item['last_purchase_date']->format('M d, Y H:i') }}">
-                                                {{ $item['last_purchase_date']->diffForHumans() }}
-                                            </span>
-                                        @else
-                                            <span class="text-muted">Never</span>
-                                        @endif
-                                    </td>
-                                    <td class="text-end">{{ number_format($item['price'], 2) }}</td>
-                                    <td class="text-center">
+                                    <td data-column="price" class="text-end">{{ number_format($item['price'], 2) }}</td>
+                                    <td data-column="status" class="text-center">
                                         @if($item['total_stock'] == 0)
                                             <span class="badge bg-danger">Out of Stock</span>
                                         @else

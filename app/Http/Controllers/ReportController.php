@@ -1404,11 +1404,16 @@ class ReportController extends Controller
                 }
 
                 // Get last order date for this product
-                $lastOrderItem = OrderItem::where('product_id', $product->id)
+                $OrderItem = OrderItem::where('product_id', $product->id)
                     ->whereHas('order', function ($q) {
                         $q->whereIn('payment_status', ['paid']);
-                    })
-                    ->orderBy('created_at', 'desc')
+                    });
+
+                // ✅ 1. Total Quantity
+                $totalSold = (clone $OrderItem)->sum('quantity');
+
+                // ✅ 2. Last Order Item
+                $lastOrderItem = (clone $OrderItem)->orderBy('created_at', 'desc')
                     ->first();
 
                 // Get last purchase date for this product
@@ -1421,13 +1426,16 @@ class ReportController extends Controller
 
                 $outOfStockItems[] = [
                     'product_id' => $product->id,
+                    'product_image' => $product->getImageUrl(), 
                     'product_name' => $product->name,
                     'product_sku' => $product->sku,
                     'category_name' => $product->category->name ?? 'Uncategorized',
                     'total_stock' => $totalStock,
                     'warehouse_breakdown' => $warehouseBreakdown,
-                    'last_order_date' => $lastOrderItem?->created_at,
                     'last_purchase_date' => $lastPurchaseItem?->created_at,
+                    'last_purchase_quantity' => $lastPurchaseItem?->received_quantity, 
+                    'last_order_date' => $lastOrderItem?->created_at,
+                    'sold_quantity' => $totalSold, 
                     'price' => $product->price,
                     'is_active' => $product->active_status == '1',
                 ];
