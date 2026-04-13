@@ -188,14 +188,31 @@
     <!-- Products Table -->
     <div class="col-12">
         <div class="card">
-            <div class="card-body pb-0">
+            <div class="card-body pb-0 d-flex align-items-center justify-content-between">
                 @can('delete products')
                     @include('partials.bulk-actions-bar', ['itemName' => 'products'])
                 @endcan
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    @php
+                        $productColumns = [
+                            ['key' => 'id', 'label' => '#', 'default' => true],
+                            ['key' => 'image', 'label' => 'Image', 'default' => true],
+                            ['key' => 'name', 'label' => 'Name', 'default' => true],
+                            ['key' => 'price', 'label' => 'Price', 'default' => true],
+                            ['key' => 'quantity', 'label' => 'Quantity', 'default' => true],
+                            ['key' => 'location', 'label' => 'Location', 'default' => true],
+                            ['key' => 'category', 'label' => 'Category', 'default' => true],
+                            ['key' => 'sales_channels', 'label' => 'Sales Channels', 'default' => true],
+                        ];
+                    @endphp
+                    @include('partials.column-toggle', ['tableId' => 'productsTable', 'cookieName' => 'products_columns', 'columns' => $productColumns])
+                </div>
             </div>
+            {{-- <div class="card-body pb-0 d-flex align-items-center justify-content-between">
+            </div> --}}
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover align-top mb-0">
+                    <table class="table table-hover align-top mb-0" id="productsTable">
                         <thead>
                             <tr>
                                 @can('delete products')
@@ -223,7 +240,7 @@
                                     ];
                                 @endphp
                                 @foreach($sortableColumns as $key => $col)
-                                    <th @if($col['style']) style="{{ $col['style'] }}" @endif>
+                                    <th data-column="{{ $key }}" @if($col['style']) style="{{ $col['style'] }}" @endif>
                                         @if($col['column'])
                                             @php
                                                 $isActive = $currentSort === $col['column'];
@@ -268,8 +285,8 @@
                                             {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $product->id }}"> --}}
                                         </td>
                                     @endcan
-                                    <td>{{ $product->id }}</td>
-                                    <td>
+                                    <td data-column="id">{{ $product->id }}</td>
+                                    <td data-column="image">
                                         @if($product->getImageUrl())
                                             <img src="{{ $product->getImageUrl() }}" alt="{{ $product->name }}" class="rounded" style="width: 50px; height: 50px; object-fit: cover;">
                                         @else
@@ -294,12 +311,12 @@
                                             </div>
                                         </div>
                                     </td> --}}
-                                    <td>
+                                    <td data-column="name">
                                         <span style="white-space: normal; width: 300px; display: block;" class="fw-semibold">{{ $product->name }}</span>
                                         <span class="d-block fs-11 text-muted">SKU: {{ $product->sku }}</span>
                                     </td>
-                                    <td><span class="fw-semibold">${{ number_format($product->price, 2) }}</span></td>
-                                    <td>
+                                    <td data-column="price"><span class="fw-semibold">${{ number_format($product->price, 2) }}</span></td>
+                                    <td data-column="quantity">
                                         @php
                                             $totalStock = $product->is_bundle
                                                 ? $product->available_stock
@@ -317,7 +334,7 @@
                                             @endif
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="location">
                                         @if($product->is_bundle)
                                             <span class="badge bg-soft-info text-info">Bundle</span>
                                             <span class="text-muted fs-11">({{ $product->bundleComponents->count() }} Components)</span>
@@ -333,8 +350,8 @@
                                             @endforelse
                                         @endif
                                     </td>
-                                    <td>{{ $product->category->name ?? 'N/A' }}</td>
-                                    <td>
+                                    <td data-column="category">{{ $product->category->name ?? 'N/A' }}</td>
+                                    <td data-column="sales_channels">
                                         @foreach ($product->sales_channels as $sales_channel)
                                             <a href="{{ $sales_channel->pivot->listing_url }}" target="_blank" class="badge bg-soft-primary text-primary me-1">{{ $sales_channel['name'] }}</a>
                                         @endforeach
