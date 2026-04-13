@@ -37,8 +37,14 @@ class PermissionController extends Controller
             }
         }
 
+        // Sort
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
         $perPage = $request->input('per_page', 25);
-        $permissions = $query->orderBy('category')->orderBy('name')->paginate($perPage)->withQueryString();
+        // $permissions = $query->orderBy('category')->orderBy('name')->paginate($perPage)->withQueryString();
+        $permissions = $query->paginate($perPage)->withQueryString();
 
         // Get predefined categories from model
         $categories = Permission::getCategories();
