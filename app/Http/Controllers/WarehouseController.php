@@ -22,6 +22,7 @@ class WarehouseController extends Controller
     public function index(Request $request)
     {
         $query = Warehouse::with('racks')
+            ->withCount(['racks as racks_count'])
             ->withCount(['product_stocks as products_count' => function ($query) {
                 $query->where('quantity', '>', 0);
             }])
@@ -40,8 +41,25 @@ class WarehouseController extends Controller
             $query->where('is_default', $request->is_default);
         }
 
+        // Sort
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        if ($sortBy === 'racks') {
+            $query->orderBy('racks_count', $sortOrder);
+        } else if ($sortBy === 'in_stock') {
+            $query->orderBy('products_count', $sortOrder);
+        } else if ($sortBy === 'out_of_stock') {
+            $query->orderBy('out_of_stock_count', $sortOrder);
+        } else if ($sortBy === 'total') {
+            $query->orderByRaw('(products_count + out_of_stock_count) ' . $sortOrder);
+        } else if ($sortBy === 'quantity') {
+            $query->orderBy('product_stocks_sum_quantity', $sortOrder);
+        } else {
+            $query->orderBy($sortBy, $sortOrder);
+        }
+
         $perPage = $request->input('per_page', 25);
-        $warehouses = $query->orderBy('created_at', 'DESC')->paginate($perPage)->withQueryString();
+        $warehouses = $query->paginate($perPage)->withQueryString();
         return view('warehouses.index', compact('warehouses', 'perPage'));
     }
 
