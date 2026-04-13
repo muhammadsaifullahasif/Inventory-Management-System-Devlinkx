@@ -1,5 +1,32 @@
 @extends('layouts.app')
 
+@push('styles')
+<style>
+    .sortable-header {
+        cursor: pointer;
+        white-space: nowrap;
+        transition: color 0.15s ease;
+    }
+    .sortable-header:hover {
+        color: var(--bs-primary) !important;
+    }
+    .sortable-header.active {
+        color: var(--bs-primary) !important;
+        font-weight: 600;
+    }
+    .sort-arrows {
+        display: inline-flex;
+        align-items: center;
+    }
+    .sort-arrows i {
+        line-height: 1;
+    }
+    .sortable-header:hover .sort-arrows .text-muted {
+        opacity: 1 !important;
+    }
+</style>
+@endpush
+
 @section('header')
     <!-- [ page-header ] start -->
     <div class="page-header">
@@ -148,17 +175,50 @@
                                     </th>
                                 @endcan
                                 <th style="width: 40px;"></th>
-                                <th data-column="id">#</th>
-                                <th data-column="order_number">Order #</th>
-                                <th data-column="channel">Channel</th>
-                                <th data-column="customer">Customer</th>
-                                <th data-column="items">Items</th>
-                                <th data-column="total">Total</th>
-                                <th data-column="status">Status</th>
-                                <th data-column="address_type">Address Type</th>
-                                <th data-column="order_date">Order Date</th>
-                                <th data-column="ship_by">Ship By</th>
-                                <th data-column="shipped_date">Shipped Date</th>
+                                @php
+                                    $currentSort = request('sort_by', 'created_at');
+                                    $currentOrder = request('sort_order', 'desc');
+                                    $sortableColumns = [
+                                        'id' => ['label' => '#', 'column' => 'id'],
+                                        'order_number' => ['label' => 'Order #', 'column' => 'order_number'],
+                                        'channel' => ['label' => 'Channel', 'column' => 'sales_channel_id'],
+                                        'customer' => ['label' => 'Customer', 'column' => 'buyer_name'],
+                                        'items' => ['label' => 'Items', 'column' => null],
+                                        'total' => ['label' => 'Total', 'column' => 'total'],
+                                        'status' => ['label' => 'Status', 'column' => 'order_status'],
+                                        'address_type' => ['label' => 'Address Type', 'column' => 'address_type'],
+                                        'order_date' => ['label' => 'Order Date', 'column' => 'order_date'],
+                                        'ship_by' => ['label' => 'Ship By', 'column' => 'shipment_deadline'],
+                                        'shipped_date' => ['label' => 'Shipped Date', 'column' => 'shipped_at'],
+                                    ];
+                                @endphp
+                                @foreach($sortableColumns as $key => $col)
+                                    <th data-column="{{ $key }}">
+                                        @if($col['column'])
+                                            @php
+                                                $isActive = $currentSort === $col['column'];
+                                                $nextOrder = ($isActive && $currentOrder === 'asc') ? 'desc' : 'asc';
+                                                $sortUrl = request()->fullUrlWithQuery(['sort_by' => $col['column'], 'sort_order' => $nextOrder]);
+                                            @endphp
+                                            <a href="{{ $sortUrl }}" class="d-flex align-items-center text-dark text-decoration-none sortable-header {{ $isActive ? 'active' : '' }}">
+                                                {{ $col['label'] }}
+                                                <span class="sort-arrows ms-1">
+                                                    @if($isActive)
+                                                        @if($currentOrder === 'asc')
+                                                            <i class="feather-arrow-up fs-12"></i>
+                                                        @else
+                                                            <i class="feather-arrow-down fs-12"></i>
+                                                        @endif
+                                                    @else
+                                                        <i class="feather-chevrons-up fs-10 text-muted opacity-50"></i>
+                                                    @endif
+                                                </span>
+                                            </a>
+                                        @else
+                                            {{ $col['label'] }}
+                                        @endif
+                                    </th>
+                                @endforeach
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
