@@ -29,8 +29,13 @@ class RoleController extends Controller
             $query->where('name', 'like', "%{$request->search}%");
         }
 
+        // Sort
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
         $perPage = $request->input('per_page', 25);
-        $roles = $query->orderBy('id', 'DESC')->paginate($perPage)->withQueryString();
+        $roles = $query->paginate($perPage)->withQueryString();
         return view('roles.index', compact('roles', 'perPage'));
     }
 
