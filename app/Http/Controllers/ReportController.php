@@ -979,7 +979,7 @@ class ReportController extends Controller
             ->whereDate('order_date', '>=', $dateFrom)
             ->whereDate('order_date', '<=', $dateTo)
             ->where('payment_status', 'paid')
-            ->when($order_status != '', function ($query) use ($order_status) {
+            ->when($order_status !== 'all', function ($query) use ($order_status) {
                 if ($order_status == 'fulfilled') {
                     $query->where('fulfillment_status', 'fulfilled');
                 } else {

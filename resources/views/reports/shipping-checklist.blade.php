@@ -246,21 +246,21 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-2 d-flex justify-content-end flex-column">
+                {{-- <div class="col-md-2 d-flex justify-content-end flex-column">
                     <label for="fulfilled" class="form-label">Order Status</label>
                     <div class="form-check form-switch">
                         <input type="checkbox" class="form-check-input" id="fulfilled" name="order_status" value="fulfilled" role="switch" {{ $order_status == 'fulfilled' ? 'checked' : '' }}>
                         <label for="fulfilled" class="form-check-label">Fulfilled</label>
                     </div>
-                </div>
-                {{-- <div class="col-md-2">
-                    <label class="form-label">Fulfillment Status</label>
-                    <select name="fulfillment_status" class="form-select">
-                        <option value="unfulfilled" {{ $fulfillmentStatus == 'unfulfilled' ? 'selected' : '' }}>Unfulfilled</option>
-                        <option value="fulfilled" {{ $fulfillmentStatus == 'fulfilled' ? 'selected' : '' }}>Fulfilled</option>
-                        <option value="all" {{ $fulfillmentStatus == 'all' ? 'selected' : '' }}>All</option>
-                    </select>
                 </div> --}}
+                <div class="col-md-2">
+                    <label class="form-label">Order Status</label>
+                    <select name="order_status" class="form-select">
+                        <option value="all" {{ $order_status == 'all' ? 'selected' : '' }}>All</option>
+                        <option value="unfulfilleds" {{ $order_status == 'unfulfilled' ? 'selected' : '' }}>Unfulfilled</option>
+                        <option value="fulfilled" {{ $order_status == 'fulfilled' ? 'selected' : '' }}>Fulfilled</option>
+                    </select>
+                </div>
                 {{-- <div class="col-md-2">
                     <label class="form-label">Order Status</label>
                     <select name="order_status" class="form-select">
