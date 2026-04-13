@@ -88,14 +88,30 @@
     <!-- Racks Table -->
     <div class="col-12">
         <div class="card">
-            <div class="card-body pb-0">
+            <div class="card-body pb-0 d-flex align-items-center justify-content-between">
                 @can('delete racks')
                     @include('partials.bulk-actions-bar', ['itemName' => 'racks'])
                 @endcan
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    @php
+                        $rackColumns = [
+                            ['key' => 'id', 'label' => '#', 'default' => true],
+                            ['key' => 'name', 'label' => 'Name', 'default' => true],
+                            ['key' => 'warehouse', 'label' => 'Warehouse', 'default' => true],
+                            ['key' => 'is_default', 'label' => 'Is Default', 'default' => true],
+                            ['key' => 'in_stock', 'label' => 'In Stock', 'default' => true],
+                            ['key' => 'out_of_stock', 'label' => 'Out of Stock', 'default' => true],
+                            ['key' => 'total', 'label' => 'Total', 'default' => true],
+                            ['key' => 'quantity', 'label' => 'Total Qty', 'default' => true],
+                            ['key' => 'created_at', 'label' => 'Created At', 'default' => true],
+                        ];
+                    @endphp
+                    @include('partials.column-toggle', ['tableId' => 'rackTable', 'cookieName' => 'rack_columns', 'columns' => $rackColumns])
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0" id="rackTable">
                         <thead>
                             <tr>
                                 @can('delete racks')
@@ -108,15 +124,48 @@
                                         </div>
                                     </th>
                                 @endcan
-                                <th>#</th>
-                                <th>Name</th>
-                                <th>Warehouse</th>
-                                <th>Is Default</th>
-                                <th>In Stock</th>
-                                <th>Out of Stock</th>
-                                <th>Total</th>
-                                <th>Total Qty</th>
-                                <th>Created at</th>
+                                @php
+                                    $currentSort = request('sort_by', 'id');
+                                    $currentOrder = request('sort_order', 'desc');
+                                    $sortableColumns = [
+                                        'id' => ['label' => '#', 'column' => 'id', 'style' => '', 'sort' => true],
+                                        'name' => ['label' => 'Name', 'column' => 'name', 'style' => '', 'sort' => true],
+                                        'warehouse' => ['label' => 'Warehouse', 'column' => 'warehouse', 'style' => '', 'sort' => true],
+                                        'is_default' => ['label' => 'Is Default', 'column' => 'is_default', 'style' => '', 'sort' => false],
+                                        'in_stock' => ['label' => 'In Stock', 'column' => 'in_stock', 'style' => '', 'sort' => false],
+                                        'out_of_stock' => ['label' => 'Out of Stock', 'column' => 'out_of_stock', 'style' => '', 'sort' => false],
+                                        'total' => ['label' => 'Total', 'column' => 'total', 'style' => '', 'sort' => true],
+                                        'quantity' => ['label' => 'Total Qty', 'column' => 'quantity', 'style' => '', 'sort' => true],
+                                        'created_at' => ['label' => 'Created At', 'column' => 'created_at', 'style' => '', 'sort' => true],
+                                    ];
+                                @endphp
+                                @foreach ($sortableColumns as $key => $col)
+                                    <th data-column="{{ $key }}" @if($col['style']) style="{{ $col['style'] }}" @endif>
+                                        @if($col['sort'])
+                                            @php
+                                                $isActive = $currentSort === $col['column'];
+                                                $nextOrder = ($isActive && $currentOrder === 'asc') ? 'desc' : 'asc';
+                                                $sortUrl = request()->fullUrlWithQuery(['sort_by' => $col['column'], 'sort_order' => $nextOrder]);
+                                            @endphp
+                                            <a href="{{ $sortUrl }}" class="d-flex align-items-center text-dark text-decoration-none sortable-header {{ $isActive ? 'active' : '' }}">
+                                                {{ $col['label'] }}
+                                                <span class="sort-arrows ms-1">
+                                                    @if($isActive)
+                                                        @if($currentOrder === 'asc')
+                                                            <i class="feather-arrow-up fs-12"></i>
+                                                        @else
+                                                            <i class="feather-arrow-down fs-12"></i>
+                                                        @endif
+                                                    @else
+                                                        <i class="feather-chevrons-up fs-10 text-muted opacity-50"></i>
+                                                    @endif
+                                                </span>
+                                            </a>
+                                        @else
+                                            {{ $col['label'] }}
+                                        @endif
+                                    </th>
+                                @endforeach
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -135,41 +184,41 @@
                                             {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $rack->id }}"> --}}
                                         </td>
                                     @endcan
-                                    <td>{{ $rack->id }}</td>
-                                    <td>
+                                    <td data-column="id">{{ $rack->id }}</td>
+                                    <td data-column="name">
                                         <a href="{{ route('products.index', ['rack_id' => $rack->id]) }}" class="fw-semibold text-primary">
                                             {{ $rack->name }}
                                         </a>
                                     </td>
-                                    <td>
+                                    <td data-column="warehouse">
                                         <a href="{{ route('products.index', ['warehouse_id' => $rack->warehouse_id]) }}" class="badge bg-soft-secondary text-secondary">
                                             {{ $rack->warehouse->name }}
                                         </a>
                                     </td>
-                                    <td>
+                                    <td data-column="is_default">
                                         @if ($rack->is_default)
                                             <span class="badge bg-soft-success text-success">Yes</span>
                                         @else
                                             <span class="badge bg-soft-secondary text-secondary">No</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="in_stock">
                                         <a href="{{ route('products.index', ['rack_id' => $rack->id, 'stock_status' => 'in_stock']) }}" class="badge bg-soft-success text-success">
                                             {{ $rack->products_count }}
                                         </a>
                                     </td>
-                                    <td>
+                                    <td data-column="out_of_stock">
                                         <a href="{{ route('products.index', ['rack_id' => $rack->id, 'stock_status' => 'out_of_stock']) }}" class="badge bg-soft-danger text-danger">
                                             {{ $rack->out_of_stock_count }}
                                         </a>
                                     </td>
-                                    <td>
+                                    <td data-column="total">
                                         <a href="{{ route('products.index', ['rack_id' => $rack->id]) }}" class="badge bg-soft-primary text-dark">
                                             {{ $rack->products_count + $rack->out_of_stock_count }}
                                         </a>
                                     </td>
-                                    <td><span class="badge bg-soft-info text-info">{{ (int) $rack->rack_stock_sum_quantity }}</span></td>
-                                    <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($rack->created_at)->format('d M, Y') }}</span></td>
+                                    <td data-column="quantity"><span class="badge bg-soft-info text-info">{{ (int) $rack->rack_stock_sum_quantity }}</span></td>
+                                    <td data-column="created_at"><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($rack->created_at)->format('d M, Y') }}</span></td>
                                     <td>
                                         <div class="hstack gap-2 justify-content-end">
                                             <a href="{{ route('racks.print-label', $rack->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="Print Label">
