@@ -31,14 +31,31 @@
 @section('content')
     <div class="col-12">
         <div class="card">
-            <div class="card-body pb-0">
+            <div class="card-body pb-0 d-flex align-items-center justify-content-between">
                 @can('delete shipping')
                     @include('partials.bulk-actions-bar', ['itemName' => 'carriers'])
                 @endcan
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    @php
+                        $shippingColumns = [
+                            ['key' => 'id', 'label' => '#', 'default' => true],
+                            ['key' => 'name', 'label' => 'Name', 'default' => true],
+                            ['key' => 'type', 'label' => 'Type', 'default' => true],
+                            ['key' => 'account', 'label' => 'Account #', 'default' => true],
+                            ['key' => 'default_service', 'label' => 'Default Service', 'default' => true],
+                            ['key' => 'units', 'label' => 'Units', 'default' => true],
+                            ['key' => 'mode', 'label' => 'Mode', 'default' => true],
+                            ['key' => 'default', 'label' => 'Default', 'default' => true],
+                            ['key' => 'address_validation', 'label' => 'Address Validation', 'default' => true],
+                            ['key' => 'status', 'label' => 'Status', 'default' => true],
+                        ];
+                    @endphp
+                    @include('partials.column-toggle', ['tableId' => 'shippingTable', 'cookieName' => 'shipping_columns', 'columns' => $shippingColumns])
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0" id="shippingTable">
                         <thead>
                             <tr>
                                 @can('delete shipping')
@@ -51,16 +68,49 @@
                                         </div>
                                     </th>
                                 @endcan
-                                <th>#</th>
-                                <th>Name</th>
-                                <th>Type</th>
-                                <th>Account #</th>
-                                <th>Default Service</th>
-                                <th>Units</th>
-                                <th>Mode</th>
-                                <th>Default</th>
-                                <th>Addr. Validation</th>
-                                <th>Status</th>
+                                @php
+                                    $currentSort = request('sort_by', 'id');
+                                    $currentOrder = request('sort_order', 'desc');
+                                    $sortableColumns = [
+                                        'id' => ['label' => '#', 'column' => 'id', 'style' => '', 'sort' => true],
+                                        'name' => ['label' => 'Name', 'column' => 'name', 'style' => '', 'sort' => true],
+                                        'type' => ['label' => 'Type', 'column' => 'type', 'style' => '', 'sort' => false],
+                                        'account' => ['label' => 'Account #', 'column' => 'account', 'style' => '', 'sort' => false],
+                                        'default_service' => ['label' => 'Default Service', 'column' => 'default_service', 'style' => '', 'sort' => false],
+                                        'units' => ['label' => 'Units', 'column' => 'units', 'style' => '', 'sort' => false],
+                                        'mode' => ['label' => 'Mode', 'column' => 'mode', 'style' => '', 'sort' => false],
+                                        'default' => ['label' => 'Default', 'column' => 'default', 'style' => '', 'sort' => false],
+                                        'address_validation' => ['label' => 'Addr. Validation', 'column' => 'address_validation', 'style' => '', 'sort' => false],
+                                        'status' => ['label' => 'Status', 'column' => 'status', 'style' => '', 'sort' => false],
+                                    ];
+                                @endphp
+                                @foreach ($sortableColumns as $key => $col)
+                                    <th data-column="{{ $key }}" @if($col['style']) style="{{ $col['style'] }}" @endif>
+                                        @if($col['sort'])
+                                            @php
+                                                $isActive = $currentSort === $col['column'];
+                                                $nextOrder = ($isActive && $currentOrder === 'asc') ? 'desc' : 'asc';
+                                                $sortUrl = request()->fullUrlWithQuery(['sort_by' => $col['column'], 'sort_order' => $nextOrder]);
+                                            @endphp
+                                            <a href="{{ $sortUrl }}" class="d-flex align-items-center text-dark text-decoration-none sortable-header {{ $isActive ? 'active' : '' }}">
+                                                {{ $col['label'] }}
+                                                <span class="sort-arrows ms-1">
+                                                    @if($isActive)
+                                                        @if($currentOrder === 'asc')
+                                                            <i class="feather-arrow-up fs-12"></i>
+                                                        @else
+                                                            <i class="feather-arrow-down fs-12"></i>
+                                                        @endif
+                                                    @else
+                                                        <i class="feather-chevrons-up fs-10 text-muted opacity-50"></i>
+                                                    @endif
+                                                </span>
+                                            </a>
+                                        @else
+                                            {{ $col['label'] }}
+                                        @endif
+                                    </th>
+                                @endforeach
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -79,34 +129,34 @@
                                             {{-- <input type="checkbox" class="form-check-input row-checkbox" value="{{ $shipping->id }}"> --}}
                                         </td>
                                     @endcan
-                                    <td>{{ $loop->iteration }}</td>
-                                    <td><span class="fw-semibold">{{ $shipping->name }}</span></td>
-                                    <td><span class="badge bg-soft-secondary text-secondary">{{ strtoupper($shipping->type) }}</span></td>
-                                    <td>{{ $shipping->account_number ?: '-' }}</td>
-                                    <td><span class="fs-12">{{ $shipping->default_service ?: '-' }}</span></td>
-                                    <td class="text-nowrap"><span class="fs-12 text-muted">{{ $shipping->weight_unit }} / {{ $shipping->dimension_unit }}</span></td>
-                                    <td>
+                                    <td data-column="id">{{ $loop->iteration }}</td>
+                                    <td data-column="name"><span class="fw-semibold">{{ $shipping->name }}</span></td>
+                                    <td data-column="type"><span class="badge bg-soft-secondary text-secondary">{{ strtoupper($shipping->type) }}</span></td>
+                                    <td data-column="account_number">{{ $shipping->account_number ?: '-' }}</td>
+                                    <td data-column="default_service"><span class="fs-12">{{ $shipping->default_service ?: '-' }}</span></td>
+                                    <td data-column="units" class="text-nowrap"><span class="fs-12 text-muted">{{ $shipping->weight_unit }} / {{ $shipping->dimension_unit }}</span></td>
+                                    <td data-column="mode">
                                         @if ($shipping->is_sandbox)
                                             <span class="badge bg-soft-warning text-warning">Sandbox</span>
                                         @else
                                             <span class="badge bg-soft-success text-success">Live</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="default">
                                         @if ($shipping->is_default)
                                             <span class="badge bg-soft-primary text-primary">Default</span>
                                         @else
                                             <span class="text-muted">-</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="address_validation">
                                         @if ($shipping->is_address_validation)
                                             <span class="badge bg-soft-info text-info">Enabled</span>
                                         @else
                                             <span class="text-muted">-</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="status">
                                         <span class="badge carrier-status-badge bg-soft-{{ $shipping->active_status === '1' ? 'success' : 'secondary' }} text-{{ $shipping->active_status === '1' ? 'success' : 'secondary' }}"
                                               data-id="{{ $shipping->id }}" style="cursor:pointer;" title="Click to toggle">
                                             {{ $shipping->active_status === '1' ? 'Active' : 'Inactive' }}

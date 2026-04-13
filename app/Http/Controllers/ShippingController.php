@@ -12,8 +12,16 @@ class ShippingController extends Controller
     }
     public function index(Request $request)
     {
+        $query = Shipping::query();
+        $query->where('delete_status', '0');
+
+        // Sort
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
         $perPage = $request->input('per_page', 25);
-        $shippings = Shipping::where("delete_status", "0")->orderByDesc("is_default")->orderBy("name")->paginate($perPage)->withQueryString();
+        $shippings = $query->paginate($perPage)->withQueryString();
         return view("shipping.index", compact("shippings", "perPage"));
     }
     public function create()
