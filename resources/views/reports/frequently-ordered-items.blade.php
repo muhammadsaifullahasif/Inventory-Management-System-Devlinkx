@@ -280,30 +280,56 @@
         <div class="card">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h5 class="card-title mb-0"><i class="feather-trending-up me-2"></i>Top Selling Products</h5>
-                <span class="badge bg-success">{{ $frequentItems->count() }} products</span>
+                <div class="d-flex align-items-center justify-content-end gap-2">
+                    <span class="badge bg-success">{{ $frequentItems->count() }} products</span>
+                    <div class="ms-auto d-flex align-items-center gap-2">
+                        @php
+                            $frequentlyOrderStockColumns = [
+                                ['key' => 'id', 'label' => '#', 'default' => true],
+                                ['key' => 'image', 'label' => 'Image', 'default' => true],
+                                ['key' => 'product', 'label' => 'Product', 'default' => true],
+                                ['key' => 'category', 'label' => 'Category', 'default' => false],
+                                ['key' => 'last_purchase_quantity', 'label' => 'Last Purchase Qty', 'default' => true],
+                                ['key' => 'last_purchase', 'label' => 'Last Purchase', 'default' => true],
+                                ['key' => 'last_order', 'label' => 'Last Order', 'default' => true],
+                                ['key' => 'sold_quantity', 'label' => 'Sold', 'default' => true],
+                                ['key' => 'stock', 'label' => 'Stock', 'default' => true],
+                                ['key' => 'orders', 'label' => 'Orders', 'default' => false],
+                                ['key' => 'revenue', 'label' => 'Revenue', 'default' => false],
+                                ['key' => 'average_price', 'label' => 'Avg Price', 'default' => false],
+                                ['key' => 'average_order', 'label' => 'Avg/Order', 'default' => false],
+                                ['key' => 'days_of_stock', 'label' => 'Days of Stock', 'default' => false],
+                            ];
+                        @endphp
+                        @include('partials.column-toggle', ['tableId' => 'frequentlyOrderStockTable', 'cookieName' => 'frequently_order_stock_columns', 'columns' => $frequentlyOrderStockColumns])
+                    </div>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0" id="frequentlyOrderStockTable">
                         <thead>
                             <tr>
-                                <th style="width: 40px;">#</th>
-                                <th>Product</th>
-                                <th>SKU</th>
-                                <th>Category</th>
-                                <th class="text-end">Qty Sold</th>
-                                <th class="text-end">Orders</th>
-                                <th class="text-end">Revenue</th>
-                                <th class="text-end">Avg Price</th>
-                                <th class="text-end">Avg/Order</th>
-                                <th class="text-end">Current Stock</th>
-                                <th class="text-end">Days of Stock</th>
+                                <th data-column="id" style="width: 40px;">#</th>
+                                <th data-column="image">Image</th>
+                                <th data-column="product" style="max-width: 200px;">Product</th>
+                                <th data-column="category">Category</th>
+                                <th data-column="last_purchase_quantity">Last Purchase Qty</th>
+                                <th data-column="last_purchase">Last Purchase</th>
+                                <th data-column="last_order">Last Order</th>
+                                <th data-column="sold_quantity" class="text-end">Qty Sold</th>
+                                <th data-column="stock" class="text-end">Current Stock</th>
+                                <th data-column="orders" class="text-end">Orders</th>
+                                <th data-column="revenue" class="text-end">Revenue</th>
+                                <th data-column="average_price" class="text-end">Avg Price</th>
+                                <th data-column="average_order" class="text-end">Avg/Order</th>
+                                <th data-column="days_of_stock" class="text-end">Days of Stock</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse($frequentItems as $index => $item)
                                 <tr>
-                                    <td>
+                                    <td data-column="id">
                                         @if($index < 3)
                                             <span class="badge bg-{{ $index == 0 ? 'warning' : ($index == 1 ? 'secondary' : 'danger') }}">
                                                 {{ $index + 1 }}
@@ -312,25 +338,33 @@
                                             <span class="text-muted">{{ $index + 1 }}</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td data-column="image">
+                                        @if($item['product_image'])
+                                            <img src="{{ $item['product_image'] }}" alt="{{ $item['product_name'] }}" class="rounded" style="width: 50px; height: 50px; object-fit: cover;">
+                                        @else
+                                            <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                <i class="feather-image text-muted"></i>
+                                            </div>
+                                        @endif
+                                    </td>
+                                    <td data-column="product" style="max-width: 200px; white-space: normal;">
                                         @if($item['product_id'])
                                             <a href="{{ route('products.show', $item['product_id']) }}" class="fw-semibold">
                                                 {{ $item['product_name'] }}
                                             </a>
+                                            <span class="d-block fs-11 text-muted">SKU: {{ $item['product_sku'] }}</span>
                                         @else
                                             <span class="fw-semibold">{{ $item['product_name'] }}</span>
                                         @endif
                                     </td>
-                                    <td><code>{{ $item['product_sku'] }}</code></td>
-                                    <td>
+                                    <td data-column="category">
                                         <span class="badge bg-soft-secondary text-secondary">{{ $item['category_name'] }}</span>
                                     </td>
-                                    <td class="text-end fw-bold text-success">{{ number_format($item['total_quantity']) }}</td>
-                                    <td class="text-end">{{ number_format($item['order_count']) }}</td>
-                                    <td class="text-end fw-bold">{{ number_format($item['total_revenue'], 2) }}</td>
-                                    <td class="text-end">{{ number_format($item['avg_unit_price'], 2) }}</td>
-                                    <td class="text-end">{{ number_format($item['avg_per_order'], 2) }}</td>
-                                    <td class="text-end">
+                                    <td data-column="last_purchase_quantity">{{ $item['last_purchase_quantity'] }}</td>
+                                    <td data-column="last_purchase">{{ \Carbon\Carbon::parse($item['last_purchase_date'])->format('M d, Y') }}</td>
+                                    <td data-column="last_order">{{ \Carbon\Carbon::parse($item['last_order_date'])->format('M d, Y') }}</td>
+                                    <td data-column="sold_quantity" class="text-end fw-bold text-success">{{ number_format($item['total_quantity']) }}</td>
+                                    <td data-column="stock" class="text-end">
                                         @if($item['current_stock'] <= 0)
                                             <span class="badge bg-danger">0</span>
                                         @elseif($item['current_stock'] < 10)
@@ -339,7 +373,11 @@
                                             {{ number_format($item['current_stock'], 2) }}
                                         @endif
                                     </td>
-                                    <td class="text-end">
+                                    <td data-column="orders" class="text-end">{{ number_format($item['order_count']) }}</td>
+                                    <td data-column="revenue" class="text-end fw-bold">{{ number_format($item['total_revenue'], 2) }}</td>
+                                    <td data-column="average_price" class="text-end">{{ number_format($item['avg_unit_price'], 2) }}</td>
+                                    <td data-column="average_order" class="text-end">{{ number_format($item['avg_per_order'], 2) }}</td>
+                                    <td data-column="days_of_stock" class="text-end">
                                         @if($item['days_of_stock'])
                                             @if($item['days_of_stock'] < 7)
                                                 <span class="text-danger fw-bold">{{ $item['days_of_stock'] }} days</span>

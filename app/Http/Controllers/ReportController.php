@@ -1691,8 +1691,30 @@ class ReportController extends Controller
             $dailySalesRate = $item->total_quantity / $daysDiff;
             $daysOfStock = $dailySalesRate > 0 ? $currentStock / $dailySalesRate : null;
 
+            // Get last order date for this product
+            $OrderItem = OrderItem::where('product_id', $item->product_id)
+                ->whereHas('order', function ($q) {
+                    $q->whereIn('payment_status', ['paid']);
+                });
+
+            // ✅ 1. Total Quantity
+            $totalSold = (clone $OrderItem)->sum('quantity');
+
+            // ✅ 2. Last Order Item
+            $lastOrderItem = (clone $OrderItem)->orderBy('created_at', 'desc')
+                ->first();
+
+            // Get last purchase date for this product
+            $lastPurchaseItem = PurchaseItem::where('product_id', $item->product_id)
+                ->whereHas('purchase', function ($q) {
+                    $q->where('delete_status', '0');
+                })
+                ->orderBy('created_at', 'desc')
+                ->first();
+
             $frequentItems[] = [
                 'product_id' => $item->product_id,
+                'product_image' => $item->product?->getImageUrl(), 
                 'product_name' => $product?->name ?? $item->title ?? 'Unknown Product',
                 'product_sku' => $product?->sku ?? $item->sku ?? '',
                 'category_name' => $product?->category?->name ?? 'Uncategorized',
@@ -1706,6 +1728,8 @@ class ReportController extends Controller
                 'daily_sales_rate' => round($dailySalesRate, 2),
                 'days_of_stock' => $daysOfStock ? round($daysOfStock, 0) : null,
                 'avg_per_order' => $item->order_count > 0 ? round($item->total_quantity / $item->order_count, 2) : 0,
+                'last_purchase_date' => $lastPurchaseItem?->created_at,
+                'last_purchase_quantity' => $lastPurchaseItem?->received_quantity,  
             ];
         }
 
