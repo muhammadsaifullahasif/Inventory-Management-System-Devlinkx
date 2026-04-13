@@ -125,8 +125,25 @@ class ProductController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
+        // Sort
+        $sortBy = $request->input('sort_by', 'id');
+        $sortOrder = $request->input('sort_order', 'desc');
+
+        // Handle special sorting for computed columns
+        if ($sortBy === 'quantity') {
+            // Sort by total stock quantity using subquery
+            $query->withSum('product_stocks', 'quantity')
+                  ->orderBy('product_stocks_sum_quantity', $sortOrder);
+        } elseif ($sortBy === 'sales_channels_count') {
+            // Sort by number of sales channels
+            $query->withCount('sales_channels')
+                  ->orderBy('sales_channels_count', $sortOrder);
+        } else {
+            $query->orderBy($sortBy, $sortOrder);
+        }
+
         $perPage = $request->input('per_page', 25);
-        $products = $query->orderBy('id', 'DESC')->paginate($perPage)->withQueryString();
+        $products = $query->paginate($perPage)->withQueryString();
 
         // Get filter options
         $categories = Category::orderBy('name')->get();
