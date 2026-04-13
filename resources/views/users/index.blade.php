@@ -76,14 +76,26 @@
     <!-- Users Table -->
     <div class="col-12">
         <div class="card">
-            <div class="card-body pb-0">
+            <div class="card-body pb-0 d-flex align-items-center justify-content-between">
                 @can('delete users')
                     @include('partials.bulk-actions-bar', ['itemName' => 'users'])
                 @endcan
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    @php
+                        $userColumns = [
+                            ['key' => 'id', 'label' => '#', 'default' => true],
+                            ['key' => 'name', 'label' => 'Name', 'default' => true],
+                            ['key' => 'email', 'label' => 'Email', 'default' => true],
+                            ['key' => 'role', 'label' => 'Role', 'default' => true],
+                            ['key' => 'created_at', 'label' => 'Created At', 'default' => true],
+                        ];
+                    @endphp
+                    @include('partials.column-toggle', ['tableId' => 'userTable', 'cookieName' => 'user_columns', 'columns' => $userColumns])
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0" id="userTable">
                         <thead>
                             <tr>
                                 @can('delete users')
@@ -96,11 +108,44 @@
                                         </div>
                                     </th>
                                 @endcan
-                                <th>#</th>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>Created at</th>
+                                @php
+                                    $currentSort = request('sort_by', 'id');
+                                    $currentOrder = request('sort_order', 'desc');
+                                    $sortableColumns = [
+                                        'id' => ['label' => '#', 'column' => 'id', 'style' => '', 'sort' => true],
+                                        'name' => ['label' => 'Name', 'column' => 'name', 'style' => '', 'sort' => true],
+                                        'email' => ['label' => 'Email', 'column' => 'email', 'style' => '', 'sort' => true],
+                                        'role' => ['label' => 'Role', 'column' => 'role', 'style' => '', 'sort' => false],
+                                        'created_at' => ['label' => 'Created At', 'column' => 'created_at', 'style' => '', 'sort' => true],
+                                    ];
+                                @endphp
+                                @foreach ($sortableColumns as $key => $col)
+                                    <th data-column="{{ $key }}" @if($col['style']) style="{{ $col['style'] }}" @endif>
+                                        @if($col['sort'])
+                                            @php
+                                                $isActive = $currentSort === $col['column'];
+                                                $nextOrder = ($isActive && $currentOrder === 'asc') ? 'desc' : 'asc';
+                                                $sortUrl = request()->fullUrlWithQuery(['sort_by' => $col['column'], 'sort_order' => $nextOrder]);
+                                            @endphp
+                                            <a href="{{ $sortUrl }}" class="d-flex align-items-center text-dark text-decoration-none sortable-header {{ $isActive ? 'active' : '' }}">
+                                                {{ $col['label'] }}
+                                                <span class="sort-arrows ms-1">
+                                                    @if($isActive)
+                                                        @if($currentOrder === 'asc')
+                                                            <i class="feather-arrow-up fs-12"></i>
+                                                        @else
+                                                            <i class="feather-arrow-down fs-12"></i>
+                                                        @endif
+                                                    @else
+                                                        <i class="feather-chevrons-up fs-10 text-muted opacity-50"></i>
+                                                    @endif
+                                                </span>
+                                            </a>
+                                        @else
+                                            {{ $col['label'] }}
+                                        @endif
+                                    </th>
+                                @endforeach
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>

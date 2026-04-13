@@ -41,8 +41,13 @@ class UserController extends Controller
             });
         }
 
+        // Sort
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
         $perPage = $request->input('per_page', 25);
-        $users = $query->orderBy('name', 'ASC')->paginate($perPage)->withQueryString();
+        $users = $query->paginate($perPage)->withQueryString();
         $roles = Role::orderBy('name')->get();
 
         return view('users.index', compact('users', 'roles', 'perPage'));
