@@ -1983,198 +1983,225 @@ class ReportController extends Controller
     }
 
     /**
-     * Get slow moving items data (extracted for reuse)
+     * Get slow moving items data (extracted for reuse - matches slowMovingItems view method)
      */
     protected function getSlowMovingItemsData($dateFrom, $dateTo, $categoryId, $warehouseId, $minStock, $maxSales)
     {
-        $query = Product::where('active_status', 1)
-            ->where('delete_status', 0)
-            ->where('is_bundle', false);
+        // Get products with their stock
+        $query = Product::with(['category', 'product_stocks.warehouse'])
+            ->where('delete_status', '0')
+            ->where('active_status', '1');
 
         if ($categoryId) {
             $query->where('category_id', $categoryId);
         }
 
-        $products = $query->with(['category', 'product_stocks.warehouse'])->get();
+        $products = $query->get();
 
-        $slowMovingItems = collect();
+        // Get sales data for the period
+        $salesData = OrderItem::select(
+                'order_items.product_id',
+                DB::raw('SUM(order_items.quantity) as total_sold'),
+                DB::raw('COUNT(DISTINCT order_items.order_id) as order_count'),
+                DB::raw('MAX(orders.order_date) as last_sale_date')
+            )
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->where('orders.payment_status', 'paid')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->groupBy('order_items.product_id')
+            ->get()
+            ->keyBy('product_id');
+
+        $slowMovingItems = [];
+        $daysDiff = max(1, (strtotime($dateTo) - strtotime($dateFrom)) / 86400);
 
         foreach ($products as $product) {
             $stocks = $product->product_stocks;
-
             if ($warehouseId) {
                 $stocks = $stocks->where('warehouse_id', $warehouseId);
             }
-
             $totalStock = $stocks->sum('quantity');
 
             if ($totalStock < $minStock) {
                 continue;
             }
 
-            $soldQty = OrderItem::where('product_id', $product->id)
-                ->whereHas('order', function ($q) use ($dateFrom, $dateTo) {
-                    $q->whereBetween('order_date', [$dateFrom, $dateTo])
-                      ->whereNotIn('order_status', ['cancelled', 'refunded']);
-                })
-                ->sum('quantity');
+            $sales = $salesData->get($product->id);
+            $totalSold = $sales?->total_sold ?? 0;
+            $orderCount = $sales?->order_count ?? 0;
+            $lastSaleDate = $sales?->last_sale_date;
 
-            if ($soldQty > $maxSales) {
+            if ($totalSold > $maxSales) {
                 continue;
             }
 
-            $orderCount = OrderItem::where('product_id', $product->id)
-                ->whereHas('order', function ($q) use ($dateFrom, $dateTo) {
-                    $q->whereBetween('order_date', [$dateFrom, $dateTo])
-                      ->whereNotIn('order_status', ['cancelled', 'refunded']);
-                })
-                ->distinct('order_id')
-                ->count('order_id');
+            $dailySalesRate = $totalSold / $daysDiff;
+            $daysOfStock = $dailySalesRate > 0 ? $totalStock / $dailySalesRate : null;
+            $turnoverRate = $totalStock > 0 ? $totalSold / $totalStock : 0;
 
-            $lastSale = OrderItem::where('product_id', $product->id)
+            $avgCost = $stocks->avg('avg_cost') ?? 0;
+            $inventoryValue = $totalStock * $avgCost;
+
+            // Get last order item
+            $lastOrderItem = OrderItem::where('product_id', $product->id)
                 ->whereHas('order', function ($q) {
-                    $q->whereNotIn('order_status', ['cancelled', 'refunded']);
+                    $q->whereIn('payment_status', ['paid']);
                 })
-                ->join('orders', 'order_items.order_id', '=', 'orders.id')
-                ->orderByDesc('orders.order_date')
+                ->orderBy('created_at', 'desc')
                 ->first();
 
-            $lastPurchase = PurchaseItem::where('product_id', $product->id)
-                ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
-                ->orderByDesc('purchases.purchase_date')
+            // Get last purchase item
+            $lastPurchaseItem = PurchaseItem::where('product_id', $product->id)
+                ->whereHas('purchase', function ($q) {
+                    $q->where('delete_status', '0');
+                })
+                ->orderBy('created_at', 'desc')
                 ->first();
 
-            $periodDays = max(1, \Carbon\Carbon::parse($dateFrom)->diffInDays(\Carbon\Carbon::parse($dateTo)));
-            $dailySalesRate = $periodDays > 0 ? round($soldQty / $periodDays, 4) : 0;
-            $daysOfStock = $dailySalesRate > 0 ? round($totalStock / $dailySalesRate) : null;
-            $turnoverRate = $totalStock > 0 ? round($soldQty / $totalStock, 4) : 0;
-
-            $slowMovingItems->push([
+            $slowMovingItems[] = [
                 'product_id' => $product->id,
+                'product_image' => $product->getImageUrl(),
                 'product_name' => $product->name,
                 'product_sku' => $product->sku,
-                'product_image' => $product->getImageUrl(),
-                'category_name' => $product->category?->name ?? 'Uncategorized',
-                'last_purchase_quantity' => $lastPurchase?->quantity ?? 0,
-                'last_purchase_date' => $lastPurchase?->purchase_date ?? null,
-                'last_sale_date' => $lastSale?->order_date ?? null,
+                'category_name' => $product->category->name ?? 'Uncategorized',
                 'total_stock' => $totalStock,
-                'total_sold' => $soldQty,
+                'total_sold' => $totalSold,
                 'order_count' => $orderCount,
-                'daily_sales_rate' => $dailySalesRate,
-                'days_of_stock' => $daysOfStock,
-                'turnover_rate' => $turnoverRate,
-                'inventory_value' => round($totalStock * $product->price, 2),
-            ]);
+                'last_sale_date' => $lastSaleDate,
+                'daily_sales_rate' => round($dailySalesRate, 4),
+                'days_of_stock' => $daysOfStock ? round($daysOfStock, 0) : null,
+                'turnover_rate' => round($turnoverRate, 4),
+                'avg_cost' => $avgCost,
+                'inventory_value' => round($inventoryValue, 2),
+                'price' => $product->price,
+                'last_purchase_date' => $lastPurchaseItem?->created_at,
+                'last_purchase_quantity' => $lastPurchaseItem?->received_quantity ?? 0,
+                'last_order_date' => $lastOrderItem?->created_at,
+                'sold_quantity' => $totalSold,
+            ];
         }
 
-        return $slowMovingItems->sortBy('turnover_rate')->values();
+        return collect($slowMovingItems)
+            ->sortBy([['turnover_rate', 'asc'], ['inventory_value', 'desc']])
+            ->values();
     }
 
     /**
-     * Get out of stock data (extracted for reuse)
+     * Get out of stock data (extracted for reuse - matches outOfStock view method)
      */
     protected function getOutOfStockData($categoryId, $warehouseId, $threshold, $includeInactive)
     {
-        $query = Product::where('delete_status', 0)->where('is_bundle', false);
+        $query = Product::with(['category', 'product_stocks.warehouse', 'product_stocks.rack'])
+            ->where('delete_status', '0');
 
         if (!$includeInactive) {
-            $query->where('active_status', 1);
+            $query->where('active_status', '1');
         }
 
         if ($categoryId) {
             $query->where('category_id', $categoryId);
         }
 
-        $products = $query->with(['category', 'product_stocks.warehouse', 'product_stocks.rack'])->get();
-
-        $outOfStockItems = collect();
+        $products = $query->get();
+        $outOfStockItems = [];
 
         foreach ($products as $product) {
             $stocks = $product->product_stocks;
-
             if ($warehouseId) {
                 $stocks = $stocks->where('warehouse_id', $warehouseId);
             }
 
             $totalStock = $stocks->sum('quantity');
 
-            if ($totalStock > $threshold) {
-                continue;
-            }
+            if ($totalStock <= $threshold) {
+                // Get stock breakdown by warehouse
+                $warehouseBreakdown = [];
+                foreach ($product->product_stocks as $stock) {
+                    if (!$warehouseId || $stock->warehouse_id == $warehouseId) {
+                        $warehouseBreakdown[] = [
+                            'warehouse_name' => $stock->warehouse->name ?? 'Unknown',
+                            'rack_name' => $stock->rack->name ?? 'N/A',
+                            'quantity' => (float) $stock->quantity,
+                        ];
+                    }
+                }
 
-            $lastPurchase = PurchaseItem::where('product_id', $product->id)
-                ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
-                ->orderByDesc('purchases.purchase_date')
-                ->first();
+                // Get total sold quantity
+                $totalSold = OrderItem::where('product_id', $product->id)
+                    ->whereHas('order', function ($q) {
+                        $q->whereIn('payment_status', ['paid']);
+                    })
+                    ->sum('quantity');
 
-            $lastOrder = OrderItem::where('product_id', $product->id)
-                ->whereHas('order', function ($q) {
-                    $q->whereNotIn('order_status', ['cancelled', 'refunded']);
-                })
-                ->join('orders', 'order_items.order_id', '=', 'orders.id')
-                ->orderByDesc('orders.order_date')
-                ->first();
+                // Get last order item
+                $lastOrderItem = OrderItem::where('product_id', $product->id)
+                    ->whereHas('order', function ($q) {
+                        $q->whereIn('payment_status', ['paid']);
+                    })
+                    ->orderBy('created_at', 'desc')
+                    ->first();
 
-            $soldQuantity = OrderItem::where('product_id', $product->id)
-                ->whereHas('order', function ($q) {
-                    $q->whereNotIn('order_status', ['cancelled', 'refunded']);
-                })
-                ->sum('quantity');
+                // Get last purchase item
+                $lastPurchaseItem = PurchaseItem::where('product_id', $product->id)
+                    ->whereHas('purchase', function ($q) {
+                        $q->where('delete_status', '0');
+                    })
+                    ->orderBy('created_at', 'desc')
+                    ->first();
 
-            $warehouseBreakdown = $stocks->map(function ($stock) {
-                return [
-                    'warehouse_name' => $stock->warehouse?->name ?? 'Unknown',
-                    'rack_name' => $stock->rack?->name ?? 'N/A',
-                    'quantity' => $stock->quantity,
+                $warehouseDetails = collect($warehouseBreakdown)->map(function ($wh) {
+                    return $wh['warehouse_name'] . ': ' . $wh['quantity'];
+                })->implode(', ');
+
+                $outOfStockItems[] = [
+                    'product_id' => $product->id,
+                    'product_image' => $product->getImageUrl(),
+                    'product_name' => $product->name,
+                    'product_sku' => $product->sku,
+                    'category_name' => $product->category->name ?? 'Uncategorized',
+                    'total_stock' => $totalStock,
+                    'warehouse_breakdown' => $warehouseBreakdown,
+                    'warehouse_details' => $warehouseDetails,
+                    'last_purchase_date' => $lastPurchaseItem?->created_at,
+                    'last_purchase_quantity' => $lastPurchaseItem?->received_quantity ?? 0,
+                    'last_order_date' => $lastOrderItem?->created_at,
+                    'sold_quantity' => $totalSold,
+                    'price' => $product->price,
+                    'is_active' => $product->active_status == '1',
+                    'stock_status' => $totalStock == 0 ? 'Out of Stock' : 'Low Stock',
                 ];
-            })->toArray();
-
-            $warehouseDetails = collect($warehouseBreakdown)->map(function ($wh) {
-                return $wh['warehouse_name'] . ': ' . $wh['quantity'];
-            })->implode(', ');
-
-            $outOfStockItems->push([
-                'product_id' => $product->id,
-                'product_name' => $product->name,
-                'product_sku' => $product->sku,
-                'product_image' => $product->getImageUrl(),
-                'category_name' => $product->category?->name ?? 'Uncategorized',
-                'is_active' => $product->active_status,
-                'last_purchase_quantity' => $lastPurchase?->quantity ?? 0,
-                'last_purchase_date' => $lastPurchase ? \Carbon\Carbon::parse($lastPurchase->purchase_date) : null,
-                'last_order_date' => $lastOrder ? \Carbon\Carbon::parse($lastOrder->order_date) : null,
-                'sold_quantity' => $soldQuantity,
-                'total_stock' => $totalStock,
-                'warehouse_breakdown' => $warehouseBreakdown,
-                'warehouse_details' => $warehouseDetails,
-                'price' => $product->price,
-                'stock_status' => $totalStock == 0 ? 'Out of Stock' : 'Low Stock',
-            ]);
+            }
         }
 
-        return $outOfStockItems->sortBy('total_stock')->values();
+        return collect($outOfStockItems)
+            ->sortBy([['total_stock', 'asc'], ['product_name', 'asc']])
+            ->values();
     }
 
     /**
-     * Get frequently ordered items data (extracted for reuse)
+     * Get frequently ordered items data (extracted for reuse - matches frequentlyOrderedItems view method)
      */
     protected function getFrequentlyOrderedItemsData($dateFrom, $dateTo, $categoryId, $channelId, $limit)
     {
         $query = OrderItem::select(
                 'order_items.product_id',
+                'order_items.sku',
+                'order_items.title',
                 DB::raw('SUM(order_items.quantity) as total_quantity'),
                 DB::raw('COUNT(DISTINCT order_items.order_id) as order_count'),
                 DB::raw('SUM(order_items.total_price) as total_revenue'),
-                DB::raw('AVG(order_items.unit_price) as avg_unit_price')
+                DB::raw('AVG(order_items.unit_price) as avg_unit_price'),
+                DB::raw('MIN(orders.order_date) as first_order_date'),
+                DB::raw('MAX(orders.order_date) as last_order_date')
             )
-            ->join('orders', 'order_items.order_id', '=', 'orders.id')
-            ->whereBetween('orders.order_date', [$dateFrom, $dateTo])
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->where('orders.payment_status', 'paid')
             ->whereNotIn('orders.order_status', ['cancelled', 'refunded'])
-            ->whereNotNull('order_items.product_id')
-            ->groupBy('order_items.product_id')
-            ->orderByDesc('total_quantity')
-            ->limit($limit);
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->whereNull('order_items.bundle_product_id')
+            ->where('order_items.is_bundle_summary', false);
 
         if ($channelId) {
             $query->where('orders.sales_channel_id', $channelId);
@@ -2186,58 +2213,66 @@ class ReportController extends Controller
             });
         }
 
-        $items = $query->get();
+        $query->groupBy('order_items.product_id', 'order_items.sku', 'order_items.title');
 
-        $productIds = $items->pluck('product_id')->toArray();
-        $products = Product::whereIn('id', $productIds)
-            ->with(['category', 'product_stocks'])
+        $orderItemsData = $query->orderBy('total_quantity', 'desc')
+            ->limit($limit)
+            ->get();
+
+        // Get product details
+        $productIds = $orderItemsData->pluck('product_id')->filter()->unique();
+        $products = Product::with(['category', 'product_stocks'])
+            ->whereIn('id', $productIds)
             ->get()
             ->keyBy('id');
 
-        $periodDays = max(1, \Carbon\Carbon::parse($dateFrom)->diffInDays(\Carbon\Carbon::parse($dateTo)));
+        $frequentItems = [];
+        $daysDiff = max(1, (strtotime($dateTo) - strtotime($dateFrom)) / 86400);
 
-        $frequentItems = collect();
-
-        foreach ($items as $item) {
+        foreach ($orderItemsData as $item) {
             $product = $products->get($item->product_id);
-            if (!$product) continue;
+            $currentStock = $product ? $product->product_stocks->sum('quantity') : 0;
 
-            $currentStock = $product->product_stocks->sum('quantity');
-            $dailySalesRate = $periodDays > 0 ? $item->total_quantity / $periodDays : 0;
-            $daysOfStock = $dailySalesRate > 0 ? round($currentStock / $dailySalesRate) : null;
+            $dailySalesRate = $item->total_quantity / $daysDiff;
+            $daysOfStock = $dailySalesRate > 0 ? $currentStock / $dailySalesRate : null;
 
-            $lastPurchase = PurchaseItem::where('product_id', $product->id)
-                ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
-                ->orderByDesc('purchases.purchase_date')
-                ->first();
-
-            $lastOrder = OrderItem::where('product_id', $product->id)
+            // Get last order item
+            $lastOrderItem = OrderItem::where('product_id', $item->product_id)
                 ->whereHas('order', function ($q) {
-                    $q->whereNotIn('order_status', ['cancelled', 'refunded']);
+                    $q->whereIn('payment_status', ['paid']);
                 })
-                ->join('orders', 'order_items.order_id', '=', 'orders.id')
-                ->orderByDesc('orders.order_date')
+                ->orderBy('created_at', 'desc')
                 ->first();
 
-            $frequentItems->push([
-                'product_id' => $product->id,
-                'product_name' => $product->name,
-                'product_sku' => $product->sku,
-                'product_image' => $product->getImageUrl(),
-                'category_name' => $product->category?->name ?? 'Uncategorized',
-                'last_purchase_quantity' => $lastPurchase?->quantity ?? 0,
-                'last_purchase_date' => $lastPurchase?->purchase_date ?? null,
-                'last_order_date' => $lastOrder?->order_date ?? null,
+            // Get last purchase item
+            $lastPurchaseItem = PurchaseItem::where('product_id', $item->product_id)
+                ->whereHas('purchase', function ($q) {
+                    $q->where('delete_status', '0');
+                })
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            $frequentItems[] = [
+                'product_id' => $item->product_id,
+                'product_image' => $product?->getImageUrl(),
+                'product_name' => $product?->name ?? $item->title ?? 'Unknown Product',
+                'product_sku' => $product?->sku ?? $item->sku ?? '',
+                'category_name' => $product?->category?->name ?? 'Uncategorized',
                 'total_quantity' => (int) $item->total_quantity,
-                'current_stock' => $currentStock,
                 'order_count' => (int) $item->order_count,
                 'total_revenue' => round((float) $item->total_revenue, 2),
                 'avg_unit_price' => round((float) $item->avg_unit_price, 2),
+                'first_order_date' => $item->first_order_date,
+                'last_order_date' => $item->last_order_date,
+                'current_stock' => $currentStock,
+                'daily_sales_rate' => round($dailySalesRate, 2),
+                'days_of_stock' => $daysOfStock ? round($daysOfStock, 0) : null,
                 'avg_per_order' => $item->order_count > 0 ? round($item->total_quantity / $item->order_count, 2) : 0,
-                'days_of_stock' => $daysOfStock,
-            ]);
+                'last_purchase_date' => $lastPurchaseItem?->created_at,
+                'last_purchase_quantity' => $lastPurchaseItem?->received_quantity ?? 0,
+            ];
         }
 
-        return $frequentItems;
+        return collect($frequentItems);
     }
 }

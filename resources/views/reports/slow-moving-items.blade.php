@@ -319,15 +319,25 @@
             var tableId = $(this).data('table');
             var baseRoute = $(this).data('route');
 
-            // Get visible columns from the table
+            // Get visible columns by checking the column toggle checkboxes
             var visibleColumns = [];
-            $('#' + tableId + ' thead th[data-column]').each(function() {
-                var column = $(this).data('column');
-                // Check if column is visible (not hidden via column toggle)
-                if ($(this).is(':visible') || $(this).css('display') !== 'none') {
-                    visibleColumns.push(column);
-                }
-            });
+
+            // First try to get from checkboxes (column toggle)
+            var $checkboxes = $('.column-toggle-checkbox[data-table="' + tableId + '"]');
+            if ($checkboxes.length > 0) {
+                $checkboxes.each(function() {
+                    if ($(this).is(':checked')) {
+                        visibleColumns.push($(this).data('column'));
+                    }
+                });
+            } else {
+                // Fallback: get from table headers that are visible
+                $('#' + tableId + ' thead th[data-column]').each(function() {
+                    if ($(this).is(':visible')) {
+                        visibleColumns.push($(this).data('column'));
+                    }
+                });
+            }
 
             // Build URL with current filters and visible columns
             var url = new URL(baseRoute, window.location.origin);

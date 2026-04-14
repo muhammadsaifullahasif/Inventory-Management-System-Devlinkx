@@ -2,14 +2,13 @@
 
 namespace App\Exports;
 
-use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
-use Maatwebsite\Excel\Concerns\WithColumnWidths;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class ReportExport implements FromCollection, WithHeadings, WithStyles, ShouldAutoSize
+class ReportExport implements FromArray, WithHeadings, WithStyles, ShouldAutoSize
 {
     protected $data;
     protected $columns;
@@ -30,18 +29,26 @@ class ReportExport implements FromCollection, WithHeadings, WithStyles, ShouldAu
         $this->reportTitle = $reportTitle;
     }
 
-    public function collection()
+    public function array(): array
     {
-        $rows = collect();
+        $rows = [];
 
         foreach ($this->data as $index => $item) {
+            // Ensure item is an array
+            if (is_object($item)) {
+                $item = (array) $item;
+            }
+
             $row = [];
             foreach ($this->visibleColumns as $columnKey) {
                 if (isset($this->columns[$columnKey])) {
                     $row[] = $this->formatValue($columnKey, $item, $index);
                 }
             }
-            $rows->push($row);
+
+            if (!empty($row)) {
+                $rows[] = $row;
+            }
         }
 
         return $rows;
@@ -69,30 +76,53 @@ class ReportExport implements FromCollection, WithHeadings, WithStyles, ShouldAu
         }
 
         if ($columnKey === 'image') {
-            return $item['product_image'] ? 'Yes' : 'No';
+            $hasImage = isset($item['product_image']) && !empty($item['product_image']);
+            return $hasImage ? 'Yes' : 'No';
         }
 
-        // Get the value
-        $value = $item[$field] ?? '';
+        // Get the value - try multiple ways
+        $value = '';
+
+        // Try direct field access
+        if (isset($item[$field])) {
+            $value = $item[$field];
+        }
+        // Try column key as field
+        elseif (isset($item[$columnKey])) {
+            $value = $item[$columnKey];
+        }
+
+        // Handle null values
+        if ($value === null) {
+            $value = '';
+        }
+
+        // Handle Carbon objects or date strings
+        if ($value instanceof \Carbon\Carbon) {
+            $value = $value->format('Y-m-d');
+        }
 
         // Apply formatting if specified
-        if (isset($column['format'])) {
+        if (isset($column['format']) && $value !== '') {
             switch ($column['format']) {
                 case 'number':
-                    return is_numeric($value) ? number_format((float) $value) : $value;
+                    return is_numeric($value) ? number_format((float) $value) : (string) $value;
                 case 'decimal':
-                    return is_numeric($value) ? number_format((float) $value, 2) : $value;
+                    return is_numeric($value) ? number_format((float) $value, 2) : (string) $value;
                 case 'date':
                     if ($value && !empty($value)) {
                         try {
+                            if ($value instanceof \Carbon\Carbon) {
+                                return $value->format('M d, Y');
+                            }
                             return \Carbon\Carbon::parse($value)->format('M d, Y');
                         } catch (\Exception $e) {
-                            return $value;
+                            return (string) $value;
                         }
                     }
                     return 'N/A';
                 case 'currency':
-                    return is_numeric($value) ? '$' . number_format((float) $value, 2) : $value;
+                    return is_numeric($value) ? '$' . number_format((float) $value, 2) : (string) $value;
             }
         }
 
