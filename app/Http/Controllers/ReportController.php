@@ -22,6 +22,8 @@ use App\Services\JournalService;
 use App\Services\InventoryAccountingService;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Exports\ReportExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ReportController extends Controller
 {
@@ -1851,5 +1853,391 @@ class ReportController extends Controller
         }
 
         return collect($result);
+    }
+
+    /**
+     * Export Slow Moving Items Report to Excel
+     */
+    public function exportSlowMovingItems(Request $request)
+    {
+        // Get the visible columns from request
+        $visibleColumns = $request->input('columns', []);
+
+        if (empty($visibleColumns)) {
+            $visibleColumns = ['id', 'product', 'category', 'last_purchase_quantity', 'last_purchase', 'last_order', 'sold_quantity', 'stock', 'orders', 'daily_rate', 'days_of_stock', 'turnover', 'stock_value'];
+        }
+
+        // Define all available columns with their mappings
+        $columns = [
+            'id' => ['label' => '#', 'field' => '#'],
+            'image' => ['label' => 'Has Image', 'field' => 'product_image'],
+            'product' => ['label' => 'Product Name', 'field' => 'product_name'],
+            'sku' => ['label' => 'SKU', 'field' => 'product_sku'],
+            'category' => ['label' => 'Category', 'field' => 'category_name'],
+            'last_purchase_quantity' => ['label' => 'Last Purchase Qty', 'field' => 'last_purchase_quantity', 'format' => 'number'],
+            'last_purchase' => ['label' => 'Last Purchase Date', 'field' => 'last_purchase_date', 'format' => 'date'],
+            'last_order' => ['label' => 'Last Sale Date', 'field' => 'last_sale_date', 'format' => 'date'],
+            'sold_quantity' => ['label' => 'Sold Quantity', 'field' => 'total_sold', 'format' => 'number'],
+            'stock' => ['label' => 'Current Stock', 'field' => 'total_stock', 'format' => 'decimal'],
+            'orders' => ['label' => 'Order Count', 'field' => 'order_count', 'format' => 'number'],
+            'daily_rate' => ['label' => 'Daily Sales Rate', 'field' => 'daily_sales_rate', 'format' => 'decimal'],
+            'days_of_stock' => ['label' => 'Days of Stock', 'field' => 'days_of_stock', 'format' => 'number'],
+            'turnover' => ['label' => 'Turnover Rate', 'field' => 'turnover_rate', 'format' => 'decimal'],
+            'stock_value' => ['label' => 'Stock Value', 'field' => 'inventory_value', 'format' => 'currency'],
+        ];
+
+        // Get report data using the same logic as the view
+        $dateFrom = $request->input('date_from', now()->subDays(90)->format('Y-m-d'));
+        $dateTo = $request->input('date_to', now()->format('Y-m-d'));
+        $categoryId = $request->input('category_id');
+        $warehouseId = $request->input('warehouse_id');
+        $minStock = $request->input('min_stock', 1);
+        $maxSales = $request->input('max_sales', 5);
+
+        $data = $this->getSlowMovingItemsData($dateFrom, $dateTo, $categoryId, $warehouseId, $minStock, $maxSales);
+
+        $export = new ReportExport($data->toArray(), $columns, $visibleColumns, 'Slow Moving Items Report');
+
+        return Excel::download($export, 'slow-moving-items-' . now()->format('Y-m-d') . '.xlsx');
+    }
+
+    /**
+     * Export Out of Stock Report to Excel
+     */
+    public function exportOutOfStock(Request $request)
+    {
+        $visibleColumns = $request->input('columns', []);
+
+        if (empty($visibleColumns)) {
+            $visibleColumns = ['id', 'product', 'category', 'last_purchase_quantity', 'last_purchase', 'last_order', 'sold_quantity', 'stock', 'price', 'status'];
+        }
+
+        $columns = [
+            'id' => ['label' => '#', 'field' => '#'],
+            'image' => ['label' => 'Has Image', 'field' => 'product_image'],
+            'product' => ['label' => 'Product Name', 'field' => 'product_name'],
+            'sku' => ['label' => 'SKU', 'field' => 'product_sku'],
+            'category' => ['label' => 'Category', 'field' => 'category_name'],
+            'last_purchase_quantity' => ['label' => 'Last Purchase Qty', 'field' => 'last_purchase_quantity', 'format' => 'number'],
+            'last_purchase' => ['label' => 'Last Purchase Date', 'field' => 'last_purchase_date', 'format' => 'date'],
+            'last_order' => ['label' => 'Last Order Date', 'field' => 'last_order_date', 'format' => 'date'],
+            'sold_quantity' => ['label' => 'Sold Quantity', 'field' => 'sold_quantity', 'format' => 'number'],
+            'stock' => ['label' => 'Total Stock', 'field' => 'total_stock', 'format' => 'decimal'],
+            'warehouse' => ['label' => 'Warehouse Details', 'field' => 'warehouse_details'],
+            'price' => ['label' => 'Price', 'field' => 'price', 'format' => 'currency'],
+            'status' => ['label' => 'Status', 'field' => 'stock_status'],
+        ];
+
+        $categoryId = $request->input('category_id');
+        $warehouseId = $request->input('warehouse_id');
+        $threshold = $request->input('threshold', 0);
+        $includeInactive = $request->boolean('include_inactive', false);
+
+        $data = $this->getOutOfStockData($categoryId, $warehouseId, $threshold, $includeInactive);
+
+        $export = new ReportExport($data->toArray(), $columns, $visibleColumns, 'Out of Stock Report');
+
+        return Excel::download($export, 'out-of-stock-' . now()->format('Y-m-d') . '.xlsx');
+    }
+
+    /**
+     * Export Frequently Ordered Items Report to Excel
+     */
+    public function exportFrequentlyOrderedItems(Request $request)
+    {
+        $visibleColumns = $request->input('columns', []);
+
+        if (empty($visibleColumns)) {
+            $visibleColumns = ['id', 'product', 'category', 'last_purchase_quantity', 'last_purchase', 'last_order', 'sold_quantity', 'stock', 'orders', 'revenue', 'average_price', 'average_order', 'days_of_stock'];
+        }
+
+        $columns = [
+            'id' => ['label' => '#', 'field' => '#'],
+            'image' => ['label' => 'Has Image', 'field' => 'product_image'],
+            'product' => ['label' => 'Product Name', 'field' => 'product_name'],
+            'sku' => ['label' => 'SKU', 'field' => 'product_sku'],
+            'category' => ['label' => 'Category', 'field' => 'category_name'],
+            'last_purchase_quantity' => ['label' => 'Last Purchase Qty', 'field' => 'last_purchase_quantity', 'format' => 'number'],
+            'last_purchase' => ['label' => 'Last Purchase Date', 'field' => 'last_purchase_date', 'format' => 'date'],
+            'last_order' => ['label' => 'Last Order Date', 'field' => 'last_order_date', 'format' => 'date'],
+            'sold_quantity' => ['label' => 'Quantity Sold', 'field' => 'total_quantity', 'format' => 'number'],
+            'stock' => ['label' => 'Current Stock', 'field' => 'current_stock', 'format' => 'decimal'],
+            'orders' => ['label' => 'Order Count', 'field' => 'order_count', 'format' => 'number'],
+            'revenue' => ['label' => 'Total Revenue', 'field' => 'total_revenue', 'format' => 'currency'],
+            'average_price' => ['label' => 'Avg Unit Price', 'field' => 'avg_unit_price', 'format' => 'currency'],
+            'average_order' => ['label' => 'Avg Per Order', 'field' => 'avg_per_order', 'format' => 'decimal'],
+            'days_of_stock' => ['label' => 'Days of Stock', 'field' => 'days_of_stock', 'format' => 'number'],
+        ];
+
+        $dateFrom = $request->input('date_from', now()->subDays(30)->format('Y-m-d'));
+        $dateTo = $request->input('date_to', now()->format('Y-m-d'));
+        $categoryId = $request->input('category_id');
+        $channelId = $request->input('channel_id');
+        $limit = $request->input('limit', 50);
+
+        $data = $this->getFrequentlyOrderedItemsData($dateFrom, $dateTo, $categoryId, $channelId, $limit);
+
+        $export = new ReportExport($data->toArray(), $columns, $visibleColumns, 'Frequently Ordered Items Report');
+
+        return Excel::download($export, 'frequently-ordered-items-' . now()->format('Y-m-d') . '.xlsx');
+    }
+
+    /**
+     * Get slow moving items data (extracted for reuse)
+     */
+    protected function getSlowMovingItemsData($dateFrom, $dateTo, $categoryId, $warehouseId, $minStock, $maxSales)
+    {
+        $query = Product::where('active_status', 1)
+            ->where('delete_status', 0)
+            ->where('is_bundle', false);
+
+        if ($categoryId) {
+            $query->where('category_id', $categoryId);
+        }
+
+        $products = $query->with(['category', 'product_stocks.warehouse'])->get();
+
+        $slowMovingItems = collect();
+
+        foreach ($products as $product) {
+            $stocks = $product->product_stocks;
+
+            if ($warehouseId) {
+                $stocks = $stocks->where('warehouse_id', $warehouseId);
+            }
+
+            $totalStock = $stocks->sum('quantity');
+
+            if ($totalStock < $minStock) {
+                continue;
+            }
+
+            $soldQty = OrderItem::where('product_id', $product->id)
+                ->whereHas('order', function ($q) use ($dateFrom, $dateTo) {
+                    $q->whereBetween('order_date', [$dateFrom, $dateTo])
+                      ->whereNotIn('order_status', ['cancelled', 'refunded']);
+                })
+                ->sum('quantity');
+
+            if ($soldQty > $maxSales) {
+                continue;
+            }
+
+            $orderCount = OrderItem::where('product_id', $product->id)
+                ->whereHas('order', function ($q) use ($dateFrom, $dateTo) {
+                    $q->whereBetween('order_date', [$dateFrom, $dateTo])
+                      ->whereNotIn('order_status', ['cancelled', 'refunded']);
+                })
+                ->distinct('order_id')
+                ->count('order_id');
+
+            $lastSale = OrderItem::where('product_id', $product->id)
+                ->whereHas('order', function ($q) {
+                    $q->whereNotIn('order_status', ['cancelled', 'refunded']);
+                })
+                ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                ->orderByDesc('orders.order_date')
+                ->first();
+
+            $lastPurchase = PurchaseItem::where('product_id', $product->id)
+                ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
+                ->orderByDesc('purchases.purchase_date')
+                ->first();
+
+            $periodDays = max(1, \Carbon\Carbon::parse($dateFrom)->diffInDays(\Carbon\Carbon::parse($dateTo)));
+            $dailySalesRate = $periodDays > 0 ? round($soldQty / $periodDays, 4) : 0;
+            $daysOfStock = $dailySalesRate > 0 ? round($totalStock / $dailySalesRate) : null;
+            $turnoverRate = $totalStock > 0 ? round($soldQty / $totalStock, 4) : 0;
+
+            $slowMovingItems->push([
+                'product_id' => $product->id,
+                'product_name' => $product->name,
+                'product_sku' => $product->sku,
+                'product_image' => $product->getImageUrl(),
+                'category_name' => $product->category?->name ?? 'Uncategorized',
+                'last_purchase_quantity' => $lastPurchase?->quantity ?? 0,
+                'last_purchase_date' => $lastPurchase?->purchase_date ?? null,
+                'last_sale_date' => $lastSale?->order_date ?? null,
+                'total_stock' => $totalStock,
+                'total_sold' => $soldQty,
+                'order_count' => $orderCount,
+                'daily_sales_rate' => $dailySalesRate,
+                'days_of_stock' => $daysOfStock,
+                'turnover_rate' => $turnoverRate,
+                'inventory_value' => round($totalStock * $product->price, 2),
+            ]);
+        }
+
+        return $slowMovingItems->sortBy('turnover_rate')->values();
+    }
+
+    /**
+     * Get out of stock data (extracted for reuse)
+     */
+    protected function getOutOfStockData($categoryId, $warehouseId, $threshold, $includeInactive)
+    {
+        $query = Product::where('delete_status', 0)->where('is_bundle', false);
+
+        if (!$includeInactive) {
+            $query->where('active_status', 1);
+        }
+
+        if ($categoryId) {
+            $query->where('category_id', $categoryId);
+        }
+
+        $products = $query->with(['category', 'product_stocks.warehouse', 'product_stocks.rack'])->get();
+
+        $outOfStockItems = collect();
+
+        foreach ($products as $product) {
+            $stocks = $product->product_stocks;
+
+            if ($warehouseId) {
+                $stocks = $stocks->where('warehouse_id', $warehouseId);
+            }
+
+            $totalStock = $stocks->sum('quantity');
+
+            if ($totalStock > $threshold) {
+                continue;
+            }
+
+            $lastPurchase = PurchaseItem::where('product_id', $product->id)
+                ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
+                ->orderByDesc('purchases.purchase_date')
+                ->first();
+
+            $lastOrder = OrderItem::where('product_id', $product->id)
+                ->whereHas('order', function ($q) {
+                    $q->whereNotIn('order_status', ['cancelled', 'refunded']);
+                })
+                ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                ->orderByDesc('orders.order_date')
+                ->first();
+
+            $soldQuantity = OrderItem::where('product_id', $product->id)
+                ->whereHas('order', function ($q) {
+                    $q->whereNotIn('order_status', ['cancelled', 'refunded']);
+                })
+                ->sum('quantity');
+
+            $warehouseBreakdown = $stocks->map(function ($stock) {
+                return [
+                    'warehouse_name' => $stock->warehouse?->name ?? 'Unknown',
+                    'rack_name' => $stock->rack?->name ?? 'N/A',
+                    'quantity' => $stock->quantity,
+                ];
+            })->toArray();
+
+            $warehouseDetails = collect($warehouseBreakdown)->map(function ($wh) {
+                return $wh['warehouse_name'] . ': ' . $wh['quantity'];
+            })->implode(', ');
+
+            $outOfStockItems->push([
+                'product_id' => $product->id,
+                'product_name' => $product->name,
+                'product_sku' => $product->sku,
+                'product_image' => $product->getImageUrl(),
+                'category_name' => $product->category?->name ?? 'Uncategorized',
+                'is_active' => $product->active_status,
+                'last_purchase_quantity' => $lastPurchase?->quantity ?? 0,
+                'last_purchase_date' => $lastPurchase ? \Carbon\Carbon::parse($lastPurchase->purchase_date) : null,
+                'last_order_date' => $lastOrder ? \Carbon\Carbon::parse($lastOrder->order_date) : null,
+                'sold_quantity' => $soldQuantity,
+                'total_stock' => $totalStock,
+                'warehouse_breakdown' => $warehouseBreakdown,
+                'warehouse_details' => $warehouseDetails,
+                'price' => $product->price,
+                'stock_status' => $totalStock == 0 ? 'Out of Stock' : 'Low Stock',
+            ]);
+        }
+
+        return $outOfStockItems->sortBy('total_stock')->values();
+    }
+
+    /**
+     * Get frequently ordered items data (extracted for reuse)
+     */
+    protected function getFrequentlyOrderedItemsData($dateFrom, $dateTo, $categoryId, $channelId, $limit)
+    {
+        $query = OrderItem::select(
+                'order_items.product_id',
+                DB::raw('SUM(order_items.quantity) as total_quantity'),
+                DB::raw('COUNT(DISTINCT order_items.order_id) as order_count'),
+                DB::raw('SUM(order_items.total_price) as total_revenue'),
+                DB::raw('AVG(order_items.unit_price) as avg_unit_price')
+            )
+            ->join('orders', 'order_items.order_id', '=', 'orders.id')
+            ->whereBetween('orders.order_date', [$dateFrom, $dateTo])
+            ->whereNotIn('orders.order_status', ['cancelled', 'refunded'])
+            ->whereNotNull('order_items.product_id')
+            ->groupBy('order_items.product_id')
+            ->orderByDesc('total_quantity')
+            ->limit($limit);
+
+        if ($channelId) {
+            $query->where('orders.sales_channel_id', $channelId);
+        }
+
+        if ($categoryId) {
+            $query->whereHas('product', function ($q) use ($categoryId) {
+                $q->where('category_id', $categoryId);
+            });
+        }
+
+        $items = $query->get();
+
+        $productIds = $items->pluck('product_id')->toArray();
+        $products = Product::whereIn('id', $productIds)
+            ->with(['category', 'product_stocks'])
+            ->get()
+            ->keyBy('id');
+
+        $periodDays = max(1, \Carbon\Carbon::parse($dateFrom)->diffInDays(\Carbon\Carbon::parse($dateTo)));
+
+        $frequentItems = collect();
+
+        foreach ($items as $item) {
+            $product = $products->get($item->product_id);
+            if (!$product) continue;
+
+            $currentStock = $product->product_stocks->sum('quantity');
+            $dailySalesRate = $periodDays > 0 ? $item->total_quantity / $periodDays : 0;
+            $daysOfStock = $dailySalesRate > 0 ? round($currentStock / $dailySalesRate) : null;
+
+            $lastPurchase = PurchaseItem::where('product_id', $product->id)
+                ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
+                ->orderByDesc('purchases.purchase_date')
+                ->first();
+
+            $lastOrder = OrderItem::where('product_id', $product->id)
+                ->whereHas('order', function ($q) {
+                    $q->whereNotIn('order_status', ['cancelled', 'refunded']);
+                })
+                ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                ->orderByDesc('orders.order_date')
+                ->first();
+
+            $frequentItems->push([
+                'product_id' => $product->id,
+                'product_name' => $product->name,
+                'product_sku' => $product->sku,
+                'product_image' => $product->getImageUrl(),
+                'category_name' => $product->category?->name ?? 'Uncategorized',
+                'last_purchase_quantity' => $lastPurchase?->quantity ?? 0,
+                'last_purchase_date' => $lastPurchase?->purchase_date ?? null,
+                'last_order_date' => $lastOrder?->order_date ?? null,
+                'total_quantity' => (int) $item->total_quantity,
+                'current_stock' => $currentStock,
+                'order_count' => (int) $item->order_count,
+                'total_revenue' => round((float) $item->total_revenue, 2),
+                'avg_unit_price' => round((float) $item->avg_unit_price, 2),
+                'avg_per_order' => $item->order_count > 0 ? round($item->total_quantity / $item->order_count, 2) : 0,
+                'days_of_stock' => $daysOfStock,
+            ]);
+        }
+
+        return $frequentItems;
     }
 }

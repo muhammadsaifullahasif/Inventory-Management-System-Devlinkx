@@ -305,6 +305,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports/out-of-stock', [ReportController::class, 'outOfStock'])->name('reports.out-of-stock');
     Route::get('reports/slow-moving-items', [ReportController::class, 'slowMovingItems'])->name('reports.slow-moving-items');
     Route::get('reports/frequently-ordered-items', [ReportController::class, 'frequentlyOrderedItems'])->name('reports.frequently-ordered-items');
+
+    // Report Exports
+    Route::get('reports/out-of-stock/export', [ReportController::class, 'exportOutOfStock'])->name('reports.out-of-stock.export');
+    Route::get('reports/slow-moving-items/export', [ReportController::class, 'exportSlowMovingItems'])->name('reports.slow-moving-items.export');
+    Route::get('reports/frequently-ordered-items/export', [ReportController::class, 'exportFrequentlyOrderedItems'])->name('reports.frequently-ordered-items.export');
 });
 
 

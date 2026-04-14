@@ -153,6 +153,9 @@
                 <h5 class="card-title mb-0"><i class="feather-alert-circle me-2"></i>Out of Stock / Low Stock Items</h5>
                 <div class="d-flex align-items-center justify-content-end gap-2">
                     <span class="badge bg-danger">{{ $outOfStockItems->count() }} items</span>
+                    <button type="button" class="btn btn-success btn-sm export-excel-btn" data-table="outOfStockTable" data-route="{{ route('reports.out-of-stock.export') }}">
+                        <i class="feather-download me-1"></i> Export Excel
+                    </button>
                     <div class="ms-auto d-flex align-items-center gap-2">
                         @php
                             $outOfStockColumns = [
@@ -284,3 +287,41 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    $(document).ready(function() {
+        $('.export-excel-btn').on('click', function() {
+            var tableId = $(this).data('table');
+            var baseRoute = $(this).data('route');
+
+            // Get visible columns from the table
+            var visibleColumns = [];
+            $('#' + tableId + ' thead th[data-column]').each(function() {
+                var column = $(this).data('column');
+                // Check if column is visible (not hidden via column toggle)
+                if ($(this).is(':visible') || $(this).css('display') !== 'none') {
+                    visibleColumns.push(column);
+                }
+            });
+
+            // Build URL with current filters and visible columns
+            var url = new URL(baseRoute, window.location.origin);
+
+            // Add current filter params
+            var currentParams = new URLSearchParams(window.location.search);
+            currentParams.forEach(function(value, key) {
+                url.searchParams.append(key, value);
+            });
+
+            // Add visible columns
+            visibleColumns.forEach(function(col) {
+                url.searchParams.append('columns[]', col);
+            });
+
+            // Trigger download
+            window.location.href = url.toString();
+        });
+    });
+</script>
+@endpush
