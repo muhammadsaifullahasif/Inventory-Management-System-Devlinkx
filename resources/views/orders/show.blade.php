@@ -1087,14 +1087,14 @@
                 $('.show-package-dim-row').each(function() {
                     var declared_value = '';
                     if ($(this).find('.liability-checkbox').is(':checked')) {
-                        declared_value = $(this).find('.declared-value');
+                        declared_value = parseFloat($(this).find('.declared-value').val());
                     }
                     packages.push({
                         weight: parseFloat($(this).find('.show-pkg-weight').val()) || 1,
                         length: parseFloat($(this).find('.show-pkg-length').val()) || 12,
                         width:  parseFloat($(this).find('.show-pkg-width').val()) || 12,
                         height: parseFloat($(this).find('.show-pkg-height').val()) || 12,
-                        customer_reference: $(this).find('.show-pkg-reference').val() || '', 
+                        customer_reference: $(this).find('.show-pkg-reference').val() || '',
                         declared_value: declared_value
                     });
                 });
