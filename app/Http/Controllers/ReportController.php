@@ -1870,7 +1870,7 @@ class ReportController extends Controller
         // Define all available columns with their mappings
         $columns = [
             'id' => ['label' => '#', 'field' => '#'],
-            'image' => ['label' => 'Has Image', 'field' => 'product_image'],
+            'image' => ['label' => 'Image', 'field' => 'product_image'],
             'product' => ['label' => 'Product Name', 'field' => 'product_name'],
             'sku' => ['label' => 'SKU', 'field' => 'product_sku'],
             'category' => ['label' => 'Category', 'field' => 'category_name'],
@@ -1914,7 +1914,7 @@ class ReportController extends Controller
 
         $columns = [
             'id' => ['label' => '#', 'field' => '#'],
-            'image' => ['label' => 'Has Image', 'field' => 'product_image'],
+            'image' => ['label' => 'Image', 'field' => 'product_image'],
             'product' => ['label' => 'Product Name', 'field' => 'product_name'],
             'sku' => ['label' => 'SKU', 'field' => 'product_sku'],
             'category' => ['label' => 'Category', 'field' => 'category_name'],
@@ -1953,7 +1953,7 @@ class ReportController extends Controller
 
         $columns = [
             'id' => ['label' => '#', 'field' => '#'],
-            'image' => ['label' => 'Has Image', 'field' => 'product_image'],
+            'image' => ['label' => 'Image', 'field' => 'product_image'],
             'product' => ['label' => 'Product Name', 'field' => 'product_name'],
             'sku' => ['label' => 'SKU', 'field' => 'product_sku'],
             'category' => ['label' => 'Category', 'field' => 'category_name'],
