@@ -1179,68 +1179,68 @@
             // ----------------------------------------------------------------
             // Cancel shipping label
             // ----------------------------------------------------------------
-            // $('#cancelLabelBtn').on('click', function() {
-            //     var $btn = $(this);
-            //     var orderId = $btn.data('order-id');
-            //     var orderNumber = $btn.data('order-number');
-            //     var trackingNumber = $btn.data('tracking');
-            //     var packageCount = parseInt($btn.data('package-count')) || 1;
-            //     var isEbay = $btn.data('is-ebay') === '1';
+            $('#cancelLabelBtn').on('click', function() {
+                var $btn = $(this);
+                var orderId = $btn.data('order-id');
+                var orderNumber = $btn.data('order-number');
+                var trackingNumber = $btn.data('tracking');
+                var packageCount = parseInt($btn.data('package-count')) || 1;
+                var isEbay = $btn.data('is-ebay') === '1';
 
-            //     var labelText = packageCount > 1 ? packageCount + ' shipping labels' : 'the shipping label';
-            //     var confirmMsg = 'Are you sure you want to cancel ' + labelText + ' for order ' + orderNumber + '?\n\n';
-            //     if (packageCount > 1) {
-            //         confirmMsg += 'This order has ' + packageCount + ' packages/tracking numbers.\n\n';
-            //     } else {
-            //         confirmMsg += 'Tracking #: ' + trackingNumber + '\n\n';
-            //     }
-            //     confirmMsg += 'This will:\n';
-            //     confirmMsg += '- Void ' + (packageCount > 1 ? 'all labels' : 'the label') + ' with FedEx\n';
-            //     confirmMsg += '- Remove all tracking information from the order\n';
-            //     confirmMsg += '- Restore inventory\n';
-            //     confirmMsg += '- Revert order status to Processing\n';
-            //     if (isEbay) {
-            //         confirmMsg += '- Remove tracking from eBay\n';
-            //     }
+                var labelText = packageCount > 1 ? packageCount + ' shipping labels' : 'the shipping label';
+                var confirmMsg = 'Are you sure you want to cancel ' + labelText + ' for order ' + orderNumber + '?\n\n';
+                if (packageCount > 1) {
+                    confirmMsg += 'This order has ' + packageCount + ' packages/tracking numbers.\n\n';
+                } else {
+                    confirmMsg += 'Tracking #: ' + trackingNumber + '\n\n';
+                }
+                confirmMsg += 'This will:\n';
+                confirmMsg += '- Void ' + (packageCount > 1 ? 'all labels' : 'the label') + ' with FedEx\n';
+                confirmMsg += '- Remove all tracking information from the order\n';
+                confirmMsg += '- Restore inventory\n';
+                confirmMsg += '- Revert order status to Processing\n';
+                if (isEbay) {
+                    confirmMsg += '- Remove tracking from eBay\n';
+                }
 
-            //     if (!confirm(confirmMsg)) {
-            //         return;
-            //     }
+                if (!confirm(confirmMsg)) {
+                    return;
+                }
 
-            //     $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Cancelling Label...');
+                $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Cancelling Label...');
 
-            //     $.ajax({
-            //         url: '/orders/' + orderId + '/cancel-label',
-            //         type: 'POST',
-            //         data: {
-            //             _token: '{{ csrf_token() }}'
-            //         },
-            //         success: function(response) {
-            //             if (response.success) {
-            //                 var message = response.message;
-            //                 if (response.ebay_sync) {
-            //                     if (response.ebay_sync.success) {
-            //                         message += '\n\n✓ Successfully removed tracking from eBay';
-            //                     } else {
-            //                         message += '\n\n⚠ Warning: Failed to remove tracking from eBay';
-            //                         if (response.ebay_sync.message) {
-            //                             message += '\nReason: ' + response.ebay_sync.message;
-            //                         }
-            //                     }
-            //                 }
-            //                 alert(message);
-            //                 location.reload();
-            //             } else {
-            //                 alert(response.message || 'Failed to cancel label');
-            //                 $btn.prop('disabled', false).html('<i class="feather-x-circle me-1"></i> Cancel Label & Remove Tracking');
-            //             }
-            //         },
-            //         error: function(xhr) {
-            //             alert('Failed to cancel label: ' + (xhr.responseJSON?.message || 'Unknown error'));
-            //             $btn.prop('disabled', false).html('<i class="feather-x-circle me-1"></i> Cancel Label & Remove Tracking');
-            //         }
-            //     });
-            // });
+                $.ajax({
+                    url: '/orders/' + orderId + '/cancel-label',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            var message = response.message;
+                            if (response.ebay_sync) {
+                                if (response.ebay_sync.success) {
+                                    message += '\n\n✓ Successfully removed tracking from eBay';
+                                } else {
+                                    message += '\n\n⚠ Warning: Failed to remove tracking from eBay';
+                                    if (response.ebay_sync.message) {
+                                        message += '\nReason: ' + response.ebay_sync.message;
+                                    }
+                                }
+                            }
+                            alert(message);
+                            location.reload();
+                        } else {
+                            alert(response.message || 'Failed to cancel label');
+                            $btn.prop('disabled', false).html('<i class="feather-x-circle me-1"></i> Cancel Label & Remove Tracking');
+                        }
+                    },
+                    error: function(xhr) {
+                        alert('Failed to cancel label: ' + (xhr.responseJSON?.message || 'Unknown error'));
+                        $btn.prop('disabled', false).html('<i class="feather-x-circle me-1"></i> Cancel Label & Remove Tracking');
+                    }
+                });
+            });
 
             // ----------------------------------------------------------------
             // Cancel order form submit
