@@ -1628,16 +1628,16 @@ class OrderController extends Controller
             $orders = Order::whereIn('id', $request->ids)->get();
             $count = 0;
 
-            foreach ($orders as $order) {
-                // Restore inventory if items were deducted
-                foreach ($order->items as $item) {
-                    if ($item->inventory_updated) {
-                        $item->restoreInventory();
-                    }
-                }
-                $order->delete();
-                $count++;
-            }
+            // foreach ($orders as $order) {
+            //     // Restore inventory if items were deducted
+            //     foreach ($order->items as $item) {
+            //         if ($item->inventory_updated) {
+            //             $item->restoreInventory();
+            //         }
+            //     }
+            //     $order->delete();
+            //     $count++;
+            // }
 
             return response()->json([
                 'success' => true,
