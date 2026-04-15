@@ -229,7 +229,7 @@
                                         <td class="ps-3">
                                             <div class="item-checkbox ms-1">
                                                 <div class="custom-control custom-checkbox">
-                                                    <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $order->id }}" data-order-id="{{ $order->id }}">
+                                                    <input type="checkbox" class="custom-control-input checkbox row-checkbox" id="{{ $order->id }}" value="{{ $order->id }}" data-order-id="{{ $order->id }}">
                                                     <label for="{{ $order->id }}" class="custom-control-label"></label>
                                                     <input type="hidden" class="order-id-input" value="{{ $order->id }}" disabled>
                                                 </div>
