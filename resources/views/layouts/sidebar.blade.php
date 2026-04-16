@@ -209,7 +209,7 @@
                     </li>
                 @endcan
 
-                @canany(['chart-of-accounts-view', 'chart-of-accounts-add', 'chart-of-accounts-edit', 'chart-of-accounts-delete', 'bills-view', 'bills-add', 'bills-edit', 'bills-delete', 'bills-post', 'payments-view', 'payments-add', 'payments-delete', 'journal-entries-view', 'geenral-ledger-view', 'accounting-reports-view', 'accounting-reports-export'])
+                @canany(['chart-of-accounts-view', 'chart-of-accounts-add', 'chart-of-accounts-edit', 'chart-of-accounts-delete', 'bills-view', 'bills-add', 'bills-edit', 'bills-delete', 'bills-post', 'payments-view', 'payments-add', 'payments-delete', 'journal-entries-view', 'general-ledger-view', 'accounting-reports-view', 'accounting-reports-export'])
                     <!-- Accounting Section Caption -->
                     <li class="nxl-item nxl-caption">
                         <label>Accounting</label>
@@ -227,17 +227,17 @@
                                 <li class="nxl-item {{ request()->routeIs('chart-of-accounts.*') ? 'active' : '' }}">
                                     <a class="nxl-link" href="{{ route('chart-of-accounts.index') }}">Chart of Accounts</a>
                                 </li>
-                            @endcan
-                            @canany(['bills-view', 'bills-add', 'bills-edit', 'bill-delete', 'bill-post'])
+                            @endcanany
+                            @canany(['bills-view', 'bills-add', 'bills-edit', 'bills-delete', 'bills-post'])
                                 <li class="nxl-item {{ request()->routeIs('bills.*') ? 'active' : '' }}">
                                     <a class="nxl-link" href="{{ route('bills.index') }}">Bills</a>
                                 </li>
-                            @endcan
+                            @endcanany
                             @canany(['payments-view', 'payments-add', 'payments-delete'])
                                 <li class="nxl-item {{ request()->routeIs('payments.*') ? 'active' : '' }}">
                                     <a class="nxl-link" href="{{ route('payments.index') }}">Payments</a>
                                 </li>
-                            @endcan
+                            @endcanany
                             @can('journal-entries-view')
                                 <li class="nxl-item {{ request()->routeIs('journal-entries.*') ? 'active' : '' }}">
                                     <a class="nxl-link" href="{{ route('journal-entries.index') }}">Journal Entries</a>
@@ -255,7 +255,7 @@
                             @endcan
                         </ul>
                     </li>
-                @endcan
+                @endcanany
 
                 @canany(['view users', 'add users', 'edit users', 'delete users', 'view roles', 'add roles', 'edit roles', 'delete roles', 'view permissions', 'add permissions', 'edit permissions', 'delete permissions'])
                     <!-- User Management Section Caption -->
