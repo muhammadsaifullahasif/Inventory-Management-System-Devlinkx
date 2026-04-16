@@ -1143,12 +1143,31 @@ class ReportController extends Controller
             }
         }
 
+        // Convert to collection and paginate
+        $checklistCollection = collect($checklistItems);
+
         // Summary statistics
         $summary = [
             'total_orders' => $orders->count(),
-            'total_items' => count($checklistItems),
-            'total_quantity' => collect($checklistItems)->sum('quantity_ordered'),
+            'total_items' => $checklistCollection->count(),
+            'total_quantity' => $checklistCollection->sum('quantity_ordered'),
         ];
+
+        // Paginate the checklist items
+        $perPage = 50;
+        $currentPage = \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPage();
+        $currentItems = $checklistCollection->slice(($currentPage - 1) * $perPage, $perPage)->values();
+
+        $checklistItems = new \Illuminate\Pagination\LengthAwarePaginator(
+            $currentItems,
+            $checklistCollection->count(),
+            $perPage,
+            $currentPage,
+            ['path' => \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPath()]
+        );
+
+        // Append query parameters to pagination links
+        $checklistItems->appends($request->all());
 
         return view('reports.shipping-checklist', compact(
             'checklistItems',
@@ -1445,17 +1464,33 @@ class ReportController extends Controller
         }
 
         // Sort by stock level (lowest first), then by name
-        $outOfStockItems = collect($outOfStockItems)
+        $outOfStockCollection = collect($outOfStockItems)
             ->sortBy([['total_stock', 'asc'], ['product_name', 'asc']])
             ->values();
 
         // Summary statistics
         $summary = [
-            'total_out_of_stock' => $outOfStockItems->where('total_stock', 0)->count(),
-            'total_low_stock' => $outOfStockItems->where('total_stock', '>', 0)->count(),
-            'total_items' => $outOfStockItems->count(),
-            'categories_affected' => $outOfStockItems->pluck('category_name')->unique()->count(),
+            'total_out_of_stock' => $outOfStockCollection->where('total_stock', 0)->count(),
+            'total_low_stock' => $outOfStockCollection->where('total_stock', '>', 0)->count(),
+            'total_items' => $outOfStockCollection->count(),
+            'categories_affected' => $outOfStockCollection->pluck('category_name')->unique()->count(),
         ];
+
+        // Paginate the out of stock items
+        $perPage = 50;
+        $currentPage = \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPage();
+        $currentItems = $outOfStockCollection->slice(($currentPage - 1) * $perPage, $perPage)->values();
+
+        $outOfStockItems = new \Illuminate\Pagination\LengthAwarePaginator(
+            $currentItems,
+            $outOfStockCollection->count(),
+            $perPage,
+            $currentPage,
+            ['path' => \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPath()]
+        );
+
+        // Append query parameters to pagination links
+        $outOfStockItems->appends($request->all());
 
         return view('reports.out-of-stock', compact(
             'outOfStockItems',
@@ -1594,18 +1629,34 @@ class ReportController extends Controller
         }
 
         // Sort by turnover rate (lowest first - most slow moving)
-        $slowMovingItems = collect($slowMovingItems)
+        $slowMovingCollection = collect($slowMovingItems)
             ->sortBy([['turnover_rate', 'asc'], ['inventory_value', 'desc']])
             ->values();
 
         // Summary statistics
         $summary = [
-            'total_items' => $slowMovingItems->count(),
-            'total_stock_value' => $slowMovingItems->sum('inventory_value'),
-            'zero_sales_items' => $slowMovingItems->where('total_sold', 0)->count(),
-            'avg_turnover_rate' => $slowMovingItems->avg('turnover_rate'),
+            'total_items' => $slowMovingCollection->count(),
+            'total_stock_value' => $slowMovingCollection->sum('inventory_value'),
+            'zero_sales_items' => $slowMovingCollection->where('total_sold', 0)->count(),
+            'avg_turnover_rate' => $slowMovingCollection->avg('turnover_rate'),
             'period_days' => (int) $daysDiff,
         ];
+
+        // Paginate the slow moving items
+        $perPage = 50;
+        $currentPage = \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPage();
+        $currentItems = $slowMovingCollection->slice(($currentPage - 1) * $perPage, $perPage)->values();
+
+        $slowMovingItems = new \Illuminate\Pagination\LengthAwarePaginator(
+            $currentItems,
+            $slowMovingCollection->count(),
+            $perPage,
+            $currentPage,
+            ['path' => \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPath()]
+        );
+
+        // Append query parameters to pagination links
+        $slowMovingItems->appends($request->all());
 
         return view('reports.slow-moving-items', compact(
             'slowMovingItems',
@@ -1735,12 +1786,12 @@ class ReportController extends Controller
             ];
         }
 
-        $frequentItems = collect($frequentItems);
+        $frequentItemsCollection = collect($frequentItems);
 
         // Group data if requested
         $groupedData = collect();
         if ($groupBy === 'category') {
-            $groupedData = $this->groupFrequentItemsByCategory($frequentItems);
+            $groupedData = $this->groupFrequentItemsByCategory($frequentItemsCollection);
         } elseif ($groupBy === 'channel') {
             // Re-query with channel grouping
             $groupedData = $this->getFrequentItemsByChannel($dateFrom, $dateTo, $categoryId, $limit);
@@ -1748,9 +1799,9 @@ class ReportController extends Controller
 
         // Summary statistics
         $summary = [
-            'total_items' => $frequentItems->count(),
-            'total_quantity_sold' => $frequentItems->sum('total_quantity'),
-            'total_revenue' => $frequentItems->sum('total_revenue'),
+            'total_items' => $frequentItemsCollection->count(),
+            'total_quantity_sold' => $frequentItemsCollection->sum('total_quantity'),
+            'total_revenue' => $frequentItemsCollection->sum('total_revenue'),
             'total_orders' => Order::where('payment_status', 'paid')
                 ->whereNotIn('order_status', ['cancelled', 'refunded'])
                 ->whereDate('order_date', '>=', $dateFrom)
@@ -1758,8 +1809,24 @@ class ReportController extends Controller
                 ->when($channelId, fn($q) => $q->where('sales_channel_id', $channelId))
                 ->count(),
             'period_days' => (int) $daysDiff,
-            'avg_daily_items' => round($frequentItems->sum('total_quantity') / $daysDiff, 2),
+            'avg_daily_items' => round($frequentItemsCollection->sum('total_quantity') / $daysDiff, 2),
         ];
+
+        // Paginate the frequent items
+        $perPage = 50;
+        $currentPage = \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPage();
+        $currentItems = $frequentItemsCollection->slice(($currentPage - 1) * $perPage, $perPage)->values();
+
+        $frequentItems = new \Illuminate\Pagination\LengthAwarePaginator(
+            $currentItems,
+            $frequentItemsCollection->count(),
+            $perPage,
+            $currentPage,
+            ['path' => \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPath()]
+        );
+
+        // Append query parameters to pagination links
+        $frequentItems->appends($request->all());
 
         return view('reports.frequently-ordered-items', compact(
             'frequentItems',

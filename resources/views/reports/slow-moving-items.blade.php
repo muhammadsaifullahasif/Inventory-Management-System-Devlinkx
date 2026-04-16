@@ -217,7 +217,7 @@
                         <tbody>
                             @forelse($slowMovingItems as $item)
                                 <tr>
-                                    <td data-column="id">{{ ($loop->index + 1) }}</td>
+                                    <td data-column="id">{{ (($slowMovingItems->currentPage() - 1) * $slowMovingItems->perPage() + $loop->iteration) }}</td>
                                     <td data-column="image">
                                         @if($item['product_image'])
                                             <img src="{{ $item['product_image'] }}" alt="{{ $item['product_name'] }}" class="rounded" style="width: 50px; height: 50px; object-fit: cover;">
@@ -308,6 +308,18 @@
                     </table>
                 </div>
             </div>
+            @if($slowMovingItems->total() > 0)
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            Showing {{ $slowMovingItems->firstItem() }} to {{ $slowMovingItems->lastItem() }} of {{ $slowMovingItems->total() }} items
+                        </div>
+                        <div>
+                            {{ $slowMovingItems->links() }}
+                        </div>
+                    </div>
+                </div>
+            @endif
         </div>
     </div>
 @endsection

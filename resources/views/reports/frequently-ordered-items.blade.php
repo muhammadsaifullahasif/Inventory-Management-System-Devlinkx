@@ -331,14 +331,17 @@
                         </thead>
                         <tbody>
                             @forelse($frequentItems as $index => $item)
+                                @php
+                                    $globalIndex = ($frequentItems->currentPage() - 1) * $frequentItems->perPage() + $loop->iteration - 1;
+                                @endphp
                                 <tr>
                                     <td data-column="id">
-                                        @if($index < 3)
-                                            <span class="badge bg-{{ $index == 0 ? 'warning' : ($index == 1 ? 'secondary' : 'danger') }}">
-                                                {{ $index + 1 }}
+                                        @if($globalIndex < 3)
+                                            <span class="badge bg-{{ $globalIndex == 0 ? 'warning' : ($globalIndex == 1 ? 'secondary' : 'danger') }}">
+                                                {{ $globalIndex + 1 }}
                                             </span>
                                         @else
-                                            <span class="text-muted">{{ $index + 1 }}</span>
+                                            <span class="text-muted">{{ $globalIndex + 1 }}</span>
                                         @endif
                                     </td>
                                     <td data-column="image">
@@ -417,6 +420,18 @@
                     </table>
                 </div>
             </div>
+            @if($frequentItems->total() > 0)
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            Showing {{ $frequentItems->firstItem() }} to {{ $frequentItems->lastItem() }} of {{ $frequentItems->total() }} items
+                        </div>
+                        <div>
+                            {{ $frequentItems->links() }}
+                        </div>
+                    </div>
+                </div>
+            @endif
         </div>
     </div>
 @endsection

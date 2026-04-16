@@ -367,7 +367,7 @@
                         </thead>
                         <tbody>
                             @php
-                                $i = 1;
+                                $i = ($checklistItems->currentPage() - 1) * $checklistItems->perPage() + 1;
                             @endphp
                             @foreach($checklistItems as $item)
                                 <tr>
@@ -558,6 +558,17 @@
                 <div class="alert alert-info">
                     <i class="feather-info me-2"></i>
                     No orders found matching the selected criteria.
+                </div>
+            @endif
+
+            @if(count($checklistItems) > 0)
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div>
+                        Showing {{ $checklistItems->firstItem() }} to {{ $checklistItems->lastItem() }} of {{ $checklistItems->total() }} items
+                    </div>
+                    <div>
+                        {{ $checklistItems->links() }}
+                    </div>
                 </div>
             @endif
         </div>
