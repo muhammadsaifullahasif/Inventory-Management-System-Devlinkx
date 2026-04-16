@@ -291,7 +291,7 @@
                             Showing {{ $outOfStockItems->firstItem() }} to {{ $outOfStockItems->lastItem() }} of {{ $outOfStockItems->total() }} items
                         </div>
                         <div>
-                            {{ $outOfStockItems->links() }}
+                            {{ $outOfStockItems->appends(request()->query())->links('pagination::bootstrap-5') }}
                         </div>
                     </div>
                 </div>

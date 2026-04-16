@@ -567,7 +567,7 @@
                         Showing {{ $checklistItems->firstItem() }} to {{ $checklistItems->lastItem() }} of {{ $checklistItems->total() }} items
                     </div>
                     <div>
-                        {{ $checklistItems->links() }}
+                        {{ $checklistItems->appends(request()->query())->links('pagination::bootstrap-5') }}
                     </div>
                 </div>
             @endif

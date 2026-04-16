@@ -427,7 +427,7 @@
                             Showing {{ $frequentItems->firstItem() }} to {{ $frequentItems->lastItem() }} of {{ $frequentItems->total() }} items
                         </div>
                         <div>
-                            {{ $frequentItems->links() }}
+                            {{ $frequentItems->appends(request()->query())->links('pagination::bootstrap-5') }}
                         </div>
                     </div>
                 </div>

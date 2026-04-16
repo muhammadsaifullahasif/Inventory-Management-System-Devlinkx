@@ -315,7 +315,7 @@
                             Showing {{ $slowMovingItems->firstItem() }} to {{ $slowMovingItems->lastItem() }} of {{ $slowMovingItems->total() }} items
                         </div>
                         <div>
-                            {{ $slowMovingItems->links() }}
+                            {{ $slowMovingItems->appends(request()->query())->links('pagination::bootstrap-5') }}
                         </div>
                     </div>
                 </div>
