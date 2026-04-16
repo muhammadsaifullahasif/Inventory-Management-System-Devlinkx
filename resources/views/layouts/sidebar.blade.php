@@ -209,7 +209,7 @@
                     </li>
                 @endcan
 
-                @canany(['chart-of-accounts-view', 'chart-of-accounts-add', 'chart-of-accounts-edit', 'chart-of-accounts-delete', 'bills-view', 'bills-add', 'bills-edit', 'bills-delete', 'bills-post', 'payments-view', 'payments-add', 'payments-delete', 'journal-entries-view', 'geenral-ledger-view', 'accounting-reports-view', 'accounting-reports-export'])
+                @canany(['chart of accounts view', 'chart of accounts add', 'chart of accounts edit', 'chart of accounts delete', 'bills view', 'bills add', 'bills edit', 'bills delete', 'bills post', 'payments view', 'payments add', 'payments delete', 'journal entries view', 'geenral ledger view', 'accounting reports view', 'accounting reports export'])
                     <!-- Accounting Section Caption -->
                     <li class="nxl-item nxl-caption">
                         <label>Accounting</label>
@@ -223,32 +223,32 @@
                             <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
                         </a>
                         <ul class="nxl-submenu">
-                            @canany(['chart-of-accounts-view', 'chart-of-accounts-add', 'chart-of-accounts-edit', 'chart-of-accounts-delete'])
+                            @canany(['chart of accounts view', 'chart of accounts add', 'chart of accounts edit', 'chart of accounts delete'])
                                 <li class="nxl-item {{ request()->routeIs('chart-of-accounts.*') ? 'active' : '' }}">
                                     <a class="nxl-link" href="{{ route('chart-of-accounts.index') }}">Chart of Accounts</a>
                                 </li>
                             @endcan
-                            @canany(['bills-view', 'bills-add', 'bills-edit', 'bill-delete', 'bill-post'])
+                            @canany(['bills view', 'bills add', 'bills edit', 'bill delete', 'bill post'])
                                 <li class="nxl-item {{ request()->routeIs('bills.*') ? 'active' : '' }}">
                                     <a class="nxl-link" href="{{ route('bills.index') }}">Bills</a>
                                 </li>
                             @endcan
-                            @canany(['payments-view', 'payments-add', 'payments-delete'])
+                            @canany(['payments view', 'payments add', 'payments delete'])
                                 <li class="nxl-item {{ request()->routeIs('payments.*') ? 'active' : '' }}">
                                     <a class="nxl-link" href="{{ route('payments.index') }}">Payments</a>
                                 </li>
                             @endcan
-                            @can('journal-entries-view')
+                            @can('journal entries view')
                                 <li class="nxl-item {{ request()->routeIs('journal-entries.*') ? 'active' : '' }}">
                                     <a class="nxl-link" href="{{ route('journal-entries.index') }}">Journal Entries</a>
                                 </li>
                             @endcan
-                            @can('general-ledger-view')
+                            @can('general ledger view')
                                 <li class="nxl-item {{ request()->routeIs('general-ledger.*') ? 'active' : '' }}">
                                     <a class="nxl-link" href="{{ route('general-ledger.index') }}">General Ledger</a>
                                 </li>
                             @endcan
-                            @can('accounting-reports-view')
+                            @can('accounting reports view')
                                 <li class="nxl-item {{ request()->routeIs('reports.*') ? 'active' : '' }}">
                                     <a class="nxl-link" href="{{ route('reports.index') }}">Reports</a>
                                 </li>
