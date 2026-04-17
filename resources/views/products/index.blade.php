@@ -48,6 +48,10 @@
                     </a>
                 </div>
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('products.export') }}" class="btn btn-success">
+                        <i class="feather-download me-2"></i>
+                        <span>Export Excel</span>
+                    </a>
                     <a href="{{ route('products.import') }}" class="btn btn-light-brand">
                         <i class="feather-upload me-2"></i>
                         <span>Import</span>

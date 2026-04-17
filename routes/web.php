@@ -188,6 +188,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/products/barcode/bulk', [ProductController::class, 'bulkPrintBarcode'])->name('products.barcode.bulk-print');
     Route::post('/products/{id}/update-stock', [ProductController::class, 'updateStock'])->name('products.update-stock');
     Route::post('/products/bulk-delete', [ProductController::class, 'bulkDelete'])->name('products.bulk-delete');
+    Route::get('/products/export', [ProductController::class, 'export'])->name('products.export');
     Route::resource('/products', ProductController::class);
 
     // Product Bundle Stock Calculation (AJAX)

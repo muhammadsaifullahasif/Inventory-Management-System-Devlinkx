@@ -1384,4 +1384,108 @@ class ProductController extends Controller
                 ->withInput();
         }
     }
+
+    /**
+     * Export active products to Excel
+     */
+    public function export(Request $request)
+    {
+        try {
+            // Increase execution time and memory for large exports
+            set_time_limit(300); // 5 minutes
+            ini_set('memory_limit', '512M');
+
+            // Get all active products with relationships
+            $products = Product::with(['category', 'brand', 'product_stocks.warehouse', 'product_stocks.rack', 'sales_channels'])
+                ->where('delete_status', '0')
+                ->where('active_status', '1')
+                ->get();
+
+            // Check if image column is requested (images slow down export significantly)
+            $includeImages = $request->has('columns') && in_array('image', $request->get('columns', []));
+
+            // Prepare data for export
+            $data = [];
+            foreach ($products as $product) {
+                // Calculate total stock
+                $totalStock = $product->product_stocks->sum('quantity');
+
+                // Get warehouse/rack details
+                $warehouseDetails = $product->product_stocks->map(function ($stock) {
+                    return ($stock->warehouse->name ?? 'N/A') . ' / ' . ($stock->rack->name ?? 'N/A') . ': ' . $stock->quantity;
+                })->join('; ');
+
+                // Get sales channels
+                $salesChannels = $product->sales_channels->pluck('name')->join(', ');
+
+                // Get product meta data
+                $meta = $product->product_meta;
+
+                $data[] = [
+                    'id' => $product->id,
+                    'product_image' => $includeImages ? $product->product_image : null,
+                    'name' => $product->name,
+                    'sku' => $product->sku,
+                    'barcode' => $product->barcode ?? '',
+                    'category_name' => $product->category->name ?? 'N/A',
+                    'brand_name' => $product->brand->name ?? 'N/A',
+                    'price' => $product->price,
+                    'total_stock' => $totalStock,
+                    'warehouse_details' => $warehouseDetails ?: 'No stock',
+                    'sales_channels' => $salesChannels ?: 'None',
+                    'is_bundle' => $product->is_bundle ? 'Yes' : 'No',
+                    'is_featured' => $product->is_featured ? 'Yes' : 'No',
+                    'weight' => $meta['weight'] ?? '',
+                    'weight_unit' => $meta['weight_unit'] ?? '',
+                    'length' => $meta['length'] ?? '',
+                    'width' => $meta['width'] ?? '',
+                    'height' => $meta['height'] ?? '',
+                    'dimension_unit' => $meta['dimension_unit'] ?? '',
+                    'short_description' => $product->short_description ?? '',
+                    'description' => strip_tags($product->description ?? ''),
+                ];
+            }
+
+            // Define columns for export
+            $columns = [
+                'id' => ['label' => '#', 'field' => 'id'],
+                'image' => ['label' => 'Image', 'field' => 'product_image'],
+                'name' => ['label' => 'Product Name', 'field' => 'name'],
+                'sku' => ['label' => 'SKU', 'field' => 'sku'],
+                'barcode' => ['label' => 'Barcode', 'field' => 'barcode'],
+                'category_name' => ['label' => 'Category', 'field' => 'category_name'],
+                'brand_name' => ['label' => 'Brand', 'field' => 'brand_name'],
+                'price' => ['label' => 'Price', 'field' => 'price', 'format' => 'decimal'],
+                'total_stock' => ['label' => 'Total Stock', 'field' => 'total_stock', 'format' => 'decimal'],
+                'warehouse_details' => ['label' => 'Warehouse / Rack Details', 'field' => 'warehouse_details'],
+                'sales_channels' => ['label' => 'Sales Channels', 'field' => 'sales_channels'],
+                'is_bundle' => ['label' => 'Bundle', 'field' => 'is_bundle'],
+                'is_featured' => ['label' => 'Featured', 'field' => 'is_featured'],
+                'weight' => ['label' => 'Weight', 'field' => 'weight'],
+                'weight_unit' => ['label' => 'Weight Unit', 'field' => 'weight_unit'],
+                'length' => ['label' => 'Length', 'field' => 'length'],
+                'width' => ['label' => 'Width', 'field' => 'width'],
+                'height' => ['label' => 'Height', 'field' => 'height'],
+                'dimension_unit' => ['label' => 'Dimension Unit', 'field' => 'dimension_unit'],
+                'short_description' => ['label' => 'Short Description', 'field' => 'short_description'],
+                'description' => ['label' => 'Description', 'field' => 'description'],
+            ];
+
+            // Get visible columns from request or use default (excluding image by default for performance)
+            $defaultColumns = ['id', 'name', 'sku', 'barcode', 'category_name', 'brand_name', 'price', 'total_stock', 'warehouse_details', 'sales_channels', 'is_bundle', 'is_featured'];
+            $visibleColumns = $request->get('columns', $defaultColumns);
+
+            // Create export
+            $export = new \App\Exports\ReportExport($data, $columns, $visibleColumns, 'Active Products');
+
+            // Generate filename
+            $filename = 'active_products_' . date('Y-m-d_His') . '.xlsx';
+
+            return Excel::download($export, $filename);
+
+        } catch (\Exception $e) {
+            Log::error('Product export failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return redirect()->back()->with('error', 'Export failed: ' . $e->getMessage());
+        }
+    }
 }
