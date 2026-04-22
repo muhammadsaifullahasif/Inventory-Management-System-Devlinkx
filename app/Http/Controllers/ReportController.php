@@ -1931,7 +1931,7 @@ class ReportController extends Controller
         $visibleColumns = $request->input('columns', []);
 
         if (empty($visibleColumns)) {
-            $visibleColumns = ['id', 'product', 'category', 'last_purchase_quantity', 'last_purchase', 'last_order', 'sold_quantity', 'stock', 'orders', 'daily_rate', 'days_of_stock', 'turnover', 'stock_value'];
+            $visibleColumns = ['id', 'product', 'sku', 'category', 'last_purchase_quantity', 'last_purchase', 'last_order', 'sold_quantity', 'stock', 'orders', 'daily_rate', 'days_of_stock', 'turnover', 'stock_value'];
         }
 
         // Define all available columns with their mappings
