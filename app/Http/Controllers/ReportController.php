@@ -1976,7 +1976,7 @@ class ReportController extends Controller
         $visibleColumns = $request->input('columns', []);
 
         if (empty($visibleColumns)) {
-            $visibleColumns = ['id', 'product', 'category', 'last_purchase_quantity', 'last_purchase', 'last_order', 'sold_quantity', 'stock', 'price', 'status'];
+            $visibleColumns = ['id', 'product', 'sku', 'category', 'last_purchase_quantity', 'last_purchase', 'last_order', 'sold_quantity', 'stock', 'price', 'status'];
         }
 
         $columns = [
@@ -2015,7 +2015,7 @@ class ReportController extends Controller
         $visibleColumns = $request->input('columns', []);
 
         if (empty($visibleColumns)) {
-            $visibleColumns = ['id', 'product', 'category', 'last_purchase_quantity', 'last_purchase', 'last_order', 'sold_quantity', 'stock', 'orders', 'revenue', 'average_price', 'average_order', 'days_of_stock'];
+            $visibleColumns = ['id', 'product', 'sku', 'category', 'last_purchase_quantity', 'last_purchase', 'last_order', 'sold_quantity', 'stock', 'orders', 'revenue', 'average_price', 'average_order', 'days_of_stock'];
         }
 
         $columns = [

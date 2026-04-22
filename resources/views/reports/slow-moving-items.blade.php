@@ -176,6 +176,7 @@
                                 ['key' => 'id', 'label' => '#', 'default' => true],
                                 ['key' => 'image', 'label' => 'Image', 'default' => true],
                                 ['key' => 'product', 'label' => 'Product', 'default' => true],
+                                ['key' => 'sku', 'label' => 'SKU', 'default' => true],
                                 ['key' => 'category', 'label' => 'Category', 'default' => false],
                                 ['key' => 'last_purchase_quantity', 'label' => 'Last Purchase Qty', 'default' => true],
                                 ['key' => 'last_purchase', 'label' => 'Last Purchase', 'default' => true],
@@ -201,6 +202,7 @@
                                 <th data-column="id">#</th>
                                 <th data-column="image">Image</th>
                                 <th data-column="product" style="max-width: 200px;">Product</th>
+                                <th data-column="sku">SKU</th>
                                 <th data-column="category">Category</th>
                                 <th data-column="last_purchase_quantity">Last Purchase Quantity</th>
                                 <th data-column="last_purchase">Last Purchase</th>
@@ -231,8 +233,8 @@
                                         <a href="{{ route('products.show', $item['product_id']) }}" class="fw-semibold">
                                             {{ $item['product_name'] }}
                                         </a>
-                                        <span class="d-block fs-11 text-muted">SKU: {{ $item['product_sku'] }}</span>
                                     </td>
+                                    <td data-column="sku">{{ $item['product_sku'] }}</td>
                                     <td data-column="category">
                                         <span class="badge bg-soft-secondary text-secondary">{{ $item['category_name'] }}</span>
                                     </td>
