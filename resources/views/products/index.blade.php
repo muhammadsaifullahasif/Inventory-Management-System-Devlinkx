@@ -48,7 +48,7 @@
                     </a>
                 </div>
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
-                    <a href="{{ route('products.export') }}" class="btn btn-success">
+                    <a href="{{ route('products.export', request()->query()) }}" class="btn btn-success">
                         <i class="feather-download me-2"></i>
                         <span>Export Excel</span>
                     </a>
