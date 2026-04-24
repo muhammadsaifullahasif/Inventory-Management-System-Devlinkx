@@ -90,20 +90,53 @@ class ProductController extends Controller
 
         if ($warehouseId || $rackId || $stockStatus) {
             $query->where(function ($q) use ($warehouseId, $rackId, $stockStatus) {
-                // Regular products: filter by product_stocks
-                $q->whereHas('product_stocks', function ($stockQuery) use ($warehouseId, $rackId, $stockStatus) {
-                    if ($warehouseId) {
-                        $stockQuery->where('warehouse_id', $warehouseId);
-                    }
-                    if ($rackId) {
-                        $stockQuery->where('rack_id', $rackId);
-                    }
-                    if ($stockStatus === 'in_stock') {
+                // For out_of_stock filter, we need products with either:
+                // 1. Stock records with quantity <= 0, OR
+                // 2. No stock records at all
+                if ($stockStatus === 'out_of_stock') {
+                    $q->where(function ($outOfStockQuery) use ($warehouseId, $rackId) {
+                        // Products with stock records showing 0 or negative quantity
+                        $outOfStockQuery->whereHas('product_stocks', function ($stockQuery) use ($warehouseId, $rackId) {
+                            if ($warehouseId) {
+                                $stockQuery->where('warehouse_id', $warehouseId);
+                            }
+                            if ($rackId) {
+                                $stockQuery->where('rack_id', $rackId);
+                            }
+                            $stockQuery->where('quantity', '<=', 0);
+                        })
+                        // OR products with no stock records at all
+                        ->orWhereDoesntHave('product_stocks', function ($stockQuery) use ($warehouseId, $rackId) {
+                            if ($warehouseId) {
+                                $stockQuery->where('warehouse_id', $warehouseId);
+                            }
+                            if ($rackId) {
+                                $stockQuery->where('rack_id', $rackId);
+                            }
+                        });
+                    });
+                } elseif ($stockStatus === 'in_stock') {
+                    // For in_stock, only products with stock > 0
+                    $q->whereHas('product_stocks', function ($stockQuery) use ($warehouseId, $rackId) {
+                        if ($warehouseId) {
+                            $stockQuery->where('warehouse_id', $warehouseId);
+                        }
+                        if ($rackId) {
+                            $stockQuery->where('rack_id', $rackId);
+                        }
                         $stockQuery->where('quantity', '>', 0);
-                    } elseif ($stockStatus === 'out_of_stock') {
-                        $stockQuery->where('quantity', '<=', 0);
-                    }
-                });
+                    });
+                } else {
+                    // No stock status filter, just warehouse/rack
+                    $q->whereHas('product_stocks', function ($stockQuery) use ($warehouseId, $rackId) {
+                        if ($warehouseId) {
+                            $stockQuery->where('warehouse_id', $warehouseId);
+                        }
+                        if ($rackId) {
+                            $stockQuery->where('rack_id', $rackId);
+                        }
+                    });
+                }
 
                 // Bundle products: filter by components in warehouse (only for warehouse filter, not rack/stock status)
                 if ($warehouseId && !$rackId && !$stockStatus) {
