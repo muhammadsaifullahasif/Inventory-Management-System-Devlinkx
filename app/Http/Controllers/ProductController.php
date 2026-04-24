@@ -88,7 +88,114 @@ class ProductController extends Controller
         $rackId = $request->rack_id;
         $stockStatus = $request->stock_status;
 
+        $applyStockLocationFilter = function ($stockQuery) use ($warehouseId, $rackId, ) {
+            if ($warehouseId) {
+                $stockQuery->where('warehouse_id', $warehouseId);
+            }
+            
+            if ($rackId) {
+                $stockQuery->where('rack_id', $rackId);
+            }
+        };
+
+        // // Component is considered out if available stock in selected location is less than required qty for one bundle
+        $applyOutOfStockComponentCondition = function ($componentQuery) use ($warehouseId, $rackId) {
+            $sql = "(
+                SELECT COALESCE(SUM(CAST(ps.quantity AS decimal(15,4))), 0)
+                FROM product_stocks ps
+                WHERE ps.product_id = product_bundle_components.component_product_id
+                    AND ps.active_status = '1'
+                    AND ps.delete_status = '0'";
+
+            $bindings = [];
+
+            if ($warehouseId) {
+                $sql .= " AND ps.warehouse_id = ?";
+                $bindings[] = $warehouseId;
+            }
+
+            if ($rackId) {
+                $sql .= " AND ps.rack_id = ?";
+                $bindings[] = $rackId;
+            }
+
+            $sql .= ") < product_bundle_components.quantity_required";
+
+            $componentQuery->whereRaw($sql, $bindings);
+        };
+
         if ($warehouseId || $rackId || $stockStatus) {
+            $query->where(function ($q) use (
+                $warehouseId, 
+                $rackId, 
+                $stockStatus, 
+                $applyStockLocationFilter, 
+                $applyOutOfStockComponentCondition
+            ) {
+                if ($stockStatus === 'out_of_stock') {
+                    $q->where(function ($stockStatusQuery) use ($applyStockLocationFilter, $applyOutOfStockComponentCondition) {
+                        // Regular products out_of_stock
+                        $stockStatusQuery->where(function ($regularQuery) use ($applyStockLocationFilter) {
+                            $regularQuery->where('is_bundle', false)
+                                ->where(function ($outOfStockQuery) use ($applyStockLocationFilter) {
+                                    $outOfStockQuery->whereHas('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                                        $applyStockLocationFilter($stockQuery);
+                                        $stockQuery->where('quantity', '<=', 0);
+                                    })->orWhereDoesntHave('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                                        $applyStockLocationFilter($stockQuery);
+                                    });
+                                });
+                        })
+                        // Bundle products out_of_stock (if any component is out/insufficient)
+                        ->orWhere(function ($bundleQuery) use ($applyOutOfStockComponentCondition) {
+                            $bundleQuery->where('is_bundle', true)
+                                ->where(function ($bundleOutOfStockQuery) use ($applyOutOfStockComponentCondition) {
+                                    $bundleOutOfStockQuery->whereDoesntHave('bundleComponents')
+                                        ->orWhereHas('bundleComponents', function ($componentQuery) use ($applyOutOfStockComponentCondition) {
+                                            $applyOutOfStockComponentCondition($componentQuery);
+                                        });
+                                });
+                        });
+                    });
+                } else if ($stockStatus === 'in_stock') {
+                    $q->where(function ($stockStatusQuery) use ($applyStockLocationFilter, $applyOutOfStockComponentCondition) {
+                        // Regular products in_stock
+                        $stockStatusQuery->where(function ($regularQuery) use ($applyStockLocationFilter) {
+                            $regularQuery->where('is_bundle', false)
+                                ->whereHas('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                                    $applyStockLocationFilter($stockQuery);
+                                    $stockQuery->where('quantity', '>', 0);
+                                });
+                        })
+                        // Bundle products in_stock (all components must be in/sufficient)
+                        ->orWhere(function ($bundleQuery) use ($applyOutOfStockComponentCondition) {
+                            $bundleQuery->where('is_bundle', true)
+                                ->whereHas('bundleComponents')
+                                ->whereDoesntHave('bundleComponents', function ($componentQuery) use ($applyOutOfStockComponentCondition) {
+                                    $applyOutOfStockComponentCondition($componentQuery);
+                                });
+                        });
+                    });
+                } else {
+                    // No stock status filter, just warehouse/rack
+                    $q->whereHas('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                        $applyStockLocationFilter($stockQuery);
+                    });
+
+                    // Bundle products: filter by components in warehouse (only for warehouse filter, not rack/stock status)
+                    if ($warehouseId && !$rackId) {
+                        $q->orWhere(function ($bundleQuery) use ($warehouseId) {
+                            $bundleQuery->where('is_bundle', true)
+                                ->whereHas('bundleComponents.product.product_stocks', function ($componentStockQuery) use ($warehouseId) {
+                                    $componentStockQuery->where('warehouse_id', $warehouseId);
+                                });
+                        });
+                    }
+                }
+            });
+        }
+
+        /*if ($warehouseId || $rackId || $stockStatus) {
             $query->where(function ($q) use ($warehouseId, $rackId, $stockStatus) {
                 // For out_of_stock filter, we need products with either:
                 // 1. Stock records with quantity <= 0, OR
@@ -148,7 +255,7 @@ class ProductController extends Controller
                     });
                 }
             });
-        }
+        }*/
 
         // Filter by date range
         if ($request->filled('date_from')) {
