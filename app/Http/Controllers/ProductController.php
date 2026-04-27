@@ -568,7 +568,7 @@ class ProductController extends Controller
 
             DB::commit();
 
-            return redirect()->route('products.index')->with('success', $product->is_bundle ? 'Bundle updated successfully.' : 'Product updated successfully.');
+            return redirect()->back()->with('success', $product->is_bundle ? 'Bundle updated successfully.' : 'Product updated successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Product update failed', ['error' => $e->getMessage(), 'product_id' => $id]);
