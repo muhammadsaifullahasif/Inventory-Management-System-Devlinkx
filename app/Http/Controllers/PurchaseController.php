@@ -398,15 +398,6 @@ class PurchaseController extends Controller
 
                         // Track for sales channel sync
                         $productsToSync[$product->id] = $product;
-
-                        Log::info('Stock reversed for removed purchase item', [
-                            'purchase_id'      => $purchase->id,
-                            'product_id'       => $product->id,
-                            'product_sku'      => $product->sku,
-                            'received_removed' => $receivedQty,
-                            'warehouse_id'     => $purchase->warehouse_id,
-                            'rack_id'          => $removedItem->rack_id,
-                        ]);
                     }
                 }
             }
@@ -483,15 +474,6 @@ class PurchaseController extends Controller
 
                     // Track for eBay sync
                     $productsToSync[$product->id] = $product;
-
-                    Log::info('Stock decreased for deleted purchase', [
-                        'purchase_id'      => $purchase->id,
-                        'product_id'       => $product->id,
-                        'product_sku'      => $product->sku,
-                        'received_removed' => $receivedQty,
-                        'warehouse_id'     => $purchase->warehouse_id,
-                        'rack_id'          => $purchaseItem->rack_id,
-                    ]);
                 }
             }
 
@@ -1047,10 +1029,6 @@ class PurchaseController extends Controller
 
             // Sync inventory to all linked sales channels
             foreach ($productsToSync as $productToSync) {
-                Log::info('Triggering inventory sync after purchase import', [
-                    'product_id'  => $productToSync->id,
-                    'product_sku' => $productToSync->sku,
-                ]);
                 ProductController::syncProductInventoryToChannels($productToSync);
             }
 

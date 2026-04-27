@@ -125,10 +125,6 @@ class EbayPostOrderApiClient
                 ];
             }
 
-            Log::channel('ebay')->info('Cancellation approved', [
-                'order_id' => $orderId,
-            ]);
-
             return [
                 'success' => true,
                 'message' => 'Cancellation approved successfully',
@@ -178,10 +174,6 @@ class EbayPostOrderApiClient
                 ];
             }
 
-            Log::channel('ebay')->info('Cancellation rejected', [
-                'order_id' => $orderId,
-            ]);
-
             return [
                 'success' => true,
                 'message' => 'Cancellation rejected successfully',
@@ -208,19 +200,8 @@ class EbayPostOrderApiClient
         string $reason = 'OUT_OF_STOCK',
         ?string $buyerNote = null
     ): array {
-        Log::info('eBay: Before ensureValidToken', [
-            'sales_channel_id' => $channel->id,
-            'token_length' => strlen($channel->access_token ?? ''),
-            'token_expires_at' => $channel->access_token_expires_at,
-        ]);
 
         $channel = $this->tradingApiClient->ensureValidToken($channel);
-
-        Log::info('eBay: After ensureValidToken', [
-            'sales_channel_id' => $channel->id,
-            'token_length' => strlen($channel->access_token ?? ''),
-            'token_expires_at' => $channel->access_token_expires_at,
-        ]);
 
         try {
             $body = [
@@ -254,8 +235,6 @@ class EbayPostOrderApiClient
                 'token_is_expired' => $channel->access_token_expires_at ? now()->greaterThan($channel->access_token_expires_at) : null,
                 'note' => 'eBay Post-Order API may not support seller-initiated cancellations',
             ];
-            Log::channel('ebay')->info('Creating cancellation request', $requestLog);
-            Log::info('eBay: Creating cancellation request', $requestLog);
 
             $response = Http::timeout(self::REQUEST_TIMEOUT)
                 ->withHeaders($this->getRestApiHeaders($channel))
@@ -272,7 +251,6 @@ class EbayPostOrderApiClient
                     'body' => $body,
                     'response_body' => $response->body(),
                 ];
-                Log::channel('ebay')->error('Failed to create cancellation', $errorLog);
                 Log::error('eBay: Failed to create cancellation', $errorLog);
 
                 $errorMessage = 'Failed to create cancellation on eBay';
@@ -299,8 +277,6 @@ class EbayPostOrderApiClient
                 'order_id' => $legacyOrderId,
                 'cancellation_id' => $data['cancellationId'] ?? '',
             ];
-            Log::channel('ebay')->info('Cancellation created', $successLog);
-            Log::info('eBay: Cancellation created', $successLog);
 
             return [
                 'success' => true,
@@ -468,10 +444,6 @@ class EbayPostOrderApiClient
                 ];
             }
 
-            Log::channel('ebay')->info('Return approved', [
-                'return_id' => $returnId,
-            ]);
-
             return [
                 'success' => true,
                 'message' => 'Return approved successfully',
@@ -523,10 +495,6 @@ class EbayPostOrderApiClient
                     'message' => $data['errors'][0]['message'] ?? 'Failed to decline return',
                 ];
             }
-
-            Log::channel('ebay')->info('Return declined', [
-                'return_id' => $returnId,
-            ]);
 
             return [
                 'success' => true,
@@ -585,11 +553,6 @@ class EbayPostOrderApiClient
                 ];
             }
 
-            Log::channel('ebay')->info('Return shipping label provided', [
-                'return_id' => $returnId,
-                'tracking_number' => $trackingNumber,
-            ]);
-
             return [
                 'success' => true,
                 'message' => 'Shipping label provided successfully',
@@ -637,10 +600,6 @@ class EbayPostOrderApiClient
                     'message' => $data['errors'][0]['message'] ?? 'Failed to mark return as received',
                 ];
             }
-
-            Log::channel('ebay')->info('Return marked as received', [
-                'return_id' => $returnId,
-            ]);
 
             return [
                 'success' => true,
@@ -692,11 +651,6 @@ class EbayPostOrderApiClient
                     'message' => $data['errors'][0]['message'] ?? 'Failed to close return',
                 ];
             }
-
-            Log::channel('ebay')->info('Return closed', [
-                'return_id' => $returnId,
-                'close_reason' => $closeReason,
-            ]);
 
             return [
                 'success' => true,
@@ -775,12 +729,6 @@ class EbayPostOrderApiClient
                     'message' => $data['errors'][0]['message'] ?? 'Failed to issue refund',
                 ];
             }
-
-            Log::channel('ebay')->info('Refund issued', [
-                'order_id' => $orderId,
-                'amount' => $amount,
-                'refund_id' => $data['refundId'] ?? '',
-            ]);
 
             return [
                 'success' => true,
@@ -881,13 +829,6 @@ class EbayPostOrderApiClient
                 ];
             }
 
-            Log::channel('ebay')->info('Partial refund issued', [
-                'order_id' => $orderId,
-                'line_items_count' => count($lineItems),
-                'total_amount' => $totalAmount,
-                'refund_id' => $data['refundId'] ?? '',
-            ]);
-
             return [
                 'success' => true,
                 'refund_id' => $data['refundId'] ?? '',
@@ -956,11 +897,6 @@ class EbayPostOrderApiClient
                     'message' => $data['errors'][0]['message'] ?? 'Failed to issue refund',
                 ];
             }
-
-            Log::channel('ebay')->info('Return refund issued', [
-                'return_id' => $returnId,
-                'amount' => $amount,
-            ]);
 
             return [
                 'success' => true,
@@ -1072,11 +1008,6 @@ class EbayPostOrderApiClient
                 ];
             }
 
-            Log::channel('ebay')->info('Inquiry shipment info provided', [
-                'inquiry_id' => $inquiryId,
-                'tracking_number' => $trackingNumber,
-            ]);
-
             return [
                 'success' => true,
                 'message' => 'Shipment info provided successfully',
@@ -1124,10 +1055,6 @@ class EbayPostOrderApiClient
                     'message' => $data['errors'][0]['message'] ?? 'Failed to issue refund',
                 ];
             }
-
-            Log::channel('ebay')->info('Inquiry refund issued', [
-                'inquiry_id' => $inquiryId,
-            ]);
 
             return [
                 'success' => true,

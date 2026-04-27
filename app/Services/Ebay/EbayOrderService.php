@@ -120,7 +120,6 @@ class EbayOrderService
             $refundStatus = strtolower(trim($ebayOrder['raw_data']['MonetaryDetails']['Refunds']['Refund']['RefundStatus']));
 
             if (!empty($refundStatus) && $refundStatus === 'succeeded') {
-                Log::info('Refund Status: ', ['ebayOrder' => $ebayOrder]);
                 return 'refunded';
             }
         }
@@ -328,11 +327,6 @@ class EbayOrderService
             }
 
             $existingOrder->update($updateData);
-
-            Log::info('Order update ', [
-                'updateData' => $updateData, 
-                'ebayOrder' => $ebayOrder, 
-            ]);
 
             // Update inventory for items that weren't updated yet
             if ($this->mapPaymentStatus($ebayOrder['payment_status'], $ebayOrder) === 'paid') {
@@ -750,17 +744,9 @@ class EbayOrderService
 
             if ($order) {
                 $order->update($orderData);
-                Log::channel('ebay')->info('Order updated from notification', [
-                    'order_id' => $order->id,
-                    'ebay_order_id' => $ebayOrderId,
-                ]);
             } else {
                 $orderData['order_number'] = Order::generateOrderNumber();
                 $order = Order::create($orderData);
-                Log::channel('ebay')->info('Order created from notification', [
-                    'order_id' => $order->id,
-                    'ebay_order_id' => $ebayOrderId,
-                ]);
             }
 
             $isNewOrder = !isset($orderData['id']);
@@ -864,12 +850,6 @@ class EbayOrderService
 
             DB::commit();
 
-            Log::channel('ebay')->info('Order marked as shipped', [
-                'order_id' => $order->id,
-                'ebay_order_id' => $ebayOrderId,
-                'tracking_number' => $trackingNumber,
-            ]);
-
             return $order;
 
         } catch (Exception $e) {
@@ -931,11 +911,6 @@ class EbayOrderService
 
             DB::commit();
 
-            Log::channel('ebay')->info('Order marked as paid', [
-                'order_id' => $order->id,
-                'ebay_order_id' => $ebayOrderId,
-            ]);
-
             return $order;
 
         } catch (Exception $e) {
@@ -987,11 +962,6 @@ class EbayOrderService
 
             DB::commit();
 
-            Log::channel('ebay')->info('Order marked as delivered', [
-                'order_id' => $order->id,
-                'ebay_order_id' => $ebayOrderId,
-            ]);
-
             return $order;
 
         } catch (Exception $e) {
@@ -1042,11 +1012,6 @@ class EbayOrderService
 
             DB::commit();
 
-            Log::channel('ebay')->info('Order marked as picked up', [
-                'order_id' => $order->id,
-                'ebay_order_id' => $ebayOrderId,
-            ]);
-
             return $order;
 
         } catch (Exception $e) {
@@ -1096,11 +1061,6 @@ class EbayOrderService
             ]);
 
             DB::commit();
-
-            Log::channel('ebay')->info('Order marked as ready for pickup', [
-                'order_id' => $order->id,
-                'ebay_order_id' => $ebayOrderId,
-            ]);
 
             return $order;
 
@@ -1157,12 +1117,6 @@ class EbayOrderService
             ]);
 
             DB::commit();
-
-            Log::channel('ebay')->info('Order cancellation requested by buyer', [
-                'order_id' => $order->id,
-                'ebay_order_id' => $ebayOrderId,
-                'reason' => $cancelReason,
-            ]);
 
             return $order;
 
@@ -1228,13 +1182,6 @@ class EbayOrderService
 
             DB::commit();
 
-            Log::channel('ebay')->info('Order refund processed', [
-                'order_id' => $order->id,
-                'ebay_order_id' => $ebayOrderId,
-                'notification_type' => $notificationType,
-                'refund_amount' => $refundAmount,
-            ]);
-
             return $order;
 
         } catch (Exception $e) {
@@ -1288,11 +1235,6 @@ class EbayOrderService
 
             DB::commit();
 
-            Log::channel('ebay')->info('Cancellation approved and order cancelled', [
-                'order_id' => $order->id,
-                'ebay_order_id' => $ebayOrderId,
-            ]);
-
             return $order;
 
         } catch (Exception $e) {
@@ -1341,12 +1283,6 @@ class EbayOrderService
             ]);
 
             DB::commit();
-
-            Log::channel('ebay')->info('Cancellation rejected, order reverted', [
-                'order_id' => $order->id,
-                'ebay_order_id' => $ebayOrderId,
-                'new_status' => $previousStatus,
-            ]);
 
             return $order;
 
@@ -1417,13 +1353,6 @@ class EbayOrderService
 
             DB::commit();
 
-            Log::channel('ebay')->info('Return request created', [
-                'order_id' => $order->id,
-                'ebay_order_id' => $order->ebay_order_id,
-                'return_id' => $returnId,
-                'return_reason' => $returnReason,
-            ]);
-
             return $order;
 
         } catch (Exception $e) {
@@ -1483,12 +1412,6 @@ class EbayOrderService
 
             DB::commit();
 
-            Log::channel('ebay')->info('Return shipped by buyer', [
-                'order_id' => $order->id,
-                'return_id' => $returnId,
-                'tracking_number' => $trackingNumber,
-            ]);
-
             return $order;
 
         } catch (Exception $e) {
@@ -1533,11 +1456,6 @@ class EbayOrderService
             ]);
 
             DB::commit();
-
-            Log::channel('ebay')->info('Return delivered to seller', [
-                'order_id' => $order->id,
-                'return_id' => $returnId,
-            ]);
 
             return $order;
 
@@ -1607,12 +1525,6 @@ class EbayOrderService
             ]);
 
             DB::commit();
-
-            Log::channel('ebay')->info('Return closed', [
-                'order_id' => $order->id,
-                'return_id' => $returnId,
-                'close_reason' => $closeReason,
-            ]);
 
             return $order;
 
@@ -1805,13 +1717,6 @@ class EbayOrderService
 
             DB::commit();
 
-            Log::channel('ebay')->info('Dispute notification processed', [
-                'order_id' => $order->id,
-                'notification_type' => $notificationType,
-                'dispute_id' => $disputeId,
-                'dispute_status' => $disputeStatus,
-            ]);
-
             return $order;
 
         } catch (Exception $e) {
@@ -1845,7 +1750,6 @@ class EbayOrderService
             }
         }
 
-        Log::channel('ebay')->info('CheckoutBuyerRequestsTotal received (no existing order)');
         return null;
     }
 
@@ -1878,11 +1782,6 @@ class EbayOrderService
         $order->setMeta('event_log_' . time(), [
             'event' => 'PaymentReminder',
             'timestamp' => $timestamp,
-        ]);
-
-        Log::channel('ebay')->info('Payment reminder received', [
-            'order_id' => $order->id,
-            'ebay_order_id' => $ebayOrderId,
         ]);
 
         return $order;
@@ -2066,14 +1965,6 @@ class EbayOrderService
         $unitPrice = EbayService::priceValue($transaction['TransactionPrice'] ?? null);
         $currency = EbayService::priceCurrency($transaction['TransactionPrice'] ?? null);
 
-        Log::info('EbayOrderService: Creating bundle order items from notification', [
-            'order_id' => $order->id,
-            'bundle_sku' => $bundleProduct->sku,
-            'bundle_name' => $bundleProduct->name,
-            'quantity' => $quantity,
-            'components_count' => $bundleProduct->bundleComponents->count(),
-        ]);
-
         // 1. Create bundle summary item (for display, marked as is_bundle_summary)
         $summaryItem = OrderItem::create([
             'order_id' => $order->id,
@@ -2124,22 +2015,7 @@ class EbayOrderService
             if ($isPaid) {
                 $componentItem->updateInventory();
             }
-
-            Log::debug('EbayOrderService: Created bundle component item from notification', [
-                'order_id' => $order->id,
-                'component_sku' => $componentProduct->sku,
-                'component_name' => $componentProduct->name,
-                'quantity' => $componentQuantity,
-                'inventory_updated' => $isPaid,
-            ]);
         }
-
-        Log::info('EbayOrderService: Bundle order items created successfully from notification', [
-            'order_id' => $order->id,
-            'bundle_sku' => $bundleProduct->sku,
-            'summary_item_id' => $summaryItem->id,
-            'component_items' => $bundleProduct->bundleComponents->count(),
-        ]);
 
         return $summaryItem;
     }
@@ -2287,14 +2163,6 @@ class EbayOrderService
         // Load bundle components
         $bundleProduct->load('bundleComponents.product');
 
-        Log::info('EbayOrderService: Creating bundle order items', [
-            'order_id' => $order->id,
-            'bundle_sku' => $bundleProduct->sku,
-            'bundle_name' => $bundleProduct->name,
-            'quantity' => $lineItem['quantity'],
-            'components_count' => $bundleProduct->bundleComponents->count(),
-        ]);
-
         // 1. Create bundle summary item (for display only, won't deduct inventory)
         OrderItem::create([
             'order_id' => $order->id,
@@ -2334,21 +2202,6 @@ class EbayOrderService
             if ($isPaid) {
                 $componentItem->updateInventory();
             }
-
-            Log::debug('EbayOrderService: Created bundle component item', [
-                'order_id' => $order->id,
-                'component_sku' => $componentProduct->sku,
-                'component_name' => $componentProduct->name,
-                'quantity' => $componentQuantity,
-                'inventory_updated' => $isPaid,
-            ]);
         }
-
-        Log::info('EbayOrderService: Bundle order items created successfully', [
-            'order_id' => $order->id,
-            'bundle_sku' => $bundleProduct->sku,
-            'summary_items' => 1,
-            'component_items' => $bundleProduct->bundleComponents->count(),
-        ]);
     }
 }

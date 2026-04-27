@@ -612,15 +612,8 @@ class OrderController extends Controller
                 'result' => $result,
                 'synced_at' => now()->toIso8601String(),
             ]);
-
-            if ($result['success']) {
-                Log::info('Order shipment synced to eBay', [
-                    'order_id' => $order->id,
-                    'ebay_order_id' => $order->ebay_order_id,
-                    'tracking_number' => $trackingNumber,
-                    'is_multi_package' => is_array($trackingNumber),
-                ]);
-            } else {
+                
+            if (!$result['success']) {
                 Log::warning('Failed to sync shipment to eBay', [
                     'order_id' => $order->id,
                     'ebay_order_id' => $order->ebay_order_id,
@@ -648,10 +641,6 @@ class OrderController extends Controller
      */
     public function cancel(Request $request, string $id): JsonResponse
     {
-        Log::info('Order cancellation requested', [
-            'order_id' => $id,
-            'reason' => $request->input('reason'),
-        ]);
 
         $order = Order::with('salesChannel')->find($id);
 
@@ -661,14 +650,6 @@ class OrderController extends Controller
                 'message' => 'Order not found',
             ], 404);
         }
-
-        Log::info('Order found for cancellation', [
-            'order_id' => $order->id,
-            'order_status' => $order->order_status,
-            'is_ebay_order' => $order->isEbayOrder(),
-            'ebay_order_id' => $order->ebay_order_id,
-            'sales_channel_id' => $order->salesChannel?->id,
-        ]);
 
         if ($order->order_status === 'cancelled') {
             return response()->json([
@@ -732,11 +713,6 @@ class OrderController extends Controller
      */
     protected function syncCancellationToEbay(Order $order, ?string $reason = null): array
     {
-        Log::info('syncCancellationToEbay called', [
-            'order_id' => $order->id,
-            'ebay_order_id' => $order->ebay_order_id,
-            'reason' => $reason,
-        ]);
 
         try {
             $salesChannel = $order->salesChannel;
@@ -751,22 +727,11 @@ class OrderController extends Controller
                 ];
             }
 
-            Log::info('Attempting to sync cancellation to eBay', [
-                'order_id' => $order->id,
-                'ebay_order_id' => $order->ebay_order_id,
-                'sales_channel_id' => $salesChannel->id,
-            ]);
-
             $ebayController = app(EbayController::class);
 
             // Map cancellation reason to eBay reason codes
             $ebayReason = $this->mapCancellationReasonToEbay($reason);
             $buyerNote = $reason ? "Order cancelled: " . $reason : "Order has been cancelled";
-
-            Log::info('Calling EbayController::createCancellation', [
-                'ebay_reason' => $ebayReason,
-                'buyer_note' => $buyerNote,
-            ]);
 
             $response = $ebayController->createCancellation(
                 new \Illuminate\Http\Request([
@@ -780,10 +745,6 @@ class OrderController extends Controller
             // Extract result from JsonResponse
             $result = json_decode($response->getContent(), true);
 
-            Log::info('EbayController response received', [
-                'result' => $result,
-            ]);
-
             // Log the sync attempt
             $order->setMeta('ebay_cancellation_sync_' . time(), [
                 'reason' => $ebayReason,
@@ -792,13 +753,7 @@ class OrderController extends Controller
                 'synced_at' => now()->toIso8601String(),
             ]);
 
-            if ($result['success'] ?? false) {
-                Log::info('Order cancellation synced to eBay', [
-                    'order_id' => $order->id,
-                    'ebay_order_id' => $order->ebay_order_id,
-                    'reason' => $ebayReason,
-                ]);
-            } else {
+            if (!$result['success'] ?? false) {
                 Log::warning('Failed to sync cancellation to eBay', [
                     'order_id' => $order->id,
                     'ebay_order_id' => $order->ebay_order_id,
@@ -1203,10 +1158,6 @@ class OrderController extends Controller
                 $unitOverrides
             );
 
-            Log::info('Shipping Labels Details: ', [
-                'data' => $labelResult, 
-            ]);
-
             $packages    = $labelResult['packages'];
             $carrierName = $labelResult['carrier_name'];
 
@@ -1238,13 +1189,6 @@ class OrderController extends Controller
             // Update order with primary shipping info (first package) and mark as shipped
             $trackingNumbersString = implode(', ', $trackingNumbers);
 
-            Log::info('Before updating order', [
-                'order_id' => $order->id,
-                'carrier_name' => $carrierName,
-                'tracking_numbers' => $trackingNumbers,
-                'tracking_numbers_string' => $trackingNumbersString,
-            ]);
-
             $order->update([
                 'shipping_carrier'     => $carrierName,
                 'shipping_id'          => $carrier->id,
@@ -1259,13 +1203,6 @@ class OrderController extends Controller
 
             // Refresh the order from database to verify the update
             $order->refresh();
-
-            Log::info('After updating order', [
-                'order_id' => $order->id,
-                'shipping_carrier' => $order->shipping_carrier,
-                'tracking_number' => $order->tracking_number,
-                'shipping_id' => $order->shipping_id,
-            ]);
 
             // Deduct inventory for all items
             foreach ($order->items as $item) {
@@ -1505,12 +1442,7 @@ class OrderController extends Controller
                 'removed_at' => now()->toIso8601String(),
             ]);
 
-            if ($result['success']) {
-                Log::info('Tracking removed from eBay order', [
-                    'order_id' => $order->id,
-                    'ebay_order_id' => $order->ebay_order_id,
-                ]);
-            } else {
+            if (!$result['success']) {
                 Log::warning('Failed to remove tracking from eBay', [
                     'order_id' => $order->id,
                     'ebay_order_id' => $order->ebay_order_id,
@@ -1586,12 +1518,6 @@ class OrderController extends Controller
                 'comment' => $validated['comment'] ?? null,
                 'timestamp' => now()->toIso8601String(),
                 'processed_by' => auth()->user()?->name ?? 'System',
-            ]);
-
-            Log::info('Local order refunded', [
-                'order_id' => $order->id,
-                'order_number' => $order->order_number,
-                'refund_amount' => $refundAmount,
             ]);
 
             return response()->json([
@@ -1703,13 +1629,6 @@ class OrderController extends Controller
                 'comment' => $validated['comment'] ?? null,
                 'timestamp' => now()->toIso8601String(),
                 'processed_by' => auth()->user()?->name ?? 'System',
-            ]);
-
-            Log::info('Local order partially refunded', [
-                'order_id' => $order->id,
-                'order_number' => $order->order_number,
-                'refund_amount' => $amount,
-                'total_refunded' => $order->fresh()->total_refunded,
             ]);
 
             return response()->json([

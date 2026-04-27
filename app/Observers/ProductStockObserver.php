@@ -65,12 +65,6 @@ class ProductStockObserver
                 return; // Product is not used in any bundles
             }
 
-            Log::info('ProductStockObserver: Component stock changed, syncing bundles', [
-                'product_id' => $productId,
-                'action' => $action,
-                'affected_bundles' => $bundleComponents->count(),
-            ]);
-
             foreach ($bundleComponents as $component) {
                 $bundle = $component->bundleProduct;
 
@@ -81,24 +75,10 @@ class ProductStockObserver
                 // Recalculate bundle stock
                 $newBundleStock = $bundle->available_stock;
 
-                Log::info('ProductStockObserver: Bundle stock recalculated', [
-                    'bundle_id' => $bundle->id,
-                    'bundle_sku' => $bundle->sku,
-                    'new_stock' => $newBundleStock,
-                ]);
-
                 // Sync to all connected sales channels
                 foreach ($bundle->sales_channels as $channel) {
                     try {
                         ProductController::syncProductInventoryToChannel($bundle, $channel);
-
-                        Log::info('ProductStockObserver: Bundle synced to sales channel', [
-                            'bundle_id' => $bundle->id,
-                            'bundle_sku' => $bundle->sku,
-                            'channel_id' => $channel->id,
-                            'channel_name' => $channel->name,
-                            'stock' => $newBundleStock,
-                        ]);
                     } catch (\Exception $e) {
                         Log::error('ProductStockObserver: Failed to sync bundle to sales channel', [
                             'bundle_id' => $bundle->id,

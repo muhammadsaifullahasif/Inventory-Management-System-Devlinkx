@@ -35,11 +35,6 @@ Route::post('/ebay/orders/webhook/{id}', [EbayController::class, 'handleEbayOrde
 
 // Test endpoint to verify webhook is reachable
 Route::get('/ebay/webhook-test', function (Request $request) {
-    Log::channel('ebay')->info('Webhook test endpoint hit', [
-        'timestamp' => now()->toIso8601String(),
-        'ip' => $request->ip(),
-        'user_agent' => $request->userAgent(),
-    ]);
 
     return response()->json([
         'success' => true,

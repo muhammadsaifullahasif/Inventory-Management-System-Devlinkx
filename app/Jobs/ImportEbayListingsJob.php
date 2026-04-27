@@ -48,13 +48,6 @@ class ImportEbayListingsJob implements ShouldQueue
 
     public function handle(EbayApiClient $client, EbayService $ebayService): void
     {
-        Log::info('eBay Import Job Started', [
-            'batch' => $this->batchNumber,
-            'total_batches' => $this->totalBatches,
-            'items_count' => count($this->items),
-            'sales_channel_id' => $this->salesChannelId,
-            'import_log_id' => $this->importLogId,
-        ]);
 
         $insertedCount = 0;
         $updatedCount = 0;
@@ -105,12 +98,6 @@ class ImportEbayListingsJob implements ShouldQueue
                     );
                     $updatedCount++;
 
-                    Log::debug('eBay Product Synced (existing)', [
-                        'batch' => $this->batchNumber,
-                        'product_id' => $existingProduct->id,
-                        'sku' => $existingProduct->sku,
-                        'ebay_item_id' => $itemId,
-                    ]);
                 } else {
                     // NEW PRODUCT: Create locally from eBay data
                     $product = $this->createProductFromEbay(
@@ -131,13 +118,6 @@ class ImportEbayListingsJob implements ShouldQueue
                     ]);
 
                     $insertedCount++;
-
-                    Log::debug('eBay Product Created (new)', [
-                        'batch' => $this->batchNumber,
-                        'product_id' => $product->id,
-                        'sku' => $ebaySku,
-                        'ebay_item_id' => $itemId,
-                    ]);
                 }
             } catch (Exception $e) {
                 $errorCount++;
@@ -158,13 +138,6 @@ class ImportEbayListingsJob implements ShouldQueue
 
         $this->updateImportLog($insertedCount, $updatedCount, $errorCount, $errors);
 
-        Log::info('eBay Import Job Completed', [
-            'batch' => $this->batchNumber,
-            'total_batches' => $this->totalBatches,
-            'inserted' => $insertedCount,
-            'updated' => $updatedCount,
-            'errors' => $errorCount,
-        ]);
     }
 
     /**

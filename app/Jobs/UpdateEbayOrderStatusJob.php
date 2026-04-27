@@ -53,9 +53,6 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
         EbayService $ebayService,
         EbayOrderService $orderService,
     ): void {
-        Log::channel('ebay')->info('Starting eBay order status update job', [
-            'days_back' => $this->daysBack,
-        ]);
 
         $stats = [
             'total_checked' => 0,
@@ -77,7 +74,6 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
                 ->get();
 
             if ($salesChannels->isEmpty()) {
-                Log::channel('ebay')->info('No active eBay sales channels found');
                 return;
             }
 
@@ -98,8 +94,6 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
                     $stats['errors']++;
                 }
             }
-
-            Log::channel('ebay')->info('eBay order status update job completed', $stats);
 
         } catch (Exception $e) {
             Log::channel('ebay')->error('eBay order status update job failed', [
@@ -158,28 +152,11 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
             ->toArray();
 
         if (empty($orders)) {
-            Log::channel('ebay')->info('No orders to check for sales channel', [
-                'sales_channel_id' => $salesChannel->id,
-                'sales_channel_name' => $salesChannel->name,
-            ]);
             return $stats;
         }
 
         $orderIds = array_values($orders);
         $localOrderIdMap = array_flip($orders); // ebay_order_id => local_id
-
-        Log::channel('ebay')->info('Checking eBay order statuses', [
-            'sales_channel_id' => $salesChannel->id,
-            'order_count' => count($orderIds),
-        ]);
-
-        // Log to dedicated sync log
-        Log::channel('ebay-order-sync')->info('=== Starting eBay order status sync ===', [
-            'sales_channel_id' => $salesChannel->id,
-            'sales_channel_name' => $salesChannel->name,
-            'order_count' => count($orderIds),
-            'order_ids' => $orderIds,
-        ]);
 
         // Process orders in batches
         $batches = array_chunk($orderIds, self::BATCH_SIZE);
@@ -187,9 +164,6 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
 
         foreach ($batches as $batchOrderIds) {
             $batchNumber++;
-            Log::channel('ebay-order-sync')->info("Processing batch {$batchNumber}/" . count($batches), [
-                'batch_order_ids' => $batchOrderIds,
-            ]);
 
             try {
                 $result = $ebayService->getOrdersByIds($salesChannel, $batchOrderIds);
@@ -203,19 +177,8 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
                     continue;
                 }
 
-                Log::channel('ebay-order-sync')->info('Batch fetched successfully', [
-                    'orders_returned' => count($result['orders']),
-                ]);
-
                 foreach ($result['orders'] as $ebayOrder) {
                     $stats['total_checked']++;
-
-                    // Log that we're processing this order
-                    Log::channel('ebay')->info('Processing eBay order', [
-                        'ebay_order_id' => $ebayOrder['order_id'] ?? 'unknown',
-                        'order_status' => $ebayOrder['order_status'] ?? null,
-                        'cancel_status' => $ebayOrder['cancel_status'] ?? null,
-                    ]);
 
                     // Save the full eBay order response to a separate JSON file
                     $this->saveOrderLog($ebayOrder, $salesChannel->id);
@@ -234,14 +197,6 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
                             if ($updateResult['return_updated']) {
                                 $stats['return_updated']++;
                             }
-
-                            // Log status change
-                            Log::channel('ebay-order-sync')->info('Order status updated', [
-                                'ebay_order_id' => $ebayOrder['order_id'] ?? 'unknown',
-                                'cancelled' => $updateResult['cancelled'],
-                                'refunded' => $updateResult['refunded'],
-                                'return_updated' => $updateResult['return_updated'],
-                            ]);
                         }
                     } catch (Exception $e) {
                         $stats['errors']++;
@@ -263,12 +218,6 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
                 ]);
             }
         }
-
-        // Log completion summary
-        Log::channel('ebay-order-sync')->info('=== eBay order status sync completed ===', [
-            'sales_channel_id' => $salesChannel->id,
-            'stats' => $stats,
-        ]);
 
         return $stats;
     }
@@ -302,13 +251,6 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
         // Check for cancellation status changes
         // eBay returns PascalCase values like: CancelRequested, CancelComplete, CancelPending, NotApplicable, Invalid
         $cancelStatus = strtolower(trim($ebayOrder['cancel_status'] ?? ''));
-
-        Log::channel('ebay')->info('Checking cancel status', [
-            'ebay_order_id' => $ebayOrder['order_id'],
-            'raw_cancel_status' => $ebayOrder['cancel_status'] ?? 'null',
-            'normalized_cancel_status' => $cancelStatus,
-            'local_order_status' => $localOrder->order_status,
-        ]);
 
         // Skip if no cancellation or not applicable
         if (!empty($cancelStatus) && !in_array($cancelStatus, ['none', 'notapplicable', 'invalid', ''])) {
@@ -410,12 +352,6 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
                 'ebay_cancel_status' => $ebayOrder['cancel_status'] ?? '',
                 'timestamp' => now()->toIso8601String(),
             ]);
-
-            Log::channel('ebay')->info('Order status updated from eBay', [
-                'order_id' => $localOrder->id,
-                'ebay_order_id' => $ebayOrder['order_id'],
-                'changes' => $changes,
-            ]);
         }
         */
 
@@ -485,12 +421,6 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
                     'file_path' => $filePath,
                     'directory_exists' => File::isDirectory($directory),
                     'directory_writable' => is_writable($directory),
-                ]);
-            } else {
-                Log::channel('ebay')->info('Order response saved to file', [
-                    'ebay_order_id' => $orderId,
-                    'file_path' => $filePath,
-                    'bytes_written' => $result,
                 ]);
             }
         } catch (Exception $e) {

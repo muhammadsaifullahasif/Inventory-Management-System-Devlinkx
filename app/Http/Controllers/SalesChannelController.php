@@ -122,12 +122,6 @@ class SalesChannelController extends Controller
             . '&redirect_uri=' . rawurlencode($salesChannel->ru_name)
             . '&scope=' . rawurlencode($scopes);
 
-        Log::info('eBay Auth URL generated', [
-            'url' => $url,
-            'scopes_raw' => $salesChannel->user_scopes,
-            'scopes_cleaned' => $scopes,
-        ]);
-
         return $url;
     }
 
@@ -159,11 +153,6 @@ class SalesChannelController extends Controller
                 throw new \Exception('Sales channel not found.');
             }
 
-            Log::info('eBay callback: Exchanging authorization code', [
-                'sales_channel_id' => $sales_channel_id,
-                'ru_name' => $sales_channel->ru_name,
-            ]);
-
             $response = Http::asForm()
                 ->withBasicAuth($sales_channel->client_id, $sales_channel->client_secret)
                 ->post(env('EBAY_TOKEN_URL'), [
@@ -173,8 +162,6 @@ class SalesChannelController extends Controller
                 ]);
 
             $response_data = $response->json();
-
-            Log::info('eBay callback response data', ['response_data' => $response_data]);
 
             if ($response->failed() || isset($response_data['error'])) {
                 Log::error('eBay callback error', [
@@ -226,12 +213,6 @@ class SalesChannelController extends Controller
             // Subscribe to ALL Platform Notifications (Trading API) events
             $result = $this->notificationService->subscribeToAllEvents($salesChannel);
 
-            Log::info('eBay notifications subscribed successfully', [
-                'sales_channel_id' => $salesChannel->id,
-                'events_count' => count($result['events'] ?? []),
-                'events' => $result['events'] ?? [],
-            ]);
-
             return ['success' => true, 'result' => $result];
         } catch (\Exception $e) {
             Log::error('Failed to subscribe to eBay notifications', [
@@ -273,11 +254,6 @@ class SalesChannelController extends Controller
                 if (!empty($userId)) {
                     $salesChannel->ebay_user_id = $userId;
                     $salesChannel->save();
-
-                    Log::info('eBay UserID stored for sales channel', [
-                        'sales_channel_id' => $salesChannel->id,
-                        'ebay_user_id' => $userId,
-                    ]);
                 }
             }
         } catch (\Exception $e) {

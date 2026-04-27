@@ -47,31 +47,8 @@ class EbayController extends Controller
         try {
             $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
 
-            Log::info('Starting eBay listings fetch', ['sales_channel_id' => $salesChannel->id]);
-
             $result = $this->ebayService->getAllActiveListings($salesChannel);
             $allItems = $result['items'];
-
-            // Log all fetched listings to dedicated eBay log channel
-            Log::channel('ebay')->info('eBay Import - All Fetched Listings', [
-                'timestamp' => now()->toIso8601String(),
-                'sales_channel_id' => $salesChannel->id,
-                'total_listings' => count($allItems),
-            ]);
-
-            foreach ($allItems as $index => $item) {
-                Log::channel('ebay')->debug('Listing #' . ($index + 1), [
-                    'item_id' => $item['item_id'] ?? 'N/A',
-                    'title' => $item['title'] ?? 'N/A',
-                    'sku' => $item['sku'] ?? 'N/A',
-                    'price' => $item['price'] ?? 'N/A',
-                    'quantity' => $item['quantity'] ?? 0,
-                    'quantity_available' => $item['quantity_available'] ?? 0,
-                    'category' => $item['category'] ?? 'N/A',
-                    'listing_status' => $item['listing_status'] ?? 'N/A',
-                    'full_data' => $item,
-                ]);
-            }
 
             $totalListings = count($allItems);
 
@@ -86,12 +63,6 @@ class EbayController extends Controller
                 'total_batcheds' => 0,
                 'status' => 'pending',
                 'started_at' => now(),
-            ]);
-
-            Log::info('eBay Listings Fetched - Dispatching to Queue', [
-                'total_listings' => $totalListings,
-                'sales_channel_id' => $id,
-                'import_log_id' => $importLog->id,
             ]);
 
             // Split items into batches and dispatch jobs
@@ -147,8 +118,6 @@ class EbayController extends Controller
         try {
             $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
 
-            Log::info('Starting eBay sync listings', ['sales_channel_id' => $salesChannel->id]);
-
             $result = $this->ebayService->getAllActiveListings($salesChannel);
             $allItems = $result['items'];
             $totalFetched = count($allItems);
@@ -186,12 +155,6 @@ class EbayController extends Controller
                 }
             }
 
-            Log::info('eBay Sync - Analysis', [
-                'total_fetched' => $totalFetched,
-                'existing_products' => $existingCount,
-                'new_products' => $newCount,
-            ]);
-
             // Create import log
             $importLog = EbayImportLog::create([
                 'sales_channel_id' => $id,
@@ -199,14 +162,6 @@ class EbayController extends Controller
                 'total_batcheds' => 0,
                 'status' => 'pending',
                 'started_at' => now(),
-            ]);
-
-            Log::info('eBay Sync Listings - Dispatching to Queue', [
-                'total_listings' => $totalFetched,
-                'existing_to_sync' => $existingCount,
-                'new_to_create' => $newCount,
-                'sales_channel_id' => $id,
-                'import_log_id' => $importLog->id,
             ]);
 
             // Split ALL items into batches (job handles existing vs new differently)
@@ -282,12 +237,6 @@ class EbayController extends Controller
                 return redirect()->back()->with('error', 'No default rack found for the default warehouse.');
             }
 
-            Log::info('eBay Sync Started (Synchronous)', [
-                'total_listings' => $totalListings,
-                'warehouse_id' => $warehouse->id,
-                'rack_id' => $rack->id,
-            ]);
-
             foreach ($allItems as $index => $item) {
                 try {
                     // Get or create category
@@ -356,13 +305,6 @@ class EbayController extends Controller
             if ($errorCount > 0) {
                 $message .= ", Errors: {$errorCount}";
             }
-
-            Log::info('eBay Sync Complete (Synchronous)', [
-                'total' => $totalListings,
-                'inserted' => $insertedCount,
-                'updated' => $updatedCount,
-                'errors' => $errorCount,
-            ]);
 
             return redirect()->back()->with('success', $message);
 
@@ -543,17 +485,7 @@ class EbayController extends Controller
                 return $returnArray ? $error : $this->errorResponse('No fields provided to update', 400);
             }
 
-            Log::info('eBay ReviseItem Request', [
-                'item_id' => $itemId,
-                'data' => $data,
-            ]);
-
             $result = $this->ebayService->reviseItem($salesChannel, $itemId, $fields);
-
-            Log::info('eBay ReviseItem Response', [
-                'item_id' => $itemId,
-                'result' => $result,
-            ]);
 
             return $returnArray ? $result : response()->json($result);
         } catch (Exception $e) {
@@ -625,12 +557,6 @@ class EbayController extends Controller
             $createTimeFrom = gmdate('Y-m-d\TH:i:s\Z', strtotime('-90 days'));
             $createTimeTo = gmdate('Y-m-d\TH:i:s\Z');
 
-            Log::info('Starting eBay order sync', [
-                'sales_channel_id' => $id,
-                'from' => $createTimeFrom,
-                'to' => $createTimeTo,
-            ]);
-
             $result = $this->ebayService->getAllOrders($salesChannel, $createTimeFrom, $createTimeTo);
             $allOrders = $result['orders'];
             $totalOrders = count($allOrders);
@@ -665,13 +591,6 @@ class EbayController extends Controller
             if ($errorCount > 0) {
                 $message .= ", Errors: {$errorCount}";
             }
-
-            Log::info('eBay order sync completed', [
-                'total' => $totalOrders,
-                'synced' => $syncedCount,
-                'updated' => $updatedCount,
-                'errors' => $errorCount,
-            ]);
 
             return redirect()->back()->with('success', $message);
 
@@ -779,14 +698,6 @@ class EbayController extends Controller
      */
     public function handleEbayWebhook(Request $request)
     {
-        Log::channel('ebay')->info('>>>>>> WEBHOOK REQUEST RECEIVED <<<<<<');
-        Log::channel('ebay')->info(json_encode([
-            'timestamp' => now()->toIso8601String(),
-            'endpoint' => 'unified',
-            'method' => $request->method(),
-            'content_type' => $request->header('Content-Type'),
-            'ip' => $request->ip(),
-        ], JSON_PRETTY_PRINT));
 
         // Check if this is a challenge request (Commerce Notification API)
         if ($request->has('challenge_code')) {
@@ -815,14 +726,6 @@ class EbayController extends Controller
      */
     public function handleEbayOrderWebhook(Request $request, string $id)
     {
-        Log::channel('ebay')->info('>>>>>> WEBHOOK REQUEST RECEIVED <<<<<<');
-        Log::channel('ebay')->info(json_encode([
-            'timestamp' => now()->toIso8601String(),
-            'sales_channel_id' => $id,
-            'method' => $request->method(),
-            'content_type' => $request->header('Content-Type'),
-            'ip' => $request->ip(),
-        ], JSON_PRETTY_PRINT));
 
         $salesChannel = SalesChannel::find($id);
 
@@ -858,10 +761,6 @@ class EbayController extends Controller
         $hashInput = $challengeCode . $verificationToken . $endpoint;
         $challengeResponse = hash('sha256', $hashInput);
 
-        Log::info('eBay Challenge Request handled', [
-            'sales_channel_id' => $salesChannel->id,
-        ]);
-
         return response()->json(['challengeResponse' => $challengeResponse]);
     }
 
@@ -883,12 +782,6 @@ class EbayController extends Controller
         ];
 
         $this->saveNotificationToFile($topic, $notificationData, $timestamp);
-
-        Log::channel('ebay')->info("Commerce API Notification received: {$topic}", [
-            'timestamp' => $timestamp->toIso8601String(),
-            'sales_channel_id' => $salesChannel->id,
-            'file' => $this->getNotificationFileName($topic, $timestamp),
-        ]);
 
         return response()->json(['success' => true]);
     }
@@ -964,30 +857,11 @@ class EbayController extends Controller
 
             $this->saveNotificationToFile($notificationType, $notificationData, $timestamp);
 
-            Log::channel('ebay')->info("Notification received: {$notificationType}", [
-                'timestamp' => $timestamp->toIso8601String(),
-                'sales_channel_id' => $salesChannel->id,
-                'file' => $this->getNotificationFileName($notificationType, $timestamp),
-            ]);
-
             // Process order-related notifications
             if (EbayOrderService::isOrderNotification($notificationType)) {
                 try {
                     $order = $this->orderService->processNotification($jsonData, $salesChannel, $notificationType, $timestamp);
 
-                    if ($order) {
-                        Log::channel('ebay')->info("Order processed from notification: {$notificationType}", [
-                            'order_id' => $order->id,
-                            'ebay_order_id' => $order->ebay_order_id,
-                            'order_status' => $order->order_status,
-                            'fulfillment_status' => $order->fulfillment_status,
-                            'sales_channel_id' => $salesChannel->id,
-                        ]);
-                    } else {
-                        Log::channel('ebay')->info("Order notification processed (no order returned): {$notificationType}", [
-                            'sales_channel_id' => $salesChannel->id,
-                        ]);
-                    }
                 } catch (Exception $orderException) {
                     Log::channel('ebay')->error("Failed to process order notification: {$notificationType}", [
                         'error' => $orderException->getMessage(),
@@ -1112,27 +986,11 @@ class EbayController extends Controller
 
             $this->saveNotificationToFile($notificationType, $notificationData, $timestamp);
 
-            Log::channel('ebay')->info("Notification received: {$notificationType}", [
-                'timestamp' => $timestamp->toIso8601String(),
-                'sales_channel_id' => $salesChannel->id,
-                'ebay_user_id' => $salesChannel->ebay_user_id,
-                'file' => $this->getNotificationFileName($notificationType, $timestamp),
-            ]);
-
             // Process order-related notifications
             if (EbayOrderService::isOrderNotification($notificationType)) {
                 try {
                     $order = $this->orderService->processNotification($jsonData, $salesChannel, $notificationType, $timestamp);
 
-                    if ($order) {
-                        Log::channel('ebay')->info("Order processed from notification: {$notificationType}", [
-                            'order_id' => $order->id,
-                            'ebay_order_id' => $order->ebay_order_id,
-                            'order_status' => $order->order_status,
-                            'fulfillment_status' => $order->fulfillment_status,
-                            'sales_channel_id' => $salesChannel->id,
-                        ]);
-                    }
                 } catch (Exception $orderException) {
                     Log::channel('ebay')->error("Failed to process order notification: {$notificationType}", [
                         'error' => $orderException->getMessage(),
@@ -1192,11 +1050,6 @@ class EbayController extends Controller
             }
 
             if ($channel) {
-                Log::channel('ebay')->info('Found sales channel from RecipientUserID', [
-                    'recipient_user_id' => $recipientUserId,
-                    'sales_channel_id' => $channel->id,
-                    'sales_channel_name' => $channel->name,
-                ]);
                 return $channel;
             }
         }
@@ -1255,9 +1108,6 @@ class EbayController extends Controller
         }
 
         if (empty($recipientUserId)) {
-            Log::channel('ebay')->debug('No RecipientUserID found in notification, using fallback channel', [
-                'fallback_channel_id' => $fallbackChannel->id,
-            ]);
             return $fallbackChannel;
         }
 
@@ -1268,14 +1118,6 @@ class EbayController extends Controller
             ->first();
 
         if ($matchedChannel) {
-            if ($matchedChannel->id !== $fallbackChannel->id) {
-                Log::channel('ebay')->info('Resolved correct sales channel from RecipientUserID', [
-                    'recipient_user_id' => $recipientUserId,
-                    'url_channel_id' => $fallbackChannel->id,
-                    'matched_channel_id' => $matchedChannel->id,
-                    'matched_channel_name' => $matchedChannel->name,
-                ]);
-            }
             return $matchedChannel;
         }
 
@@ -1326,18 +1168,7 @@ class EbayController extends Controller
 
             $itemData = $this->prepareItemDataFromProduct($product, $channel);
 
-            Log::info('Creating eBay listing', [
-                'product_id' => $product->id,
-                'sku' => $product->sku,
-                'channel_id' => $channel->id,
-            ]);
-
             $result = $this->ebayService->addFixedPriceItem($channel, $itemData);
-
-            Log::info('eBay listing created', [
-                'product_id' => $product->id,
-                'result' => $result,
-            ]);
 
             return $result;
         } catch (Exception $e) {
@@ -1363,20 +1194,7 @@ class EbayController extends Controller
 
             $itemData = $this->prepareItemDataFromProduct($product, $channel);
 
-            Log::info('Revising eBay listing', [
-                'product_id' => $product->id,
-                'item_id' => $itemId,
-                'sku' => $product->sku,
-                'channel_id' => $channel->id,
-            ]);
-
             $result = $this->ebayService->reviseFixedPriceItem($channel, $itemId, $itemData);
-
-            Log::info('eBay listing revised', [
-                'product_id' => $product->id,
-                'item_id' => $itemId,
-                'result' => $result,
-            ]);
 
             return $result;
         } catch (Exception $e) {
@@ -1401,18 +1219,7 @@ class EbayController extends Controller
         try {
             $channel = $this->client->ensureValidToken($channel);
 
-            Log::info('Ending eBay listing', [
-                'item_id' => $itemId,
-                'reason' => $reason,
-                'channel_id' => $channel->id,
-            ]);
-
             $result = $this->ebayService->endFixedPriceItem($channel, $itemId, $reason);
-
-            Log::info('eBay listing ended', [
-                'item_id' => $itemId,
-                'result' => $result,
-            ]);
 
             return $result;
         } catch (Exception $e) {
@@ -1436,18 +1243,7 @@ class EbayController extends Controller
         try {
             $channel = $this->client->ensureValidToken($channel);
 
-            Log::info('Finding eBay listing by SKU', [
-                'sku' => $sku,
-                'channel_id' => $channel->id,
-            ]);
-
             $result = $this->ebayService->findListingBySku($channel, $sku);
-
-            Log::info('eBay listing search result', [
-                'sku' => $sku,
-                'found' => $result !== null,
-                'result' => $result,
-            ]);
 
             return $result;
         } catch (Exception $e) {
@@ -1479,33 +1275,8 @@ class EbayController extends Controller
 
             // Debug: Log stock details
             $stockRecords = ProductStock::where('product_id', $product->id)->get();
-            Log::info('Product stock records for sync', [
-                'product_id' => $product->id,
-                'stock_count' => $stockRecords->count(),
-                'stocks' => $stockRecords->map(fn($s) => [
-                    'id' => $s->id,
-                    'quantity' => $s->quantity,
-                    'active_status' => $s->active_status,
-                    'delete_status' => $s->delete_status,
-                ])->toArray(),
-                'calculated_total' => $quantity,
-            ]);
-
-            Log::info('Syncing inventory to eBay', [
-                'product_id' => $product->id,
-                'item_id' => $itemId,
-                'sku' => $product->sku,
-                'quantity' => $quantity,
-                'channel_id' => $channel->id,
-            ]);
 
             $result = $this->ebayService->reviseInventoryStatus($channel, $itemId, $quantity);
-
-            Log::info('eBay inventory sync result', [
-                'product_id' => $product->id,
-                'item_id' => $itemId,
-                'result' => $result,
-            ]);
 
             return $result;
         } catch (Exception $e) {
@@ -1557,23 +1328,8 @@ class EbayController extends Controller
                 $fields['sku'] = $product->sku;
             }
 
-            Log::info('Syncing product to eBay', [
-                'product_id' => $product->id,
-                'item_id' => $itemId,
-                'sku' => $product->sku,
-                'sync_sku' => $syncSku,
-                'fields' => $fields,
-                'channel_id' => $channel->id,
-            ]);
-
             // Use reviseItem to update quantity, dimensions, and optionally SKU
             $result = $this->ebayService->reviseItem($channel, $itemId, $fields);
-
-            Log::info('eBay product sync result', [
-                'product_id' => $product->id,
-                'item_id' => $itemId,
-                'result' => $result,
-            ]);
 
             return $result;
         } catch (Exception $e) {
@@ -1612,14 +1368,6 @@ class EbayController extends Controller
         try {
             $channel = $this->client->ensureValidToken($channel);
 
-            Log::info('Marking order as shipped on eBay', [
-                'ebay_order_id' => $ebayOrderId,
-                'shipping_carrier' => $shippingCarrier,
-                'tracking_number' => $trackingNumber,
-                'channel_id' => $channel->id,
-                'is_multi_package' => is_array($trackingNumber),
-            ]);
-
             // Use OrderID if available (preferred for multi-item orders)
             if (!empty($ebayOrderId)) {
                 $result = $this->ebayService->completeSaleByOrderId(
@@ -1650,11 +1398,6 @@ class EbayController extends Controller
                 ];
             }
 
-            Log::info('eBay mark as shipped result', [
-                'ebay_order_id' => $ebayOrderId,
-                'result' => $result,
-            ]);
-
             return $result;
         } catch (Exception $e) {
             Log::error('Failed to mark order as shipped on eBay', [
@@ -1683,11 +1426,6 @@ class EbayController extends Controller
         try {
             $channel = $this->client->ensureValidToken($channel);
 
-            Log::info('Marking order as NOT shipped on eBay', [
-                'ebay_order_id' => $ebayOrderId,
-                'channel_id' => $channel->id,
-            ]);
-
             // Use OrderID if available (preferred for multi-item orders)
             if (!empty($ebayOrderId)) {
                 $result = $this->ebayService->completeSaleByOrderId(
@@ -1714,11 +1452,6 @@ class EbayController extends Controller
                 ];
             }
 
-            Log::info('eBay mark as NOT shipped result', [
-                'ebay_order_id' => $ebayOrderId,
-                'result' => $result,
-            ]);
-
             return $result;
         } catch (Exception $e) {
             Log::error('Failed to mark order as not shipped on eBay', [
@@ -1743,19 +1476,7 @@ class EbayController extends Controller
 
             $itemData = $this->prepareItemDataFromProduct($product, $channel);
 
-            Log::info('Relisting eBay item', [
-                'product_id' => $product->id,
-                'item_id' => $itemId,
-                'channel_id' => $channel->id,
-            ]);
-
             $result = $this->ebayService->relistFixedPriceItem($channel, $itemId, $itemData);
-
-            Log::info('eBay item relisted', [
-                'product_id' => $product->id,
-                'item_id' => $itemId,
-                'result' => $result,
-            ]);
 
             return $result;
         } catch (Exception $e) {
@@ -2326,11 +2047,6 @@ class EbayController extends Controller
 
             DB::commit();
 
-            Log::info('Local order cancelled', [
-                'order_id' => $order->id,
-                'reason' => $reason,
-            ]);
-
             return response()->json([
                 'success' => true,
                 'message' => 'Order cancelled successfully',
@@ -2394,12 +2110,6 @@ class EbayController extends Controller
             ]);
 
             DB::commit();
-
-            Log::info('Local order refunded', [
-                'order_id' => $order->id,
-                'amount' => $amount,
-                'is_partial' => $isPartial,
-            ]);
 
             return response()->json([
                 'success' => true,
@@ -2467,12 +2177,6 @@ class EbayController extends Controller
             ]);
 
             DB::commit();
-
-            Log::info('Local order partial refund issued', [
-                'order_id' => $order->id,
-                'line_items_count' => count($lineItems),
-                'total_amount' => $totalAmount,
-            ]);
 
             return response()->json([
                 'success' => true,

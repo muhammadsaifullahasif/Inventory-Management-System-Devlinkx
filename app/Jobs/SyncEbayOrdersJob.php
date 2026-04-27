@@ -35,10 +35,6 @@ class SyncEbayOrdersJob implements ShouldQueue
         EbayService $ebayService,
         EbayOrderService $orderService,
     ): void {
-        Log::info('Starting eBay order sync job', [
-            'sales_channel_id' => $this->salesChannelId,
-            'days_back' => $this->daysBack,
-        ]);
 
         try {
             $salesChannel = SalesChannel::findOrFail($this->salesChannelId);
@@ -70,13 +66,6 @@ class SyncEbayOrdersJob implements ShouldQueue
                     ]);
                 }
             }
-
-            Log::info('eBay order sync job completed', [
-                'total_orders' => count($allOrders),
-                'synced' => $syncedCount,
-                'updated' => $updatedCount,
-                'errors' => $errorCount,
-            ]);
         } catch (Exception $e) {
             Log::error('eBay order sync job failed', [
                 'error' => $e->getMessage(),
