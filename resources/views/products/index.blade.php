@@ -316,7 +316,7 @@
                                         </div>
                                     </td> --}}
                                     <td data-column="name">
-                                        <span style="white-space: normal; width: 300px; display: block;" class="fw-semibold">{{ $product->name }}</span>
+                                        <a href="{{ route('products.edit', $product->id) }}"><span style="white-space: normal; width: 300px; display: block;" class="fw-semibold">{{ $product->name }}</span></a>
                                         <span class="d-block fs-11 text-muted">SKU: {{ $product->sku }}</span>
                                     </td>
                                     <td data-column="price"><span class="fw-semibold">${{ number_format($product->price, 2) }}</span></td>
