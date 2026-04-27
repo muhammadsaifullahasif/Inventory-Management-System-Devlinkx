@@ -176,10 +176,6 @@ class EbayService
             }
         }
 
-        Log::info('eBay SKU not found in any date range', [
-            'sku_searched' => $sku,
-        ]);
-
         return null;
     }
 
@@ -193,22 +189,7 @@ class EbayService
         try {
             $response = $this->client->call($channel, 'GetSellerList', $xml);
 
-            $itemsCount = isset($response['ItemArray']['Item'])
-                ? (is_array($response['ItemArray']['Item']) ? count($response['ItemArray']['Item']) : 1)
-                : 0;
-
-            Log::info('eBay GetSellerList response for SKU search', [
-                'sku' => $sku,
-                'range' => ['from' => $endTimeFrom, 'to' => $endTimeTo],
-                'ack' => $response['Ack'] ?? 'N/A',
-                'items_count' => $itemsCount,
-            ]);
-
             if (($response['Ack'] ?? '') === 'Failure') {
-                Log::warning('eBay GetSellerList failed', [
-                    'sku' => $sku,
-                    'errors' => $response['Errors'] ?? 'Unknown error',
-                ]);
                 return null;
             }
 
@@ -217,12 +198,6 @@ class EbayService
             foreach ($items as $item) {
                 $itemSku = $item['SKU'] ?? '';
                 if (strtoupper($itemSku) === strtoupper($sku)) {
-                    Log::info('eBay listing found by SKU', [
-                        'sku' => $sku,
-                        'ItemID' => $item['ItemID'] ?? '',
-                        'Title' => $item['Title'] ?? '',
-                    ]);
-
                     return [
                         'ItemID' => $item['ItemID'] ?? '',
                         'Title' => $item['Title'] ?? '',
@@ -1022,7 +997,5 @@ class EbayService
     public function subscribedNotificationEventNames(SalesChannel $channel)
     {
         $this->client->subscribedNotificationEvent($channel);
-
-        dd('Successfull');
     }
 }

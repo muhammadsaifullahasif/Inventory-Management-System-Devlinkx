@@ -63,9 +63,6 @@ class ShippingService
         $carrier = $this->getAddressValidationCarrier();
 
         if (!$carrier) {
-            Log::info('ShippingService: no carrier has address validation enabled — skipping', [
-                'order_id' => $order->id,
-            ]);
             return 'UNKNOWN';
         }
 
@@ -92,12 +89,6 @@ class ShippingService
         $order->update([
             'address_type'         => $addressType,
             'address_validated_at' => now(),
-        ]);
-
-        Log::info('ShippingService: address validated', [
-            'order_id'     => $order->id,
-            'address_type' => $addressType,
-            'carrier'      => $carrier->name,
         ]);
 
         return $addressType;
@@ -355,33 +346,7 @@ class ShippingService
         ];
 
         // Log the rate request payload for debugging
-        $packageSummary = array_map(function ($pkg) use ($fedexWeightUnit, $fedexDimUnit) {
-            return $pkg['weight']['value'] . $fedexWeightUnit . ' ' .
-                   $pkg['dimensions']['length'] . 'x' . $pkg['dimensions']['width'] . 'x' . $pkg['dimensions']['height'] . $fedexDimUnit;
-        }, $requestedPackageLineItems);
-
-        Log::info('ShippingService: requesting rates from carrier', [
-            'carrier_id' => $carrier->id,
-            'carrier_type' => $carrier->type,
-            'order_id' => $order->id,
-            'package_count' => count($requestedPackageLineItems),
-            'packages' => $packageSummary,
-            'residential' => $isResidential,
-            'ship_date' => date('Y-m-d'),
-            'shipper_zip' => $carrier->shipper_postal_code,
-            'recipient_zip' => substr($order->shipping_postal_code ?? '', 0, 5),
-        ]);
-
         $rawRates = $service->getRates($shipmentDetails);
-
-        // Log the raw rates received
-        Log::info('ShippingService: rates received from carrier', [
-            'carrier_id' => $carrier->id,
-            'carrier_type' => $carrier->type,
-            'order_id' => $order->id,
-            'rate_count' => count($rawRates),
-            'raw_rates' => $rawRates,
-        ]);
 
         return $this->normalizeRates($rawRates, $carrier->type);
     }
@@ -542,14 +507,6 @@ class ShippingService
                     'transit_days'  => $transitDays,
                     'rate_breakdown' => $rateBreakdown, // Include detailed breakdown
                 ];
-
-                // Log detailed rate breakdown
-                Log::info('ShippingService: rate breakdown for service', [
-                    'service_code' => $serviceType,
-                    'service_name' => $serviceName,
-                    'amount' => $amount,
-                    'breakdown' => $rateBreakdown,
-                ]);
             }
         }
 
@@ -814,10 +771,6 @@ class ShippingService
             ],
         ];
 
-        Log::info('Shippment Label Payload: ', [
-            'payload' => $shipmentPayload
-        ]);
-
         // Remove email notification if no buyer email
         // if (empty($order->buyer_email)) {
         //     unset($shipmentPayload['requestedShipment']['shipmentSpecialServices']);
@@ -836,18 +789,6 @@ class ShippingService
         $labelData = base64_decode($labelBase64);
 
         Storage::put($filename, $labelData);
-
-        Log::info('ShippingService: label generated and saved', [
-            'order_id'        => $order->id,
-            'tracking_number' => $trackingNumber,
-            'label_path'      => $filename,
-            'carrier'         => $carrier->name,
-            'payload'         => $shipmentPayload,
-        ]);
-
-        Log::info('ShippingService: response from shipping carrier', [
-            'result'          => $result,
-        ]);
 
         return [
             'tracking_number' => $trackingNumber,
@@ -1044,10 +985,6 @@ class ShippingService
                 ],
             ];
 
-            Log::info('Multi-package Label Payload (Package ' . ($i + 1) . '/' . $packageCount . '): ', [
-                'payload' => $shipmentPayload
-            ]);
-
             // Call FedEx to create shipment for this package
             $result = $service->createShipment($shipmentPayload);
 
@@ -1060,15 +997,6 @@ class ShippingService
             $labelData = base64_decode($labelBase64);
 
             Storage::put($filename, $labelData);
-
-            Log::info('ShippingService: multi-package label generated', [
-                'order_id'        => $order->id,
-                'package_number'  => $i + 1,
-                'total_packages'  => $packageCount,
-                'tracking_number' => $trackingNumber,
-                'label_path'      => $filename,
-                'carrier'         => $carrier->name,
-            ]);
 
             $packages[] = [
                 'tracking_number' => $trackingNumber,
@@ -1153,12 +1081,6 @@ class ShippingService
                     'delivered_at' => $deliveredAt,
                 ]);
 
-                Log::info('ShippingService: order marked as delivered', [
-                    'order_id'        => $order->id,
-                    'tracking_number' => $order->tracking_number,
-                    'delivered_at'    => $deliveredAt,
-                ]);
-
                 return [
                     'checked'   => true,
                     'delivered' => true,
@@ -1227,8 +1149,6 @@ class ShippingService
             // Small delay to avoid rate limiting
             usleep(200000); // 200ms
         }
-
-        Log::info('ShippingService: delivery status check complete', $stats);
 
         return $stats;
     }
@@ -1304,12 +1224,6 @@ class ShippingService
             if ($order->shipping_label_path && Storage::exists($order->shipping_label_path)) {
                 Storage::delete($order->shipping_label_path);
             }
-
-            Log::info('ShippingService: label cancelled', [
-                'order_id'        => $order->id,
-                'tracking_number' => $order->tracking_number,
-                'carrier'         => $carrier->name,
-            ]);
         }
 
         return $result;

@@ -143,11 +143,6 @@ class InventoryAccountingService
             'credit' => $amount,
         ]);
 
-        Log::info("Inventory accounting: {$chargeType} recorded", [
-            'journal_entry_id' => $journalEntry->id,
-            'purchase_id' => $purchase->id,
-            'amount' => $amount,
-        ]);
 
         return $journalEntry;
     }
@@ -300,14 +295,6 @@ class InventoryAccountingService
             'credit' => $totalValue,
         ]);
 
-        Log::info('Inventory accounting: Purchase Bill recorded', [
-            'bill_id' => $bill->id,
-            'bill_number' => $bill->bill_number,
-            'journal_entry_id' => $journalEntry->id,
-            'purchase_id' => $purchase->id,
-            'purchase_number' => $purchase->purchase_number,
-            'total_value' => $totalValue,
-        ]);
 
         return $bill;
     }
@@ -347,11 +334,6 @@ class InventoryAccountingService
             $bill->items()->delete();
             $bill->delete();
 
-            Log::info('Inventory accounting: Purchase Bill reversed', [
-                'bill_id' => $bill->id,
-                'purchase_id' => $purchase->id,
-                'purchase_number' => $purchase->purchase_number,
-            ]);
 
             return true;
         }
@@ -365,18 +347,10 @@ class InventoryAccountingService
             JournalEntryLine::where('journal_entry_id', $journalEntry->id)->delete();
             $journalEntry->delete();
 
-            Log::info('Inventory accounting: Legacy Purchase Bill journal entry reversed', [
-                'journal_entry_id' => $journalEntry->id,
-                'purchase_id' => $purchase->id,
-            ]);
 
             return true;
         }
 
-        Log::info('No bill found to reverse for purchase', [
-            'purchase_id' => $purchase->id,
-            'purchase_number' => $purchase->purchase_number,
-        ]);
 
         return false;
     }
@@ -443,14 +417,6 @@ class InventoryAccountingService
             'credit' => $totalCost,
         ]);
 
-        Log::info('Inventory accounting: Purchase receipt recorded', [
-            'journal_entry_id' => $journalEntry->id,
-            'purchase_id' => $purchase->id,
-            'product_name' => $purchaseItem->name,
-            'quantity' => $receivedQty,
-            'unit_cost' => $unitCost,
-            'total_cost' => $totalCost,
-        ]);
 
         return $journalEntry;
     }
@@ -513,14 +479,6 @@ class InventoryAccountingService
             'credit' => $totalCOGS,
         ]);
 
-        Log::info('Inventory accounting: COGS recorded', [
-            'journal_entry_id' => $journalEntry->id,
-            'order_id' => $order->id,
-            'product_title' => $orderItem->title,
-            'quantity' => $orderItem->quantity,
-            'avg_cost' => $avgCost,
-            'total_cogs' => $totalCOGS,
-        ]);
 
         return $journalEntry;
     }
@@ -595,17 +553,6 @@ class InventoryAccountingService
             $receivablesAccount->updateBalance($saleAmount, 'debit');
         }
 
-        Log::info('Inventory accounting: Sales Revenue recorded', [
-            'journal_entry_id' => $journalEntry->id,
-            'order_id' => $order->id,
-            'sales_channel' => $channelName,
-            'product_title' => $orderItem->title,
-            'quantity' => $orderItem->quantity,
-            'unit_price' => $orderItem->unit_price,
-            'sale_amount' => $saleAmount,
-            'receivables_account' => $receivablesAccount->code,
-            'sales_account' => $salesAccount->code,
-        ]);
 
         return $journalEntry;
     }
@@ -701,14 +648,6 @@ class InventoryAccountingService
             $receivablesAccount->updateBalance($saleAmount, 'credit');
         }
 
-        Log::info('Inventory accounting: Sales Revenue reversed', [
-            'journal_entry_id' => $journalEntry->id,
-            'order_id' => $order->id,
-            'sales_channel' => $channelName,
-            'product_title' => $orderItem->title,
-            'quantity' => $orderItem->quantity,
-            'sale_amount' => $saleAmount,
-        ]);
 
         return $journalEntry;
     }
@@ -767,13 +706,6 @@ class InventoryAccountingService
             'credit' => $totalCOGS,
         ]);
 
-        Log::info('Inventory accounting: COGS reversed', [
-            'journal_entry_id' => $journalEntry->id,
-            'order_id' => $order->id,
-            'product_title' => $orderItem->title,
-            'quantity' => $orderItem->quantity,
-            'total_cogs' => $totalCOGS,
-        ]);
 
         return $journalEntry;
     }
@@ -835,13 +767,6 @@ class InventoryAccountingService
             'credit' => $totalCost,
         ]);
 
-        Log::info('Inventory accounting: Purchase receipt reversed', [
-            'journal_entry_id' => $journalEntry->id,
-            'purchase_id' => $purchase->id,
-            'product_name' => $purchaseItem->name,
-            'quantity' => $receivedQty,
-            'total_cost' => $totalCost,
-        ]);
 
         return $journalEntry;
     }

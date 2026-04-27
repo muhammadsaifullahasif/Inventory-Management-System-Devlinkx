@@ -38,14 +38,6 @@ class SalesChannelAccountService
                         'sales_account_id' => $salesAccount->id,
                     ]);
 
-                    Log::info('Created accounting accounts for sales channel', [
-                        'sales_channel_id' => $salesChannel->id,
-                        'sales_channel_name' => $salesChannel->name,
-                        'bank_account_id' => $bankAccount->id,
-                        'bank_account_code' => $bankAccount->code,
-                        'sales_account_id' => $salesAccount->id,
-                        'sales_account_code' => $salesAccount->code,
-                    ]);
 
                     return true;
                 }

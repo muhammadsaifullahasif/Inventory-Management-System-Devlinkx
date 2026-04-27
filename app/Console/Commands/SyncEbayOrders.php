@@ -154,17 +154,6 @@ class SyncEbayOrders extends Command
                 $this->line("    Updated: {$channelUpdated}");
                 $this->line("    Skipped: {$channelSkipped}");
 
-                Log::channel('ebay')->info('eBay order sync completed for channel', [
-                    'sales_channel_id' => $channel->id,
-                    'channel_name' => $channel->name,
-                    'orders_found' => $orderCount,
-                    'created' => $channelCreated,
-                    'updated' => $channelUpdated,
-                    'skipped' => $channelSkipped,
-                    'date_from' => $dateFrom->toDateTimeString(),
-                    'date_to' => $dateTo->toDateTimeString(),
-                ]);
-
             } catch (Exception $e) {
                 $this->error("  [ERROR] Error syncing channel: {$e->getMessage()}");
                 Log::channel('ebay')->error('eBay order sync failed for channel', [
@@ -184,16 +173,6 @@ class SyncEbayOrders extends Command
         $this->line("  Total Updated: {$totalUpdated}");
         $this->line("  Total Skipped: {$totalSkipped}");
         $this->line("  Total Failed:  {$totalFailed}");
-
-        Log::channel('ebay')->info('eBay order sync completed', [
-            'channels_processed' => $channels->count(),
-            'total_created' => $totalCreated,
-            'total_updated' => $totalUpdated,
-            'total_skipped' => $totalSkipped,
-            'total_failed' => $totalFailed,
-            'date_from' => $dateFrom->toDateTimeString(),
-            'date_to' => $dateTo->toDateTimeString(),
-        ]);
 
         return $totalFailed > 0 ? 1 : 0;
     }

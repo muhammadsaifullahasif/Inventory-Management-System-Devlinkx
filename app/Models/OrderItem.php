@@ -157,13 +157,6 @@ class OrderItem extends Model
         }
 
         // Sync inventory to all linked sales channels
-        Log::info('Syncing inventory after order shipment', [
-            'order_item_id' => $this->id,
-            'product_id' => $product->id,
-            'product_sku' => $product->sku,
-            'quantity_deducted' => $this->quantity,
-            'cost_at_sale' => $avgCostAtSale,
-        ]);
         ProductController::syncProductInventoryToChannels($product);
 
         return true;
@@ -235,13 +228,6 @@ class OrderItem extends Model
         }
 
         // Sync inventory to all linked sales channels
-        Log::info('Syncing inventory after order cancellation/refund', [
-            'order_item_id' => $this->id,
-            'product_id' => $product->id,
-            'product_sku' => $product->sku,
-            'quantity_restored' => $this->quantity,
-            'cost_reversed' => $costAtSale,
-        ]);
         ProductController::syncProductInventoryToChannels($product);
 
         return true;

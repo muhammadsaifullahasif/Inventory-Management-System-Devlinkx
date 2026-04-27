@@ -132,11 +132,6 @@ class EbayApiClient
 
         $salesChannel->save();
 
-        Log::info('eBay access token refreshed', [
-            'sales_channel_id' => $salesChannel->id,
-            'new_expires_at' => $salesChannel->access_token_expires_at,
-        ]);
-
         return $salesChannel;
     }
 
@@ -375,10 +370,6 @@ class EbayApiClient
             ->get('https://api.ebay.com/commerce/notification/v1/subscription');
         
         $subscriptions = $response->json();
-
-        Log::info('Ebay Subscribed Notification Events', [
-            'events' => $subscriptions,
-        ]);
 
         return true;
     }

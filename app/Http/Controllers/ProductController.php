@@ -743,12 +743,6 @@ class ProductController extends Controller
                         'last_synced_at' => now(),
                     ]);
 
-                    Log::info('Product linked to eBay listing', [
-                        'product_id' => $product->id,
-                        'channel_id' => $channelId,
-                        'ebay_item_id' => $existingListing['ItemID'],
-                        'sku' => $product->sku,
-                    ]);
                 } else {
                     // No listing found on eBay - attach with "not found" status
                     $product->sales_channels()->attach($channelId, [
@@ -757,11 +751,6 @@ class ProductController extends Controller
                         'last_synced_at' => now(),
                     ]);
 
-                    Log::warning('No eBay listing found for product', [
-                        'product_id' => $product->id,
-                        'channel_id' => $channelId,
-                        'sku' => $product->sku,
-                    ]);
                 }
 
             } catch (\Exception $e) {
@@ -784,10 +773,6 @@ class ProductController extends Controller
             // Simply detach - the listing remains on eBay, we just stop managing it
             $product->sales_channels()->detach($channelId);
 
-            Log::info('Product unlinked from sales channel', [
-                'product_id' => $product->id,
-                'channel_id' => $channelId,
-            ]);
         }
 
         // Process existing channels - Sync inventory, dimensions, and SKU (if changed)
@@ -827,13 +812,6 @@ class ProductController extends Controller
                     'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
                     'listing_error' => $result['success'] ? null : $this->extractListingError($result),
                     'last_synced_at' => now(),
-                ]);
-
-                Log::info('Product synced on sales channel', [
-                    'product_id' => $product->id,
-                    'channel_id' => $channelId,
-                    'ebay_item_id' => $externalId,
-                    'sku_changed' => $skuChanged,
                 ]);
 
             } catch (\Exception $e) {
@@ -885,30 +863,12 @@ class ProductController extends Controller
      */
     public static function syncProductInventoryToChannels(Product $product): void
     {
-        Log::info('syncProductInventoryToChannels called', [
-            'product_id' => $product->id,
-            'product_sku' => $product->sku,
-        ]);
-
         // Get all linked sales channels with external listing IDs
         $linkedChannels = $product->sales_channels()
             ->whereNotNull('sales_channel_product.external_listing_id')
             ->get();
 
-        Log::info('Linked channels found', [
-            'product_id' => $product->id,
-            'channel_count' => $linkedChannels->count(),
-            'channels' => $linkedChannels->map(fn($c) => [
-                'id' => $c->id,
-                'name' => $c->name,
-                'external_listing_id' => $c->pivot->external_listing_id ?? null,
-            ])->toArray(),
-        ]);
-
         if ($linkedChannels->isEmpty()) {
-            Log::info('No linked channels with external_listing_id, skipping sync', [
-                'product_id' => $product->id,
-            ]);
             return;
         }
 
@@ -917,19 +877,7 @@ class ProductController extends Controller
         foreach ($linkedChannels as $channel) {
             $isEbay = $channel->isEbay();
 
-            Log::info('Checking channel for sync', [
-                'product_id' => $product->id,
-                'channel_id' => $channel->id,
-                'channel_name' => $channel->name,
-                'is_ebay' => $isEbay,
-                'token_expires_at' => $channel->access_token_expires_at,
-            ]);
-
             if (!$isEbay) {
-                Log::warning('Skipping channel - not eBay', [
-                    'product_id' => $product->id,
-                    'channel_id' => $channel->id,
-                ]);
                 continue;
             }
 
@@ -944,13 +892,6 @@ class ProductController extends Controller
                     'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
                     'listing_error' => $result['success'] ? null : self::extractListingErrorStatic($result),
                     'last_synced_at' => now(),
-                ]);
-
-                Log::info('Product inventory synced to channel after stock change', [
-                    'product_id' => $product->id,
-                    'channel_id' => $channel->id,
-                    'ebay_item_id' => $externalId,
-                    'success' => $result['success'],
                 ]);
 
             } catch (\Exception $e) {
@@ -1068,10 +1009,6 @@ class ProductController extends Controller
             }
 
             // Sync inventory to all linked sales channels
-            Log::info('Triggering inventory sync after stock update', [
-                'product_id' => $product->id,
-                'product_sku' => $product->sku,
-            ]);
             self::syncProductInventoryToChannels($product);
 
             DB::commit();
@@ -1490,11 +1427,7 @@ class ProductController extends Controller
                             try {
                                 $ebayController->syncProductToEbay($channel, $itemId, $product, true);
                             } catch (\Throwable $e) {
-                                Log::warning('Bulk update: eBay SKU sync failed', [
-                                    'product_id' => $product->id,
-                                    'channel_id' => $channel->id,
-                                    'error'      => $e->getMessage(),
-                                ]);
+                                // Silent failure for eBay sync during bulk update
                             }
                         }
                     }

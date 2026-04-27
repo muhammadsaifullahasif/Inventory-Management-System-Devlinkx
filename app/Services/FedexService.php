@@ -194,14 +194,6 @@ class FedexService
         unset($shipmentDetails['shipAction']);
         $shipmentDetails['processingOptionType'] = 'SYNCHRONOUS_ONLY';
 
-        Log::info('FedEx: createShipment request', [
-            'endpoint' => $endpoint,
-            'is_sandbox' => $this->carrier->is_sandbox,
-            'carrier_name' => $this->carrier->name,
-            'account_number' => $this->carrier->account_number,
-            'processing_option_type' => 'SYNCHRONOUS_ONLY',
-        ]);
-
         try {
             $response = Http::withToken($token)
                 ->withHeaders([
@@ -250,34 +242,12 @@ class FedexService
             $labelBase64 = $data['output']['transactionShipments'][0]['pieceResponses'][0]['packageDocuments'][0]['encodedLabel'] ?? null;
             $labelFormat = $data['output']['transactionShipments'][0]['pieceResponses'][0]['packageDocuments'][0]['docType'] ?? 'PDF';
 
-            Log::info('FedEx: createShipment response', [
-                'endpoint' => $endpoint,
-                'is_sandbox' => $this->carrier->is_sandbox,
-                'http_status' => $response->status(),
-                'transaction_id' => $data['transactionId'] ?? null,
-                'shipment_id' => $shipmentId,
-                'tracking_number' => $trackingNumber,
-                'has_label' => !empty($labelBase64),
-                'alerts' => $data['output']['alerts'] ?? [],
-                'service_type' => $data['output']['transactionShipments'][0]['serviceType'] ?? null,
-                'response' => json_encode($response),
-            ]);
-
             if (!$trackingNumber || !$labelBase64) {
                 Log::error('FedEx: createShipment missing tracking or label', [
                     'response' => $data,
                 ]);
                 throw new \RuntimeException('FedEx: Shipment created but missing tracking number or label');
             }
-
-            Log::info('FedEx: shipment created successfully', [
-                'tracking_number' => $trackingNumber,
-                'carrier_id'      => $this->carrier->id,
-                'endpoint' => $endpoint,
-                'is_sandbox' => $this->carrier->is_sandbox,
-                'shipment_id' => $shipmentId,
-                'raw_response' => $data,
-            ]);
 
             return [
                 'tracking_number' => $trackingNumber,
@@ -327,13 +297,6 @@ class FedexService
             ],
         ];
 
-        Log::info('FedEx: closeShipments request', [
-            'endpoint' => $endpoint,
-            'is_sandbox' => $this->carrier->is_sandbox,
-            'close_date' => $closeDate,
-            'account_number' => $this->carrier->account_number,
-        ]);
-
         try {
             $response = Http::withToken($token)
                 ->withHeaders([
@@ -372,12 +335,6 @@ class FedexService
 
             $confirmationNumber = $data['output']['closeDocuments'][0]['confirmationNumber'] ?? null;
             $manifestBase64 = $data['output']['closeDocuments'][0]['encodedDocument'] ?? null;
-
-            Log::info('FedEx: closeShipments success', [
-                'confirmation_number' => $confirmationNumber,
-                'close_date' => $closeDate,
-                'has_manifest' => !empty($manifestBase64),
-            ]);
 
             return [
                 'success' => true,
@@ -467,13 +424,6 @@ class FedexService
                 }
             }
 
-            Log::info('FedEx: tracking status retrieved', [
-                'tracking_number' => $trackingNumber,
-                'status_code'     => $statusCode,
-                'status'          => $statusText,
-                'delivered'       => $delivered,
-            ]);
-
             return [
                 'status_code'  => $statusCode,
                 'status'       => $statusText,
@@ -514,12 +464,6 @@ class FedexService
             'trackingNumber' => $trackingNumber,
         ];
 
-        Log::info('FedEx: cancelShipment request', [
-            'endpoint' => $endpoint,
-            'tracking_number' => $trackingNumber,
-            'account_number' => $this->carrier->account_number,
-        ]);
-
         try {
             $response = Http::withToken($token)
                 ->withHeaders([
@@ -543,11 +487,6 @@ class FedexService
 
                 throw new \RuntimeException("FedEx cancel shipment failed: {$errorMessage}");
             }
-
-            Log::info('FedEx: cancelShipment success', [
-                'tracking_number' => $trackingNumber,
-                'response' => $data,
-            ]);
 
             return [
                 'success' => true,
