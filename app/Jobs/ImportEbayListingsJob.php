@@ -85,6 +85,12 @@ class ImportEbayListingsJob implements ShouldQueue
             $this->items = $pageResult['items'] ?? [];
         }
 
+        // If still no items after fetching, update log and return
+        if (empty($this->items)) {
+            $this->updateImportLog(0, 0, 0);
+            return;
+        }
+
         foreach ($this->items as $item) {
             try {
                 $itemId = $item['item_id'] ?? '';

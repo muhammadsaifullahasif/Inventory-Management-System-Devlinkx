@@ -54,8 +54,9 @@ Route::get('/rollback-migrations', function() {
 });
 
 Route::get('/run-queue', function() {
-    if (!app()->environment('local')) {
-        abort(403, 'Queue worker can only be run in the local environment.');
+    // Allow in local, staging, and production (with authentication)
+    if (!app()->environment(['local', 'staging', 'production'])) {
+        abort(403, 'Queue worker not available in this environment.');
     }
 
     // Get pending job count
@@ -73,6 +74,7 @@ Route::get('/run-queue', function() {
         '--queue' => 'ebay-imports',
         '--once' => true,
         '--timeout' => 300,
+        '--tries' => 3,
     ]);
 
     $remainingJobs = DB::table('jobs')->where('queue', 'ebay-imports')->count();
@@ -82,7 +84,7 @@ Route::get('/run-queue', function() {
         'remaining_jobs' => $remainingJobs,
         'output' => Artisan::output()
     ]);
-});
+})->middleware('auth');
 
 // Process all queue jobs (use with caution - may timeout)
 Route::get('/run-queue-all', function() {
