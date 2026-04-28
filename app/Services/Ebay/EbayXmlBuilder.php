@@ -109,6 +109,19 @@ XML;
             </GetItemRequest>';
     }
 
+    /**
+     * Build GetApiAccessRules request XML.
+     */
+    public static function getApiAccessRules(string $authToken): string
+    {
+        return '<?xml version="1.0" encoding="utf-8"?>
+            <GetApiAccessRulesRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                <RequesterCredentials>
+                    <eBayAuthToken>' . self::escape($authToken) . '</eBayAuthToken>
+                </RequesterCredentials>
+            </GetApiAccessRulesRequest>';
+    }
+
     // =========================================
     // LISTING MANAGEMENT (CRUD)
     // =========================================

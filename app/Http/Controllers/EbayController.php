@@ -27,6 +27,7 @@ class EbayController extends Controller
 {
     private const BATCH_SIZE = 50; // Process 50 items per job
     private const IMPORT_BATCH_DELAY_SECONDS = 30;
+    private const RATE_LIMIT_MESSAGE = 'eBay API usage limit has been reached. Please wait and try syncing again later.';
 
     public function __construct(
         protected EbayApiClient $client,
@@ -90,6 +91,16 @@ class EbayController extends Controller
             );
 
         } catch (\Exception $e) {
+            if ($this->isEbayUsageLimitException($e)) {
+                $this->logEbayUsageRules($salesChannel ?? null, 'import');
+                Log::warning('eBay import blocked by API usage limit', [
+                    'sales_channel_id' => $id,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return redirect()->back()->with('error', self::RATE_LIMIT_MESSAGE);
+            }
+
             Log::error('eBay Import Error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -157,6 +168,16 @@ class EbayController extends Controller
             );
 
         } catch (\Exception $e) {
+            if ($this->isEbayUsageLimitException($e)) {
+                $this->logEbayUsageRules($salesChannel ?? null, 'sync');
+                Log::warning('eBay listing sync blocked by API usage limit', [
+                    'sales_channel_id' => $id,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return redirect()->back()->with('error', self::RATE_LIMIT_MESSAGE);
+            }
+
             Log::error('eBay Sync Listings Error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -390,6 +411,34 @@ class EbayController extends Controller
                 'success' => false,
                 'message' => 'Failed to fetch import logs',
             ], 500);
+        }
+    }
+
+    protected function isEbayUsageLimitException(\Throwable $e): bool
+    {
+        return str_contains(strtolower($e->getMessage()), 'call usage limit has been reached');
+    }
+
+    protected function logEbayUsageRules(?SalesChannel $salesChannel, string $context): void
+    {
+        if (!$salesChannel) {
+            return;
+        }
+
+        try {
+            $rules = $this->ebayService->getApiAccessRules($salesChannel);
+
+            Log::info('eBay API access rules fetched after usage limit', [
+                'context' => $context,
+                'sales_channel_id' => $salesChannel->id,
+                'rules' => $rules['rules'] ?? [],
+            ]);
+        } catch (\Throwable $ruleException) {
+            Log::warning('Failed to fetch eBay API access rules', [
+                'context' => $context,
+                'sales_channel_id' => $salesChannel->id,
+                'error' => $ruleException->getMessage(),
+            ]);
         }
     }
 

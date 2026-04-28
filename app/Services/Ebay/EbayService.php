@@ -155,6 +155,32 @@ class EbayService
     }
 
     /**
+     * Get Trading API usage/access rules for the current token.
+     */
+    public function getApiAccessRules(SalesChannel $channel): array
+    {
+        $xml = EbayXmlBuilder::getApiAccessRules($channel->access_token);
+        $response = $this->client->call($channel, 'GetApiAccessRules', $xml);
+        $this->client->checkForErrors($response);
+
+        $rules = self::normalizeList($response['ApiAccessRule'] ?? []);
+
+        return [
+            'success' => true,
+            'rules' => array_map(function (array $rule) {
+                return [
+                    'call_name' => $rule['CallName'] ?? '',
+                    'hourly_usage' => (int) ($rule['HourlyUsage'] ?? 0),
+                    'hourly_limit' => (int) ($rule['HourlyHardLimit'] ?? 0),
+                    'daily_usage' => (int) ($rule['DailyUsage'] ?? 0),
+                    'daily_limit' => (int) ($rule['DailyHardLimit'] ?? 0),
+                    'period' => $rule['Period'] ?? '',
+                ];
+            }, $rules),
+        ];
+    }
+
+    /**
      * Find a listing by SKU.
      * Searches in multiple date ranges due to eBay's 120-day limit.
      */
