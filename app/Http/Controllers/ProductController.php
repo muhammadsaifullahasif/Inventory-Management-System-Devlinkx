@@ -745,20 +745,20 @@ class ProductController extends Controller
 
                 } else {
                     // No listing found on eBay - attach with "not found" status
-                    $product->sales_channels()->attach($channelId, [
-                        'listing_status' => 'not_found',
-                        'listing_error' => "No eBay listing found with SKU: {$product->sku}",
-                        'last_synced_at' => now(),
-                    ]);
+                    // $product->sales_channels()->attach($channelId, [
+                    //     'listing_status' => 'not_found',
+                    //     'listing_error' => "No eBay listing found with SKU: {$product->sku}",
+                    //     'last_synced_at' => now(),
+                    // ]);
 
                 }
 
             } catch (\Exception $e) {
-                $product->sales_channels()->attach($channelId, [
-                    'listing_status' => SalesChannelProduct::STATUS_ERROR,
-                    'listing_error' => $e->getMessage(),
-                    'last_synced_at' => now(),
-                ]);
+                // $product->sales_channels()->attach($channelId, [
+                //     'listing_status' => SalesChannelProduct::STATUS_ERROR,
+                //     'listing_error' => $e->getMessage(),
+                //     'last_synced_at' => now(),
+                // ]);
 
                 Log::error('Failed to link product to sales channel', [
                     'product_id' => $product->id,
