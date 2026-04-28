@@ -56,9 +56,8 @@ class ProductStockObserver
     protected function syncBundlesContainingProduct(int $productId, string $action): void
     {
         try {
-            // Find all bundles that use this product as a component
             $bundleComponents = ProductBundleComponent::where('component_product_id', $productId)
-                ->with('bundleProduct.sales_channels')
+                ->with('bundleProduct')
                 ->get();
 
             if ($bundleComponents->isEmpty()) {
@@ -72,21 +71,14 @@ class ProductStockObserver
                     continue;
                 }
 
-                // Recalculate bundle stock
-                $newBundleStock = $bundle->available_stock;
-
-                // Sync to all connected sales channels
-                foreach ($bundle->sales_channels as $channel) {
-                    try {
-                        ProductController::syncProductInventoryToChannel($bundle, $channel);
-                    } catch (\Exception $e) {
-                        Log::error('ProductStockObserver: Failed to sync bundle to sales channel', [
-                            'bundle_id' => $bundle->id,
-                            'bundle_sku' => $bundle->sku,
-                            'channel_id' => $channel->id,
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
+                try {
+                    ProductController::syncProductInventoryToChannels($bundle);
+                } catch (\Exception $e) {
+                    Log::error('ProductStockObserver: Failed to sync bundle inventory', [
+                        'bundle_id' => $bundle->id,
+                        'bundle_sku' => $bundle->sku,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 
