@@ -69,12 +69,10 @@ Route::get('/run-queue', function() {
         ]);
     }
 
-    // Process ONE job at a time to avoid timeout
+    // Process one job using the job's own timeout/backoff configuration.
     Artisan::call('queue:work', [
         '--queue' => 'ebay-imports',
         '--once' => true,
-        '--timeout' => 300,
-        '--tries' => 3,
     ]);
 
     $remainingJobs = DB::table('jobs')->where('queue', 'ebay-imports')->count();
@@ -97,7 +95,6 @@ Route::get('/run-queue-all', function() {
     Artisan::call('queue:work', [
         '--queue' => 'ebay-imports',
         '--stop-when-empty' => true,
-        '--timeout' => 300,
     ]);
 
     return response()->json([
@@ -314,5 +311,4 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports/slow-moving-items/export', [ReportController::class, 'exportSlowMovingItems'])->name('reports.slow-moving-items.export');
     Route::get('reports/frequently-ordered-items/export', [ReportController::class, 'exportFrequentlyOrderedItems'])->name('reports.frequently-ordered-items.export');
 });
-
 

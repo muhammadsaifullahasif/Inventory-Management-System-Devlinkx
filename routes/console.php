@@ -48,7 +48,7 @@ Schedule::command('ebay:sync-orders')
 
 // Process eBay import queue jobs every minute
 // This ensures jobs are processed even when browser is closed
-Schedule::command('queue:work --queue=ebay-imports --stop-when-empty --max-time=50')
+Schedule::command('queue:work --queue=ebay-imports --stop-when-empty --max-time=50 --timeout=1800')
     ->everyMinute()
     ->withoutOverlapping()
     ->runInBackground()
