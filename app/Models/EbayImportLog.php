@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
@@ -63,7 +64,9 @@ class EbayImportLog extends Model
     public function incrementCompletedBatches(): void
     {
         $this->increment('completed_batches');
-        
+
+        $this->refresh();
+
         if ($this->isComplete()) {
             $this->update([
                 'status' => 'completed',
@@ -80,5 +83,62 @@ class EbayImportLog extends Model
         $this->increment('items_inserted', $inserted);
         $this->increment('items_updated', $updated);
         $this->increment('items_failed', $failed);
+    }
+
+    public function recordBatchResult(int $inserted, int $updated, int $failed, array $errors, int $batchNumber): void
+    {
+        DB::transaction(function () use ($inserted, $updated, $failed, $errors, $batchNumber) {
+            $log = self::query()->lockForUpdate()->find($this->id);
+
+            if (!$log) {
+                return;
+            }
+
+            $errorDetails = is_array($log->error_details) ? $log->error_details : [];
+            if (!empty($errors)) {
+                $errorDetails['batch_' . $batchNumber] = $errors;
+            }
+
+            $completedBatches = $log->completed_batches + 1;
+            $isComplete = $completedBatches >= $log->total_batches;
+
+            $log->update([
+                'items_inserted' => $log->items_inserted + $inserted,
+                'items_updated' => $log->items_updated + $updated,
+                'items_failed' => $log->items_failed + $failed,
+                'completed_batches' => $completedBatches,
+                'error_details' => $errorDetails,
+                'status' => $isComplete ? 'completed' : 'processing',
+                'completed_at' => $isComplete ? now() : $log->completed_at,
+            ]);
+        });
+    }
+
+    public function markBatchFailed(int $batchNumber, string $message): void
+    {
+        DB::transaction(function () use ($batchNumber, $message) {
+            $log = self::query()->lockForUpdate()->find($this->id);
+
+            if (!$log) {
+                return;
+            }
+
+            $errorDetails = is_array($log->error_details) ? $log->error_details : [];
+            $errorDetails['batch_' . $batchNumber][] = [
+                'item_id' => 'batch_' . $batchNumber,
+                'title' => 'Batch failure',
+                'error' => $message,
+            ];
+
+            $completedBatches = min($log->completed_batches + 1, $log->total_batches);
+
+            $log->update([
+                'completed_batches' => $completedBatches,
+                'items_failed' => $log->items_failed + 1,
+                'error_details' => $errorDetails,
+                'status' => 'failed',
+                'completed_at' => now(),
+            ]);
+        });
     }
 }

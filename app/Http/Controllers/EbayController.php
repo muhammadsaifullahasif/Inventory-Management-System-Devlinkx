@@ -48,7 +48,7 @@ class EbayController extends Controller
             $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
 
             // Fetch ONLY the first page to get pagination info (fast, no timeout)
-            $firstPageResult = $this->ebayService->getActiveListings($salesChannel, 1, 200);
+            $firstPageResult = $this->ebayService->getActiveListings($salesChannel, 1, self::BATCH_SIZE);
             $totalListings = $firstPageResult['pagination']['totalEntries'] ?? 0;
             $totalPages = $firstPageResult['pagination']['totalPages'] ?? 0;
 
@@ -76,7 +76,8 @@ class EbayController extends Controller
                     $page,
                     $totalPages,
                     $importLog->id,
-                    $page // Pass page number so job knows which page to fetch
+                    $page, // Pass page number so job knows which page to fetch
+                    self::BATCH_SIZE
                 )
                 ->onQueue('ebay-imports')
                 ->delay(now()->addSeconds(($page - 1) * 2)); // Stagger jobs
@@ -114,7 +115,7 @@ class EbayController extends Controller
             $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
 
             // Fetch ONLY the first page to get pagination info (fast, no timeout)
-            $firstPageResult = $this->ebayService->getActiveListings($salesChannel, 1, 200);
+            $firstPageResult = $this->ebayService->getActiveListings($salesChannel, 1, self::BATCH_SIZE);
             $totalListings = $firstPageResult['pagination']['totalEntries'] ?? 0;
             $totalPages = $firstPageResult['pagination']['totalPages'] ?? 0;
 
@@ -142,7 +143,8 @@ class EbayController extends Controller
                     $page,
                     $totalPages,
                     $importLog->id,
-                    $page // Pass page number so job knows which page to fetch
+                    $page, // Pass page number so job knows which page to fetch
+                    self::BATCH_SIZE
                 )
                 ->onQueue('ebay-imports')
                 ->delay(now()->addSeconds(($page - 1) * 2)); // Stagger jobs

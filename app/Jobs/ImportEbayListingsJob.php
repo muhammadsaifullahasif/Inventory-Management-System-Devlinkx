@@ -28,7 +28,8 @@ class ImportEbayListingsJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $tries = 3;
-    public $timeout = 300;
+    public $timeout = 1800;
+    public $failOnTimeout = true;
     public $deleteWhenMissingModels = true;
 
     protected array $items;
@@ -37,8 +38,9 @@ class ImportEbayListingsJob implements ShouldQueue
     protected int $totalBatches;
     protected ?int $importLogId;
     protected ?int $pageNumber; // Page number to fetch from eBay
+    protected int $pageSize;
 
-    public function __construct(array $items, string $salesChannelId, int $batchNumber = 1, int $totalBatches = 1, ?int $importLogId = null, ?int $pageNumber = null)
+    public function __construct(array $items, string $salesChannelId, int $batchNumber = 1, int $totalBatches = 1, ?int $importLogId = null, ?int $pageNumber = null, int $pageSize = 50)
     {
         $this->items = $items;
         $this->salesChannelId = $salesChannelId;
@@ -46,6 +48,7 @@ class ImportEbayListingsJob implements ShouldQueue
         $this->totalBatches = $totalBatches;
         $this->importLogId = $importLogId;
         $this->pageNumber = $pageNumber;
+        $this->pageSize = max(1, $pageSize);
     }
 
     public function handle(EbayApiClient $client, EbayService $ebayService): void
@@ -81,7 +84,7 @@ class ImportEbayListingsJob implements ShouldQueue
 
         // If items array is empty, fetch the page from eBay
         if (empty($this->items) && $this->pageNumber !== null) {
-            $pageResult = $ebayService->getActiveListings($salesChannel, $this->pageNumber, 200);
+            $pageResult = $ebayService->getActiveListings($salesChannel, $this->pageNumber, $this->pageSize);
             $this->items = $pageResult['items'] ?? [];
         }
 
@@ -118,7 +121,9 @@ class ImportEbayListingsJob implements ShouldQueue
                         $item,
                         $ebaySku,
                         $warehouse,
-                        $rack
+                        $rack, 
+                        $salesChannel, 
+                        $ebayService
                     );
 
                     // Link to sales channel
@@ -133,7 +138,7 @@ class ImportEbayListingsJob implements ShouldQueue
 
                     $insertedCount++;
                 }
-            } catch (Exception $e) {
+            } catch (Throwable $e) {
                 $errorCount++;
                 $errors[] = [
                     'item_id' => $item['item_id'] ?? 'unknown',
@@ -210,8 +215,11 @@ class ImportEbayListingsJob implements ShouldQueue
         array $item,
         string $sku,
         Warehouse $warehouse,
-        Rack $rack
+        Rack $rack, 
+        SalesChannel $salesChannel,
+        EbayService $ebayService
     ): Product {
+        $itemId = $item['item_id'];
         // Get or create category - extract last segment from eBay category path
         // eBay returns: "Home & Garden:Household Supplies & Cleaning:Trash Cans & Wastebaskets"
         // We want: "Trash Cans & Wastebaskets"
@@ -279,6 +287,13 @@ class ImportEbayListingsJob implements ShouldQueue
             }
         }
 
+        $fields = [
+            'quantity'       => 0,
+        ];
+
+        // Push to eBay using ReviseItem (supports quantity + dimensions)
+        $result = $ebayService->reviseItem($salesChannel, $itemId, $fields);
+
         // Add stock to default warehouse/rack
         // $quantity = max(0, (($item['quantity'] ?? 0) - ($item['quantity_sold'] ?? 0)));
         // ProductStock::create([
@@ -301,19 +316,7 @@ class ImportEbayListingsJob implements ShouldQueue
 
         try {
             $importLog = EbayImportLog::find($this->importLogId);
-            if ($importLog) {
-                $importLog->addStatistics($inserted, $updated, $failed);
-                $importLog->incrementCompletedBatches();
-
-                if (!empty($errors)) {
-                    $existingErrors = $importLog->error_details ?? [];
-                    $importLog->update([
-                        'error_details' => array_merge($existingErrors, [
-                            'batch_' . $this->batchNumber => $errors
-                        ])
-                    ]);
-                }
-            }
+            $importLog?->recordBatchResult($inserted, $updated, $failed, $errors, $this->batchNumber);
         } catch (Exception $e) {
             Log::error('Failed to update import log', [
                 'import_log_id' => $this->importLogId,
@@ -334,12 +337,7 @@ class ImportEbayListingsJob implements ShouldQueue
         if ($this->importLogId) {
             try {
                 $importLog = EbayImportLog::find($this->importLogId);
-                if ($importLog) {
-                    $importLog->update([
-                        'status' => 'failed',
-                        'completed_at' => now(),
-                    ]);
-                }
+                $importLog?->markBatchFailed($this->batchNumber, $exception->getMessage());
             } catch (Exception $e) {
                 Log::error('Failed to update import log on job failure', [
                     'import_log_id' => $this->importLogId,
