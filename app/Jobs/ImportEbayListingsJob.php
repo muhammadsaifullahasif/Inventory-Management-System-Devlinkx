@@ -31,6 +31,9 @@ class ImportEbayListingsJob implements ShouldQueue
     public $timeout = 1800;
     public $failOnTimeout = true;
     public $deleteWhenMissingModels = true;
+    public $backoff = [300, 900, 1800];
+
+    private const API_COOLDOWN_MICROSECONDS = 250000;
 
     protected array $items;
     protected string $salesChannelId;
@@ -191,6 +194,7 @@ class ImportEbayListingsJob implements ShouldQueue
 
         // Push to eBay using ReviseItem (supports quantity + dimensions)
         $result = $ebayService->reviseItem($salesChannel, $itemId, $fields);
+        $this->pauseAfterApiCall();
 
         // Update or create pivot record
         $pivotData = [
@@ -293,6 +297,7 @@ class ImportEbayListingsJob implements ShouldQueue
 
         // Push to eBay using ReviseItem (supports quantity + dimensions)
         $result = $ebayService->reviseItem($salesChannel, $itemId, $fields);
+        $this->pauseAfterApiCall();
 
         // Add stock to default warehouse/rack
         // $quantity = max(0, (($item['quantity'] ?? 0) - ($item['quantity_sold'] ?? 0)));
@@ -306,6 +311,11 @@ class ImportEbayListingsJob implements ShouldQueue
         // ]);
 
         return $product;
+    }
+
+    protected function pauseAfterApiCall(): void
+    {
+        usleep(self::API_COOLDOWN_MICROSECONDS);
     }
 
     protected function updateImportLog(int $inserted, int $updated, int $failed, array $errors = []): void
