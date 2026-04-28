@@ -2,7 +2,6 @@
 
 namespace App\Observers;
 
-use App\Models\Product;
 use App\Models\ProductStock;
 use App\Models\ProductBundleComponent;
 use App\Http\Controllers\ProductController;
