@@ -26,6 +26,7 @@ use App\Jobs\SyncEbayOrdersJob;
 class EbayController extends Controller
 {
     private const BATCH_SIZE = 50; // Process 50 items per job
+    private const IMPORT_BATCH_DELAY_SECONDS = 30;
 
     public function __construct(
         protected EbayApiClient $client,
@@ -80,7 +81,7 @@ class EbayController extends Controller
                     self::BATCH_SIZE
                 )
                 ->onQueue('ebay-imports')
-                ->delay(now()->addSeconds(($page - 1) * 2)); // Stagger jobs
+                ->delay(now()->addSeconds(($page - 1) * self::IMPORT_BATCH_DELAY_SECONDS)); // Stagger jobs
             }
 
             return redirect()->back()->with('success',
@@ -147,7 +148,7 @@ class EbayController extends Controller
                     self::BATCH_SIZE
                 )
                 ->onQueue('ebay-imports')
-                ->delay(now()->addSeconds(($page - 1) * 2)); // Stagger jobs
+                ->delay(now()->addSeconds(($page - 1) * self::IMPORT_BATCH_DELAY_SECONDS)); // Stagger jobs
             }
 
             return redirect()->back()->with('success',

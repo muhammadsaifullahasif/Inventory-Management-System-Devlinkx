@@ -25,13 +25,14 @@ class ImportEbayListingsJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $tries = 3;
+    public $tries = 10;
     public $timeout = 1800;
     public $failOnTimeout = true;
     public $deleteWhenMissingModels = true;
-    public $backoff = [300, 900, 1800];
+    public $backoff = [900, 1800, 3600];
 
     private const API_COOLDOWN_MICROSECONDS = 250000;
+    private const RATE_LIMIT_RELEASE_SECONDS = 1800;
 
     protected array $items;
     protected string $salesChannelId;
@@ -85,8 +86,16 @@ class ImportEbayListingsJob implements ShouldQueue
 
         // If items array is empty, fetch the page from eBay
         if (empty($this->items) && $this->pageNumber !== null) {
-            $pageResult = $ebayService->getActiveListings($salesChannel, $this->pageNumber, $this->pageSize);
-            $this->items = $pageResult['items'] ?? [];
+            try {
+                $pageResult = $ebayService->getActiveListings($salesChannel, $this->pageNumber, $this->pageSize);
+                $this->items = $pageResult['items'] ?? [];
+            } catch (Throwable $e) {
+                if ($this->releaseIfRateLimited($e, 'fetching active listings page')) {
+                    return;
+                }
+
+                throw $e;
+            }
         }
 
         // If still no items after fetching, update log and return
@@ -312,6 +321,31 @@ class ImportEbayListingsJob implements ShouldQueue
     protected function pauseAfterApiCall(): void
     {
         usleep(self::API_COOLDOWN_MICROSECONDS);
+    }
+
+    protected function releaseIfRateLimited(Throwable $e, string $operation): bool
+    {
+        if (!$this->isRateLimitException($e)) {
+            return false;
+        }
+
+        Log::warning('eBay import job released due to API usage limit', [
+            'batch' => $this->batchNumber,
+            'page' => $this->pageNumber,
+            'operation' => $operation,
+            'release_after_seconds' => self::RATE_LIMIT_RELEASE_SECONDS,
+            'attempt' => method_exists($this, 'attempts') ? $this->attempts() : null,
+            'error' => $e->getMessage(),
+        ]);
+
+        $this->release(self::RATE_LIMIT_RELEASE_SECONDS);
+
+        return true;
+    }
+
+    protected function isRateLimitException(Throwable $e): bool
+    {
+        return str_contains(strtolower($e->getMessage()), 'call usage limit has been reached');
     }
 
     protected function updateImportLog(int $inserted, int $updated, int $failed, array $errors = []): void
