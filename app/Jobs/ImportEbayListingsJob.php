@@ -266,15 +266,15 @@ class ImportEbayListingsJob implements ShouldQueue
         }
 
         // Add stock to default warehouse/rack
-        $quantity = max(0, (($item['quantity'] ?? 0) - ($item['quantity_sold'] ?? 0)));
-        ProductStock::create([
-            'product_id' => $product->id,
-            'warehouse_id' => $warehouse->id,
-            'rack_id' => $rack->id,
-            'quantity' => $quantity,
-            'active_status' => '1',
-            'delete_status' => '0',
-        ]);
+        // $quantity = max(0, (($item['quantity'] ?? 0) - ($item['quantity_sold'] ?? 0)));
+        // ProductStock::create([
+        //     'product_id' => $product->id,
+        //     'warehouse_id' => $warehouse->id,
+        //     'rack_id' => $rack->id,
+        //     'quantity' => $quantity,
+        //     'active_status' => '1',
+        //     'delete_status' => '0',
+        // ]);
 
         return $product;
     }
