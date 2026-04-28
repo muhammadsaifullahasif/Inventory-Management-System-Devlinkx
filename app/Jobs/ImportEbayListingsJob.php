@@ -173,11 +173,9 @@ class ImportEbayListingsJob implements ShouldQueue
     ): void {
         $itemId = $ebayItem['item_id'];
 
-        // Calculate total stock from all warehouses/racks
-        $totalQuantity = ProductStock::where('product_id', $product->id)
-            ->where('active_status', '1')
-            ->where('delete_status', '0')
-            ->sum(DB::raw('CAST(quantity AS UNSIGNED)'));
+        // Use the model accessor so bundle products sync their virtual stock
+        // instead of only summing physical stock rows.
+        $totalQuantity = (int) $product->available_stock;
 
         // Get dimensions from product meta (use query to avoid serialization issues in queue)
         $meta = $product->product_meta()->pluck('meta_value', 'meta_key')->toArray();
