@@ -47,10 +47,10 @@ class EbayController extends Controller
         try {
             $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
 
-            $result = $this->ebayService->getAllActiveListings($salesChannel);
-            $allItems = $result['items'];
-
-            $totalListings = count($allItems);
+            // Fetch ONLY the first page to get pagination info (fast, no timeout)
+            $firstPageResult = $this->ebayService->getActiveListings($salesChannel, 1, 200);
+            $totalListings = $firstPageResult['pagination']['totalEntries'] ?? 0;
+            $totalPages = $firstPageResult['pagination']['totalPages'] ?? 0;
 
             if ($totalListings === 0) {
                 return redirect()->back()->with('info', 'No active listings found to import.');
@@ -60,40 +60,35 @@ class EbayController extends Controller
             $importLog = EbayImportLog::create([
                 'sales_channel_id' => $id,
                 'total_listings' => $totalListings,
-                'total_batcheds' => 0,
+                'total_batches' => $totalPages, // Each page = 1 job
                 'status' => 'pending',
                 'started_at' => now(),
             ]);
 
-            // Split items into batches and dispatch jobs
-            $batches = array_chunk($allItems, self::BATCH_SIZE);
-            $totalBatches = count($batches);
+            // Update status to processing
+            $importLog->update(['status' => 'processing']);
 
-            $importLog->update([
-                'total_batches' => $totalBatches,
-                'status' => 'processing',
-            ]);
-
-            foreach ($batches as $batchNumber => $batch) {
+            // Dispatch one job per page (each job fetches its own page from eBay)
+            for ($page = 1; $page <= $totalPages; $page++) {
                 ImportEbayListingsJob::dispatch(
-                    $batch,
+                    [], // Empty - job will fetch its own page
                     $id,
-                    $batchNumber + 1,
-                    $totalBatches,
-                    $importLog->id
+                    $page,
+                    $totalPages,
+                    $importLog->id,
+                    $page // Pass page number so job knows which page to fetch
                 )
                 ->onQueue('ebay-imports')
-                ->delay(now()->addSeconds($batchNumber * 2));
+                ->delay(now()->addSeconds(($page - 1) * 2)); // Stagger jobs
             }
 
             return redirect()->back()->with('success',
-                "Successfully fetched {$totalListings} listings and dispatched {$totalBatches} import jobs to the queue. " .
-                "Import ID: {$importLog->id}. The import will continue in the background. " .
-                "You can check the status in the import logs."
+                "Found {$totalListings} eBay listing(s) across {$totalPages} page(s). " .
+                "Processing in background. Import ID: {$importLog->id}"
             );
 
         } catch (\Exception $e) {
-            Log::error('eBay Sync Error', [
+            Log::error('eBay Import Error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -118,78 +113,44 @@ class EbayController extends Controller
         try {
             $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
 
-            $result = $this->ebayService->getAllActiveListings($salesChannel);
-            $allItems = $result['items'];
-            $totalFetched = count($allItems);
+            // Fetch ONLY the first page to get pagination info (fast, no timeout)
+            $firstPageResult = $this->ebayService->getActiveListings($salesChannel, 1, 200);
+            $totalListings = $firstPageResult['pagination']['totalEntries'] ?? 0;
+            $totalPages = $firstPageResult['pagination']['totalPages'] ?? 0;
 
-            if ($totalFetched === 0) {
+            if ($totalListings === 0) {
                 return redirect()->back()->with('info', 'No active listings found on eBay.');
-            }
-
-            // Collect all possible SKUs and ItemIDs for matching
-            $ebaySkus = [];
-            $ebayItemIds = [];
-            foreach ($allItems as $item) {
-                $ebayItemIds[] = $item['item_id'];
-                if (!empty($item['sku'])) {
-                    $ebaySkus[] = $item['sku'];
-                }
-            }
-
-            // Find existing products by SKU OR ItemID
-            $existingProducts = Product::where(function ($query) use ($ebaySkus, $ebayItemIds) {
-                if (!empty($ebaySkus)) {
-                    $query->whereIn('sku', $ebaySkus);
-                }
-                $query->orWhereIn('sku', $ebayItemIds);
-            })->pluck('sku')->toArray();
-
-            $existingCount = 0;
-            $newCount = 0;
-            foreach ($allItems as $item) {
-                $ebaySku = !empty($item['sku']) ? $item['sku'] : $item['item_id'];
-                if (in_array($ebaySku, $existingProducts) || in_array($item['item_id'], $existingProducts)) {
-                    $existingCount++;
-                } else {
-                    $newCount++;
-                }
             }
 
             // Create import log
             $importLog = EbayImportLog::create([
                 'sales_channel_id' => $id,
-                'total_listings' => $totalFetched,
-                'total_batcheds' => 0,
+                'total_listings' => $totalListings,
+                'total_batches' => $totalPages, // Each page = 1 job
                 'status' => 'pending',
                 'started_at' => now(),
             ]);
 
-            // Split ALL items into batches (job handles existing vs new differently)
-            $batches = array_chunk($allItems, self::BATCH_SIZE);
-            $totalBatches = count($batches);
+            // Update status to processing
+            $importLog->update(['status' => 'processing']);
 
-            $importLog->update([
-                'total_batches' => $totalBatches,
-                'status' => 'processing',
-            ]);
-
-            foreach ($batches as $batchNumber => $batch) {
+            // Dispatch one job per page (each job fetches its own page from eBay)
+            for ($page = 1; $page <= $totalPages; $page++) {
                 ImportEbayListingsJob::dispatch(
-                    $batch,
+                    [], // Empty - job will fetch its own page
                     $id,
-                    $batchNumber + 1,
-                    $totalBatches,
-                    $importLog->id
+                    $page,
+                    $totalPages,
+                    $importLog->id,
+                    $page // Pass page number so job knows which page to fetch
                 )
                 ->onQueue('ebay-imports')
-                ->delay(now()->addSeconds($batchNumber * 2));
+                ->delay(now()->addSeconds(($page - 1) * 2)); // Stagger jobs
             }
 
             return redirect()->back()->with('success',
-                "Found {$totalFetched} eBay listings. " .
-                "{$existingCount} existing products will be synced (local stock/dimensions → eBay). " .
-                "{$newCount} new products will be created. " .
-                "Processing in {$totalBatches} batch(es). Import ID: {$importLog->id}"
+                "Found {$totalListings} eBay listing(s) across {$totalPages} page(s). " .
+                "Processing in background. Import ID: {$importLog->id}"
             );
 
         } catch (\Exception $e) {

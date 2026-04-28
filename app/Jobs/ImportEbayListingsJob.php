@@ -36,14 +36,16 @@ class ImportEbayListingsJob implements ShouldQueue
     protected int $batchNumber;
     protected int $totalBatches;
     protected ?int $importLogId;
+    protected ?int $pageNumber; // Page number to fetch from eBay
 
-    public function __construct(array $items, string $salesChannelId, int $batchNumber = 1, int $totalBatches = 1, ?int $importLogId = null)
+    public function __construct(array $items, string $salesChannelId, int $batchNumber = 1, int $totalBatches = 1, ?int $importLogId = null, ?int $pageNumber = null)
     {
         $this->items = $items;
         $this->salesChannelId = $salesChannelId;
         $this->batchNumber = $batchNumber;
         $this->totalBatches = $totalBatches;
         $this->importLogId = $importLogId;
+        $this->pageNumber = $pageNumber;
     }
 
     public function handle(EbayApiClient $client, EbayService $ebayService): void
@@ -76,6 +78,12 @@ class ImportEbayListingsJob implements ShouldQueue
 
         // Ensure valid token for pushing updates to eBay
         $client->ensureValidToken($salesChannel);
+
+        // If items array is empty, fetch the page from eBay
+        if (empty($this->items) && $this->pageNumber !== null) {
+            $pageResult = $ebayService->getActiveListings($salesChannel, $this->pageNumber, 200);
+            $this->items = $pageResult['items'] ?? [];
+        }
 
         foreach ($this->items as $item) {
             try {
