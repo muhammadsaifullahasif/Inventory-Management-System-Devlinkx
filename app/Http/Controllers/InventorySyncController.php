@@ -211,6 +211,74 @@ class InventorySyncController extends Controller
     }
 
     /**
+     * Sync all products for a sales channel.
+     *
+     * POST /inventory-sync/channel/{channel}
+     */
+    public function syncChannel(SalesChannel $channel): JsonResponse
+    {
+        // Get all active products for this channel
+        $productIds = SalesChannelProduct::where('sales_channel_id', $channel->id)
+            ->where('listing_status', SalesChannelProduct::STATUS_ACTIVE)
+            ->where('sync_enabled', true)
+            ->pluck('product_id')
+            ->unique();
+
+        if ($productIds->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'jobs_queued' => 0,
+                    'message' => 'No active products found for this channel',
+                ],
+            ]);
+        }
+
+        $totalQueued = 0;
+
+        // Queue sync for each product
+        foreach ($productIds as $productId) {
+            $product = Product::find($productId);
+            if (!$product) {
+                continue;
+            }
+
+            // Check if this specific listing needs sync
+            $listing = SalesChannelProduct::where('product_id', $productId)
+                ->where('sales_channel_id', $channel->id)
+                ->first();
+
+            if (!$listing) {
+                continue;
+            }
+
+            $decision = $this->calculator->shouldSync($product, $listing);
+
+            if ($decision->shouldSync) {
+                SyncInventoryToEbayJob::dispatch(
+                    $product->id,
+                    $channel->id,
+                    'manual_channel_sync',
+                    "channel:{$channel->id}"
+                )->onQueue('inventory-sync');
+
+                $totalQueued++;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'jobs_queued' => $totalQueued,
+                'total_products' => $productIds->count(),
+                'message' => $totalQueued > 0
+                    ? "Queued {$totalQueued} inventory sync jobs for {$channel->name}"
+                    : 'No products need syncing',
+            ],
+        ]);
+    }
+
+    /**
      * Get sync statistics.
      *
      * GET /inventory-sync/stats

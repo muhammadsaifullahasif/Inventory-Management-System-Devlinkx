@@ -195,8 +195,15 @@
                                                data-channel-id="{{ $sales_channel->id }}"
                                                id="sync-btn-{{ $sales_channel->id }}"
                                                title="Sync new listings only">
-                                                <i class="feather-refresh-cw me-1"></i>Sync
+                                                <i class="feather-refresh-cw me-1"></i>Sync Listings
                                             </a>
+                                            <button type="button"
+                                               class="btn btn-sm btn-primary sync-inventory-btn"
+                                               data-channel-id="{{ $sales_channel->id }}"
+                                               id="sync-inventory-btn-{{ $sales_channel->id }}"
+                                               title="Sync inventory quantities to eBay (buffered sync)">
+                                                <i class="feather-package me-1"></i>Sync Inventory
+                                            </button>
                                             <a href="{{ route('ebay.orders.sync', $sales_channel->id) }}"
                                                class="btn btn-sm btn-info"
                                                title="Sync orders from eBay">
@@ -454,7 +461,10 @@
             btn.removeClass('disabled').html('<i class="feather-download me-1"></i>Import');
 
             const syncBtn = $('#sync-btn-' + channelId);
-            syncBtn.removeClass('disabled').html('<i class="feather-refresh-cw me-1"></i>Sync');
+            syncBtn.removeClass('disabled').html('<i class="feather-refresh-cw me-1"></i>Sync Listings');
+
+            const syncInventoryBtn = $('#sync-inventory-btn-' + channelId);
+            syncInventoryBtn.removeClass('disabled').html('<i class="feather-package me-1"></i>Sync Inventory');
         }
 
         // Handle sync listings button click
@@ -463,8 +473,58 @@
             const btn = $(this);
 
             // Show loading state
-            btn.addClass('disabled').html('<div class="spinner-border spinner-border-sm me-1"></div>Syncing...');
+            btn.addClass('disabled').html('<div class="spinner-border spinner-border-sm me-1"></div>Syncing Listings...');
             $('#import-btn-' + channelId).addClass('disabled');
+        });
+
+        // Handle sync inventory button click
+        $(document).on('click', '.sync-inventory-btn', function(e) {
+            e.preventDefault();
+            const channelId = $(this).data('channel-id');
+            const btn = $(this);
+
+            // Show loading state
+            btn.addClass('disabled').html('<div class="spinner-border spinner-border-sm me-1"></div>Syncing Inventory...');
+
+            $.ajax({
+                url: '/api/inventory-sync/channel/' + channelId,
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        const data = response.data;
+
+                        // Show success with details
+                        btn.removeClass('btn-primary disabled').addClass('btn-success');
+                        btn.html('<i class="feather-check me-1"></i>Synced');
+
+                        let message = data.message;
+                        if (data.jobs_queued > 0) {
+                            message += ` (${data.jobs_queued} of ${data.total_products} products needed update)`;
+                        }
+                        showToast('success', message);
+
+                        // Reset button after 3 seconds
+                        setTimeout(function() {
+                            btn.removeClass('btn-success').addClass('btn-primary');
+                            btn.html('<i class="feather-package me-1"></i>Sync Inventory');
+                        }, 3000);
+                    } else {
+                        // Show error
+                        btn.removeClass('disabled').html('<i class="feather-package me-1"></i>Sync Inventory');
+                        showToast('error', response.message || 'Failed to sync inventory');
+                    }
+                },
+                error: function(xhr) {
+                    btn.removeClass('disabled').html('<i class="feather-package me-1"></i>Sync Inventory');
+                    const errorMsg = xhr.responseJSON?.message || 'Failed to sync inventory';
+                    showToast('error', errorMsg);
+                }
+            });
         });
 
         // Handle subscribe events button click

@@ -115,6 +115,7 @@ Route::prefix('inventory-sync')->group(function () {
     Route::post('/sync/{product}', [InventorySyncController::class, 'sync'])->name('inventory-sync.sync');
     Route::post('/queue/{product}', [InventorySyncController::class, 'queue'])->name('inventory-sync.queue');
     Route::post('/force/{product}', [InventorySyncController::class, 'forceSync'])->name('inventory-sync.force');
+    Route::post('/channel/{channel}', [InventorySyncController::class, 'syncChannel'])->name('inventory-sync.channel');
 
     // Logs and stats
     Route::get('/logs', [InventorySyncController::class, 'logs'])->name('inventory-sync.logs');
