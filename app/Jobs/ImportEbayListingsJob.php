@@ -14,6 +14,7 @@ use App\Models\EbayImportLog;
 use App\Models\SalesChannelProduct;
 use App\Services\Ebay\EbayApiClient;
 use App\Services\Ebay\EbayService;
+use App\Services\Inventory\VisibleStockCalculator;
 use Illuminate\Bus\Queueable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Queue\SerializesModels;
@@ -53,7 +54,7 @@ class ImportEbayListingsJob implements ShouldQueue
         $this->pageSize = max(1, $pageSize);
     }
 
-    public function handle(EbayApiClient $client, EbayService $ebayService): void
+    public function handle(EbayApiClient $client, EbayService $ebayService, VisibleStockCalculator $calculator): void
     {
 
         $insertedCount = 0;
@@ -121,7 +122,8 @@ class ImportEbayListingsJob implements ShouldQueue
                         $existingProduct,
                         $item,
                         $salesChannel,
-                        $ebayService
+                        $ebayService,
+                        $calculator
                     );
                     $updatedCount++;
 
@@ -176,19 +178,40 @@ class ImportEbayListingsJob implements ShouldQueue
         Product $product,
         array $ebayItem,
         SalesChannel $salesChannel,
-        EbayService $ebayService
+        EbayService $ebayService,
+        VisibleStockCalculator $calculator
     ): void {
         $itemId = $ebayItem['item_id'];
 
-        // Use the model accessor so bundle products sync their virtual stock
-        // instead of only summing physical stock rows.
-        $totalQuantity = (int) $product->available_stock;
+        // Get or create pivot record first (needed for calculation)
+        $listing = SalesChannelProduct::where('product_id', $product->id)
+            ->where('sales_channel_id', $this->salesChannelId)
+            ->first();
+
+        if (!$listing) {
+            // Create pivot if doesn't exist
+            $product->sales_channels()->attach($this->salesChannelId, [
+                'listing_url' => $ebayItem['listing_url'] ?? "https://www.ebay.com/itm/{$itemId}",
+                'external_listing_id' => $itemId,
+                'listing_status' => SalesChannelProduct::STATUS_ACTIVE,
+                'visible_quantity' => 10, // Default threshold
+                'sync_enabled' => true,
+            ]);
+
+            $listing = SalesChannelProduct::where('product_id', $product->id)
+                ->where('sales_channel_id', $this->salesChannelId)
+                ->first();
+        }
+
+        // Calculate buffered visible quantity (overselling protection)
+        $calcResult = $calculator->calculate($product, $listing);
+        $visibleQuantity = $calcResult->visibleQuantity;
 
         // Get dimensions from product meta (use query to avoid serialization issues in queue)
         $meta = $product->product_meta()->pluck('meta_value', 'meta_key')->toArray();
 
         $fields = [
-            'quantity'       => (int) $totalQuantity,
+            'quantity'       => (int) $visibleQuantity, // Use buffered quantity, NOT raw stock
             'weight'         => (float) ($meta['weight'] ?? 0),
             'weight_unit'    => $meta['weight_unit'] ?? 'lbs',
             'length'         => (float) ($meta['length'] ?? 0),
@@ -198,23 +221,20 @@ class ImportEbayListingsJob implements ShouldQueue
         ];
 
         // Push to eBay using ReviseItem (supports quantity + dimensions)
-        $result = $ebayService->reviseItem($salesChannel, $itemId, $fields);
+        $ebayResult = $ebayService->reviseItem($salesChannel, $itemId, $fields);
         $this->pauseAfterApiCall();
 
-        // Update or create pivot record
+        // Update pivot record with sync info
         $pivotData = [
             'listing_url' => $ebayItem['listing_url'] ?? "https://www.ebay.com/itm/{$itemId}",
             'external_listing_id' => $itemId,
-            'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
-            'listing_error' => $result['success'] ? null : ($result['errors'][0]['message'] ?? 'Sync failed'),
+            'listing_status' => $ebayResult['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
+            'listing_error' => $ebayResult['success'] ? null : ($ebayResult['errors'][0]['message'] ?? 'Sync failed'),
             'last_synced_at' => now(),
+            'last_synced_quantity' => $visibleQuantity, // Track what we pushed
         ];
 
-        if ($product->sales_channels()->where('sales_channel_id', $this->salesChannelId)->exists()) {
-            $product->sales_channels()->updateExistingPivot($this->salesChannelId, $pivotData);
-        } else {
-            $product->sales_channels()->attach($this->salesChannelId, $pivotData);
-        }
+        $product->sales_channels()->updateExistingPivot($this->salesChannelId, $pivotData);
     }
 
     /**
