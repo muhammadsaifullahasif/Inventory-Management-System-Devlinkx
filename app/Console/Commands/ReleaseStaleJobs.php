@@ -26,7 +26,7 @@ class ReleaseStaleJobs extends Command
      */
     public function handle()
     {
-        $threshold = now()->subMintues(15)->timestamp;
+        $threshold = now()->subMinutes(15)->timestamp;
 
         $updated = DB::table('jobs')
             ->where('queue', 'ebay-imports')
