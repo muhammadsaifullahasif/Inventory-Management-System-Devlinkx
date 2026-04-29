@@ -45,3 +45,5 @@ Schedule::command('ebay:sync-orders')
     ->everyFifteenMinutes()
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/ebay-order-sync.log'));
+
+Schedule::command('queue:release-stale')->everyFiveMintues();
