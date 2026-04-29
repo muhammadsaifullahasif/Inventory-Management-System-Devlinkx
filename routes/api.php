@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\EbayController;
+use App\Http\Controllers\InventorySyncController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -94,4 +95,31 @@ Route::prefix('orders')->group(function () {
     Route::post('/{orderId}/cancel', [EbayController::class, 'cancelLocalOrder'])->name('orders.cancel');
     Route::post('/{orderId}/refund', [EbayController::class, 'refundLocalOrder'])->name('orders.refund');
     Route::post('/{orderId}/refund/partial', [EbayController::class, 'partialRefundLocalOrder'])->name('orders.refund.partial');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Inventory Sync Routes
+|--------------------------------------------------------------------------
+|
+| Buffered inventory synchronization to eBay stores.
+| Manages visible quantities with overselling protection.
+|
+*/
+Route::prefix('inventory-sync')->group(function () {
+    // Status and preview
+    Route::get('/status/{product}', [InventorySyncController::class, 'status'])->name('inventory-sync.status');
+    Route::get('/preview/{product}', [InventorySyncController::class, 'preview'])->name('inventory-sync.preview');
+
+    // Sync operations
+    Route::post('/sync/{product}', [InventorySyncController::class, 'sync'])->name('inventory-sync.sync');
+    Route::post('/queue/{product}', [InventorySyncController::class, 'queue'])->name('inventory-sync.queue');
+    Route::post('/force/{product}', [InventorySyncController::class, 'forceSync'])->name('inventory-sync.force');
+
+    // Logs and stats
+    Route::get('/logs', [InventorySyncController::class, 'logs'])->name('inventory-sync.logs');
+    Route::get('/stats', [InventorySyncController::class, 'stats'])->name('inventory-sync.stats');
+
+    // Settings
+    Route::post('/settings/{product}/{channel}', [InventorySyncController::class, 'updateSettings'])->name('inventory-sync.settings');
 });
