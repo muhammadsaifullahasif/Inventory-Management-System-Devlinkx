@@ -725,6 +725,7 @@ class ProductController extends Controller
             $errors = 0;
 
             $ebayController = app(\App\Http\Controllers\EbayController::class);
+            $inventorySyncService = app(\App\Services\Inventory\InventorySyncService::class);
 
             foreach ($products as $product) {
                 // Skip if already linked to this channel
@@ -743,20 +744,29 @@ class ProductController extends Controller
                     $existingListing = $ebayController->findEbayListingBySku($channel, $product->sku);
 
                     if ($existingListing) {
-                        // Found listing - link it and sync inventory
+                        // Found listing - link it with default visible_quantity (10)
                         $listingUrl = "https://www.ebay.com/itm/{$existingListing['ItemID']}";
-
-                        // Sync inventory to eBay
-                        $result = $ebayController->syncInventory($channel, $existingListing['ItemID'], $product);
 
                         $product->sales_channels()->attach($channel->id, [
                             'listing_url' => $listingUrl,
                             'external_listing_id' => $existingListing['ItemID'],
-                            'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
-                            'listing_error' => $result['success'] ? null : ($result['message'] ?? 'Sync failed'),
+                            'listing_status' => SalesChannelProduct::STATUS_ACTIVE,
                             'listing_format' => $existingListing['ListingType'] ?? 'FixedPriceItem',
+                            'visible_quantity' => 10, // Default formula threshold
+                            'sync_enabled' => true,
                             'last_synced_at' => now(),
                         ]);
+
+                        // Sync inventory using formula (VisibleStockCalculator)
+                        $syncResult = $inventorySyncService->syncToStore($product, $channel, 'bulk_sync');
+
+                        // Update listing status based on sync result
+                        if (!$syncResult->success && $syncResult->status === 'failed') {
+                            $product->sales_channels()->updateExistingPivot($channel->id, [
+                                'listing_status' => SalesChannelProduct::STATUS_ERROR,
+                                'listing_error' => $syncResult->reason,
+                            ]);
+                        }
 
                         $synced++;
                     } else {
