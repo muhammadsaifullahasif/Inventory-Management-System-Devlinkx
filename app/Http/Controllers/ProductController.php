@@ -707,6 +707,96 @@ class ProductController extends Controller
     }
 
     /**
+     * Bulk sync products to a sales channel.
+     */
+    public function bulkSync(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:products,id',
+            'sales_channel_id' => 'required|integer|exists:sales_channels,id',
+        ]);
+
+        try {
+            $products = Product::with('sales_channels')->whereIn('id', $request->ids)->get();
+            $channel = SalesChannel::findOrFail($request->sales_channel_id);
+            $synced = 0;
+            $skipped = 0;
+            $errors = 0;
+
+            $ebayController = app(\App\Http\Controllers\EbayController::class);
+
+            foreach ($products as $product) {
+                // Skip if already linked to this channel
+                if ($product->sales_channels->contains('id', $channel->id)) {
+                    $skipped++;
+                    continue;
+                }
+
+                // Only process eBay channels
+                if (!$channel->isEbay()) {
+                    continue;
+                }
+
+                try {
+                    // Find existing eBay listing by SKU
+                    $existingListing = $ebayController->findEbayListingBySku($channel, $product->sku);
+
+                    if ($existingListing) {
+                        // Found listing - link it and sync inventory
+                        $listingUrl = "https://www.ebay.com/itm/{$existingListing['ItemID']}";
+
+                        // Sync inventory to eBay
+                        $result = $ebayController->syncInventory($channel, $existingListing['ItemID'], $product);
+
+                        $product->sales_channels()->attach($channel->id, [
+                            'listing_url' => $listingUrl,
+                            'external_listing_id' => $existingListing['ItemID'],
+                            'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
+                            'listing_error' => $result['success'] ? null : ($result['message'] ?? 'Sync failed'),
+                            'listing_format' => $existingListing['ListingType'] ?? 'FixedPriceItem',
+                            'last_synced_at' => now(),
+                        ]);
+
+                        $synced++;
+                    } else {
+                        // No listing found on eBay
+                        $errors++;
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Bulk sync failed for product', [
+                        'product_id' => $product->id,
+                        'channel_id' => $channel->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                    $errors++;
+                }
+            }
+
+            $message = $synced . ' product(s) synced to ' . $channel->name . '.';
+            if ($skipped > 0) {
+                $message .= ' ' . $skipped . ' already linked.';
+            }
+            if ($errors > 0) {
+                $message .= ' ' . $errors . ' failed (no eBay listing found).';
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'synced' => $synced,
+                'skipped' => $skipped,
+                'errors' => $errors,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while syncing products: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Print barcode for the specified product.
      */
     public function printBarcode(string $id)

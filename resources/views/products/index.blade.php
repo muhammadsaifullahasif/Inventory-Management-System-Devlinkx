@@ -194,7 +194,22 @@
         <div class="card">
             <div class="card-body pb-0 d-flex align-items-center justify-content-between">
                 @can('delete products')
-                    @include('partials.bulk-actions-bar', ['itemName' => 'products'])
+                    <div id="bulkActionsBar" class="d-none align-items-center justify-content-between bg-light border rounded p-2 mb-3 w-100">
+                        <div class="d-flex align-items-center">
+                            <span id="selectedCount" class="text-muted me-3">0 products selected</span>
+                            <button type="button" id="clearSelection" class="btn btn-sm btn-outline-secondary me-2">
+                                <i class="feather-x me-1"></i> Clear
+                            </button>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" id="bulkSyncBtn" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#bulkSyncModal">
+                                <i class="feather-refresh-cw me-1"></i> Sync to Channel
+                            </button>
+                            <button type="button" id="bulkDeleteBtn" class="btn btn-sm btn-danger">
+                                <i class="feather-trash-2 me-1"></i> Delete Selected
+                            </button>
+                        </div>
+                    </div>
                 @endcan
                 <div class="ms-auto d-flex align-items-center gap-2">
                     @php
@@ -424,7 +439,44 @@
             </div>
         </div>
     </div>
+
 @endsection
+
+@push('modals')
+    <!-- Bulk Sync Modal -->
+    <div class="modal fade" id="bulkSyncModal" tabindex="-1" aria-labelledby="bulkSyncModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="bulkSyncModalLabel">Sync Products to Sales Channel</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3">Select a sales channel to sync <strong id="syncProductCount">0</strong> selected products.</p>
+                    <div class="mb-3">
+                        <label for="syncSalesChannel" class="form-label">Sales Channel <span class="text-danger">*</span></label>
+                        <select id="syncSalesChannel" class="form-select">
+                            <option value="">Select Sales Channel</option>
+                            @foreach($salesChannels as $channel)
+                                <option value="{{ $channel->id }}">{{ $channel->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="alert alert-info mb-0">
+                        <i class="feather-info me-2"></i>
+                        Products will be listed on the selected sales channel. Existing listings will be updated.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="confirmBulkSync" class="btn btn-primary">
+                        <i class="feather-refresh-cw me-1"></i> Sync Products
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+@endpush
 
 @push('scripts')
     <script>
@@ -469,5 +521,63 @@
     </script>
     @can('delete products')
         @include('partials.bulk-delete-scripts', ['routeName' => 'products.bulk-delete', 'itemName' => 'products'])
+
+        <script>
+            $(document).ready(function() {
+                // Update sync modal product count when opened
+                $('#bulkSyncModal').on('show.bs.modal', function() {
+                    var count = $('.row-checkbox:checked').length;
+                    $('#syncProductCount').text(count);
+                });
+
+                // Bulk sync button click
+                $(document).on('click', '#confirmBulkSync', function() {
+                    var selectedIds = [];
+                    $('.row-checkbox:checked').each(function() {
+                        selectedIds.push($(this).val());
+                    });
+
+                    var salesChannelId = $('#syncSalesChannel').val();
+
+                    if (selectedIds.length === 0) {
+                        alert('Please select at least one product to sync.');
+                        return;
+                    }
+
+                    if (!salesChannelId) {
+                        alert('Please select a sales channel.');
+                        return;
+                    }
+
+                    var $btn = $(this);
+                    $btn.prop('disabled', true).html('<i class="spinner-border spinner-border-sm me-1"></i> Syncing...');
+
+                    $.ajax({
+                        url: '{{ route("products.bulk-sync") }}',
+                        type: 'POST',
+                        data: {
+                            _token: '{{ csrf_token() }}',
+                            ids: selectedIds,
+                            sales_channel_id: salesChannelId
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                $('#bulkSyncModal').modal('hide');
+                                alert(response.message);
+                                location.reload();
+                            } else {
+                                alert(response.message || 'Failed to sync products');
+                                $btn.prop('disabled', false).html('<i class="feather-refresh-cw me-1"></i> Sync Products');
+                            }
+                        },
+                        error: function(xhr) {
+                            var message = xhr.responseJSON?.message || 'An error occurred while syncing products';
+                            alert(message);
+                            $btn.prop('disabled', false).html('<i class="feather-refresh-cw me-1"></i> Sync Products');
+                        }
+                    });
+                });
+            });
+        </script>
     @endcan
 @endpush
