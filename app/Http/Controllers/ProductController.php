@@ -636,6 +636,7 @@ class ProductController extends Controller
             $product = Product::findOrFail($id);
             if ($product->is_bundle) {
                 $product->delete();
+                return redirect()->route('products.index')->with('success', 'Bundle deleted successfully.');
             } else {
                 if ($product->product_stocks->sum('quantity') > 0) {
                     return redirect()->back()->with('error', 'You can\'t delete the product which has stock.');
@@ -644,7 +645,6 @@ class ProductController extends Controller
                     return redirect()->route('products.index')->with('success', 'Product deleted successfully.');
                 }
             }
-            // $product->delete();
 
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'An error occurred while deleting the product: ' . $e->getMessage());
@@ -662,11 +662,41 @@ class ProductController extends Controller
         ]);
 
         try {
-            $count = Product::whereIn('id', $request->ids)->delete();
+            $products = Product::with('product_stocks')->whereIn('id', $request->ids)->get();
+            $deleted = 0;
+            $skipped = 0;
+            $skippedNames = [];
+
+            foreach ($products as $product) {
+                if ($product->is_bundle) {
+                    // Bundles can be deleted directly
+                    $product->delete();
+                    $deleted++;
+                } else {
+                    // Regular products: check stock before deletion
+                    if ($product->product_stocks->sum('quantity') > 0) {
+                        $skipped++;
+                        $skippedNames[] = $product->name;
+                    } else {
+                        $product->delete();
+                        $deleted++;
+                    }
+                }
+            }
+
+            $message = $deleted . ' product(s) deleted successfully.';
+            if ($skipped > 0) {
+                $message .= ' ' . $skipped . ' product(s) skipped (have stock): ' . implode(', ', array_slice($skippedNames, 0, 3));
+                if ($skipped > 3) {
+                    $message .= '...';
+                }
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => $count . ' product(s) deleted successfully.',
+                'message' => $message,
+                'deleted' => $deleted,
+                'skipped' => $skipped,
             ]);
         } catch (\Exception $e) {
             return response()->json([
