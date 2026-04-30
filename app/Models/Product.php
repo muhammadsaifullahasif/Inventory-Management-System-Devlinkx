@@ -112,6 +112,16 @@ class Product extends Model
         return $this->hasMany(ProductStock::class, 'product_id');
     }
 
+    public function purchaseItems()
+    {
+        return $this->hasMany(PurchaseItem::class, 'product_id');
+    }
+
+    public function orderItems()
+    {
+        return $this->hasMany(OrderItem::class, 'product_id');
+    }
+
     public function sales_channels() {
         return $this->belongsToMany(SalesChannel::class, 'sales_channel_product')
             ->withPivot('listing_url', 'external_listing_id', 'listing_status', 'listing_error', 'listing_format', 'last_synced_at')

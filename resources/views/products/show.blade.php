@@ -229,6 +229,148 @@
                 @endif
             </div>
         </div>
+
+        <!-- Purchase History -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="feather-shopping-cart me-2"></i>Purchase History
+                    @if($product->is_bundle)
+                        <span class="badge bg-soft-info text-info ms-2">Components</span>
+                    @endif
+                </h5>
+                <div>
+                    <span class="badge bg-soft-info text-info me-2">{{ $purchaseStats['purchase_count'] }} Purchases</span>
+                    <span class="badge bg-soft-primary text-primary me-2">{{ number_format($purchaseStats['total_qty'], 0) }} Units</span>
+                    <span class="badge bg-soft-success text-success">${{ number_format($purchaseStats['total_cost'], 2) }} Total</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table table-hover mb-0">
+                        <thead class="sticky-top bg-light">
+                            <tr>
+                                @if($product->is_bundle)
+                                    <th>Component</th>
+                                @endif
+                                <th>Purchase #</th>
+                                <th>Date</th>
+                                <th>Supplier</th>
+                                <th>Warehouse</th>
+                                <th class="text-center">Qty</th>
+                                <th class="text-end">Unit Cost</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($purchaseHistory as $item)
+                                <tr>
+                                    @if($product->is_bundle)
+                                        <td>
+                                            <span class="fw-semibold">{{ $item->product->name ?? 'N/A' }}</span>
+                                            <br><small class="text-muted">{{ $item->product->sku ?? '' }}</small>
+                                        </td>
+                                    @endif
+                                    <td>
+                                        <a href="{{ route('purchases.show', $item->purchase_id) }}" class="text-primary">
+                                            {{ $item->purchase->purchase_number ?? 'N/A' }}
+                                        </a>
+                                    </td>
+                                    <td>{{ $item->created_at->format('M d, Y') }}</td>
+                                    <td>{{ $item->purchase->supplier->first_name ? ($item->purchase->supplier->first_name . ' ' . $item->purchase->supplier->last_name) : 'N/A' }}</td>
+                                    <td>{{ $item->purchase->warehouse->name ?? 'N/A' }}</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-soft-info text-info">{{ number_format($item->quantity, 0) }}</span>
+                                    </td>
+                                    <td class="text-end">${{ number_format($item->price, 2) }}</td>
+                                    <td class="text-end fw-semibold">${{ number_format($item->quantity * $item->price, 2) }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td class="text-center text-muted py-4" colspan="{{ $product->is_bundle ? 8 : 7 }}">No purchase history found.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order/Sales History -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="feather-package me-2"></i>Sales History
+                    @if($product->is_bundle)
+                        <span class="badge bg-soft-warning text-warning ms-2">Bundle + Components</span>
+                    @endif
+                </h5>
+                <div>
+                    <span class="badge bg-soft-info text-info me-2">{{ $orderStats['order_count'] }} Orders</span>
+                    <span class="badge bg-soft-warning text-warning me-2">{{ number_format($orderStats['total_qty'], 0) }} Sold</span>
+                    <span class="badge bg-soft-success text-success">${{ number_format($orderStats['total_revenue'], 2) }} Revenue</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table table-hover mb-0">
+                        <thead class="sticky-top bg-light">
+                            <tr>
+                                @if($product->is_bundle)
+                                    <th>Item</th>
+                                    <th>Type</th>
+                                @endif
+                                <th>Order #</th>
+                                <th>Date</th>
+                                <th>Channel</th>
+                                <th class="text-center">Qty</th>
+                                <th class="text-end">Unit Price</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($orderHistory as $item)
+                                <tr>
+                                    @if($product->is_bundle)
+                                        <td>
+                                            <span class="fw-semibold">{{ $item->product->name ?? $item->title ?? 'N/A' }}</span>
+                                            <br><small class="text-muted">{{ $item->product->sku ?? $item->sku ?? '' }}</small>
+                                        </td>
+                                        <td>
+                                            @if($item->bundle_product_id == $product->id)
+                                                <span class="badge bg-soft-primary text-primary">Bundle Sale</span>
+                                            @else
+                                                <span class="badge bg-soft-secondary text-secondary">Component</span>
+                                            @endif
+                                        </td>
+                                    @endif
+                                    <td>
+                                        <a href="{{ route('orders.show', $item->order_id) }}" class="text-primary">
+                                            {{ $item->order->order_number ?? 'N/A' }}
+                                        </a>
+                                    </td>
+                                    <td>{{ $item->order->order_date ? $item->order->order_date->format('M d, Y') : $item->created_at->format('M d, Y') }}</td>
+                                    <td>
+                                        <span class="badge bg-soft-secondary text-secondary">
+                                            {{ $item->order->salesChannel->name ?? 'Direct' }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-soft-warning text-warning">{{ number_format($item->quantity, 0) }}</span>
+                                    </td>
+                                    <td class="text-end">${{ number_format($item->unit_price, 2) }}</td>
+                                    <td class="text-end fw-semibold">${{ number_format($item->total_price, 2) }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td class="text-center text-muted py-4" colspan="{{ $product->is_bundle ? 8 : 6 }}">No sales history found.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="col-xxl-4">

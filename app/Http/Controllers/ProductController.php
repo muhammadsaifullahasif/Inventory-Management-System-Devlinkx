@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Imports\ProductsImport;
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductBundleComponent;
+use App\Models\PurchaseItem;
 use App\Models\Rack;
 use App\Models\SalesChannel;
 use App\Models\SalesChannelProduct;
@@ -433,7 +435,58 @@ class ProductController extends Controller
     public function show(string $id)
     {
         $product = Product::findOrFail($id);
-        return view('products.show', compact('product'));
+
+        if ($product->is_bundle) {
+            // For bundles → get component product IDs
+            $componentIds = $product->bundleComponents()->pluck('component_product_id')->toArray();
+
+            // Purchase history for bundle components
+            $purchaseHistory = PurchaseItem::whereIn('product_id', $componentIds)
+                ->with([
+                    'purchase:id,purchase_number,supplier_id,warehouse_id,created_at',
+                    'purchase.supplier:id,first_name,last_name',
+                    'purchase.warehouse:id,name',
+                    'product:id,name,sku'
+                ])
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            // Order history for bundle (sold as bundle) + components
+            $orderHistory = OrderItem::where(function ($q) use ($product, $componentIds) {
+                    $q->where('bundle_product_id', $product->id) // Sold as this bundle
+                      ->orWhereIn('product_id', $componentIds);  // Or component sold individually
+                })
+                ->with(['order:id,order_number,sales_channel_id,order_date,total', 'order.salesChannel:id,name', 'product:id,name,sku', 'bundleProduct:id,name'])
+                ->whereHas('order', fn($q) => $q->whereNotIn('order_status', ['cancelled']))
+                ->orderBy('created_at', 'desc')
+                ->get();
+        } else {
+            // Regular product
+            $purchaseHistory = $product->purchaseItems()
+                ->with(['purchase:id,purchase_number,supplier_id,warehouse_id,created_at', 'purchase.supplier:id,first_name,last_name', 'purchase.warehouse:id,name'])
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $orderHistory = $product->orderItems()
+                ->with(['order:id,order_number,sales_channel_id,order_date,total', 'order.salesChannel:id,name'])
+                ->whereHas('order', fn($q) => $q->whereNotIn('order_status', ['cancelled']))
+                ->orderBy('created_at', 'desc')
+                ->get();
+        }
+
+        $purchaseStats = [
+            'total_qty' => $purchaseHistory->sum('quantity'),
+            'total_cost' => $purchaseHistory->sum(fn($item) => $item->quantity * $item->price),
+            'purchase_count' => $purchaseHistory->unique('purchase_id')->count(),
+        ];
+
+        $orderStats = [
+            'total_qty' => $orderHistory->sum('quantity'),
+            'total_revenue' => $orderHistory->sum('total_price'),
+            'order_count' => $orderHistory->unique('order_id')->count(),
+        ];
+
+        return view('products.show', compact('product', 'purchaseHistory', 'purchaseStats', 'orderHistory', 'orderStats'));
     }
 
     /**
