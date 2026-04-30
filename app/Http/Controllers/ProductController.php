@@ -486,8 +486,6 @@ class ProductController extends Controller
             'order_count' => $orderHistory->unique('order_id')->count(),
         ];
 
-        return $orderHistory;
-
         return view('products.show', compact('product', 'purchaseHistory', 'purchaseStats', 'orderHistory', 'orderStats'));
     }
 
