@@ -251,13 +251,14 @@
                         <thead class="sticky-top bg-light">
                             <tr>
                                 @if($product->is_bundle)
-                                    <th>Component</th>
+                                    <th style="min-width: 180px; max-width: 220px;">Component</th>
                                 @endif
                                 <th>Purchase #</th>
-                                <th>Date</th>
                                 <th>Supplier</th>
                                 <th>Warehouse</th>
                                 <th class="text-center">Qty</th>
+                                <th class="text-center">Received</th>
+                                <th>Date</th>
                                 <th class="text-end">Unit Cost</th>
                                 <th class="text-end">Total</th>
                             </tr>
@@ -266,9 +267,9 @@
                             @forelse ($purchaseHistory as $item)
                                 <tr>
                                     @if($product->is_bundle)
-                                        <td>
-                                            <span class="fw-semibold">{{ $item->product->name ?? 'N/A' }}</span>
-                                            <br><small class="text-muted">{{ $item->product->sku ?? '' }}</small>
+                                        <td style="min-width: 180px; max-width: 220px;">
+                                            <span class="fw-semibold text-truncate d-block" title="{{ $item->product->name ?? 'N/A' }}">{{ $item->product->name ?? 'N/A' }}</span>
+                                            <small class="text-muted">{{ $item->product->sku ?? '' }}</small>
                                         </td>
                                     @endif
                                     <td>
@@ -276,18 +277,23 @@
                                             {{ $item->purchase->purchase_number ?? 'N/A' }}
                                         </a>
                                     </td>
-                                    <td>{{ $item->created_at->format('M d, Y') }}</td>
                                     <td>{{ $item->purchase->supplier->first_name ? ($item->purchase->supplier->first_name . ' ' . $item->purchase->supplier->last_name) : 'N/A' }}</td>
                                     <td>{{ $item->purchase->warehouse->name ?? 'N/A' }}</td>
                                     <td class="text-center">
                                         <span class="badge bg-soft-info text-info">{{ number_format($item->quantity, 0) }}</span>
                                     </td>
+                                    <td class="text-center">
+                                        <span class="badge {{ $item->received_quantity >= $item->quantity ? 'bg-soft-success text-success' : 'bg-soft-warning text-warning' }}">
+                                            {{ number_format($item->received_quantity, 0) }}
+                                        </span>
+                                    </td>
+                                    <td>{{ $item->created_at->format('M d, Y') }}</td>
                                     <td class="text-end">${{ number_format($item->price, 2) }}</td>
                                     <td class="text-end fw-semibold">${{ number_format($item->quantity * $item->price, 2) }}</td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td class="text-center text-muted py-4" colspan="{{ $product->is_bundle ? 8 : 7 }}">No purchase history found.</td>
+                                    <td class="text-center text-muted py-4" colspan="{{ $product->is_bundle ? 9 : 8 }}">No purchase history found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -317,13 +323,13 @@
                         <thead class="sticky-top bg-light">
                             <tr>
                                 @if($product->is_bundle)
-                                    <th>Item</th>
+                                    <th style="min-width: 180px; max-width: 220px;">Item</th>
                                     <th>Type</th>
                                 @endif
                                 <th>Order #</th>
-                                <th>Date</th>
                                 <th>Channel</th>
                                 <th class="text-center">Qty</th>
+                                <th>Date</th>
                                 <th class="text-end">Unit Price</th>
                                 <th class="text-end">Total</th>
                             </tr>
@@ -332,9 +338,9 @@
                             @forelse ($orderHistory as $item)
                                 <tr>
                                     @if($product->is_bundle)
-                                        <td>
-                                            <span class="fw-semibold">{{ $item->product->name ?? $item->title ?? 'N/A' }}</span>
-                                            <br><small class="text-muted">{{ $item->product->sku ?? $item->sku ?? '' }}</small>
+                                        <td style="min-width: 180px; max-width: 220px;">
+                                            <span class="fw-semibold text-truncate d-block" title="{{ $item->product->name ?? $item->title ?? 'N/A' }}">{{ $item->product->name ?? $item->title ?? 'N/A' }}</span>
+                                            <small class="text-muted">{{ $item->product->sku ?? $item->sku ?? '' }}</small>
                                         </td>
                                         <td>
                                             @if($item->bundle_product_id == $product->id)
@@ -349,7 +355,6 @@
                                             {{ $item->order->order_number ?? 'N/A' }}
                                         </a>
                                     </td>
-                                    <td>{{ $item->order->order_date ? $item->order->order_date->format('M d, Y') : $item->created_at->format('M d, Y') }}</td>
                                     <td>
                                         <span class="badge bg-soft-secondary text-secondary">
                                             {{ $item->order->salesChannel->name ?? 'Direct' }}
@@ -358,6 +363,7 @@
                                     <td class="text-center">
                                         <span class="badge bg-soft-warning text-warning">{{ number_format($item->quantity, 0) }}</span>
                                     </td>
+                                    <td>{{ $item->order->order_date ? $item->order->order_date->format('M d, Y') : $item->created_at->format('M d, Y') }}</td>
                                     <td class="text-end">${{ number_format($item->unit_price, 2) }}</td>
                                     <td class="text-end fw-semibold">${{ number_format($item->total_price, 2) }}</td>
                                 </tr>
