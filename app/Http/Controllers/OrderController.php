@@ -65,7 +65,11 @@ class OrderController extends Controller
                 $q->where('order_number', 'like', "%{$search}%")
                     ->orWhere('ebay_order_id', 'like', "%{$search}%")
                     ->orWhere('buyer_email', 'like', "%{$search}%")
-                    ->orWhere('buyer_name', 'like', "%{$search}%");
+                    ->orWhere('buyer_name', 'like', "%{$search}%")
+                    ->orWhereHas('items', function ($itemQuery) use ($search) {
+                        $itemQuery->where('sku', 'like', "%{$search}%")
+                            ->orWhere('title', 'like', "%{$search}%");
+                    });
             });
         }
 

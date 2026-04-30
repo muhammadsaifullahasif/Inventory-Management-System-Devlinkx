@@ -324,7 +324,6 @@ class ProductController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'sku' => 'required|string|max:100|unique:products,sku',
-            'barcode' => 'nullable|string|max:100|unique:products,barcode',
             'category_id' => 'required|exists:categories,id',
             'brand_id' => 'nullable|exists:brands,id',
             'short_description' => 'nullable|string|max:500',
@@ -350,7 +349,7 @@ class ProductController extends Controller
             $product = new Product();
             $product->name = $request->name;
             $product->sku = $request->sku;
-            $product->barcode = $request->barcode;
+            $product->barcode = $request->sku; // Use SKU as barcode
             $product->category_id = $request->category_id;
             $product->brand_id = $request->brand_id;
             $product->is_bundle = $request->has('is_bundle') && $request->is_bundle;
@@ -537,7 +536,6 @@ class ProductController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'sku' => 'required|string|max:100|unique:products,sku,' . $id,
-            'barcode' => 'nullable|string|max:100|unique:products,barcode,' . $id,
             'category_id' => 'required|exists:categories,id',
             'brand_id' => 'nullable|exists:brands,id',
             'short_description' => 'nullable|string|max:500',
@@ -565,7 +563,7 @@ class ProductController extends Controller
 
             $product->name = $request->name;
             $product->sku = $request->sku;
-            $product->barcode = $request->barcode;
+            $product->barcode = $request->sku; // Use SKU as barcode
             $product->category_id = $request->category_id;
             $product->brand_id = $request->brand_id;
             $product->is_bundle = $request->has('is_bundle') && $request->is_bundle;
