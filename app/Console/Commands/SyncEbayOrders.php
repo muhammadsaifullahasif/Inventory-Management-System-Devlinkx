@@ -81,7 +81,9 @@ class SyncEbayOrders extends Command
         $totalCreated = 0;
         $totalUpdated = 0;
         $totalSkipped = 0;
-        $totalFailed = 0;
+        $totalOrdersFailed = 0;
+        $totalProcessed = 0;
+        $channelsFailed = 0;
 
         foreach ($channels as $channel) {
             $this->newLine();
@@ -108,7 +110,7 @@ class SyncEbayOrders extends Command
                         'sales_channel_id' => $channel->id,
                         'result' => $result,
                     ]);
-                    $totalFailed++;
+                    $channelsFailed++;
                     continue;
                 }
 
@@ -123,8 +125,10 @@ class SyncEbayOrders extends Command
                 $channelCreated = 0;
                 $channelUpdated = 0;
                 $channelSkipped = 0;
+                $channelOrdersFailed = 0;
 
                 foreach ($orders as $ebayOrder) {
+                    $totalProcessed++;
                     try {
                         $action = $orderService->processOrder($ebayOrder, $channel->id);
 
@@ -139,13 +143,23 @@ class SyncEbayOrders extends Command
                             $totalSkipped++;
                         }
                     } catch (Exception $e) {
-                        Log::channel('ebay')->error('Failed to process order during sync', [
+                        $channelOrdersFailed++;
+                        $totalOrdersFailed++;
+
+                        // Log error but continue processing other orders
+                        Log::channel('ebay')->warning('Failed to process individual order during sync (continuing)', [
                             'sales_channel_id' => $channel->id,
                             'ebay_order_id' => $ebayOrder['order_id'] ?? 'unknown',
                             'error' => $e->getMessage(),
-                            'trace' => $e->getTraceAsString(),
                         ]);
-                        $totalFailed++;
+
+                        // Only log full trace for first few failures to avoid log spam
+                        if ($totalOrdersFailed <= 5) {
+                            Log::channel('ebay')->debug('Order sync failure trace', [
+                                'ebay_order_id' => $ebayOrder['order_id'] ?? 'unknown',
+                                'trace' => $e->getTraceAsString(),
+                            ]);
+                        }
                     }
                 }
 
@@ -153,15 +167,18 @@ class SyncEbayOrders extends Command
                 $this->line("    Created: {$channelCreated}");
                 $this->line("    Updated: {$channelUpdated}");
                 $this->line("    Skipped: {$channelSkipped}");
+                if ($channelOrdersFailed > 0) {
+                    $this->warn("    Failed:  {$channelOrdersFailed} (logged, continuing)");
+                }
 
             } catch (Exception $e) {
-                $this->error("  [ERROR] Error syncing channel: {$e->getMessage()}");
+                $channelsFailed++;
+                $this->error("  [ERROR] Channel sync failed: {$e->getMessage()}");
                 Log::channel('ebay')->error('eBay order sync failed for channel', [
                     'sales_channel_id' => $channel->id,
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                 ]);
-                $totalFailed++;
             }
         }
 
@@ -172,8 +189,38 @@ class SyncEbayOrders extends Command
         $this->line("  Total Created: {$totalCreated}");
         $this->line("  Total Updated: {$totalUpdated}");
         $this->line("  Total Skipped: {$totalSkipped}");
-        $this->line("  Total Failed:  {$totalFailed}");
 
-        return $totalFailed > 0 ? 1 : 0;
+        if ($totalOrdersFailed > 0) {
+            $this->warn("  Orders Failed: {$totalOrdersFailed} (logged as warnings)");
+        }
+
+        if ($channelsFailed > 0) {
+            $this->error("  Channels Failed: {$channelsFailed}");
+        }
+
+        // Exit code logic:
+        // - Return 0 (success) if at least some orders processed successfully
+        // - Return 1 (failure) only if ALL channels failed OR no orders processed at all
+        $successfulOrders = $totalCreated + $totalUpdated + $totalSkipped;
+
+        if ($channelsFailed === $channels->count()) {
+            // All channels failed - critical error
+            $this->error("CRITICAL: All channels failed to sync!");
+            return 1;
+        }
+
+        if ($totalProcessed > 0 && $successfulOrders === 0 && $totalOrdersFailed === $totalProcessed) {
+            // Processed orders but ALL failed - something seriously wrong
+            $this->error("CRITICAL: All {$totalOrdersFailed} orders failed to process!");
+            return 1;
+        }
+
+        // Partial success is still success for scheduled task
+        if ($totalOrdersFailed > 0) {
+            $successRate = round(($successfulOrders / $totalProcessed) * 100, 1);
+            $this->info("Success rate: {$successRate}% ({$successfulOrders}/{$totalProcessed})");
+        }
+
+        return 0;
     }
 }
