@@ -340,7 +340,7 @@
                                     @if($product->is_bundle)
                                         <td style="min-width: 180px; max-width: 220px;">
                                             <span class="fw-semibold text-truncate d-block" title="{{ $item->product->name ?? $item->title ?? 'N/A' }}">{{ $item->product->name ?? $item->title ?? 'N/A' }}</span>
-                                            <small class="text-muted">{{ $product->sku ?? '' }}</small>
+                                            <small class="text-muted">{{ $product->is_bundle ? $product->sku : $item->product->sku }}</small>
                                         </td>
                                         <td>
                                             @if($item->bundle_product_id == $product->id)
