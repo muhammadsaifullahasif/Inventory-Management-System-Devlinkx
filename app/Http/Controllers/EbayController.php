@@ -1278,16 +1278,20 @@ class EbayController extends Controller
         try {
             $channel = $this->client->ensureValidToken($channel);
 
-            // Calculate total quantity from product_stocks table
-            $totalQuantity = ProductStock::where('product_id', $product->id)
-                ->where('active_status', '1')
-                ->where('delete_status', '0')
-                ->sum(DB::raw('CAST(quantity AS UNSIGNED)'));
+            // Get listing to apply threshold logic
+            $listing = \App\Models\SalesChannelProduct::where('product_id', $product->id)
+                ->where('sales_channel_id', $channel->id)
+                ->first();
 
-            $quantity = (int) $totalQuantity;
-
-            // Debug: Log stock details
-            $stockRecords = ProductStock::where('product_id', $product->id)->get();
+            // Calculate visible quantity using threshold logic
+            $calculator = app(\App\Services\Inventory\VisibleStockCalculator::class);
+            if ($listing) {
+                $result = $calculator->calculate($product, $listing);
+                $quantity = $result->visibleQuantity;
+            } else {
+                // Fallback if no listing found (shouldn't happen)
+                $quantity = min($product->available_stock, 10);
+            }
 
             $result = $this->ebayService->reviseInventoryStatus($channel, $itemId, $quantity);
 
@@ -1317,17 +1321,26 @@ class EbayController extends Controller
         try {
             $channel = $this->client->ensureValidToken($channel);
 
-            // Calculate total quantity from product_stocks table
-            $totalQuantity = ProductStock::where('product_id', $product->id)
-                ->where('active_status', '1')
-                ->where('delete_status', '0')
-                ->sum(DB::raw('CAST(quantity AS UNSIGNED)'));
+            // Get listing to apply threshold logic
+            $listing = \App\Models\SalesChannelProduct::where('product_id', $product->id)
+                ->where('sales_channel_id', $channel->id)
+                ->first();
+
+            // Calculate visible quantity using threshold logic
+            $calculator = app(\App\Services\Inventory\VisibleStockCalculator::class);
+            if ($listing) {
+                $result = $calculator->calculate($product, $listing);
+                $quantity = $result->visibleQuantity;
+            } else {
+                // Fallback if no listing found (shouldn't happen)
+                $quantity = min($product->available_stock, 10);
+            }
 
             // Get product meta for dimensions (use query to avoid serialization issues)
             $meta = $product->product_meta()->pluck('meta_value', 'meta_key')->toArray();
 
             $fields = [
-                'quantity'       => (int) $totalQuantity,
+                'quantity'       => $quantity,
                 'weight'         => (float) ($meta['weight'] ?? 0),
                 'weight_unit'    => $meta['weight_unit'] ?? 'lbs',
                 'length'         => (float) ($meta['length'] ?? 0),

@@ -370,7 +370,7 @@
                                         @endif
                                     </td>
                                     <td data-column="category">{{ $product->category->name ?? 'N/A' }}</td>
-                                    <td data-column="sales_channels">
+                                    <td data-column="sales_channels" style="white-space: normal; width: 300px; display: block;">
                                         @foreach ($product->sales_channels as $sales_channel)
                                             <a href="{{ $sales_channel->pivot->listing_url }}" target="_blank" class="badge bg-soft-primary text-primary me-1">{{ $sales_channel['name'] }}</a>
                                         @endforeach

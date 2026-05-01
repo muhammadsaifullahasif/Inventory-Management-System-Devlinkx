@@ -918,20 +918,29 @@ class ProductController extends Controller
                 $existingListing = $ebayController->findEbayListingBySku($channel, $product->sku);
 
                 if ($existingListing) {
-                    // Found listing - link it and sync inventory
+                    // Found listing - link it with default settings
                     $listingUrl = "https://www.ebay.com/itm/{$existingListing['ItemID']}";
-
-                    // Sync inventory to eBay
-                    $result = $ebayController->syncInventory($channel, $existingListing['ItemID'], $product);
 
                     $product->sales_channels()->attach($channelId, [
                         'listing_url' => $listingUrl,
                         'external_listing_id' => $existingListing['ItemID'],
-                        'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
-                        'listing_error' => $result['success'] ? null : $this->extractListingError($result),
+                        'listing_status' => SalesChannelProduct::STATUS_ACTIVE,
                         'listing_format' => $existingListing['ListingType'] ?? 'FixedPriceItem',
-                        'last_synced_at' => now(),
+                        'visible_quantity' => 10, // Default threshold
+                        'sync_enabled' => true,
                     ]);
+
+                    // Sync inventory using InventorySyncService (applies threshold logic)
+                    $inventorySyncService = app(\App\Services\Inventory\InventorySyncService::class);
+                    $syncResult = $inventorySyncService->syncToStore($product, $channel, 'manual', 'product_link');
+
+                    // Update status based on sync result
+                    if (!$syncResult->success && $syncResult->status === 'failed') {
+                        $product->sales_channels()->updateExistingPivot($channelId, [
+                            'listing_status' => SalesChannelProduct::STATUS_ERROR,
+                            'listing_error' => $syncResult->reason,
+                        ]);
+                    }
 
                 } else {
                     // No listing found on eBay - attach with "not found" status
@@ -1053,51 +1062,10 @@ class ProductController extends Controller
      */
     public static function syncProductInventoryToChannels(Product $product): void
     {
-        // Get all linked sales channels with external listing IDs
-        $linkedChannels = $product->sales_channels()
-            ->whereNotNull('sales_channel_product.external_listing_id')
-            ->get();
+        // Use InventorySyncService to apply threshold logic
+        $inventorySyncService = app(\App\Services\Inventory\InventorySyncService::class);
 
-        if ($linkedChannels->isEmpty()) {
-            return;
-        }
-
-        $ebayController = app(EbayController::class);
-
-        foreach ($linkedChannels as $channel) {
-            $isEbay = $channel->isEbay();
-
-            if (!$isEbay) {
-                continue;
-            }
-
-            // Note: Token refresh is handled automatically by EbayController::syncInventory()
-
-            $externalId = $channel->pivot->external_listing_id;
-
-            try {
-                $result = $ebayController->syncInventory($channel, $externalId, $product);
-
-                $product->sales_channels()->updateExistingPivot($channel->id, [
-                    'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
-                    'listing_error' => $result['success'] ? null : self::extractListingErrorStatic($result),
-                    'last_synced_at' => now(),
-                ]);
-
-            } catch (\Exception $e) {
-                $product->sales_channels()->updateExistingPivot($channel->id, [
-                    'listing_status' => SalesChannelProduct::STATUS_ERROR,
-                    'listing_error' => $e->getMessage(),
-                    'last_synced_at' => now(),
-                ]);
-
-                Log::error('Failed to sync inventory after stock change', [
-                    'product_id' => $product->id,
-                    'channel_id' => $channel->id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
+        $inventorySyncService->syncToAllStores($product, 'manual', 'stock_update');
     }
 
     /**
