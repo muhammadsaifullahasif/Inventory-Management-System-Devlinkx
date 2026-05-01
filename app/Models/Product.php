@@ -124,7 +124,7 @@ class Product extends Model
 
     public function sales_channels() {
         return $this->belongsToMany(SalesChannel::class, 'sales_channel_product')
-            ->withPivot('listing_url', 'external_listing_id', 'listing_status', 'listing_error', 'listing_format', 'last_synced_at')
+            ->withPivot('listing_url', 'external_listing_id', 'listing_status', 'listing_error', 'listing_format', 'last_synced_at', 'last_synced_quantity', 'visible_quantity', 'sync_enabled', 'last_sync_attempted_at', 'last_sync_error')
             ->withTimestamps()
             ->using(SalesChannelProduct::class);
     }
