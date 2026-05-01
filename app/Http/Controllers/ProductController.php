@@ -728,50 +728,63 @@ class ProductController extends Controller
             $inventorySyncService = app(\App\Services\Inventory\InventorySyncService::class);
 
             foreach ($products as $product) {
-                // Skip if already linked to this channel
-                if ($product->sales_channels->contains('id', $channel->id)) {
-                    $skipped++;
-                    continue;
-                }
-
                 // Only process eBay channels
                 if (!$channel->isEbay()) {
                     continue;
                 }
 
                 try {
-                    // Find existing eBay listing by SKU
-                    $existingListing = $ebayController->findEbayListingBySku($channel, $product->sku);
+                    $alreadyLinked = $product->sales_channels->contains('id', $channel->id);
 
-                    if ($existingListing) {
-                        // Found listing - link it with default visible_quantity (10)
-                        $listingUrl = "https://www.ebay.com/itm/{$existingListing['ItemID']}";
-
-                        $product->sales_channels()->attach($channel->id, [
-                            'listing_url' => $listingUrl,
-                            'external_listing_id' => $existingListing['ItemID'],
-                            'listing_status' => SalesChannelProduct::STATUS_ACTIVE,
-                            'listing_format' => $existingListing['ListingType'] ?? 'FixedPriceItem',
-                            'visible_quantity' => 10, // Default formula threshold
-                            'sync_enabled' => true,
-                            'last_synced_at' => now(),
-                        ]);
-
-                        // Sync inventory using formula (VisibleStockCalculator)
+                    if ($alreadyLinked) {
+                        // Already linked - just sync inventory
                         $syncResult = $inventorySyncService->syncToStore($product, $channel, 'bulk_sync');
 
-                        // Update listing status based on sync result
-                        if (!$syncResult->success && $syncResult->status === 'failed') {
+                        if ($syncResult->success) {
+                            $synced++;
+                        } else {
+                            // Update error status on pivot
                             $product->sales_channels()->updateExistingPivot($channel->id, [
                                 'listing_status' => SalesChannelProduct::STATUS_ERROR,
                                 'listing_error' => $syncResult->reason,
                             ]);
+                            $errors++;
                         }
-
-                        $synced++;
                     } else {
-                        // No listing found on eBay
-                        $errors++;
+                        // Not linked yet - find eBay listing and link
+                        $existingListing = $ebayController->findEbayListingBySku($channel, $product->sku);
+
+                        if ($existingListing) {
+                            // Found listing - link it with default visible_quantity (10)
+                            $listingUrl = "https://www.ebay.com/itm/{$existingListing['ItemID']}";
+
+                            $product->sales_channels()->attach($channel->id, [
+                                'listing_url' => $listingUrl,
+                                'external_listing_id' => $existingListing['ItemID'],
+                                'listing_status' => SalesChannelProduct::STATUS_ACTIVE,
+                                'listing_format' => $existingListing['ListingType'] ?? 'FixedPriceItem',
+                                'visible_quantity' => 10, // Default formula threshold
+                                'sync_enabled' => true,
+                                'last_synced_at' => now(),
+                            ]);
+
+                            // Sync inventory using formula (VisibleStockCalculator)
+                            $syncResult = $inventorySyncService->syncToStore($product, $channel, 'bulk_sync');
+
+                            // Update listing status based on sync result
+                            if (!$syncResult->success && $syncResult->status === 'failed') {
+                                $product->sales_channels()->updateExistingPivot($channel->id, [
+                                    'listing_status' => SalesChannelProduct::STATUS_ERROR,
+                                    'listing_error' => $syncResult->reason,
+                                ]);
+                                $errors++;
+                            } else {
+                                $synced++;
+                            }
+                        } else {
+                            // No listing found on eBay
+                            $errors++;
+                        }
                     }
                 } catch (\Exception $e) {
                     Log::error('Bulk sync failed for product', [
@@ -784,18 +797,14 @@ class ProductController extends Controller
             }
 
             $message = $synced . ' product(s) synced to ' . $channel->name . '.';
-            if ($skipped > 0) {
-                $message .= ' ' . $skipped . ' already linked.';
-            }
             if ($errors > 0) {
-                $message .= ' ' . $errors . ' failed (no eBay listing found).';
+                $message .= ' ' . $errors . ' failed.';
             }
 
             return response()->json([
                 'success' => true,
                 'message' => $message,
                 'synced' => $synced,
-                'skipped' => $skipped,
                 'errors' => $errors,
             ]);
         } catch (\Exception $e) {
