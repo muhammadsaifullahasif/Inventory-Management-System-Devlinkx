@@ -11,11 +11,11 @@ use App\Models\SalesChannelProduct;
  * Core logic:
  * - Shows fixed visible quantity (e.g., 10) while central stock >= threshold
  * - When stock drops below threshold, shows actual available quantity
- * - Implements safe allocation to prevent overselling across multiple stores
+ * - ALL stores show the SAME quantity (no division between stores)
  *
- * Safe allocation formula:
- *   safeVisible = floor(centralStock / numberOfActiveStores)
- *   finalVisible = min(fixedVisibleQty, safeVisible)
+ * Formula:
+ *   if (centralStock >= threshold) → show threshold on all stores
+ *   if (centralStock < threshold)  → show centralStock on all stores
  */
 class VisibleStockCalculator
 {
@@ -52,19 +52,14 @@ class VisibleStockCalculator
             );
         }
 
-        // Calculate safe allocation per store
-        $safeAllocation = (int) floor($centralStock / $activeStoreCount);
-
-        // Determine final visible quantity
+        // Show same quantity on ALL stores (no division)
+        // When stock >= threshold: show threshold (e.g., 10)
+        // When stock < threshold: show actual stock
         if ($centralStock >= $visibleThreshold) {
-            // Stock above threshold: use minimum of threshold and safe allocation
-            $visibleQuantity = min($visibleThreshold, $safeAllocation);
-            $reason = $visibleQuantity === $safeAllocation
-                ? 'safe_allocation_limited'
-                : 'threshold_applied';
+            $visibleQuantity = $visibleThreshold;
+            $reason = 'threshold_applied';
         } else {
-            // Stock below threshold: use safe allocation (actual available per store)
-            $visibleQuantity = $safeAllocation;
+            $visibleQuantity = $centralStock;
             $reason = 'below_threshold';
         }
 
@@ -76,7 +71,7 @@ class VisibleStockCalculator
             centralStock: $centralStock,
             visibleThreshold: $visibleThreshold,
             activeStoreCount: $activeStoreCount,
-            safeAllocation: $safeAllocation,
+            safeAllocation: $visibleQuantity, // Same as visible for compatibility
             reason: $reason
         );
     }
