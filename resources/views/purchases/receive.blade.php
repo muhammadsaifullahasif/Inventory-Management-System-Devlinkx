@@ -209,8 +209,8 @@
                                             data-name="{{ strtolower($item->product->name) }}"
                                             data-sku="{{ strtolower($item->product->sku) }}"
                                             data-barcode="{{ strtolower($item->product->barcode) }}"
-                                            data-brand="{{ $item->product->brand->name }}"
-                                            data-category="{{ $item->product->category->name }}">
+                                            data-brand="{{ $item->product?->brand->name }}"
+                                            data-category="{{ $item->product?->category->name }}">
                                             <td>{{ $index + 1 }}</td>
                                             <td>
                                                 @if($item->product && $item->product->getImageUrl())
