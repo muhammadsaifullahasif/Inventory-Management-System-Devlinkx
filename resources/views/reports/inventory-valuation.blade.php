@@ -204,7 +204,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($groupedData as $group)
+                            @forelse($groupedDataPaginated as $group)
                                 <tr>
                                     <td>
                                         <strong>{{ $group['name'] }}</strong>
@@ -236,21 +236,21 @@
                                 </tr>
                             @endforelse
                         </tbody>
-                        @if($groupedData->isNotEmpty())
-                            <tfoot>
-                                <tr class="table-light">
-                                    <td class="fw-bold">Grand Total</td>
-                                    <td class="text-center fw-bold">{{ count($inventoryItems) }}</td>
-                                    <td class="text-end fw-bold">{{ number_format($summary['total_quantity'], 2) }}</td>
-                                    <td class="text-end fw-bold">{{ number_format($summary['avg_cost_per_unit'], 4) }}</td>
-                                    <td class="text-end fw-bold">{{ number_format($summary['total_value'], 2) }}</td>
-                                    <td class="text-end fw-bold">100%</td>
-                                </tr>
-                            </tfoot>
-                        @endif
                     </table>
                 </div>
             </div>
+            @if($groupedDataPaginated->hasPages())
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted">
+                            Showing {{ $groupedDataPaginated->firstItem() }} to {{ $groupedDataPaginated->lastItem() }} of {{ $groupedDataPaginated->total() }} groups
+                        </div>
+                        <div>
+                            {{ $groupedDataPaginated->appends(request()->query())->links('pagination::bootstrap-5') }}
+                        </div>
+                    </div>
+                </div>
+            @endif
         </div>
     </div>
 
@@ -276,7 +276,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($inventoryItems as $item)
+                            @forelse($inventoryItemsPaginated as $item)
                                 <tr>
                                     <td>
                                         <a href="{{ route('products.show', $item['product_id']) }}" class="fw-semibold">
@@ -315,6 +315,18 @@
                     </table>
                 </div>
             </div>
+            @if($inventoryItemsPaginated->hasPages())
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted">
+                            Showing {{ $inventoryItemsPaginated->firstItem() }} to {{ $inventoryItemsPaginated->lastItem() }} of {{ $inventoryItemsPaginated->total() }} items
+                        </div>
+                        <div>
+                            {{ $inventoryItemsPaginated->appends(request()->query())->links('pagination::bootstrap-5') }}
+                        </div>
+                    </div>
+                </div>
+            @endif
         </div>
     </div>
 @endsection

@@ -845,14 +845,14 @@ class ReportController extends Controller
             });
         }
 
-        $stocks = $query->get();
+        $allStocks = $query->get();
 
-        // Calculate inventory values
+        // Calculate inventory values for all data (needed for summary and grouping)
         $inventoryItems = [];
         $totalQuantity = 0;
         $totalValue = 0;
 
-        foreach ($stocks as $stock) {
+        foreach ($allStocks as $stock) {
             $product = $stock->product;
             $avgCost = (float) ($stock->avg_cost ?? 0);
             $quantity = (float) $stock->quantity;
@@ -880,6 +880,31 @@ class ReportController extends Controller
         // Group data based on selected grouping
         $groupedData = $this->groupInventoryData($inventoryItems, $groupBy);
 
+        // Paginate grouped data
+        $groupedPerPage = 25;
+        $groupedCurrentPage = (int) request()->get('grouped_page', 1);
+        $groupedOffset = ($groupedCurrentPage - 1) * $groupedPerPage;
+        $groupedDataArray = $groupedData->toArray();
+        $groupedDataPaginated = new \Illuminate\Pagination\LengthAwarePaginator(
+            array_slice($groupedDataArray, $groupedOffset, $groupedPerPage),
+            count($groupedDataArray),
+            $groupedPerPage,
+            $groupedCurrentPage,
+            ['path' => request()->url(), 'query' => request()->query(), 'pageName' => 'grouped_page']
+        );
+
+        // Paginate inventory items for detailed list
+        $perPage = 50;
+        $currentPage = (int) request()->get('page', 1);
+        $offset = ($currentPage - 1) * $perPage;
+        $inventoryItemsPaginated = new \Illuminate\Pagination\LengthAwarePaginator(
+            array_slice($inventoryItems, $offset, $perPage),
+            count($inventoryItems),
+            $perPage,
+            $currentPage,
+            ['path' => request()->url(), 'query' => request()->query()]
+        );
+
         // Get accounting reconciliation
         $inventoryAccountingService = new InventoryAccountingService();
         $reconciliation = $inventoryAccountingService->reconcileInventory();
@@ -894,7 +919,9 @@ class ReportController extends Controller
 
         return view('reports.inventory-valuation', compact(
             'inventoryItems',
+            'inventoryItemsPaginated',
             'groupedData',
+            'groupedDataPaginated',
             'summary',
             'reconciliation',
             'categories',
