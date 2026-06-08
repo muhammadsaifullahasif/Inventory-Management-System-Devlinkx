@@ -294,12 +294,17 @@ Route::middleware(['auth'])->group(function () {
     // Reports
     Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
     Route::get('reports/trial-balance', [ReportController::class, 'trialBalance'])->name('reports.trial-balance');
+    Route::get('reports/trial-balance/export', [ReportController::class, 'exportTrialBalance'])->name('reports.trial-balance.export');
     Route::get('reports/expense', [ReportController::class, 'expenseReport'])->name('reports.expense');
+    Route::get('reports/expense/export', [ReportController::class, 'exportExpenseReport'])->name('reports.expense.export');
     Route::get('reports/supplier-ledger', [ReportController::class, 'supplierLedger'])->name('reports.supplier-ledger');
+    Route::get('reports/supplier-ledger/export', [ReportController::class, 'exportSupplierLedger'])->name('reports.supplier-ledger.export');
     Route::get('reports/bank-summary', [ReportController::class, 'bankSummary'])->name('reports.bank-summary');
+    Route::get('reports/bank-summary/export', [ReportController::class, 'exportBankSummary'])->name('reports.bank-summary.export');
     Route::get('reports/purchase', [ReportController::class, 'purchaseReport'])->name('reports.purchase');
     Route::get('reports/sales', [ReportController::class, 'salesReport'])->name('reports.sales');
     Route::get('reports/inventory-valuation', [ReportController::class, 'inventoryValuation'])->name('reports.inventory-valuation');
+    Route::get('reports/inventory-valuation/export', [ReportController::class, 'exportInventoryValuation'])->name('reports.inventory-valuation.export');
     Route::get('reports/shipping-checklist', [ReportController::class, 'shippingChecklist'])->name('reports.shipping-checklist');
     Route::get('reports/shipping-checklist/pdf', [ReportController::class, 'shippingChecklistPdf'])->name('reports.shipping-checklist.pdf');
     Route::get('reports/stock-movement', [ReportController::class, 'stockMovement'])->name('reports.stock-movement');

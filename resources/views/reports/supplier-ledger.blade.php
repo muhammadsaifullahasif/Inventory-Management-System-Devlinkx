@@ -17,6 +17,9 @@
             <div class="page-header-right-items">
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
                     @if ($supplier)
+                        <a href="{{ route('reports.supplier-ledger.export', ['supplier_id' => $supplierId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="btn btn-success">
+                            <i class="feather-download me-2"></i>Export Excel
+                        </a>
                         <button type="button" class="btn btn-primary" onclick="printReport()">
                             <i class="feather-printer me-2"></i>Print
                         </button>

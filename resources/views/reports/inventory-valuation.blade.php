@@ -68,6 +68,9 @@
                                 <a href="{{ route('reports.inventory-valuation') }}" class="btn btn-light-brand btn-sm">
                                     <i class="feather-refresh-cw me-2"></i>Reset
                                 </a>
+                                <a href="{{ route('reports.inventory-valuation.export', request()->query()) }}" class="btn btn-success btn-sm">
+                                    <i class="feather-download me-2"></i>Export Excel
+                                </a>
                             </div>
                         </div>
                     </form>

@@ -16,6 +16,9 @@
         <div class="page-header-right ms-auto">
             <div class="page-header-right-items">
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('reports.trial-balance.export', ['as_of_date' => $asOfDate]) }}" class="btn btn-success">
+                        <i class="feather-download me-2"></i>Export Excel
+                    </a>
                     <button type="button" class="btn btn-primary" onclick="printReport()">
                         <i class="feather-printer me-2"></i>Print
                     </button>

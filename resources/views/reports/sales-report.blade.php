@@ -359,7 +359,7 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0"><i class="feather-list me-2"></i>Order Details</h5>
-                <span class="badge bg-soft-secondary text-secondary">{{ $orders->count() }} orders</span>
+                <span class="badge bg-soft-secondary text-secondary">{{ $orders->total() }} total orders</span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -378,7 +378,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse ($orders->take(50) as $order)
+                            @forelse ($orders as $order)
                                 <tr>
                                     <td><span class="fs-12 text-muted">{{ $order->order_date ? $order->order_date->format('M d, Y') : '-' }}</span></td>
                                     <td class="fw-semibold">{{ $order->order_number }}</td>
@@ -432,12 +432,19 @@
                         </tbody>
                     </table>
                 </div>
-                @if ($orders->count() > 50)
-                    <div class="card-footer text-center">
-                        <span class="text-muted small">Showing 50 of {{ $orders->count() }} orders. Apply filters to narrow results.</span>
-                    </div>
-                @endif
             </div>
+            @if ($orders->hasPages())
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted small">
+                            Showing {{ $orders->firstItem() }} to {{ $orders->lastItem() }} of {{ $orders->total() }} orders
+                        </div>
+                        <div>
+                            {{ $orders->appends(request()->query())->links('pagination::bootstrap-5') }}
+                        </div>
+                    </div>
+                </div>
+            @endif
         </div>
     </div>
 @endsection

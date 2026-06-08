@@ -23,6 +23,11 @@ use App\Services\InventoryAccountingService;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Exports\ReportExport;
+use App\Exports\TrialBalanceExport;
+use App\Exports\ExpenseReportExport;
+use App\Exports\SupplierLedgerExport;
+use App\Exports\BankSummaryExport;
+use App\Exports\InventoryValuationExport;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ReportController extends Controller
@@ -61,6 +66,23 @@ class ReportController extends Controller
             'totalCredit',
             'asOfDate'
         ));
+    }
+
+    /**
+     * Export Trial Balance Report to Excel
+     */
+    public function exportTrialBalance(Request $request)
+    {
+        $asOfDate = $request->get('as_of_date', date('Y-m-d'));
+
+        $accounts = $this->journalService->getTrialBalance($asOfDate);
+
+        $totalDebit = $accounts->sum('debit');
+        $totalCredit = $accounts->sum('credit');
+
+        $export = new TrialBalanceExport($accounts->toArray(), $totalDebit, $totalCredit);
+
+        return Excel::download($export, 'trial-balance-' . $asOfDate . '.xlsx');
     }
 
     /**
@@ -150,6 +172,83 @@ class ReportController extends Controller
             'dateTo',
             'groupId'
         ));
+    }
+
+    /**
+     * Export Expense Report to Excel
+     */
+    public function exportExpenseReport(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $groupId = $request->get('group_id');
+
+        // Build query: get bill items from posted bills within date range
+        $query = BillItem::select(
+                'bill_items.expense_account_id',
+                DB::raw('SUM(bill_items.amount) as total_amount'),
+                DB::raw('COUNT(DISTINCT bill_items.bill_id) as bill_count')
+            )
+            ->join('bills', 'bills.id', '=', 'bill_items.bill_id')
+            ->whereIn('bills.status', ['unpaid', 'partially_paid', 'paid'])
+            ->where('bills.bill_date', '>=', $dateFrom)
+            ->where('bills.bill_date', '<=', $dateTo);
+
+        //Filter by expense group if selected
+        if ($groupId) {
+            $accountIds = ChartOfAccount::where('parent_id', $groupId)
+                ->pluck('id');
+            $query->whereIn('bill_items.expense_account_id', $accountIds);
+        }
+
+        $expenseItems = $query->groupBy('bill_items.expense_account_id')->get();
+
+        // Load account and group info
+        $accountIds = $expenseItems->pluck('expense_account_id');
+        $accounts = ChartOfAccount::whereIn('id', $accountIds)
+            ->with('parent')
+            ->get()
+            ->keyBy('id');
+
+        // Build grouped report data
+        $reportDataArray = [];
+        foreach ($expenseItems as $item) {
+            $account = $accounts->get($item->expense_account_id);
+            if (!$account) continue;
+
+            $groupName = $account->parent?->name ?? 'Ungrouped';
+            $groupCode = $account->parent?->code ?? '0000';
+
+            if (!isset($reportDataArray[$groupName])) {
+                $reportDataArray[$groupName] = [
+                    'code' => $groupCode,
+                    'name' => $groupName,
+                    'total' => 0,
+                    'items' => [],
+                ];
+            }
+
+            $reportDataArray[$groupName]['total'] += $item->total_amount;
+            $reportDataArray[$groupName]['items'][] = [
+                'code' => $account->code,
+                'name' => $account->name,
+                'bill_count' => $item->bill_count,
+                'total_amount' => $item->total_amount,
+            ];
+        }
+
+        // Convert to collection and sort
+        $reportData = collect($reportDataArray)->sortBy('code')->values();
+        $reportData = $reportData->map(function ($group) {
+            $group['items'] = collect($group['items'])->sortByDesc('total_amount')->values();
+            return $group;
+        });
+
+        $grandTotal = $expenseItems->sum('total_amount');
+
+        $export = new ExpenseReportExport($reportData, $grandTotal);
+
+        return Excel::download($export, 'expense-report-' . $dateFrom . '-to-' . $dateTo . '.xlsx');
     }
 
     /**
@@ -273,6 +372,111 @@ class ReportController extends Controller
     }
 
     /**
+     * Export Supplier Ledger Report to Excel
+     */
+    public function exportSupplierLedger(Request $request)
+    {
+        $supplierId = $request->get('supplier_id');
+        $dateFrom = $request->get('date_from');
+        $dateTo = $request->get('date_to');
+
+        if (!$supplierId) {
+            return back()->with('error', 'Please select a supplier');
+        }
+
+        $supplier = Supplier::findOrFail($supplierId);
+
+        // Get bills query
+        $billsQuery = Bill::where('supplier_id', $supplierId)
+            ->whereIn('status', ['unpaid', 'partially_paid', 'paid']);
+
+        if ($dateFrom) {
+            $billsQuery->where('bill_date', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $billsQuery->where('bill_date', '<=', $dateTo);
+        }
+
+        $bills = $billsQuery->orderBy('bill_date')->get();
+
+        // Get payments for this supplier's bills
+        $billIds = Bill::where('supplier_id', $supplierId)
+            ->whereIn('status', ['unpaid', 'partially_paid', 'paid'])
+            ->pluck('id');
+
+        $paymentsQuery = Payment::whereIn('bill_id', $billIds)
+            ->where('status', 'posted');
+
+        if ($dateFrom) {
+            $paymentsQuery->where('payment_date', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $paymentsQuery->where('payment_date', '<=', $dateTo);
+        }
+
+        $payments = $paymentsQuery->orderBy('payment_date')->get();
+
+        // Calculate opening balance
+        $openingBalance = 0;
+        if ($dateFrom) {
+            $billsBefore = Bill::where('supplier_id', $supplierId)
+                ->whereIn('status', ['unpaid', 'partially_paid', 'paid'])
+                ->where('bill_date', '<', $dateFrom)
+                ->sum('total_amount');
+
+            $paymentsBefore = Payment::whereIn('bill_id', $billIds)
+                ->where('status', 'posted')
+                ->where('payment_date', '<', $dateFrom)
+                ->sum('amount');
+
+            $openingBalance = $billsBefore - $paymentsBefore;
+        }
+
+        // Build combined timeline
+        $combined = collect();
+
+        foreach ($bills as $bill) {
+            $combined->push([
+                'date' => $bill->bill_date,
+                'type' => 'bill',
+                'reference' => $bill->bill_number,
+                'reference_id' => $bill->id,
+                'description' => 'Bill - ' . ($bill->notes ?? 'Expense Bill'),
+                'debit' => $bill->total_amount,
+                'credit' => 0,
+            ]);
+        }
+
+        foreach ($payments as $payment) {
+            $combined->push([
+                'date' => $payment->payment_date,
+                'type' => 'payment',
+                'reference' => $payment->payment_number,
+                'reference_id' => $payment->id,
+                'bill_number' => $payment->bill->bill_number ?? '',
+                'description' => 'Payment - ' . ucfirst($payment->payment_method) . ($payment->reference ? " ({$payment->reference})" : ''),
+                'debit' => 0,
+                'credit' => $payment->amount,
+            ]);
+        }
+
+        // Sort by date
+        $transactions = $combined->sortBy([
+            ['date', 'asc'],
+            ['type', 'asc'],
+        ])->values();
+
+        $export = new SupplierLedgerExport($supplier, $transactions, $openingBalance, $dateFrom, $dateTo);
+
+        $filename = 'supplier-ledger-' . str_replace(' ', '-', strtolower($supplier->full_name));
+        if ($dateFrom && $dateTo) {
+            $filename .= '-' . $dateFrom . '-to-' . $dateTo;
+        }
+
+        return Excel::download($export, $filename . '.xlsx');
+    }
+
+    /**
      * Bank & Cash Summary Report
      */
     public function bankSummary(Request $request)
@@ -349,6 +553,78 @@ class ReportController extends Controller
             'dateFrom',
             'dateTo'
         ));
+    }
+
+    /**
+     * Export Bank & Cash Summary Report to Excel
+     */
+    public function exportBankSummary(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+
+        // Get all bank/cash accounts
+        $bankAccounts = ChartOfAccount::where('is_bank_cash', true)
+            ->where('type', 'account')
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get();
+
+        $accountSummaries = collect();
+
+        foreach ($bankAccounts as $account) {
+            // Get transactions within date range
+            $transactions = JournalEntryLine::where('account_id', $account->id)
+                ->whereHas('journalEntry', function ($q) use ($dateFrom, $dateTo) {
+                    $q->where('is_posted', true)
+                      ->where('entry_date', '>=', $dateFrom)
+                      ->where('entry_date', '<=', $dateTo);
+                })
+                ->selectRaw('SUM(debit) as total_debit, SUM(credit) as total_credit, COUNT(*) as transaction_count')
+                ->first();
+
+            $totalDebit = $transactions->total_debit ?? 0;
+            $totalCredit = $transactions->total_credit ?? 0;
+            $transactionCount = $transactions->transaction_count ?? 0;
+
+            // Opening balance
+            $openingQuery = JournalEntryLine::where('account_id', $account->id)
+                ->whereHas('journalEntry', function ($q) use ($dateFrom) {
+                    $q->where('is_posted', true)
+                      ->where('entry_date', '<', $dateFrom);
+                })
+                ->selectRaw('SUM(debit) as total_debit, SUM(credit) as total_credit')
+                ->first();
+
+            $openingDebit = $openingQuery->total_debit ?? 0;
+            $openingCredit = $openingQuery->total_credit ?? 0;
+            $openingBalance = $account->opening_balance + ($openingDebit - $openingCredit);
+
+            // Closing balance
+            $closingBalance = $openingBalance + ($totalDebit - $totalCredit);
+
+            $accountSummaries->push([
+                'id' => $account->id,
+                'code' => $account->code,
+                'name' => $account->name,
+                'bank_name' => $account->bank_name,
+                'account_number' => $account->account_number,
+                'opening_balance' => $openingBalance,
+                'inflow' => $totalDebit,
+                'outflow' => $totalCredit,
+                'closing_balance' => $closingBalance,
+                'transaction_count' => $transactionCount,
+            ]);
+        }
+
+        $totalOpening = $accountSummaries->sum('opening_balance');
+        $totalInflow = $accountSummaries->sum('inflow');
+        $totalOutflow = $accountSummaries->sum('outflow');
+        $totalClosing = $accountSummaries->sum('closing_balance');
+
+        $export = new BankSummaryExport($accountSummaries, $totalOpening, $totalInflow, $totalOutflow, $totalClosing);
+
+        return Excel::download($export, 'bank-summary-' . $dateFrom . '-to-' . $dateTo . '.xlsx');
     }
 
     /**
@@ -599,45 +875,44 @@ class ReportController extends Controller
             ->orderBy('name')
             ->get();
 
-        // Build orders query
-        $orderQuery = Order::with(['salesChannel', 'items.product'])
-            ->whereDate('order_date', '>=', $dateFrom)
+        // Build orders query - get all for summary stats
+        $allOrdersQuery = Order::whereDate('order_date', '>=', $dateFrom)
             ->whereDate('order_date', '<=', $dateTo);
 
         if ($channelId) {
-            $orderQuery->where('sales_channel_id', $channelId);
+            $allOrdersQuery->where('sales_channel_id', $channelId);
         }
 
         if ($orderStatus) {
-            $orderQuery->where('order_status', $orderStatus);
+            $allOrdersQuery->where('order_status', $orderStatus);
         }
 
         if ($paymentStatus) {
-            $orderQuery->where('payment_status', $paymentStatus);
+            $allOrdersQuery->where('payment_status', $paymentStatus);
         }
 
-        $orders = $orderQuery->orderBy('order_date', 'desc')->get();
+        $allOrders = $allOrdersQuery->get();
 
-        // Calculate summary statistics
+        // Calculate summary statistics from all orders
         $summary = [
-            'total_orders' => $orders->count(),
-            'pending_count' => $orders->where('order_status', 'pending')->count(),
-            'processing_count' => $orders->where('order_status', 'processing')->count(),
-            'shipped_count' => $orders->where('order_status', 'shipped')->count(),
-            'delivered_count' => $orders->where('order_status', 'delivered')->count(),
-            'cancelled_count' => $orders->where('order_status', 'cancelled')->count(),
-            'paid_count' => $orders->where('payment_status', 'paid')->count(),
-            'total_revenue' => $orders->where('payment_status', 'paid')->sum('total'),
-            'total_subtotal' => $orders->where('payment_status', 'paid')->sum('subtotal'),
-            'total_shipping' => $orders->where('payment_status', 'paid')->sum('shipping_cost'),
-            'total_tax' => $orders->where('payment_status', 'paid')->sum('tax'),
-            'total_discount' => $orders->where('payment_status', 'paid')->sum('discount'),
+            'total_orders' => $allOrders->count(),
+            'pending_count' => $allOrders->where('order_status', 'pending')->count(),
+            'processing_count' => $allOrders->where('order_status', 'processing')->count(),
+            'shipped_count' => $allOrders->where('order_status', 'shipped')->count(),
+            'delivered_count' => $allOrders->where('order_status', 'delivered')->count(),
+            'cancelled_count' => $allOrders->where('order_status', 'cancelled')->count(),
+            'paid_count' => $allOrders->where('payment_status', 'paid')->count(),
+            'total_revenue' => $allOrders->where('payment_status', 'paid')->sum('total'),
+            'total_subtotal' => $allOrders->where('payment_status', 'paid')->sum('subtotal'),
+            'total_shipping' => $allOrders->where('payment_status', 'paid')->sum('shipping_cost'),
+            'total_tax' => $allOrders->where('payment_status', 'paid')->sum('tax'),
+            'total_discount' => $allOrders->where('payment_status', 'paid')->sum('discount'),
             'total_items_sold' => 0,
             'average_order_value' => 0,
         ];
 
         // Calculate items sold
-        foreach ($orders->where('payment_status', 'paid') as $order) {
+        foreach ($allOrders->where('payment_status', 'paid') as $order) {
             $summary['total_items_sold'] += $order->items->sum('quantity');
         }
 
@@ -649,12 +924,31 @@ class ReportController extends Controller
         $reportData = collect();
 
         if ($groupBy === 'channel') {
-            $reportData = $this->groupOrdersByChannel($orders);
+            $reportData = $this->groupOrdersByChannel($allOrders);
         } elseif ($groupBy === 'product') {
-            $reportData = $this->groupOrdersByProduct($orders);
+            $reportData = $this->groupOrdersByProduct($allOrders);
         } elseif ($groupBy === 'date') {
-            $reportData = $this->groupOrdersByDate($orders);
+            $reportData = $this->groupOrdersByDate($allOrders);
         }
+
+        // Paginated orders query for details table
+        $ordersQuery = Order::with(['salesChannel', 'items.product'])
+            ->whereDate('order_date', '>=', $dateFrom)
+            ->whereDate('order_date', '<=', $dateTo);
+
+        if ($channelId) {
+            $ordersQuery->where('sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $ordersQuery->where('order_status', $orderStatus);
+        }
+
+        if ($paymentStatus) {
+            $ordersQuery->where('payment_status', $paymentStatus);
+        }
+
+        $orders = $ordersQuery->orderBy('order_date', 'desc')->paginate(50);
 
         // Get related accounting data (payments received in this period)
         $relatedPayments = Payment::where('status', 'posted')
@@ -930,6 +1224,81 @@ class ReportController extends Controller
             'warehouseId',
             'groupBy'
         ));
+    }
+
+    public function exportInventoryValuation(Request $request)
+    {
+        $categoryId = $request->get('category_id');
+        $warehouseId = $request->get('warehouse_id');
+        $groupBy = $request->get('group_by', 'product');
+
+        // Build query for product stocks
+        $query = ProductStock::with(['product.category', 'warehouse', 'rack'])
+            ->where('quantity', '>', 0);
+
+        if ($warehouseId) {
+            $query->where('warehouse_id', $warehouseId);
+        }
+
+        if ($categoryId) {
+            $query->whereHas('product', function ($q) use ($categoryId) {
+                $q->where('category_id', $categoryId);
+            });
+        }
+
+        $allStocks = $query->get();
+
+        // Calculate inventory values
+        $inventoryItems = [];
+        $totalQuantity = 0;
+        $totalValue = 0;
+
+        foreach ($allStocks as $stock) {
+            $product = $stock->product;
+            $avgCost = (float) ($stock->avg_cost ?? 0);
+            $quantity = (float) $stock->quantity;
+            $value = $quantity * $avgCost;
+
+            $inventoryItems[] = [
+                'stock_id' => $stock->id,
+                'product_id' => $product->id ?? null,
+                'product_name' => $product->name ?? 'Unknown',
+                'product_sku' => $product->sku ?? '',
+                'category_id' => $product->category_id ?? null,
+                'category_name' => $product->category->name ?? 'Uncategorized',
+                'warehouse_id' => $stock->warehouse_id,
+                'warehouse_name' => $stock->warehouse->name ?? 'Unknown',
+                'rack_name' => $stock->rack->name ?? 'N/A',
+                'quantity' => $quantity,
+                'avg_cost' => $avgCost,
+                'total_value' => round($value, 2),
+            ];
+
+            $totalQuantity += $quantity;
+            $totalValue += $value;
+        }
+
+        // Group data
+        $groupedData = $this->groupInventoryData($inventoryItems, $groupBy);
+
+        // Summary statistics
+        $summary = [
+            'total_products' => collect($inventoryItems)->pluck('product_id')->unique()->count(),
+            'total_quantity' => round($totalQuantity, 2),
+            'total_value' => round($totalValue, 2),
+            'avg_cost_per_unit' => $totalQuantity > 0 ? round($totalValue / $totalQuantity, 4) : 0,
+        ];
+
+        $export = new InventoryValuationExport(
+            $groupedData->toArray(),
+            $inventoryItems,
+            $summary,
+            $groupBy
+        );
+
+        $filename = 'inventory-valuation-' . date('Y-m-d') . '.xlsx';
+
+        return Excel::download($export, $filename);
     }
 
     /**
@@ -2198,6 +2567,64 @@ class ReportController extends Controller
         }
 
         $products = $query->get();
+        $productIds = $products->pluck('id')->toArray();
+
+        // Eager load order data - total sold per product
+        $orderData = OrderItem::select('product_id', DB::raw('SUM(quantity) as total_sold'))
+            ->whereIn('product_id', $productIds)
+            ->whereHas('order', function ($q) {
+                $q->whereIn('payment_status', ['paid']);
+            })
+            ->groupBy('product_id')
+            ->get()
+            ->keyBy('product_id');
+
+        // Eager load last order item per product - simpler approach
+        $lastOrderItems = collect();
+        if (!empty($productIds)) {
+            $rawItems = DB::select("
+                SELECT oi.*
+                FROM order_items oi
+                INNER JOIN (
+                    SELECT product_id, MAX(created_at) as max_date
+                    FROM order_items
+                    WHERE product_id IN (" . implode(',', $productIds) . ")
+                    GROUP BY product_id
+                ) latest ON oi.product_id = latest.product_id AND oi.created_at = latest.max_date
+                WHERE EXISTS (
+                    SELECT 1 FROM orders o
+                    WHERE oi.order_id = o.id
+                    AND o.payment_status IN ('paid')
+                )
+            ");
+            foreach ($rawItems as $item) {
+                $lastOrderItems->put($item->product_id, $item);
+            }
+        }
+
+        // Eager load last purchase item per product - simpler approach
+        $lastPurchaseItems = collect();
+        if (!empty($productIds)) {
+            $rawItems = DB::select("
+                SELECT pi.*
+                FROM purchase_items pi
+                INNER JOIN (
+                    SELECT product_id, MAX(created_at) as max_date
+                    FROM purchase_items
+                    WHERE product_id IN (" . implode(',', $productIds) . ")
+                    GROUP BY product_id
+                ) latest ON pi.product_id = latest.product_id AND pi.created_at = latest.max_date
+                WHERE EXISTS (
+                    SELECT 1 FROM purchases p
+                    WHERE pi.purchase_id = p.id
+                    AND p.delete_status = '0'
+                )
+            ");
+            foreach ($rawItems as $item) {
+                $lastPurchaseItems->put($item->product_id, $item);
+            }
+        }
+
         $outOfStockItems = [];
 
         foreach ($products as $product) {
@@ -2221,28 +2648,10 @@ class ReportController extends Controller
                     }
                 }
 
-                // Get total sold quantity
-                $totalSold = OrderItem::where('product_id', $product->id)
-                    ->whereHas('order', function ($q) {
-                        $q->whereIn('payment_status', ['paid']);
-                    })
-                    ->sum('quantity');
-
-                // Get last order item
-                $lastOrderItem = OrderItem::where('product_id', $product->id)
-                    ->whereHas('order', function ($q) {
-                        $q->whereIn('payment_status', ['paid']);
-                    })
-                    ->orderBy('created_at', 'desc')
-                    ->first();
-
-                // Get last purchase item
-                $lastPurchaseItem = PurchaseItem::where('product_id', $product->id)
-                    ->whereHas('purchase', function ($q) {
-                        $q->where('delete_status', '0');
-                    })
-                    ->orderBy('created_at', 'desc')
-                    ->first();
+                // Use pre-loaded data
+                $totalSold = $orderData->get($product->id)?->total_sold ?? 0;
+                $lastOrderItem = $lastOrderItems->get($product->id);
+                $lastPurchaseItem = $lastPurchaseItems->get($product->id);
 
                 $warehouseDetails = collect($warehouseBreakdown)->map(function ($wh) {
                     return $wh['warehouse_name'] . ': ' . $wh['quantity'];
