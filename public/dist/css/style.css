@@ -217,3 +217,8 @@ html.app-skin-dark .pagination .page-item:not(.active, :hover) a.page-link {
 html.app-skin-dark .pagination .page-item a.page-link:hover {
     color: #6c757d !important;
 }
+
+.footer {
+    position: relative;
+    bottom: 0;
+}
