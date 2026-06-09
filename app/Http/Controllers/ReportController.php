@@ -859,6 +859,93 @@ class ReportController extends Controller
     }
 
     /**
+     * Export Purchase Report to Excel
+     */
+    public function exportPurchaseReport(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $supplierId = $request->get('supplier_id');
+        $warehouseId = $request->get('warehouse_id');
+        $status = $request->get('status');
+        $groupBy = $request->get('group_by', 'supplier');
+
+        // Build purchase query
+        $purchaseQuery = Purchase::with(['supplier', 'warehouse', 'purchase_items.product'])
+            ->where('delete_status', '0')
+            ->whereDate('created_at', '>=', $dateFrom)
+            ->whereDate('created_at', '<=', $dateTo);
+
+        if ($supplierId) {
+            $purchaseQuery->where('supplier_id', $supplierId);
+        }
+
+        if ($warehouseId) {
+            $purchaseQuery->where('warehouse_id', $warehouseId);
+        }
+
+        if ($status) {
+            $purchaseQuery->where('purchase_status', $status);
+        }
+
+        $purchases = $purchaseQuery->orderBy('created_at', 'desc')->get();
+
+        // Calculate summary statistics
+        $summary = [
+            'total_purchases' => $purchases->count(),
+            'pending_count' => $purchases->where('purchase_status', 'pending')->count(),
+            'partial_count' => $purchases->where('purchase_status', 'partial')->count(),
+            'received_count' => $purchases->where('purchase_status', 'received')->count(),
+            'total_ordered_qty' => 0,
+            'total_received_qty' => 0,
+            'total_ordered_value' => 0,
+            'total_received_value' => 0,
+        ];
+
+        foreach ($purchases as $purchase) {
+            foreach ($purchase->purchase_items as $item) {
+                $summary['total_ordered_qty'] += (float) $item->quantity;
+                $summary['total_received_qty'] += (float) $item->received_quantity;
+                $summary['total_ordered_value'] += (float) $item->quantity * (float) $item->price;
+                $summary['total_received_value'] += (float) $item->received_quantity * (float) $item->price;
+            }
+        }
+
+        $summary['pending_value'] = $summary['total_ordered_value'] - $summary['total_received_value'];
+
+        // Build grouped report data based on group_by parameter
+        if ($groupBy === 'supplier') {
+            $groupedData = $this->groupPurchasesBySupplier($purchases);
+        } elseif ($groupBy === 'warehouse') {
+            $groupedData = $this->groupPurchasesByWarehouse($purchases);
+        } elseif ($groupBy === 'product') {
+            $groupedData = $this->groupPurchasesByProduct($purchases);
+        } else {
+            $groupedData = $this->groupPurchasesBySupplier($purchases);
+        }
+
+        $export = new \App\Exports\PurchaseReportExport($groupedData, $purchases, $summary);
+
+        $filename = 'purchase-report-' . $dateFrom . '-to-' . $dateTo . '.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download($export, $filename);
+    }
+
+    /**
+     * Export Single Purchase to Excel
+     */
+    public function exportSinglePurchase($purchaseId)
+    {
+        $purchase = Purchase::with(['supplier', 'warehouse', 'purchase_items.product'])->findOrFail($purchaseId);
+
+        $export = new \App\Exports\SinglePurchaseExport($purchase);
+
+        $filename = 'purchase-' . $purchase->purchase_number . '.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download($export, $filename);
+    }
+
+    /**
      * Sales Report - Detailed sales analysis with accounting sync
      */
     public function salesReport(Request $request)
@@ -1109,6 +1196,73 @@ class ReportController extends Controller
         }
 
         return collect($grouped)->sortByDesc('date')->values();
+    }
+
+    /**
+     * Export Sales Report to Excel
+     */
+    public function exportSalesReport(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $orderStatus = $request->get('order_status');
+        $paymentStatus = $request->get('payment_status');
+
+        // Build orders query
+        $allOrdersQuery = Order::with(['salesChannel', 'items.product'])
+            ->whereDate('order_date', '>=', $dateFrom)
+            ->whereDate('order_date', '<=', $dateTo);
+
+        if ($channelId) {
+            $allOrdersQuery->where('sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $allOrdersQuery->where('order_status', $orderStatus);
+        }
+
+        if ($paymentStatus) {
+            $allOrdersQuery->where('payment_status', $paymentStatus);
+        }
+
+        $allOrders = $allOrdersQuery->get();
+
+        // Calculate summary statistics
+        $summary = [
+            'total_orders' => $allOrders->count(),
+            'pending_count' => $allOrders->where('order_status', 'pending')->count(),
+            'processing_count' => $allOrders->where('order_status', 'processing')->count(),
+            'shipped_count' => $allOrders->where('order_status', 'shipped')->count(),
+            'delivered_count' => $allOrders->where('order_status', 'delivered')->count(),
+            'cancelled_count' => $allOrders->where('order_status', 'cancelled')->count(),
+            'paid_count' => $allOrders->where('payment_status', 'paid')->count(),
+            'total_revenue' => $allOrders->where('payment_status', 'paid')->sum('total'),
+            'total_subtotal' => $allOrders->where('payment_status', 'paid')->sum('subtotal'),
+            'total_shipping' => $allOrders->where('payment_status', 'paid')->sum('shipping_cost'),
+            'total_tax' => $allOrders->where('payment_status', 'paid')->sum('tax'),
+            'total_discount' => $allOrders->where('payment_status', 'paid')->sum('discount'),
+            'total_items_sold' => 0,
+            'average_order_value' => 0,
+        ];
+
+        // Calculate items sold
+        foreach ($allOrders->where('payment_status', 'paid') as $order) {
+            $summary['total_items_sold'] += $order->items->sum('quantity');
+        }
+
+        $summary['average_order_value'] = $summary['paid_count'] > 0
+            ? $summary['total_revenue'] / $summary['paid_count']
+            : 0;
+
+        // Group by channel for export
+        $groupedData = $this->groupOrdersByChannel($allOrders);
+
+        $export = new \App\Exports\SalesReportExport($groupedData, $summary);
+
+        $filename = 'sales-report-' . $dateFrom . '-to-' . $dateTo . '.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download($export, $filename);
     }
 
     /**

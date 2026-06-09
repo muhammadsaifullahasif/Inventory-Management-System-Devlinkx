@@ -302,7 +302,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports/bank-summary', [ReportController::class, 'bankSummary'])->name('reports.bank-summary');
     Route::get('reports/bank-summary/export', [ReportController::class, 'exportBankSummary'])->name('reports.bank-summary.export');
     Route::get('reports/purchase', [ReportController::class, 'purchaseReport'])->name('reports.purchase');
+    Route::get('reports/purchase/export', [ReportController::class, 'exportPurchaseReport'])->name('reports.purchase.export');
+    Route::get('reports/purchase/{purchase}/export-single', [ReportController::class, 'exportSinglePurchase'])->name('reports.purchase.export-single');
     Route::get('reports/sales', [ReportController::class, 'salesReport'])->name('reports.sales');
+    Route::get('reports/sales/export', [ReportController::class, 'exportSalesReport'])->name('reports.sales.export');
     Route::get('reports/inventory-valuation', [ReportController::class, 'inventoryValuation'])->name('reports.inventory-valuation');
     Route::get('reports/inventory-valuation/export', [ReportController::class, 'exportInventoryValuation'])->name('reports.inventory-valuation.export');
     Route::get('reports/shipping-checklist', [ReportController::class, 'shippingChecklist'])->name('reports.shipping-checklist');

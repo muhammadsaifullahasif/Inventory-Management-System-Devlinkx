@@ -235,6 +235,9 @@
                                                     <i class="feather-download"></i>
                                                 </a>
                                             @endif --}}
+                                            <a href="{{ route('reports.purchase.export-single', $purchase->id) }}" class="avatar-text avatar-md" title="Export to Excel">
+                                                <i class="feather-download-cloud"></i>
+                                            </a>
                                             <a href="{{ route('purchases.show', $purchase->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="View">
                                                 <i class="feather-eye"></i>
                                             </a>

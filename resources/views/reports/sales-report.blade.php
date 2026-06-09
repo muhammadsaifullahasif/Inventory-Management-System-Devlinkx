@@ -97,6 +97,11 @@
                                 <a href="{{ route('reports.sales') }}" class="btn btn-light-brand btn-sm">
                                     <i class="feather-refresh-cw me-2"></i>Reset
                                 </a>
+                                @if($orders->isNotEmpty())
+                                    <a href="{{ route('reports.sales.export', request()->query()) }}" class="btn btn-success btn-sm">
+                                        <i class="feather-download me-2"></i>Export to Excel
+                                    </a>
+                                @endif
                             </div>
                         </div>
                     </form>

@@ -97,6 +97,11 @@
                                 <a href="{{ route('reports.purchase') }}" class="btn btn-light-brand btn-sm">
                                     <i class="feather-refresh-cw me-2"></i>Reset
                                 </a>
+                                @if($purchases->isNotEmpty())
+                                    <a href="{{ route('reports.purchase.export', request()->query()) }}" class="btn btn-success btn-sm">
+                                        <i class="feather-download me-2"></i>Export to Excel
+                                    </a>
+                                @endif
                             </div>
                         </div>
                     </form>
@@ -383,6 +388,9 @@
                                         <div class="hstack gap-2 justify-content-center">
                                             <a href="{{ route('purchases.show', $purchase->id) }}" class="avatar-text avatar-md" title="View">
                                                 <i class="feather-eye"></i>
+                                            </a>
+                                            <a href="{{ route('reports.purchase.export-single', $purchase->id) }}" class="avatar-text avatar-md" title="Export to Excel">
+                                                <i class="feather-download-cloud"></i>
                                             </a>
                                         </div>
                                     </td>
