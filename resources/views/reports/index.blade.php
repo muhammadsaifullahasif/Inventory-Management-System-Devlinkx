@@ -153,6 +153,51 @@
             </a>
         </div>
 
+        <!-- COGS Report -->
+        <div class="col-lg-3 col-md-6">
+            <a href="{{ route('reports.cogs') }}" class="text-decoration-none">
+                <div class="card mb-4">
+                    <div class="card-body text-center py-4">
+                        <div class="avatar-text avatar-xl bg-soft-danger text-danger rounded-circle mx-auto mb-3">
+                            <i class="feather-trending-down" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <h5 class="card-title mb-1 fw-semibold">COGS Report</h5>
+                        <p class="text-muted small mb-0">Cost of Goods Sold analysis by product/channel</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Gross Profit Report -->
+        <div class="col-lg-3 col-md-6">
+            <a href="{{ route('reports.gross-profit') }}" class="text-decoration-none">
+                <div class="card mb-4">
+                    <div class="card-body text-center py-4">
+                        <div class="avatar-text avatar-xl bg-soft-success text-success rounded-circle mx-auto mb-3">
+                            <i class="feather-trending-up" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <h5 class="card-title mb-1 fw-semibold">Gross Profit Report</h5>
+                        <p class="text-muted small mb-0">Profit margins & profitability analysis</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Comparison Report -->
+        <div class="col-lg-3 col-md-6">
+            <a href="{{ route('reports.comparison') }}" class="text-decoration-none">
+                <div class="card mb-4">
+                    <div class="card-body text-center py-4">
+                        <div class="avatar-text avatar-xl bg-soft-info text-info rounded-circle mx-auto mb-3">
+                            <i class="feather-bar-chart-2" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <h5 class="card-title mb-1 fw-semibold">Comparison Report</h5>
+                        <p class="text-muted small mb-0">COGS vs Gross Profit side-by-side comparison</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
         {{-- <!-- Out of Stock Items -->
         <div class="col-lg-3 col-md-6">
             <a href="{{ route('reports.out-of-stock') }}" class="text-decoration-none">

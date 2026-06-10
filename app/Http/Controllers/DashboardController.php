@@ -230,21 +230,37 @@ class DashboardController extends Controller
 
     protected function getSalesChartData()
     {
+        $startDate = Carbon::now()->subDays(29)->startOfDay();
+        $endDate = Carbon::now()->endOfDay();
+
+        // Single query - group by date
+        $salesData = Order::selectRaw('DATE(created_at) as date,
+                                       COUNT(*) as order_count,
+                                       SUM(CASE WHEN payment_status = "paid" THEN total ELSE 0 END) as revenue')
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->groupBy(DB::raw('DATE(created_at)'))
+            ->orderBy('date')
+            ->get()
+            ->keyBy('date');
+
+        // Fill all 30 days
         $dates = collect();
         $revenues = collect();
         $orders = collect();
 
         for ($i = 29; $i >= 0; $i--) {
             $date = Carbon::now()->subDays($i);
+            $dateStr = $date->format('Y-m-d');
+
             $dates->push($date->format('M d'));
 
-            $dayRevenue = Order::whereDate('created_at', $date)
-                ->where('payment_status', 'paid')
-                ->sum('total');
-            $revenues->push(round($dayRevenue, 2));
-
-            $dayOrders = Order::whereDate('created_at', $date)->count();
-            $orders->push($dayOrders);
+            if ($salesData->has($dateStr)) {
+                $revenues->push(round($salesData[$dateStr]->revenue, 2));
+                $orders->push($salesData[$dateStr]->order_count);
+            } else {
+                $revenues->push(0);
+                $orders->push(0);
+            }
         }
 
         return [

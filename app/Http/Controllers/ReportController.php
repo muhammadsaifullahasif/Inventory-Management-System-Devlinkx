@@ -2932,4 +2932,812 @@ class ReportController extends Controller
 
         return collect($frequentItems);
     }
+
+    /**
+     * COGS (Cost of Goods Sold) Report
+     */
+    public function cogsReport(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $orderStatus = $request->get('order_status');
+        $productId = $request->get('product_id');
+        $sku = $request->get('sku');
+        $groupBy = $request->get('group_by', 'product'); // product, channel, date, order
+
+        // Get filter options
+        $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
+        $products = Product::where('delete_status', '0')->orderBy('name')->get();
+
+        // Build order items query
+        $query = OrderItem::select(
+                'order_items.*',
+                'orders.order_number',
+                'orders.order_date',
+                'orders.sales_channel_id',
+                'orders.payment_status',
+                'orders.order_status'
+            )
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->where('order_items.inventory_updated', true); // Only items with COGS recorded
+
+        if ($channelId) {
+            $query->where('orders.sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $query->where('orders.order_status', $orderStatus);
+        }
+
+        if ($productId) {
+            $query->where('order_items.product_id', $productId);
+        }
+
+        if ($sku) {
+            $query->where('order_items.sku', 'like', '%' . $sku . '%');
+        }
+
+        $orderItems = $query->with(['order.salesChannel', 'product'])->get();
+
+        // Calculate summary
+        $summary = [
+            'total_items_sold' => $orderItems->sum('quantity'),
+            'total_cogs' => $orderItems->sum(function ($item) {
+                return ($item->cost_at_sale ?? 0) * $item->quantity;
+            }),
+            'total_revenue' => $orderItems->sum('total_price'),
+            'items_with_cogs' => $orderItems->where('cost_at_sale', '>', 0)->count(),
+            'items_without_cogs' => $orderItems->where('cost_at_sale', '<=', 0)->count(),
+        ];
+
+        $summary['gross_profit'] = $summary['total_revenue'] - $summary['total_cogs'];
+        $summary['gross_margin'] = $summary['total_revenue'] > 0
+            ? ($summary['gross_profit'] / $summary['total_revenue']) * 100
+            : 0;
+
+        // Build grouped report data
+        $reportDataCollection = collect();
+
+        if ($groupBy === 'product') {
+            $reportDataCollection = $this->groupCogsByProduct($orderItems);
+        } elseif ($groupBy === 'channel') {
+            $reportDataCollection = $this->groupCogsByChannel($orderItems);
+        } elseif ($groupBy === 'date') {
+            $reportDataCollection = $this->groupCogsByDate($orderItems);
+        } elseif ($groupBy === 'order') {
+            $reportDataCollection = $this->groupCogsByOrder($orderItems);
+        }
+
+        // Paginate grouped data with custom page name
+        $perPage = 50;
+        $currentPage = request()->get('grouped_page', 1);
+        $reportData = new \Illuminate\Pagination\LengthAwarePaginator(
+            $reportDataCollection->forPage($currentPage, $perPage),
+            $reportDataCollection->count(),
+            $perPage,
+            $currentPage,
+            ['path' => request()->url(), 'query' => request()->query(), 'pageName' => 'grouped_page']
+        );
+
+        // Paginated order items for details with custom page name
+        $paginatedQuery = OrderItem::select(
+                'order_items.*',
+                'orders.order_number',
+                'orders.order_date',
+                'orders.sales_channel_id',
+                'orders.payment_status',
+                'orders.order_status'
+            )
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->where('order_items.inventory_updated', true);
+
+        if ($channelId) {
+            $paginatedQuery->where('orders.sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $paginatedQuery->where('orders.order_status', $orderStatus);
+        }
+
+        if ($productId) {
+            $paginatedQuery->where('order_items.product_id', $productId);
+        }
+
+        if ($sku) {
+            $paginatedQuery->where('order_items.sku', 'like', '%' . $sku . '%');
+        }
+
+        $paginatedItems = $paginatedQuery->with(['order.salesChannel', 'product'])
+            ->orderBy('orders.order_date', 'desc')
+            ->paginate(50, ['*'], 'items_page');
+
+        return view('reports.cogs-report', compact(
+            'paginatedItems',
+            'reportData',
+            'summary',
+            'salesChannels',
+            'products',
+            'dateFrom',
+            'dateTo',
+            'channelId',
+            'orderStatus',
+            'productId',
+            'sku',
+            'groupBy'
+        ));
+    }
+
+    /**
+     * Group COGS by product
+     */
+    protected function groupCogsByProduct($orderItems)
+    {
+        $grouped = [];
+
+        foreach ($orderItems as $item) {
+            $productId = $item->product_id ?? $item->sku;
+            $productName = $item->product->name ?? $item->title;
+            $productSku = $item->sku;
+
+            if (!isset($grouped[$productId])) {
+                $grouped[$productId] = [
+                    'name' => $productName,
+                    'sku' => $productSku,
+                    'quantity_sold' => 0,
+                    'total_cogs' => 0,
+                    'total_revenue' => 0,
+                    'avg_cost' => 0,
+                    'avg_price' => 0,
+                ];
+            }
+
+            $itemCogs = ($item->cost_at_sale ?? 0) * $item->quantity;
+
+            $grouped[$productId]['quantity_sold'] += (int) $item->quantity;
+            $grouped[$productId]['total_cogs'] += $itemCogs;
+            $grouped[$productId]['total_revenue'] += (float) $item->total_price;
+        }
+
+        // Calculate averages and margins
+        foreach ($grouped as &$product) {
+            $product['avg_cost'] = $product['quantity_sold'] > 0
+                ? $product['total_cogs'] / $product['quantity_sold']
+                : 0;
+            $product['avg_price'] = $product['quantity_sold'] > 0
+                ? $product['total_revenue'] / $product['quantity_sold']
+                : 0;
+            $product['gross_profit'] = $product['total_revenue'] - $product['total_cogs'];
+            $product['gross_margin'] = $product['total_revenue'] > 0
+                ? ($product['gross_profit'] / $product['total_revenue']) * 100
+                : 0;
+        }
+
+        return collect($grouped)->sortByDesc('total_cogs')->values();
+    }
+
+    /**
+     * Group COGS by channel
+     */
+    protected function groupCogsByChannel($orderItems)
+    {
+        $grouped = [];
+
+        foreach ($orderItems as $item) {
+            $channelName = $item->order->salesChannel->name ?? 'Direct Sales';
+            $channelId = $item->order->sales_channel_id ?? 0;
+
+            if (!isset($grouped[$channelId])) {
+                $grouped[$channelId] = [
+                    'name' => $channelName,
+                    'items_sold' => 0,
+                    'total_cogs' => 0,
+                    'total_revenue' => 0,
+                ];
+            }
+
+            $itemCogs = ($item->cost_at_sale ?? 0) * $item->quantity;
+
+            $grouped[$channelId]['items_sold'] += (int) $item->quantity;
+            $grouped[$channelId]['total_cogs'] += $itemCogs;
+            $grouped[$channelId]['total_revenue'] += (float) $item->total_price;
+        }
+
+        // Calculate margins
+        foreach ($grouped as &$channel) {
+            $channel['gross_profit'] = $channel['total_revenue'] - $channel['total_cogs'];
+            $channel['gross_margin'] = $channel['total_revenue'] > 0
+                ? ($channel['gross_profit'] / $channel['total_revenue']) * 100
+                : 0;
+        }
+
+        return collect($grouped)->sortByDesc('total_cogs')->values();
+    }
+
+    /**
+     * Group COGS by date
+     */
+    protected function groupCogsByDate($orderItems)
+    {
+        $grouped = [];
+
+        foreach ($orderItems as $item) {
+            $date = $item->order->order_date ? $item->order->order_date->format('Y-m-d') : 'Unknown';
+            $formattedDate = $item->order->order_date ? $item->order->order_date->format('M d, Y') : 'Unknown';
+
+            if (!isset($grouped[$date])) {
+                $grouped[$date] = [
+                    'date' => $date,
+                    'formatted_date' => $formattedDate,
+                    'items_sold' => 0,
+                    'total_cogs' => 0,
+                    'total_revenue' => 0,
+                ];
+            }
+
+            $itemCogs = ($item->cost_at_sale ?? 0) * $item->quantity;
+
+            $grouped[$date]['items_sold'] += (int) $item->quantity;
+            $grouped[$date]['total_cogs'] += $itemCogs;
+            $grouped[$date]['total_revenue'] += (float) $item->total_price;
+        }
+
+        // Calculate margins
+        foreach ($grouped as &$day) {
+            $day['gross_profit'] = $day['total_revenue'] - $day['total_cogs'];
+            $day['gross_margin'] = $day['total_revenue'] > 0
+                ? ($day['gross_profit'] / $day['total_revenue']) * 100
+                : 0;
+        }
+
+        return collect($grouped)->sortByDesc('date')->values();
+    }
+
+    /**
+     * Group COGS by order
+     */
+    protected function groupCogsByOrder($orderItems)
+    {
+        $grouped = [];
+
+        foreach ($orderItems as $item) {
+            $orderId = $item->order_id;
+            $orderNumber = $item->order->order_number;
+            $orderDate = $item->order->order_date;
+
+            if (!isset($grouped[$orderId])) {
+                $grouped[$orderId] = [
+                    'order_number' => $orderNumber,
+                    'order_date' => $orderDate,
+                    'formatted_date' => $orderDate ? $orderDate->format('M d, Y') : 'Unknown',
+                    'channel' => $item->order->salesChannel->name ?? 'Direct Sales',
+                    'items_count' => 0,
+                    'total_cogs' => 0,
+                    'total_revenue' => 0,
+                ];
+            }
+
+            $itemCogs = ($item->cost_at_sale ?? 0) * $item->quantity;
+
+            $grouped[$orderId]['items_count'] += (int) $item->quantity;
+            $grouped[$orderId]['total_cogs'] += $itemCogs;
+            $grouped[$orderId]['total_revenue'] += (float) $item->total_price;
+        }
+
+        // Calculate margins
+        foreach ($grouped as &$order) {
+            $order['gross_profit'] = $order['total_revenue'] - $order['total_cogs'];
+            $order['gross_margin'] = $order['total_revenue'] > 0
+                ? ($order['gross_profit'] / $order['total_revenue']) * 100
+                : 0;
+        }
+
+        return collect($grouped)->sortByDesc('order_date')->values();
+    }
+
+    /**
+     * Export COGS Report to Excel
+     */
+    public function exportCogsReport(Request $request)
+    {
+        // Get same filters
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $orderStatus = $request->get('order_status');
+        $productId = $request->get('product_id');
+        $sku = $request->get('sku');
+        $groupBy = $request->get('group_by', 'product');
+
+        // Build query
+        $query = OrderItem::select(
+                'order_items.*',
+                'orders.order_number',
+                'orders.order_date',
+                'orders.sales_channel_id',
+                'orders.payment_status',
+                'orders.order_status'
+            )
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->where('order_items.inventory_updated', true);
+
+        if ($channelId) {
+            $query->where('orders.sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $query->where('orders.order_status', $orderStatus);
+        }
+
+        if ($productId) {
+            $query->where('order_items.product_id', $productId);
+        }
+
+        if ($sku) {
+            $query->where('order_items.sku', 'like', '%' . $sku . '%');
+        }
+
+        $orderItems = $query->with(['order.salesChannel', 'product'])->get();
+
+        // Calculate summary
+        $summary = [
+            'total_items_sold' => $orderItems->sum('quantity'),
+            'total_cogs' => $orderItems->sum(function ($item) {
+                return ($item->cost_at_sale ?? 0) * $item->quantity;
+            }),
+            'total_revenue' => $orderItems->sum('total_price'),
+        ];
+
+        $summary['gross_profit'] = $summary['total_revenue'] - $summary['total_cogs'];
+        $summary['gross_margin'] = $summary['total_revenue'] > 0
+            ? ($summary['gross_profit'] / $summary['total_revenue']) * 100
+            : 0;
+
+        // Group data
+        if ($groupBy === 'product') {
+            $reportData = $this->groupCogsByProduct($orderItems);
+        } elseif ($groupBy === 'channel') {
+            $reportData = $this->groupCogsByChannel($orderItems);
+        } elseif ($groupBy === 'date') {
+            $reportData = $this->groupCogsByDate($orderItems);
+        } else {
+            $reportData = $this->groupCogsByOrder($orderItems);
+        }
+
+        $export = new \App\Exports\CogsReportExport($reportData->toArray(), $summary, $groupBy);
+
+        return Excel::download($export, 'cogs-report-' . now()->format('Y-m-d') . '.xlsx');
+    }
+
+    /**
+     * Gross Profit Report
+     */
+    public function grossProfitReport(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $orderStatus = $request->get('order_status');
+        $productId = $request->get('product_id');
+        $sku = $request->get('sku');
+        $groupBy = $request->get('group_by', 'product'); // product, channel, date, order
+
+        // Get filter options
+        $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
+        $products = Product::where('delete_status', '0')->orderBy('name')->get();
+
+        // Build order items query - only paid orders for profit calculation
+        $query = OrderItem::select(
+                'order_items.*',
+                'orders.order_number',
+                'orders.order_date',
+                'orders.sales_channel_id',
+                'orders.payment_status',
+                'orders.order_status'
+            )
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->where('orders.payment_status', 'paid')
+            ->where('order_items.inventory_updated', true);
+
+        if ($channelId) {
+            $query->where('orders.sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $query->where('orders.order_status', $orderStatus);
+        }
+
+        if ($productId) {
+            $query->where('order_items.product_id', $productId);
+        }
+
+        if ($sku) {
+            $query->where('order_items.sku', 'like', '%' . $sku . '%');
+        }
+
+        $orderItems = $query->with(['order.salesChannel', 'product'])->get();
+
+        // Calculate summary
+        $summary = [
+            'total_items_sold' => $orderItems->sum('quantity'),
+            'total_revenue' => $orderItems->sum('total_price'),
+            'total_cogs' => $orderItems->sum(function ($item) {
+                return ($item->cost_at_sale ?? 0) * $item->quantity;
+            }),
+        ];
+
+        $summary['gross_profit'] = $summary['total_revenue'] - $summary['total_cogs'];
+        $summary['gross_margin'] = $summary['total_revenue'] > 0
+            ? ($summary['gross_profit'] / $summary['total_revenue']) * 100
+            : 0;
+        $summary['avg_profit_per_item'] = $summary['total_items_sold'] > 0
+            ? $summary['gross_profit'] / $summary['total_items_sold']
+            : 0;
+
+        // Build grouped report data
+        $reportDataCollection = collect();
+
+        if ($groupBy === 'product') {
+            $reportDataCollection = $this->groupCogsByProduct($orderItems); // Reuse COGS grouping
+        } elseif ($groupBy === 'channel') {
+            $reportDataCollection = $this->groupCogsByChannel($orderItems);
+        } elseif ($groupBy === 'date') {
+            $reportDataCollection = $this->groupCogsByDate($orderItems);
+        } elseif ($groupBy === 'order') {
+            $reportDataCollection = $this->groupCogsByOrder($orderItems);
+        }
+
+        // Sort by gross profit instead of COGS
+        $reportDataCollection = $reportDataCollection->sortByDesc(function ($item) {
+            return $item['gross_profit'] ?? 0;
+        })->values();
+
+        // Paginate grouped data with custom page name
+        $perPage = 50;
+        $currentPage = request()->get('grouped_page', 1);
+        $reportData = new \Illuminate\Pagination\LengthAwarePaginator(
+            $reportDataCollection->forPage($currentPage, $perPage),
+            $reportDataCollection->count(),
+            $perPage,
+            $currentPage,
+            ['path' => request()->url(), 'query' => request()->query(), 'pageName' => 'grouped_page']
+        );
+
+        // Paginated order items for details with custom page name
+        $paginatedQuery = OrderItem::select(
+                'order_items.*',
+                'orders.order_number',
+                'orders.order_date',
+                'orders.sales_channel_id',
+                'orders.payment_status',
+                'orders.order_status'
+            )
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->where('orders.payment_status', 'paid')
+            ->where('order_items.inventory_updated', true);
+
+        if ($channelId) {
+            $paginatedQuery->where('orders.sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $paginatedQuery->where('orders.order_status', $orderStatus);
+        }
+
+        if ($productId) {
+            $paginatedQuery->where('order_items.product_id', $productId);
+        }
+
+        if ($sku) {
+            $paginatedQuery->where('order_items.sku', 'like', '%' . $sku . '%');
+        }
+
+        $paginatedItems = $paginatedQuery->with(['order.salesChannel', 'product'])
+            ->orderBy('orders.order_date', 'desc')
+            ->paginate(50, ['*'], 'items_page');
+
+        return view('reports.gross-profit-report', compact(
+            'paginatedItems',
+            'reportData',
+            'summary',
+            'salesChannels',
+            'products',
+            'dateFrom',
+            'dateTo',
+            'channelId',
+            'orderStatus',
+            'productId',
+            'sku',
+            'groupBy'
+        ));
+    }
+
+    /**
+     * Export Gross Profit Report to Excel
+     */
+    public function exportGrossProfitReport(Request $request)
+    {
+        // Get same filters
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $orderStatus = $request->get('order_status');
+        $productId = $request->get('product_id');
+        $sku = $request->get('sku');
+        $groupBy = $request->get('group_by', 'product');
+
+        // Build query
+        $query = OrderItem::select(
+                'order_items.*',
+                'orders.order_number',
+                'orders.order_date',
+                'orders.sales_channel_id',
+                'orders.payment_status',
+                'orders.order_status'
+            )
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->where('orders.payment_status', 'paid')
+            ->where('order_items.inventory_updated', true);
+
+        if ($channelId) {
+            $query->where('orders.sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $query->where('orders.order_status', $orderStatus);
+        }
+
+        if ($productId) {
+            $query->where('order_items.product_id', $productId);
+        }
+
+        if ($sku) {
+            $query->where('order_items.sku', 'like', '%' . $sku . '%');
+        }
+
+        $orderItems = $query->with(['order.salesChannel', 'product'])->get();
+
+        // Calculate summary
+        $summary = [
+            'total_items_sold' => $orderItems->sum('quantity'),
+            'total_revenue' => $orderItems->sum('total_price'),
+            'total_cogs' => $orderItems->sum(function ($item) {
+                return ($item->cost_at_sale ?? 0) * $item->quantity;
+            }),
+        ];
+
+        $summary['gross_profit'] = $summary['total_revenue'] - $summary['total_cogs'];
+        $summary['gross_margin'] = $summary['total_revenue'] > 0
+            ? ($summary['gross_profit'] / $summary['total_revenue']) * 100
+            : 0;
+
+        // Group data
+        if ($groupBy === 'product') {
+            $reportData = $this->groupCogsByProduct($orderItems);
+        } elseif ($groupBy === 'channel') {
+            $reportData = $this->groupCogsByChannel($orderItems);
+        } elseif ($groupBy === 'date') {
+            $reportData = $this->groupCogsByDate($orderItems);
+        } else {
+            $reportData = $this->groupCogsByOrder($orderItems);
+        }
+
+        // Sort by gross profit
+        $reportData = $reportData->sortByDesc(function ($item) {
+            return $item['gross_profit'] ?? 0;
+        })->values();
+
+        $export = new \App\Exports\GrossProfitReportExport($reportData->toArray(), $summary, $groupBy);
+
+        return Excel::download($export, 'gross-profit-report-' . now()->format('Y-m-d') . '.xlsx');
+    }
+
+    /**
+     * Comparison Report (COGS vs Gross Profit)
+     */
+    public function comparisonReport(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $orderStatus = $request->get('order_status');
+        $productId = $request->get('product_id');
+        $sku = $request->get('sku');
+        $groupBy = $request->get('group_by', 'product');
+
+        // Get filter options
+        $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
+        $products = Product::where('delete_status', '0')->orderBy('name')->get();
+
+        // Build order items query
+        $query = OrderItem::select(
+                'order_items.*',
+                'orders.order_number',
+                'orders.order_date',
+                'orders.sales_channel_id',
+                'orders.payment_status',
+                'orders.order_status'
+            )
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->where('order_items.inventory_updated', true);
+
+        if ($channelId) {
+            $query->where('orders.sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $query->where('orders.order_status', $orderStatus);
+        }
+
+        if ($productId) {
+            $query->where('order_items.product_id', $productId);
+        }
+
+        if ($sku) {
+            $query->where('order_items.sku', 'like', '%' . $sku . '%');
+        }
+
+        $orderItems = $query->with(['order.salesChannel', 'product'])->get();
+
+        // Calculate summary (all orders)
+        $summary = [
+            'total_items_sold' => $orderItems->sum('quantity'),
+            'total_revenue' => $orderItems->sum('total_price'),
+            'total_cogs' => $orderItems->sum(function ($item) {
+                return ($item->cost_at_sale ?? 0) * $item->quantity;
+            }),
+        ];
+
+        $summary['gross_profit'] = $summary['total_revenue'] - $summary['total_cogs'];
+        $summary['gross_margin'] = $summary['total_revenue'] > 0
+            ? ($summary['gross_profit'] / $summary['total_revenue']) * 100
+            : 0;
+
+        // Calculate paid orders summary
+        $paidItems = $orderItems->filter(function ($item) {
+            return $item->order->payment_status === 'paid';
+        });
+
+        $paidSummary = [
+            'total_items_sold' => $paidItems->sum('quantity'),
+            'total_revenue' => $paidItems->sum('total_price'),
+            'total_cogs' => $paidItems->sum(function ($item) {
+                return ($item->cost_at_sale ?? 0) * $item->quantity;
+            }),
+        ];
+
+        $paidSummary['gross_profit'] = $paidSummary['total_revenue'] - $paidSummary['total_cogs'];
+        $paidSummary['gross_margin'] = $paidSummary['total_revenue'] > 0
+            ? ($paidSummary['gross_profit'] / $paidSummary['total_revenue']) * 100
+            : 0;
+
+        // Build grouped comparison data
+        $reportDataCollection = collect();
+
+        if ($groupBy === 'product') {
+            $reportDataCollection = $this->groupCogsByProduct($orderItems);
+        } elseif ($groupBy === 'channel') {
+            $reportDataCollection = $this->groupCogsByChannel($orderItems);
+        } elseif ($groupBy === 'date') {
+            $reportDataCollection = $this->groupCogsByDate($orderItems);
+        } elseif ($groupBy === 'order') {
+            $reportDataCollection = $this->groupCogsByOrder($orderItems);
+        }
+
+        // Paginate grouped data with custom page name
+        $perPage = 50;
+        $currentPage = request()->get('grouped_page', 1);
+        $reportData = new \Illuminate\Pagination\LengthAwarePaginator(
+            $reportDataCollection->forPage($currentPage, $perPage),
+            $reportDataCollection->count(),
+            $perPage,
+            $currentPage,
+            ['path' => request()->url(), 'query' => request()->query(), 'pageName' => 'grouped_page']
+        );
+
+        return view('reports.comparison-report', compact(
+            'reportData',
+            'summary',
+            'paidSummary',
+            'salesChannels',
+            'products',
+            'dateFrom',
+            'dateTo',
+            'channelId',
+            'orderStatus',
+            'productId',
+            'sku',
+            'groupBy'
+        ));
+    }
+
+    /**
+     * Export Comparison Report to Excel
+     */
+    public function exportComparisonReport(Request $request)
+    {
+        // Get same filters
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $orderStatus = $request->get('order_status');
+        $productId = $request->get('product_id');
+        $sku = $request->get('sku');
+        $groupBy = $request->get('group_by', 'product');
+
+        // Build query
+        $query = OrderItem::select(
+                'order_items.*',
+                'orders.order_number',
+                'orders.order_date',
+                'orders.sales_channel_id',
+                'orders.payment_status',
+                'orders.order_status'
+            )
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->where('order_items.inventory_updated', true);
+
+        if ($channelId) {
+            $query->where('orders.sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $query->where('orders.order_status', $orderStatus);
+        }
+
+        if ($productId) {
+            $query->where('order_items.product_id', $productId);
+        }
+
+        if ($sku) {
+            $query->where('order_items.sku', 'like', '%' . $sku . '%');
+        }
+
+        $orderItems = $query->with(['order.salesChannel', 'product'])->get();
+
+        // Calculate summary
+        $summary = [
+            'total_items_sold' => $orderItems->sum('quantity'),
+            'total_revenue' => $orderItems->sum('total_price'),
+            'total_cogs' => $orderItems->sum(function ($item) {
+                return ($item->cost_at_sale ?? 0) * $item->quantity;
+            }),
+        ];
+
+        $summary['gross_profit'] = $summary['total_revenue'] - $summary['total_cogs'];
+        $summary['gross_margin'] = $summary['total_revenue'] > 0
+            ? ($summary['gross_profit'] / $summary['total_revenue']) * 100
+            : 0;
+
+        // Group data
+        if ($groupBy === 'product') {
+            $reportData = $this->groupCogsByProduct($orderItems);
+        } elseif ($groupBy === 'channel') {
+            $reportData = $this->groupCogsByChannel($orderItems);
+        } elseif ($groupBy === 'date') {
+            $reportData = $this->groupCogsByDate($orderItems);
+        } else {
+            $reportData = $this->groupCogsByOrder($orderItems);
+        }
+
+        $export = new \App\Exports\ComparisonReportExport($reportData->toArray(), $summary, $groupBy);
+
+        return Excel::download($export, 'comparison-report-' . now()->format('Y-m-d') . '.xlsx');
+    }
 }

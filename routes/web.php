@@ -319,5 +319,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports/out-of-stock/export', [ReportController::class, 'exportOutOfStock'])->name('reports.out-of-stock.export');
     Route::get('reports/slow-moving-items/export', [ReportController::class, 'exportSlowMovingItems'])->name('reports.slow-moving-items.export');
     Route::get('reports/frequently-ordered-items/export', [ReportController::class, 'exportFrequentlyOrderedItems'])->name('reports.frequently-ordered-items.export');
+    Route::get('reports/cogs', [ReportController::class, 'cogsReport'])->name('reports.cogs');
+    Route::get('reports/cogs/export', [ReportController::class, 'exportCogsReport'])->name('reports.cogs.export');
+    Route::get('reports/gross-profit', [ReportController::class, 'grossProfitReport'])->name('reports.gross-profit');
+    Route::get('reports/gross-profit/export', [ReportController::class, 'exportGrossProfitReport'])->name('reports.gross-profit.export');
+    Route::get('reports/comparison', [ReportController::class, 'comparisonReport'])->name('reports.comparison');
+    Route::get('reports/comparison/export', [ReportController::class, 'exportComparisonReport'])->name('reports.comparison.export');
 });
 
