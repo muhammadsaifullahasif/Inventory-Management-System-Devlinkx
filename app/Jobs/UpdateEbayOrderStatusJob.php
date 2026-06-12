@@ -297,12 +297,12 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
             $changes[] = 'payment_status changed to refunded';
             $result['refunded'] = true;
 
-            // Restore inventory for refunded orders
-            foreach ($localOrder->items as $item) {
-                if ($item->inventory_updated) {
-                    $item->restoreInventory();
-                }
-            }
+            // NOTE: Inventory NOT restored for refunds
+            // foreach ($localOrder->items as $item) {
+            //     if ($item->inventory_updated) {
+            //         $item->restoreInventory();
+            //     }
+            // }
         }
 
         // Check for fulfillment status changes (shipped)

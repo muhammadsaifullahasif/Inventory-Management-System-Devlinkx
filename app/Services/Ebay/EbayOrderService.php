@@ -1509,12 +1509,12 @@ class EbayOrderService
                     'payment_status' => 'refunded',
                 ]);
 
-                // Restore inventory for refunded returns
-                foreach ($order->items as $item) {
-                    if ($item->inventory_updated) {
-                        $item->restoreInventory();
-                    }
-                }
+                // NOTE: Inventory NOT restored for refunds
+                // foreach ($order->items as $item) {
+                //     if ($item->inventory_updated) {
+                //         $item->restoreInventory();
+                //     }
+                // }
             }
 
             $order->setMeta('event_log_' . time(), [

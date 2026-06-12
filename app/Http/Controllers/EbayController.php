@@ -1718,12 +1718,12 @@ class EbayController extends Controller
                         'amount' => $amount,
                     ]);
 
-                    // Restore inventory
-                    foreach ($order->items as $item) {
-                        if ($item->inventory_updated) {
-                            $item->restoreInventory();
-                        }
-                    }
+                    // NOTE: Inventory NOT restored for refunds
+                    // foreach ($order->items as $item) {
+                    //     if ($item->inventory_updated) {
+                    //         $item->restoreInventory();
+                    //     }
+                    // }
                 }
             }
 
@@ -1953,12 +1953,12 @@ class EbayController extends Controller
                         'refund_id' => $result['refund_id'] ?? '',
                     ]);
 
-                    // Restore inventory
-                    foreach ($order->items as $item) {
-                        if ($item->inventory_updated) {
-                            $item->restoreInventory();
-                        }
-                    }
+                    // NOTE: Inventory NOT restored for refunds
+                    // foreach ($order->items as $item) {
+                    //     if ($item->inventory_updated) {
+                    //         $item->restoreInventory();
+                    //     }
+                    // }
                 }
             }
 
@@ -2115,14 +2115,16 @@ class EbayController extends Controller
             // Record the refund
             $order->recordPartialRefund($amount);
 
-            // If full refund, restore inventory
-            if (!$isPartial || $order->isRefunded()) {
-                foreach ($order->items as $item) {
-                    if ($item->inventory_updated) {
-                        $item->restoreInventory();
-                    }
-                }
+            // NOTE: Inventory NOT restored for refunds
+            // if (!$isPartial || $order->isRefunded()) {
+            //     foreach ($order->items as $item) {
+            //         if ($item->inventory_updated) {
+            //             $item->restoreInventory();
+            //         }
+            //     }
+            // }
 
+            if (!$isPartial || $order->isRefunded()) {
                 $order->update(['order_status' => 'refunded']);
             }
 
