@@ -342,7 +342,7 @@
                                     <td><span class="fs-12 text-muted">{{ $item->order->order_date ? $item->order->order_date->format('M d, Y') : '-' }}</span></td>
                                     <td class="fw-semibold">{{ $item->order->order_number }}</td>
                                     <td>{{ $item->product->name ?? $item->title }}</td>
-                                    <td><code>{{ $item->sku }}</code></td>
+                                    <td><a href="{{ route('products.show', $item->product_id) }}"><code>{{ $item->sku }}</code></a></td>
                                     <td class="text-center">{{ $item->quantity }}</td>
                                     <td class="text-end">{{ number_format($item->cost_at_sale ?? 0, 2) }}</td>
                                     <td class="text-end text-danger">{{ number_format(($item->cost_at_sale ?? 0) * $item->quantity, 2) }}</td>

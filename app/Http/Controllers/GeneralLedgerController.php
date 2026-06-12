@@ -51,9 +51,9 @@ class GeneralLedgerController extends Controller
                         ->where('entry_date', '<=', $dateTo);
                 })
                 ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
-                ->orderBy('journal_entries.entry_date')
-                ->orderBy('journal_entry_lines.journal_entry_id')
-                ->orderBy('journal_entry_lines.id')
+                ->orderBy('journal_entries.entry_date', 'desc')
+                ->orderBy('journal_entries.created_at', 'desc')
+                ->orderBy('journal_entry_lines.id', 'desc')
                 ->select('journal_entry_lines.*')
                 ->get();
 
@@ -127,8 +127,9 @@ class GeneralLedgerController extends Controller
                 }
             })
             ->join('journal_entries', 'journal_entries.id', '=', 'journal_entry_lines.journal_entry_id')
-            ->orderBy('journal_entries.entry_date')
-            ->orderBy('journal_entry_lines.id')
+            ->orderBy('journal_entries.entry_date', 'desc')
+            ->orderBy('journal_entries.created_at', 'desc')
+            ->orderBy('journal_entry_lines.id', 'desc')
             ->select('journal_entry_lines.*')
             ->get();
     }

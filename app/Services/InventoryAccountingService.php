@@ -807,6 +807,28 @@ class InventoryAccountingService
     }
 
     /**
+     * Get the last purchase cost for a product from purchase history
+     *
+     * @param int $productId The product ID
+     * @return float The last purchase cost, or 0 if not found
+     */
+    public function getLastPurchaseCost(int $productId): float
+    {
+        $lastPurchaseItem = PurchaseItem::where('product_id', $productId)
+            ->whereHas('purchase', function ($q) {
+                $q->whereIn('purchase_status', ['received', 'partial']);
+            })
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if ($lastPurchaseItem) {
+            return (float) ($lastPurchaseItem->price ?? 0);
+        }
+
+        return 0;
+    }
+
+    /**
      * Get the current weighted average cost for a product
      *
      * @param int $productId The product ID
@@ -827,7 +849,8 @@ class InventoryAccountingService
         }
 
         if ($totalQty <= 0) {
-            return 0;
+            // Fallback to last purchase cost when no stock available
+            return $this->getLastPurchaseCost($productId);
         }
 
         return round($totalValue / $totalQty, 4);

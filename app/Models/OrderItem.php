@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\ProductController;
 use App\Services\InventoryAccountingService;
 
@@ -89,9 +90,30 @@ class OrderItem extends Model
             return true; // Already updated
         }
 
-        // Skip bundle summary items (they're for display only)
+        // Handle bundle summary items
         if ($this->is_bundle_summary) {
-            $this->update(['inventory_updated' => true]);
+            // First, ensure all components have their inventory updated and costs calculated
+            $components = OrderItem::where('order_id', $this->order_id)
+                ->where('bundle_product_id', $this->product_id)
+                ->where('is_bundle_summary', false)
+                ->get();
+
+            foreach ($components as $component) {
+                if (!$component->inventory_updated) {
+                    $component->updateInventory();
+                }
+            }
+
+            // Calculate bundle cost from sum of component costs
+            $componentCost = OrderItem::where('order_id', $this->order_id)
+                ->where('bundle_product_id', $this->product_id)
+                ->where('is_bundle_summary', false)
+                ->sum(DB::raw('COALESCE(cost_at_sale, 0) * quantity'));
+
+            $this->update([
+                'inventory_updated' => true,
+                'cost_at_sale' => $componentCost / max(1, $this->quantity), // Per-unit cost
+            ]);
             return true;
         }
 
