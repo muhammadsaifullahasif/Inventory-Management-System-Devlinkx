@@ -2989,22 +2989,23 @@ class ReportController extends Controller
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
-        // Calculate summary - refunded/cancelled orders contribute $0 to totals
+        // Calculate summary - refunded/cancelled orders, and bundle component lines
+        // (already rolled into the bundle summary line's cost), contribute $0 to totals
         $summary = [
             'total_items_sold' => $orderItems->sum(function ($item) {
-                return $this->isOrderItemRefunded($item) ? 0 : $item->quantity;
+                return ($this->isOrderItemRefunded($item) || $this->isBundleComponentItem($item)) ? 0 : $item->quantity;
             }),
             'total_cogs' => $orderItems->sum(function ($item) {
-                return $this->isOrderItemRefunded($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
+                return ($this->isOrderItemRefunded($item) || $this->isBundleComponentItem($item)) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
             'total_revenue' => $orderItems->sum(function ($item) {
                 return $this->isOrderItemRefunded($item) ? 0 : $item->total_price;
             }),
             'items_with_cogs' => $orderItems->filter(function ($item) {
-                return !$this->isOrderItemRefunded($item) && $item->cost_at_sale > 0;
+                return !$this->isOrderItemRefunded($item) && !$this->isBundleComponentItem($item) && $item->cost_at_sale > 0;
             })->count(),
             'items_without_cogs' => $orderItems->filter(function ($item) {
-                return !$this->isOrderItemRefunded($item) && $item->cost_at_sale <= 0;
+                return !$this->isOrderItemRefunded($item) && !$this->isBundleComponentItem($item) && $item->cost_at_sale <= 0;
             })->count(),
             'refunded_items_count' => $orderItems->filter(function ($item) {
                 return $this->isOrderItemRefunded($item);
@@ -3108,6 +3109,17 @@ class ReportController extends Controller
     }
 
     /**
+     * Bundle component lines carry their own cost_at_sale, but that cost is
+     * already rolled up into the bundle summary line's cost_at_sale (see
+     * OrderItem::updateInventory). Counting components too would double the
+     * COGS for any order containing a bundle.
+     */
+    protected function isBundleComponentItem($item): bool
+    {
+        return !is_null($item->bundle_product_id) && !$item->is_bundle_summary;
+    }
+
+    /**
      * Group COGS by product
      */
     protected function groupCogsByProduct($orderItems)
@@ -3131,8 +3143,8 @@ class ReportController extends Controller
                 ];
             }
 
-            if ($this->isOrderItemRefunded($item)) {
-                continue; // Refunded/cancelled - $0 contribution
+            if ($this->isOrderItemRefunded($item) || $this->isBundleComponentItem($item)) {
+                continue; // Refunded/cancelled, or a bundle component whose cost is already rolled into the summary line - $0 contribution
             }
 
             $itemCogs = ($item->cost_at_sale ?? 0) * $item->quantity;
@@ -3179,8 +3191,8 @@ class ReportController extends Controller
                 ];
             }
 
-            if ($this->isOrderItemRefunded($item)) {
-                continue; // Refunded/cancelled - $0 contribution
+            if ($this->isOrderItemRefunded($item) || $this->isBundleComponentItem($item)) {
+                continue; // Refunded/cancelled, or a bundle component whose cost is already rolled into the summary line - $0 contribution
             }
 
             $itemCogs = ($item->cost_at_sale ?? 0) * $item->quantity;
@@ -3222,8 +3234,8 @@ class ReportController extends Controller
                 ];
             }
 
-            if ($this->isOrderItemRefunded($item)) {
-                continue; // Refunded/cancelled - $0 contribution
+            if ($this->isOrderItemRefunded($item) || $this->isBundleComponentItem($item)) {
+                continue; // Refunded/cancelled, or a bundle component whose cost is already rolled into the summary line - $0 contribution
             }
 
             $itemCogs = ($item->cost_at_sale ?? 0) * $item->quantity;
@@ -3257,6 +3269,7 @@ class ReportController extends Controller
             $orderDate = $item->order->order_date;
 
             $isRefunded = $this->isOrderItemRefunded($item);
+            $isBundleComponent = $this->isBundleComponentItem($item);
 
             if (!isset($grouped[$orderId])) {
                 $grouped[$orderId] = [
@@ -3272,6 +3285,11 @@ class ReportController extends Controller
             }
 
             // Items count stays informational even for refunded orders; $ contribution is zeroed.
+            // Bundle components are skipped entirely - their cost/qty is already represented by the summary line.
+            if ($isBundleComponent) {
+                continue;
+            }
+
             $grouped[$orderId]['items_count'] += (int) $item->quantity;
 
             if (!$isRefunded) {
@@ -3342,13 +3360,14 @@ class ReportController extends Controller
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
-        // Calculate summary - refunded/cancelled orders contribute $0 to totals
+        // Calculate summary - refunded/cancelled orders, and bundle component lines
+        // (already rolled into the bundle summary line's cost), contribute $0 to totals
         $summary = [
             'total_items_sold' => $orderItems->sum(function ($item) {
-                return $this->isOrderItemRefunded($item) ? 0 : $item->quantity;
+                return ($this->isOrderItemRefunded($item) || $this->isBundleComponentItem($item)) ? 0 : $item->quantity;
             }),
             'total_cogs' => $orderItems->sum(function ($item) {
-                return $this->isOrderItemRefunded($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
+                return ($this->isOrderItemRefunded($item) || $this->isBundleComponentItem($item)) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
             'total_revenue' => $orderItems->sum(function ($item) {
                 return $this->isOrderItemRefunded($item) ? 0 : $item->total_price;
@@ -3428,10 +3447,12 @@ class ReportController extends Controller
 
         // Calculate summary
         $summary = [
-            'total_items_sold' => $orderItems->sum('quantity'),
+            'total_items_sold' => $orderItems->sum(function ($item) {
+                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+            }),
             'total_revenue' => $orderItems->sum('total_price'),
             'total_cogs' => $orderItems->sum(function ($item) {
-                return ($item->cost_at_sale ?? 0) * $item->quantity;
+                return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
         ];
 
@@ -3572,10 +3593,12 @@ class ReportController extends Controller
 
         // Calculate summary
         $summary = [
-            'total_items_sold' => $orderItems->sum('quantity'),
+            'total_items_sold' => $orderItems->sum(function ($item) {
+                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+            }),
             'total_revenue' => $orderItems->sum('total_price'),
             'total_cogs' => $orderItems->sum(function ($item) {
-                return ($item->cost_at_sale ?? 0) * $item->quantity;
+                return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
         ];
 
@@ -3656,10 +3679,12 @@ class ReportController extends Controller
 
         // Calculate summary (all orders)
         $summary = [
-            'total_items_sold' => $orderItems->sum('quantity'),
+            'total_items_sold' => $orderItems->sum(function ($item) {
+                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+            }),
             'total_revenue' => $orderItems->sum('total_price'),
             'total_cogs' => $orderItems->sum(function ($item) {
-                return ($item->cost_at_sale ?? 0) * $item->quantity;
+                return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
         ];
 
@@ -3674,10 +3699,12 @@ class ReportController extends Controller
         });
 
         $paidSummary = [
-            'total_items_sold' => $paidItems->sum('quantity'),
+            'total_items_sold' => $paidItems->sum(function ($item) {
+                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+            }),
             'total_revenue' => $paidItems->sum('total_price'),
             'total_cogs' => $paidItems->sum(function ($item) {
-                return ($item->cost_at_sale ?? 0) * $item->quantity;
+                return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
         ];
 
@@ -3774,10 +3801,12 @@ class ReportController extends Controller
 
         // Calculate summary
         $summary = [
-            'total_items_sold' => $orderItems->sum('quantity'),
+            'total_items_sold' => $orderItems->sum(function ($item) {
+                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+            }),
             'total_revenue' => $orderItems->sum('total_price'),
             'total_cogs' => $orderItems->sum(function ($item) {
-                return ($item->cost_at_sale ?? 0) * $item->quantity;
+                return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
         ];
 
