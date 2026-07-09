@@ -235,7 +235,13 @@
                             @forelse ($reportData as $item)
                                 <tr>
                                     @if ($groupBy === 'product')
-                                        <td class="fw-semibold">{{ $item['name'] }}</td>
+                                        <td class="fw-semibold">
+                                            @if(!empty($item['product_id']))
+                                                <a href="{{ route('products.show', $item['product_id']) }}">{{ $item['name'] }}</a>
+                                            @else
+                                                {{ $item['name'] }}
+                                            @endif
+                                        </td>
                                         <td>
                                             @if(!empty($item['product_id']))
                                                 <a href="{{ route('products.show', $item['product_id']) }}"><code>{{ $item['sku'] ?? '-' }}</code></a>
