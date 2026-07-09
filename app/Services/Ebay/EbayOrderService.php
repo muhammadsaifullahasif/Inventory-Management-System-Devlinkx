@@ -753,6 +753,21 @@ class EbayOrderService
             $this->saveOrderItemFromNotification($order, $transaction, $item);
             $this->saveOrderMetaFromNotification($order, $transaction, $response);
 
+            // eBay sends one notification per transaction (line item), so $subtotal above
+            // only reflects the current transaction. Recompute from all saved order items
+            // so multi-line-item orders don't end up with just the last item's price.
+            $newSubtotal = round((float) $order->items()
+                ->where(function ($q) {
+                    $q->whereNull('bundle_product_id')
+                        ->orWhere('is_bundle_summary', true);
+                })
+                ->sum('total_price'), 2);
+
+            $order->update([
+                'subtotal' => $newSubtotal,
+                'total' => round($newSubtotal + $order->shipping_cost + $order->tax - $order->discount, 2),
+            ]);
+
             DB::commit();
 
             // Validate shipping address for new orders if a carrier has it enabled
