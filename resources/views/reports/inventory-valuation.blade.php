@@ -195,7 +195,7 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0 sortable-table">
                         <thead>
                             <tr>
                                 <th>{{ ucfirst($groupBy) }}</th>
@@ -266,7 +266,7 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0 sortable-table">
                         <thead>
                             <tr>
                                 <th>Product</th>

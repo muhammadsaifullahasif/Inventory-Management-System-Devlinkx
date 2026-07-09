@@ -192,7 +192,7 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0 sortable-table">
                         <thead>
                             <tr>
                                 @if ($groupBy === 'product')
@@ -332,7 +332,7 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0 sortable-table">
                         <thead>
                             <tr>
                                 <th>Date</th>

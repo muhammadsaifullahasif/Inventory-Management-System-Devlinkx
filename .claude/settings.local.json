@@ -16,7 +16,8 @@
       "Bash(Get-Content storage/logs/laravel.log -Tail 100)",
       "Bash(Select-String -Pattern \"eBay|Error|error|Exception\" -Context 2,5)",
       "Bash(if not exist \"D:\\\\Laravel\\\\inventoryManagementSystem\\\\app\\\\Exports\" mkdir \"D:\\\\Laravel\\\\inventoryManagementSystem\\\\app\\\\Exports\")",
-      "Skill(caveman)"
+      "Skill(caveman)",
+      "Bash(php artisan *)"
     ]
   }
 }

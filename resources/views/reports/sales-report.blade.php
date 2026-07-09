@@ -272,7 +272,7 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0 sortable-table">
                         <thead>
                             <tr>
                                 @if ($groupBy === 'date')
@@ -368,7 +368,7 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0 sortable-table">
                         <thead>
                             <tr>
                                 <th>Date</th>
@@ -379,7 +379,7 @@
                                 <th class="text-end">Total</th>
                                 <th class="text-center">Payment</th>
                                 <th class="text-center">Status</th>
-                                <th class="text-center">Actions</th>
+                                <th class="text-center no-sort">Actions</th>
                             </tr>
                         </thead>
                         <tbody>

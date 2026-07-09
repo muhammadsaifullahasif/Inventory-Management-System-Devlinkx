@@ -301,6 +301,7 @@
     <!--! BEGIN: Theme Customizer  !-->
     <script src="{{ asset('js/theme-customizer-init.min.js') }}"></script>
     <!--! END: Theme Customizer !-->
+    <script src="{{ asset('js/sortable-table.js') }}"></script>
 	
 	{{-- <!-- jQuery -->
 	<script src="{{ asset('plugins/jquery/jquery.min.js') }}"></script>

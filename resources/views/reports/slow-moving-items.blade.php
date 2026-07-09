@@ -196,11 +196,11 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0" id="slowMovingStockTable">
+                    <table class="table table-hover mb-0 sortable-table" id="slowMovingStockTable">
                         <thead>
                             <tr>
                                 <th data-column="id">#</th>
-                                <th data-column="image">Image</th>
+                                <th data-column="image" class="no-sort">Image</th>
                                 <th data-column="product" style="max-width: 200px;">Product</th>
                                 <th data-column="sku">SKU</th>
                                 <th data-column="category">Category</th>
