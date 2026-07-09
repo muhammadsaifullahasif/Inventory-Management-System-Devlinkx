@@ -373,6 +373,7 @@
                             <tr>
                                 @include('partials.sortable-th', ['column' => 'date', 'label' => 'Date', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
                                 @include('partials.sortable-th', ['column' => 'order_number', 'label' => 'Order #', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                <th>eBay Order ID</th>
                                 @include('partials.sortable-th', ['column' => 'channel', 'label' => 'Channel', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
                                 @include('partials.sortable-th', ['column' => 'buyer', 'label' => 'Buyer', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
                                 @include('partials.sortable-th', ['column' => 'items', 'label' => 'Items', 'class' => 'text-center', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
@@ -386,7 +387,10 @@
                             @forelse ($orders as $order)
                                 <tr>
                                     <td><span class="fs-12 text-muted">{{ $order->order_date ? $order->order_date->format('M d, Y') : '-' }}</span></td>
-                                    <td class="fw-semibold">{{ $order->order_number }}</td>
+                                    <td class="fw-semibold">
+                                        <a href="{{ route('orders.show', $order->id) }}">{{ $order->order_number }}</a>
+                                    </td>
+                                    <td>{{ $order->ebay_order_id ?? '-' }}</td>
                                     <td>{{ $order->salesChannel->name ?? 'Direct' }}</td>
                                     <td>{{ $order->buyer_name ?? $order->buyer_username ?? '-' }}</td>
                                     <td class="text-center">
@@ -429,7 +433,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center py-4 text-muted">
+                                    <td colspan="10" class="text-center py-4 text-muted">
                                         No orders found.
                                     </td>
                                 </tr>

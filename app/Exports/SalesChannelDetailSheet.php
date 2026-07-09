@@ -34,6 +34,7 @@ class SalesChannelDetailSheet implements FromArray, WithHeadings, WithStyles, Sh
         $rows[] = [
             'Order Date',
             'Order Number',
+            'eBay Order ID',
             'Customer',
             'Items',
             'Subtotal',
@@ -43,6 +44,7 @@ class SalesChannelDetailSheet implements FromArray, WithHeadings, WithStyles, Sh
             'Total',
             'Payment Status',
             'Order Status',
+            'Order Link',
         ];
 
         // Orders
@@ -73,6 +75,7 @@ class SalesChannelDetailSheet implements FromArray, WithHeadings, WithStyles, Sh
             $rows[] = [
                 $order->order_date->format('M d, Y'),
                 $order->order_number,
+                $order->ebay_order_id ?? '-',
                 $customerName,
                 $itemCount,
                 number_format($subtotal, 2),
@@ -82,11 +85,13 @@ class SalesChannelDetailSheet implements FromArray, WithHeadings, WithStyles, Sh
                 number_format($total, 2),
                 ucfirst($order->payment_status),
                 ucfirst($order->order_status),
+                route('orders.show', $order->id),
             ];
         }
 
         // Totals row (only for paid orders)
         $rows[] = [
+            '',
             '',
             '',
             'PAID TOTALS:',
@@ -96,6 +101,7 @@ class SalesChannelDetailSheet implements FromArray, WithHeadings, WithStyles, Sh
             number_format($totalTax, 2),
             number_format($totalDiscount, 2),
             number_format($totalAmount, 2),
+            '',
             '',
             '',
         ];
