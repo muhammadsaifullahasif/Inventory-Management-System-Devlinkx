@@ -367,8 +367,9 @@
                         <tbody>
                             @forelse ($paginatedItems as $item)
                                 @php
+                                    $isCancelled = $item->order_status === 'cancelled';
                                     $isRefunded = in_array($item->order_status, ['cancelled', 'refunded']) || $item->payment_status === 'refunded';
-                                    $itemCogs = $isRefunded ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
+                                    $itemCogs = $isCancelled ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
                                     $itemRevenue = $isRefunded ? 0 : (float) $item->total_price;
                                 @endphp
                                 <tr class="{{ $isRefunded ? 'text-muted' : '' }}">

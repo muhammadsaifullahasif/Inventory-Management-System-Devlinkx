@@ -22,8 +22,9 @@ class CogsReportDetailSheet implements FromArray, WithHeadings, WithStyles, With
         $rows = [];
 
         foreach ($this->orderItems as $item) {
+            $isCancelled = $item->order_status === 'cancelled';
             $isRefunded = in_array($item->order_status, ['cancelled', 'refunded']) || $item->payment_status === 'refunded';
-            $itemCogs = $isRefunded ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
+            $itemCogs = $isCancelled ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             $itemRevenue = $isRefunded ? 0 : (float) $item->total_price;
 
             $rows[] = [
