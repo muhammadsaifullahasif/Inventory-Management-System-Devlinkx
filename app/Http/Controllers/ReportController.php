@@ -2962,7 +2962,14 @@ class ReportController extends Controller
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
-            ->where('order_items.inventory_updated', true); // Only items with COGS recorded
+            ->where(function ($q) {
+                // Items with COGS recorded, OR items belonging to a cancelled/refunded
+                // order (inventory may have been restored, wiping inventory_updated) -
+                // keep these visible so the report doesn't silently drop refunded sales.
+                $q->where('order_items.inventory_updated', true)
+                    ->orWhereIn('orders.order_status', ['cancelled', 'refunded'])
+                    ->orWhere('orders.payment_status', 'refunded');
+            });
 
         if ($channelId) {
             $query->where('orders.sales_channel_id', $channelId);
@@ -2982,15 +2989,29 @@ class ReportController extends Controller
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
-        // Calculate summary
+        // Calculate summary - refunded/cancelled orders contribute $0 to totals
         $summary = [
-            'total_items_sold' => $orderItems->sum('quantity'),
-            'total_cogs' => $orderItems->sum(function ($item) {
-                return ($item->cost_at_sale ?? 0) * $item->quantity;
+            'total_items_sold' => $orderItems->sum(function ($item) {
+                return $this->isOrderItemRefunded($item) ? 0 : $item->quantity;
             }),
-            'total_revenue' => $orderItems->sum('total_price'),
-            'items_with_cogs' => $orderItems->where('cost_at_sale', '>', 0)->count(),
-            'items_without_cogs' => $orderItems->where('cost_at_sale', '<=', 0)->count(),
+            'total_cogs' => $orderItems->sum(function ($item) {
+                return $this->isOrderItemRefunded($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
+            }),
+            'total_revenue' => $orderItems->sum(function ($item) {
+                return $this->isOrderItemRefunded($item) ? 0 : $item->total_price;
+            }),
+            'items_with_cogs' => $orderItems->filter(function ($item) {
+                return !$this->isOrderItemRefunded($item) && $item->cost_at_sale > 0;
+            })->count(),
+            'items_without_cogs' => $orderItems->filter(function ($item) {
+                return !$this->isOrderItemRefunded($item) && $item->cost_at_sale <= 0;
+            })->count(),
+            'refunded_items_count' => $orderItems->filter(function ($item) {
+                return $this->isOrderItemRefunded($item);
+            })->sum('quantity'),
+            'refunded_orders_count' => $orderItems->filter(function ($item) {
+                return $this->isOrderItemRefunded($item);
+            })->pluck('order_id')->unique()->count(),
         ];
 
         $summary['gross_profit'] = $summary['total_revenue'] - $summary['total_cogs'];
@@ -3034,7 +3055,11 @@ class ReportController extends Controller
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
-            ->where('order_items.inventory_updated', true);
+            ->where(function ($q) {
+                $q->where('order_items.inventory_updated', true)
+                    ->orWhereIn('orders.order_status', ['cancelled', 'refunded'])
+                    ->orWhere('orders.payment_status', 'refunded');
+            });
 
         if ($channelId) {
             $paginatedQuery->where('orders.sales_channel_id', $channelId);
@@ -3073,6 +3098,16 @@ class ReportController extends Controller
     }
 
     /**
+     * Whether an order item belongs to a cancelled/refunded order and should
+     * contribute $0 to COGS/revenue/profit totals.
+     */
+    protected function isOrderItemRefunded($item): bool
+    {
+        return in_array($item->order_status, ['cancelled', 'refunded'])
+            || $item->payment_status === 'refunded';
+    }
+
+    /**
      * Group COGS by product
      */
     protected function groupCogsByProduct($orderItems)
@@ -3094,6 +3129,10 @@ class ReportController extends Controller
                     'avg_cost' => 0,
                     'avg_price' => 0,
                 ];
+            }
+
+            if ($this->isOrderItemRefunded($item)) {
+                continue; // Refunded/cancelled - $0 contribution
             }
 
             $itemCogs = ($item->cost_at_sale ?? 0) * $item->quantity;
@@ -3140,6 +3179,10 @@ class ReportController extends Controller
                 ];
             }
 
+            if ($this->isOrderItemRefunded($item)) {
+                continue; // Refunded/cancelled - $0 contribution
+            }
+
             $itemCogs = ($item->cost_at_sale ?? 0) * $item->quantity;
 
             $grouped[$channelId]['items_sold'] += (int) $item->quantity;
@@ -3179,6 +3222,10 @@ class ReportController extends Controller
                 ];
             }
 
+            if ($this->isOrderItemRefunded($item)) {
+                continue; // Refunded/cancelled - $0 contribution
+            }
+
             $itemCogs = ($item->cost_at_sale ?? 0) * $item->quantity;
 
             $grouped[$date]['items_sold'] += (int) $item->quantity;
@@ -3209,6 +3256,8 @@ class ReportController extends Controller
             $orderNumber = $item->order->order_number;
             $orderDate = $item->order->order_date;
 
+            $isRefunded = $this->isOrderItemRefunded($item);
+
             if (!isset($grouped[$orderId])) {
                 $grouped[$orderId] = [
                     'order_number' => $orderNumber,
@@ -3218,14 +3267,18 @@ class ReportController extends Controller
                     'items_count' => 0,
                     'total_cogs' => 0,
                     'total_revenue' => 0,
+                    'is_refunded' => $isRefunded,
                 ];
             }
 
-            $itemCogs = ($item->cost_at_sale ?? 0) * $item->quantity;
-
+            // Items count stays informational even for refunded orders; $ contribution is zeroed.
             $grouped[$orderId]['items_count'] += (int) $item->quantity;
-            $grouped[$orderId]['total_cogs'] += $itemCogs;
-            $grouped[$orderId]['total_revenue'] += (float) $item->total_price;
+
+            if (!$isRefunded) {
+                $itemCogs = ($item->cost_at_sale ?? 0) * $item->quantity;
+                $grouped[$orderId]['total_cogs'] += $itemCogs;
+                $grouped[$orderId]['total_revenue'] += (float) $item->total_price;
+            }
         }
 
         // Calculate margins
@@ -3265,7 +3318,11 @@ class ReportController extends Controller
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
-            ->where('order_items.inventory_updated', true);
+            ->where(function ($q) {
+                $q->where('order_items.inventory_updated', true)
+                    ->orWhereIn('orders.order_status', ['cancelled', 'refunded'])
+                    ->orWhere('orders.payment_status', 'refunded');
+            });
 
         if ($channelId) {
             $query->where('orders.sales_channel_id', $channelId);
@@ -3285,13 +3342,17 @@ class ReportController extends Controller
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
-        // Calculate summary
+        // Calculate summary - refunded/cancelled orders contribute $0 to totals
         $summary = [
-            'total_items_sold' => $orderItems->sum('quantity'),
-            'total_cogs' => $orderItems->sum(function ($item) {
-                return ($item->cost_at_sale ?? 0) * $item->quantity;
+            'total_items_sold' => $orderItems->sum(function ($item) {
+                return $this->isOrderItemRefunded($item) ? 0 : $item->quantity;
             }),
-            'total_revenue' => $orderItems->sum('total_price'),
+            'total_cogs' => $orderItems->sum(function ($item) {
+                return $this->isOrderItemRefunded($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
+            }),
+            'total_revenue' => $orderItems->sum(function ($item) {
+                return $this->isOrderItemRefunded($item) ? 0 : $item->total_price;
+            }),
         ];
 
         $summary['gross_profit'] = $summary['total_revenue'] - $summary['total_cogs'];

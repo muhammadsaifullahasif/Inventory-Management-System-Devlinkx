@@ -162,7 +162,12 @@
                                     <h4 class="mb-0 fw-bold {{ $summary['gross_profit'] >= 0 ? 'text-success' : 'text-danger' }}">
                                         {{ number_format($summary['gross_profit'], 2) }}
                                     </h4>
-                                    <small class="text-muted">{{ number_format($summary['gross_margin'], 1) }}% margin</small>
+                                    <small class="text-muted">
+                                        {{ number_format($summary['gross_margin'], 1) }}% margin
+                                        @if(($summary['refunded_orders_count'] ?? 0) > 0)
+                                            &middot; {{ $summary['refunded_orders_count'] }} refunded order(s) excluded
+                                        @endif
+                                    </small>
                                 </div>
                                 <div class="avatar-text avatar-md bg-info text-white rounded">
                                     <i class="feather-trending-up"></i>
@@ -270,7 +275,12 @@
                                             </span>
                                         </td>
                                     @else
-                                        <td class="fw-semibold">{{ $item['order_number'] }}</td>
+                                        <td class="fw-semibold">
+                                            {{ $item['order_number'] }}
+                                            @if($item['is_refunded'] ?? false)
+                                                <span class="badge bg-soft-warning text-warning ms-1">Refunded</span>
+                                            @endif
+                                        </td>
                                         <td>{{ $item['formatted_date'] }}</td>
                                         <td>{{ $item['channel'] }}</td>
                                         <td class="text-end">{{ number_format($item['items_count'], 0) }}</td>
@@ -338,17 +348,33 @@
                         </thead>
                         <tbody>
                             @forelse ($paginatedItems as $item)
-                                <tr>
+                                @php
+                                    $isRefunded = in_array($item->order_status, ['cancelled', 'refunded']) || $item->payment_status === 'refunded';
+                                    $itemCogs = $isRefunded ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
+                                    $itemRevenue = $isRefunded ? 0 : (float) $item->total_price;
+                                @endphp
+                                <tr class="{{ $isRefunded ? 'text-muted' : '' }}">
                                     <td><span class="fs-12 text-muted">{{ $item->order->order_date ? $item->order->order_date->format('M d, Y') : '-' }}</span></td>
-                                    <td class="fw-semibold">{{ $item->order->order_number }}</td>
-                                    <td>{{ $item->product->name ?? $item->title }}</td>
-                                    <td><a href="{{ route('products.show', $item->product_id) }}"><code>{{ $item->sku }}</code></a></td>
+                                    <td class="fw-semibold">
+                                        <a href="{{ route('orders.show', $item->order->id) }}">{{ $item->order->order_number }}</a>
+                                        @if($isRefunded)
+                                            <span class="badge bg-soft-warning text-warning ms-1">Refunded</span>
+                                        @endif
+                                    </td>
+                                    <td><span style="white-space: normal; width: 300px; display: block;">{{ $item->product->name ?? $item->title }}</span></td>
+                                    <td>
+                                        @if($item->product_id)
+                                            <a href="{{ route('products.show', $item->product_id) }}"><code>{{ $item->sku }}</code></a>
+                                        @else
+                                            <code>{{ $item->sku ?? '-' }}</code>
+                                        @endif
+                                    </td>
                                     <td class="text-center">{{ $item->quantity }}</td>
                                     <td class="text-end">{{ number_format($item->cost_at_sale ?? 0, 2) }}</td>
-                                    <td class="text-end text-danger">{{ number_format(($item->cost_at_sale ?? 0) * $item->quantity, 2) }}</td>
-                                    <td class="text-end text-success">{{ number_format($item->total_price, 2) }}</td>
-                                    <td class="text-end fw-semibold {{ ($item->total_price - (($item->cost_at_sale ?? 0) * $item->quantity)) >= 0 ? 'text-success' : 'text-danger' }}">
-                                        {{ number_format($item->total_price - (($item->cost_at_sale ?? 0) * $item->quantity), 2) }}
+                                    <td class="text-end {{ $isRefunded ? '' : 'text-danger' }}">{{ number_format($itemCogs, 2) }}</td>
+                                    <td class="text-end {{ $isRefunded ? '' : 'text-success' }}">{{ number_format($itemRevenue, 2) }}</td>
+                                    <td class="text-end fw-semibold {{ $isRefunded ? '' : (($itemRevenue - $itemCogs) >= 0 ? 'text-success' : 'text-danger') }}">
+                                        {{ number_format($itemRevenue - $itemCogs, 2) }}
                                     </td>
                                 </tr>
                             @empty

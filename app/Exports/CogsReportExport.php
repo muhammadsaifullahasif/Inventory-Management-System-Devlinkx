@@ -78,6 +78,7 @@ class CogsReportExport implements FromArray, WithHeadings, WithStyles, WithTitle
                     number_format($item['total_revenue'], 2),
                     number_format($item['gross_profit'], 2),
                     number_format($item['gross_margin'], 2) . '%',
+                    ($item['is_refunded'] ?? false) ? 'Refunded' : 'Completed',
                 ];
             }
 
@@ -96,7 +97,7 @@ class CogsReportExport implements FromArray, WithHeadings, WithStyles, WithTitle
         } elseif ($this->groupBy === 'date') {
             return ['Date', 'Items Sold', 'Total COGS', 'Total Revenue', 'Gross Profit', 'Margin %'];
         } else { // order
-            return ['Order #', 'Date', 'Channel', 'Items', 'Total COGS', 'Total Revenue', 'Gross Profit', 'Margin %'];
+            return ['Order #', 'Date', 'Channel', 'Items', 'Total COGS', 'Total Revenue', 'Gross Profit', 'Margin %', 'Status'];
         }
     }
 
