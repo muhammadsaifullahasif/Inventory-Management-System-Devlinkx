@@ -3282,6 +3282,7 @@ class ReportController extends Controller
                 'orders.order_status'
             )
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->leftJoin('sales_channels', 'sales_channels.id', '=', 'orders.sales_channel_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
             ->where(function ($q) {
@@ -3315,6 +3316,7 @@ class ReportController extends Controller
         $paginatedQuery = $this->applyQuerySort($paginatedQuery, $request, [
             'date' => 'orders.order_date',
             'order_number' => 'orders.order_number',
+            'channel' => 'sales_channels.name',
             'product' => 'order_items.title',
             'sku' => 'order_items.sku',
             'qty' => 'order_items.quantity',
@@ -3380,6 +3382,7 @@ class ReportController extends Controller
                 $grouped[$productId] = [
                     'name' => $productName,
                     'sku' => $productSku,
+                    'product_id' => $item->product_id,
                     'quantity_sold' => 0,
                     'total_cogs' => 0,
                     'total_revenue' => 0,
@@ -3641,7 +3644,7 @@ class ReportController extends Controller
             $reportData = $this->groupCogsByOrder($orderItems);
         }
 
-        $export = new \App\Exports\CogsReportExport($reportData->toArray(), $summary, $groupBy);
+        $export = new \App\Exports\CogsReportExport($reportData->toArray(), $summary, $groupBy, $orderItems);
 
         return Excel::download($export, 'cogs-report-' . now()->format('Y-m-d') . '.xlsx');
     }

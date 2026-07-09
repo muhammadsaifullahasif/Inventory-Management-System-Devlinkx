@@ -236,7 +236,13 @@
                                 <tr>
                                     @if ($groupBy === 'product')
                                         <td class="fw-semibold">{{ $item['name'] }}</td>
-                                        <td><code>{{ $item['sku'] ?? '-' }}</code></td>
+                                        <td>
+                                            @if(!empty($item['product_id']))
+                                                <a href="{{ route('products.show', $item['product_id']) }}"><code>{{ $item['sku'] ?? '-' }}</code></a>
+                                            @else
+                                                <code>{{ $item['sku'] ?? '-' }}</code>
+                                            @endif
+                                        </td>
                                         <td class="text-end">{{ number_format($item['quantity_sold'], 0) }}</td>
                                         <td class="text-end">{{ number_format($item['avg_cost'], 2) }}</td>
                                         <td class="text-end text-danger fw-semibold">{{ number_format($item['total_cogs'], 2) }}</td>
@@ -339,6 +345,7 @@
                                 @php $ip = ['sortParam' => 'item_sort', 'dirParam' => 'item_direction', 'pageParam' => 'items_page']; @endphp
                                 @include('partials.sortable-th', ['column' => 'date', 'label' => 'Date'] + $ip)
                                 @include('partials.sortable-th', ['column' => 'order_number', 'label' => 'Order #'] + $ip)
+                                @include('partials.sortable-th', ['column' => 'channel', 'label' => 'Channel'] + $ip)
                                 @include('partials.sortable-th', ['column' => 'product', 'label' => 'Product'] + $ip)
                                 @include('partials.sortable-th', ['column' => 'sku', 'label' => 'SKU'] + $ip)
                                 @include('partials.sortable-th', ['column' => 'qty', 'label' => 'Qty', 'class' => 'text-center'] + $ip)
@@ -363,6 +370,7 @@
                                             <span class="badge bg-soft-warning text-warning ms-1">Refunded</span>
                                         @endif
                                     </td>
+                                    <td><span class="fs-12">{{ $item->order->salesChannel->name ?? '-' }}</span></td>
                                     <td><span style="white-space: normal; width: 300px; display: block;">{{ $item->product->name ?? $item->title }}</span></td>
                                     <td>
                                         @if($item->product_id)
@@ -381,7 +389,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center py-4 text-muted">No items found.</td>
+                                    <td colspan="10" class="text-center py-4 text-muted">No items found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
