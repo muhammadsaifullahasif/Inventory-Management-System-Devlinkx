@@ -998,9 +998,12 @@ class ReportController extends Controller
             'average_order_value' => 0,
         ];
 
-        // Calculate items sold
+        // Calculate items sold - bundle component lines are excluded, their quantity
+        // is already represented by the bundle summary line (avoids double-counting).
         foreach ($allOrders->where('payment_status', 'paid') as $order) {
-            $summary['total_items_sold'] += $order->items->sum('quantity');
+            $summary['total_items_sold'] += $order->items->sum(function ($item) {
+                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+            });
         }
 
         $summary['average_order_value'] = $summary['paid_count'] > 0
@@ -1105,7 +1108,9 @@ class ReportController extends Controller
                 $grouped[$channelId]['total_revenue'] += (float) $order->total;
                 $grouped[$channelId]['total_shipping'] += (float) $order->shipping_cost;
                 $grouped[$channelId]['total_tax'] += (float) $order->tax;
-                $grouped[$channelId]['items_sold'] += $order->items->sum('quantity');
+                $grouped[$channelId]['items_sold'] += $order->items->sum(function ($item) {
+                    return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+                });
             }
 
             $grouped[$channelId]['orders'][] = $order;
@@ -1189,7 +1194,9 @@ class ReportController extends Controller
             if ($order->payment_status === 'paid') {
                 $grouped[$date]['paid_count']++;
                 $grouped[$date]['total_revenue'] += (float) $order->total;
-                $grouped[$date]['items_sold'] += $order->items->sum('quantity');
+                $grouped[$date]['items_sold'] += $order->items->sum(function ($item) {
+                    return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+                });
             }
 
             $grouped[$date]['orders'][] = $order;
@@ -1246,9 +1253,12 @@ class ReportController extends Controller
             'average_order_value' => 0,
         ];
 
-        // Calculate items sold
+        // Calculate items sold - bundle component lines are excluded, their quantity
+        // is already represented by the bundle summary line (avoids double-counting).
         foreach ($allOrders->where('payment_status', 'paid') as $order) {
-            $summary['total_items_sold'] += $order->items->sum('quantity');
+            $summary['total_items_sold'] += $order->items->sum(function ($item) {
+                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+            });
         }
 
         $summary['average_order_value'] = $summary['paid_count'] > 0
