@@ -3170,9 +3170,12 @@ class ReportController extends Controller
                 // Items with COGS recorded, OR items belonging to a cancelled/refunded
                 // order (inventory may have been restored, wiping inventory_updated) -
                 // keep these visible so the report doesn't silently drop refunded sales.
+                // Also keep items with no matched product (unmatched SKU never gets
+                // inventory_updated=true) so their revenue still shows, at $0 cost.
                 $q->where('order_items.inventory_updated', true)
                     ->orWhereIn('orders.order_status', ['cancelled', 'refunded'])
-                    ->orWhere('orders.payment_status', 'refunded');
+                    ->orWhere('orders.payment_status', 'refunded')
+                    ->orWhereNull('order_items.product_id');
             })
             // Bundle component lines are excluded - the bundle summary line already
             // carries the combined cost/revenue for the whole bundle sale.
@@ -3288,7 +3291,8 @@ class ReportController extends Controller
             ->where(function ($q) {
                 $q->where('order_items.inventory_updated', true)
                     ->orWhereIn('orders.order_status', ['cancelled', 'refunded'])
-                    ->orWhere('orders.payment_status', 'refunded');
+                    ->orWhere('orders.payment_status', 'refunded')
+                    ->orWhereNull('order_items.product_id');
             })
             // Bundle component lines are excluded - the bundle summary line already
             // carries the combined cost/revenue for the whole bundle sale.
@@ -3588,7 +3592,8 @@ class ReportController extends Controller
             ->where(function ($q) {
                 $q->where('order_items.inventory_updated', true)
                     ->orWhereIn('orders.order_status', ['cancelled', 'refunded'])
-                    ->orWhere('orders.payment_status', 'refunded');
+                    ->orWhere('orders.payment_status', 'refunded')
+                    ->orWhereNull('order_items.product_id');
             })
             // Bundle component lines are excluded - the bundle summary line already
             // carries the combined cost/revenue for the whole bundle sale.
