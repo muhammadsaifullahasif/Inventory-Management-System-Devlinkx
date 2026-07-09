@@ -196,24 +196,24 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0 sortable-table" id="slowMovingStockTable">
+                    <table class="table table-hover mb-0" id="slowMovingStockTable">
                         <thead>
                             <tr>
                                 <th data-column="id">#</th>
-                                <th data-column="image" class="no-sort">Image</th>
-                                <th data-column="product" style="max-width: 200px;">Product</th>
-                                <th data-column="sku">SKU</th>
-                                <th data-column="category">Category</th>
-                                <th data-column="last_purchase_quantity">Last Purchase Quantity</th>
-                                <th data-column="last_purchase">Last Purchase</th>
-                                <th data-column="last_order">Last Sale</th>
-                                <th data-column="sold_quantity" class="text-end">Sold</th>
-                                <th data-column="stock" class="text-end">Stock</th>
-                                <th data-column="orders" class="text-end">Orders</th>
-                                <th data-column="daily_rate" class="text-end">Daily Rate</th>
-                                <th data-column="days_of_stock" class="text-end">Days of Stock</th>
-                                <th data-column="turnover" class="text-end">Turnover</th>
-                                <th data-column="stock_value" class="text-end">Stock Value</th>
+                                <th data-column="image">Image</th>
+                                @include('partials.sortable-th', ['column' => 'product_name', 'label' => 'Product', 'dataColumn' => 'product', 'style' => 'max-width: 200px;'])
+                                @include('partials.sortable-th', ['column' => 'product_sku', 'label' => 'SKU', 'dataColumn' => 'sku'])
+                                @include('partials.sortable-th', ['column' => 'category_name', 'label' => 'Category', 'dataColumn' => 'category'])
+                                @include('partials.sortable-th', ['column' => 'last_purchase_quantity', 'label' => 'Last Purchase Quantity', 'dataColumn' => 'last_purchase_quantity'])
+                                @include('partials.sortable-th', ['column' => 'last_purchase_date', 'label' => 'Last Purchase', 'dataColumn' => 'last_purchase'])
+                                @include('partials.sortable-th', ['column' => 'last_sale_date', 'label' => 'Last Sale', 'dataColumn' => 'last_order'])
+                                @include('partials.sortable-th', ['column' => 'total_sold', 'label' => 'Sold', 'dataColumn' => 'sold_quantity', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'total_stock', 'label' => 'Stock', 'dataColumn' => 'stock', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'order_count', 'label' => 'Orders', 'dataColumn' => 'orders', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'daily_sales_rate', 'label' => 'Daily Rate', 'dataColumn' => 'daily_rate', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'days_of_stock', 'label' => 'Days of Stock', 'dataColumn' => 'days_of_stock', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'turnover_rate', 'label' => 'Turnover', 'dataColumn' => 'turnover', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'inventory_value', 'label' => 'Stock Value', 'dataColumn' => 'stock_value', 'class' => 'text-end'])
                             </tr>
                         </thead>
                         <tbody>

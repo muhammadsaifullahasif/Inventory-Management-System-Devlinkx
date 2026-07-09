@@ -195,14 +195,15 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0 sortable-table">
+                    <table class="table table-hover mb-0">
                         <thead>
                             <tr>
-                                <th>{{ ucfirst($groupBy) }}</th>
-                                <th class="text-center">Items</th>
-                                <th class="text-end">Quantity</th>
-                                <th class="text-end">Avg Cost</th>
-                                <th class="text-end">Total Value</th>
+                                @php $gp = ['pageParam' => 'grouped_page']; @endphp
+                                @include('partials.sortable-th', ['column' => 'name', 'label' => ucfirst($groupBy)] + $gp)
+                                @include('partials.sortable-th', ['column' => 'item_count', 'label' => 'Items', 'class' => 'text-center'] + $gp)
+                                @include('partials.sortable-th', ['column' => 'quantity', 'label' => 'Quantity', 'class' => 'text-end'] + $gp)
+                                @include('partials.sortable-th', ['column' => 'avg_cost', 'label' => 'Avg Cost', 'class' => 'text-end'] + $gp)
+                                @include('partials.sortable-th', ['column' => 'total_value', 'label' => 'Total Value', 'class' => 'text-end'] + $gp)
                                 <th class="text-end">% of Total</th>
                             </tr>
                         </thead>
@@ -266,16 +267,17 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0 sortable-table">
+                    <table class="table table-hover mb-0">
                         <thead>
                             <tr>
-                                <th>Product</th>
-                                <th>SKU</th>
-                                <th>Category</th>
-                                <th>Warehouse / Rack</th>
-                                <th class="text-end">Quantity</th>
-                                <th class="text-end">Avg Cost</th>
-                                <th class="text-end">Total Value</th>
+                                @php $ip = ['sortParam' => 'item_sort', 'dirParam' => 'item_direction']; @endphp
+                                @include('partials.sortable-th', ['column' => 'product_name', 'label' => 'Product'] + $ip)
+                                @include('partials.sortable-th', ['column' => 'product_sku', 'label' => 'SKU'] + $ip)
+                                @include('partials.sortable-th', ['column' => 'category_name', 'label' => 'Category'] + $ip)
+                                @include('partials.sortable-th', ['column' => 'warehouse_name', 'label' => 'Warehouse / Rack'] + $ip)
+                                @include('partials.sortable-th', ['column' => 'quantity', 'label' => 'Quantity', 'class' => 'text-end'] + $ip)
+                                @include('partials.sortable-th', ['column' => 'avg_cost', 'label' => 'Avg Cost', 'class' => 'text-end'] + $ip)
+                                @include('partials.sortable-th', ['column' => 'total_value', 'label' => 'Total Value', 'class' => 'text-end'] + $ip)
                             </tr>
                         </thead>
                         <tbody>

@@ -272,27 +272,27 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0 sortable-table">
+                    <table class="table table-hover mb-0">
                         <thead>
                             <tr>
                                 @if ($groupBy === 'date')
-                                    <th>Date</th>
+                                    @include('partials.sortable-th', ['column' => 'name', 'label' => 'Date'])
                                 @elseif ($groupBy === 'product')
-                                    <th>Product</th>
-                                    <th>SKU</th>
-                                    <th class="text-end">Avg Price</th>
+                                    @include('partials.sortable-th', ['column' => 'name', 'label' => 'Product'])
+                                    @include('partials.sortable-th', ['column' => 'sku', 'label' => 'SKU'])
+                                    @include('partials.sortable-th', ['column' => 'avg_price', 'label' => 'Avg Price', 'class' => 'text-end'])
                                 @else
-                                    <th>Sales Channel</th>
+                                    @include('partials.sortable-th', ['column' => 'name', 'label' => 'Sales Channel'])
                                 @endif
-                                <th class="text-center">Orders</th>
+                                @include('partials.sortable-th', ['column' => 'order_count', 'label' => 'Orders', 'class' => 'text-center'])
                                 @if ($groupBy !== 'product')
-                                    <th class="text-center">Paid</th>
+                                    @include('partials.sortable-th', ['column' => 'paid_count', 'label' => 'Paid', 'class' => 'text-center'])
                                 @endif
-                                <th class="text-end">{{ $groupBy === 'product' ? 'Qty Sold' : 'Items Sold' }}</th>
-                                <th class="text-end">Revenue</th>
+                                @include('partials.sortable-th', ['column' => $groupBy === 'product' ? 'quantity_sold' : 'items_sold', 'label' => $groupBy === 'product' ? 'Qty Sold' : 'Items Sold', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'total_revenue', 'label' => 'Revenue', 'class' => 'text-end'])
                                 @if ($groupBy === 'channel')
-                                    <th class="text-end">Shipping</th>
-                                    <th class="text-end">Tax</th>
+                                    @include('partials.sortable-th', ['column' => 'total_shipping', 'label' => 'Shipping', 'class' => 'text-end'])
+                                    @include('partials.sortable-th', ['column' => 'total_tax', 'label' => 'Tax', 'class' => 'text-end'])
                                 @endif
                             </tr>
                         </thead>
@@ -368,18 +368,18 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0 sortable-table">
+                    <table class="table table-hover mb-0">
                         <thead>
                             <tr>
-                                <th>Date</th>
-                                <th>Order #</th>
-                                <th>Channel</th>
-                                <th>Buyer</th>
-                                <th class="text-center">Items</th>
-                                <th class="text-end">Total</th>
-                                <th class="text-center">Payment</th>
-                                <th class="text-center">Status</th>
-                                <th class="text-center no-sort">Actions</th>
+                                @include('partials.sortable-th', ['column' => 'date', 'label' => 'Date', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                @include('partials.sortable-th', ['column' => 'order_number', 'label' => 'Order #', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                @include('partials.sortable-th', ['column' => 'channel', 'label' => 'Channel', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                @include('partials.sortable-th', ['column' => 'buyer', 'label' => 'Buyer', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                @include('partials.sortable-th', ['column' => 'items', 'label' => 'Items', 'class' => 'text-center', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                @include('partials.sortable-th', ['column' => 'total', 'label' => 'Total', 'class' => 'text-end', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                @include('partials.sortable-th', ['column' => 'payment', 'label' => 'Payment', 'class' => 'text-center', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                @include('partials.sortable-th', ['column' => 'status', 'label' => 'Status', 'class' => 'text-center', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                <th class="text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody>

@@ -144,17 +144,17 @@
                     </div>
                 @else
                     <div class="table-responsive">
-                        <table class="table table-hover mb-0 sortable-table">
+                        <table class="table table-hover mb-0">
                             <thead>
                                 <tr>
-                                    <th>Code</th>
-                                    <th>Account Name</th>
-                                    <th>Bank</th>
-                                    <th class="text-center">Transactions</th>
-                                    <th class="text-end">Opening</th>
-                                    <th class="text-end">Inflow (Dr)</th>
-                                    <th class="text-end">Outflow (Cr)</th>
-                                    <th class="text-end">Closing</th>
+                                    @include('partials.sortable-th', ['column' => 'code', 'label' => 'Code'])
+                                    @include('partials.sortable-th', ['column' => 'name', 'label' => 'Account Name'])
+                                    @include('partials.sortable-th', ['column' => 'bank_name', 'label' => 'Bank'])
+                                    @include('partials.sortable-th', ['column' => 'transaction_count', 'label' => 'Transactions', 'class' => 'text-center'])
+                                    @include('partials.sortable-th', ['column' => 'opening_balance', 'label' => 'Opening', 'class' => 'text-end'])
+                                    @include('partials.sortable-th', ['column' => 'inflow', 'label' => 'Inflow (Dr)', 'class' => 'text-end'])
+                                    @include('partials.sortable-th', ['column' => 'outflow', 'label' => 'Outflow (Cr)', 'class' => 'text-end'])
+                                    @include('partials.sortable-th', ['column' => 'closing_balance', 'label' => 'Closing', 'class' => 'text-end'])
                                 </tr>
                             </thead>
                             <tbody>

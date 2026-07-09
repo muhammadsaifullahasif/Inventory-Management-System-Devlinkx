@@ -196,13 +196,14 @@
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-hover mb-0 sortable-table">
+                        <table class="table table-hover mb-0">
                             <thead>
                                 <tr>
-                                    <th>Category</th>
-                                    <th class="text-center">Products</th>
-                                    <th class="text-end">Total Quantity</th>
-                                    <th class="text-end">Total Revenue</th>
+                                    @php $cp = ['sortParam' => 'cat_sort', 'dirParam' => 'cat_direction']; @endphp
+                                    @include('partials.sortable-th', ['column' => 'name', 'label' => 'Category'] + $cp)
+                                    @include('partials.sortable-th', ['column' => 'item_count', 'label' => 'Products', 'class' => 'text-center'] + $cp)
+                                    @include('partials.sortable-th', ['column' => 'total_quantity', 'label' => 'Total Quantity', 'class' => 'text-end'] + $cp)
+                                    @include('partials.sortable-th', ['column' => 'total_revenue', 'label' => 'Total Revenue', 'class' => 'text-end'] + $cp)
                                     <th class="text-end">% of Total</th>
                                 </tr>
                             </thead>
@@ -245,14 +246,15 @@
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-hover mb-0 sortable-table">
+                        <table class="table table-hover mb-0">
                             <thead>
                                 <tr>
-                                    <th>Channel</th>
-                                    <th class="text-center">Unique Products</th>
-                                    <th class="text-end">Total Quantity</th>
-                                    <th class="text-end">Total Orders</th>
-                                    <th class="text-end">Total Revenue</th>
+                                    @php $chp = ['sortParam' => 'chan_sort', 'dirParam' => 'chan_direction']; @endphp
+                                    @include('partials.sortable-th', ['column' => 'name', 'label' => 'Channel'] + $chp)
+                                    @include('partials.sortable-th', ['column' => 'unique_products', 'label' => 'Unique Products', 'class' => 'text-center'] + $chp)
+                                    @include('partials.sortable-th', ['column' => 'total_quantity', 'label' => 'Total Quantity', 'class' => 'text-end'] + $chp)
+                                    @include('partials.sortable-th', ['column' => 'order_count', 'label' => 'Total Orders', 'class' => 'text-end'] + $chp)
+                                    @include('partials.sortable-th', ['column' => 'total_revenue', 'label' => 'Total Revenue', 'class' => 'text-end'] + $chp)
                                 </tr>
                             </thead>
                             <tbody>
@@ -311,24 +313,24 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0 sortable-table" id="frequentlyOrderStockTable">
+                    <table class="table table-hover mb-0" id="frequentlyOrderStockTable">
                         <thead>
                             <tr>
                                 <th data-column="id" style="width: 40px;">#</th>
-                                <th data-column="image" class="no-sort">Image</th>
-                                <th data-column="product" style="max-width: 200px;">Product</th>
-                                <th data-column="sku">SKU</th>
-                                <th data-column="category">Category</th>
-                                <th data-column="last_purchase_quantity">Last Purchase Qty</th>
-                                <th data-column="last_purchase">Last Purchase</th>
-                                <th data-column="last_order">Last Order</th>
-                                <th data-column="sold_quantity" class="text-end">Qty Sold</th>
-                                <th data-column="stock" class="text-end">Current Stock</th>
-                                <th data-column="orders" class="text-end">Orders</th>
-                                <th data-column="revenue" class="text-end">Revenue</th>
-                                <th data-column="average_price" class="text-end">Avg Price</th>
-                                <th data-column="average_order" class="text-end">Avg/Order</th>
-                                <th data-column="days_of_stock" class="text-end">Days of Stock</th>
+                                <th data-column="image">Image</th>
+                                @include('partials.sortable-th', ['column' => 'product_name', 'label' => 'Product', 'dataColumn' => 'product', 'style' => 'max-width: 200px;'])
+                                @include('partials.sortable-th', ['column' => 'product_sku', 'label' => 'SKU', 'dataColumn' => 'sku'])
+                                @include('partials.sortable-th', ['column' => 'category_name', 'label' => 'Category', 'dataColumn' => 'category'])
+                                @include('partials.sortable-th', ['column' => 'last_purchase_quantity', 'label' => 'Last Purchase Qty', 'dataColumn' => 'last_purchase_quantity'])
+                                @include('partials.sortable-th', ['column' => 'last_purchase_date', 'label' => 'Last Purchase', 'dataColumn' => 'last_purchase'])
+                                @include('partials.sortable-th', ['column' => 'last_order_date', 'label' => 'Last Order', 'dataColumn' => 'last_order'])
+                                @include('partials.sortable-th', ['column' => 'total_quantity', 'label' => 'Qty Sold', 'dataColumn' => 'sold_quantity', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'current_stock', 'label' => 'Current Stock', 'dataColumn' => 'stock', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'order_count', 'label' => 'Orders', 'dataColumn' => 'orders', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'total_revenue', 'label' => 'Revenue', 'dataColumn' => 'revenue', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'avg_unit_price', 'label' => 'Avg Price', 'dataColumn' => 'average_price', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'avg_per_order', 'label' => 'Avg/Order', 'dataColumn' => 'average_order', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'days_of_stock', 'label' => 'Days of Stock', 'dataColumn' => 'days_of_stock', 'class' => 'text-end'])
                             </tr>
                         </thead>
                         <tbody>

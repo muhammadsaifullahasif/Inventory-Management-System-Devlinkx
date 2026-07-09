@@ -349,19 +349,19 @@
 
             @if(count($checklistItems) > 0)
                 <div class="table-responsive">
-                    <table class="table table-bordered table-hover sortable-table" id="shippingChecklistTable">
+                    <table class="table table-bordered table-hover" id="shippingChecklistTable">
                         <thead class="table-light">
                             <tr>
                                 {{-- <th class="checkbox-col" style="width: 30px;">
                                     <span class="d-none d-print-inline">&#9744;</span>
                                 </th> --}}
                                 <th data-column="id">#</th>
-                                <th data-column="order_id" style="width: 130px;">Order ID</th>
-                                <th data-column="image" class="no-sort" style="width: 55px;">Image</th>
-                                <th data-column="product">Product (SKU, Weight, Dimensions)</th>
-                                <th data-column="sales_channel" style="width: 100px;">Sales Channel</th>
-                                <th data-column="quantity" style="width: 60px; text-align: center;">Qty</th>
-                                <th data-column="quantity_in_warehouse" style="width: 180px;">Qty in Warehouse</th>
+                                @include('partials.sortable-th', ['column' => 'order_id', 'label' => 'Order ID', 'dataColumn' => 'order_id', 'style' => 'width: 130px;'])
+                                <th data-column="image" style="width: 55px;">Image</th>
+                                @include('partials.sortable-th', ['column' => 'product_name', 'label' => 'Product (SKU, Weight, Dimensions)', 'dataColumn' => 'product'])
+                                @include('partials.sortable-th', ['column' => 'sales_channel', 'label' => 'Sales Channel', 'dataColumn' => 'sales_channel', 'style' => 'width: 100px;'])
+                                @include('partials.sortable-th', ['column' => 'quantity_ordered', 'label' => 'Qty', 'dataColumn' => 'quantity', 'style' => 'width: 60px; text-align: center;'])
+                                @include('partials.sortable-th', ['column' => 'total_stock', 'label' => 'Qty in Warehouse', 'dataColumn' => 'quantity_in_warehouse', 'style' => 'width: 180px;'])
                                 <th data-column="tracking"></th>
                             </tr>
                         </thead>

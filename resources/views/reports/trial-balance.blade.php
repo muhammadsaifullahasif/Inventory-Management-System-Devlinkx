@@ -74,15 +74,15 @@
                     </div>
                 @else
                     <div class="table-responsive">
-                        <table class="table table-hover mb-0 sortable-table">
+                        <table class="table table-hover mb-0">
                             <thead>
                                 <tr>
-                                    <th>Code</th>
-                                    <th>Account Name</th>
-                                    <th>Group</th>
-                                    <th>Nature</th>
-                                    <th class="text-end">Debit</th>
-                                    <th class="text-end">Credit</th>
+                                    @include('partials.sortable-th', ['column' => 'code', 'label' => 'Code'])
+                                    @include('partials.sortable-th', ['column' => 'name', 'label' => 'Account Name'])
+                                    @include('partials.sortable-th', ['column' => 'group', 'label' => 'Group'])
+                                    @include('partials.sortable-th', ['column' => 'nature', 'label' => 'Nature'])
+                                    @include('partials.sortable-th', ['column' => 'debit', 'label' => 'Debit', 'class' => 'text-end'])
+                                    @include('partials.sortable-th', ['column' => 'credit', 'label' => 'Credit', 'class' => 'text-end'])
                                 </tr>
                             </thead>
                             <tbody>

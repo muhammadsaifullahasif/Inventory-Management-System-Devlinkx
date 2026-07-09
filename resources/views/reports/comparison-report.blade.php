@@ -187,41 +187,42 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0 sortable-table">
+                    <table class="table table-hover mb-0">
                         <thead>
                             <tr>
+                                @php $gp = ['pageParam' => 'grouped_page']; @endphp
                                 @if ($groupBy === 'product')
-                                    <th>Product</th>
-                                    <th>SKU</th>
-                                    <th class="text-end">Qty Sold</th>
-                                    <th class="text-end">Avg Cost</th>
-                                    <th class="text-end">Total COGS</th>
-                                    <th class="text-end">Revenue</th>
-                                    <th class="text-end">Gross Profit</th>
-                                    <th class="text-end">Margin %</th>
+                                    @include('partials.sortable-th', ['column' => 'name', 'label' => 'Product'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'sku', 'label' => 'SKU'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'quantity_sold', 'label' => 'Qty Sold', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'avg_cost', 'label' => 'Avg Cost', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'total_cogs', 'label' => 'Total COGS', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'total_revenue', 'label' => 'Revenue', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'gross_profit', 'label' => 'Gross Profit', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'gross_margin', 'label' => 'Margin %', 'class' => 'text-end'] + $gp)
                                 @elseif ($groupBy === 'channel')
-                                    <th>Sales Channel</th>
-                                    <th class="text-end">Items Sold</th>
-                                    <th class="text-end">Total COGS</th>
-                                    <th class="text-end">Revenue</th>
-                                    <th class="text-end">Gross Profit</th>
-                                    <th class="text-end">Margin %</th>
+                                    @include('partials.sortable-th', ['column' => 'name', 'label' => 'Sales Channel'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'items_sold', 'label' => 'Items Sold', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'total_cogs', 'label' => 'Total COGS', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'total_revenue', 'label' => 'Revenue', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'gross_profit', 'label' => 'Gross Profit', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'gross_margin', 'label' => 'Margin %', 'class' => 'text-end'] + $gp)
                                 @elseif ($groupBy === 'date')
-                                    <th>Date</th>
-                                    <th class="text-end">Items Sold</th>
-                                    <th class="text-end">Total COGS</th>
-                                    <th class="text-end">Revenue</th>
-                                    <th class="text-end">Gross Profit</th>
-                                    <th class="text-end">Margin %</th>
+                                    @include('partials.sortable-th', ['column' => 'date', 'label' => 'Date'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'items_sold', 'label' => 'Items Sold', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'total_cogs', 'label' => 'Total COGS', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'total_revenue', 'label' => 'Revenue', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'gross_profit', 'label' => 'Gross Profit', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'gross_margin', 'label' => 'Margin %', 'class' => 'text-end'] + $gp)
                                 @else
-                                    <th>Order #</th>
-                                    <th>Date</th>
-                                    <th>Channel</th>
-                                    <th class="text-end">Items</th>
-                                    <th class="text-end">Total COGS</th>
-                                    <th class="text-end">Revenue</th>
-                                    <th class="text-end">Gross Profit</th>
-                                    <th class="text-end">Margin %</th>
+                                    @include('partials.sortable-th', ['column' => 'order_number', 'label' => 'Order #'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'order_date', 'label' => 'Date'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'channel', 'label' => 'Channel'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'items_count', 'label' => 'Items', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'total_cogs', 'label' => 'Total COGS', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'total_revenue', 'label' => 'Revenue', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'gross_profit', 'label' => 'Gross Profit', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'gross_margin', 'label' => 'Margin %', 'class' => 'text-end'] + $gp)
                                 @endif
                             </tr>
                         </thead>

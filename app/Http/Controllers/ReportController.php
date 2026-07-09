@@ -49,6 +49,41 @@ class ReportController extends Controller
     }
 
     /**
+     * Sort a collection (array-of-arrays or Eloquent collection) by a whitelisted
+     * request column. $columnMap maps the public "sort" key to either a field
+     * name or a callback for computed/relation values. Returns the collection
+     * untouched if no valid sort was requested, so callers keep their default order.
+     */
+    protected function applyCollectionSort($collection, Request $request, array $columnMap, string $sortParam = 'sort', string $dirParam = 'direction')
+    {
+        $column = $request->get($sortParam);
+
+        if (!$column || !array_key_exists($column, $columnMap)) {
+            return $collection;
+        }
+
+        $direction = $request->get($dirParam) === 'desc' ? 'desc' : 'asc';
+
+        return $collection->sortBy($columnMap[$column], SORT_REGULAR, $direction === 'desc')->values();
+    }
+
+    /**
+     * Apply a whitelisted request sort to a query builder, falling back to the
+     * given default ordering when no valid sort was requested.
+     */
+    protected function applyQuerySort($query, Request $request, array $columnMap, string $defaultColumn, string $defaultDirection = 'desc', string $sortParam = 'sort', string $dirParam = 'direction')
+    {
+        $column = $request->get($sortParam);
+        $direction = $request->get($dirParam) === 'asc' ? 'asc' : 'desc';
+
+        if ($column && array_key_exists($column, $columnMap)) {
+            return $query->orderBy($columnMap[$column], $direction);
+        }
+
+        return $query->orderBy($defaultColumn, $defaultDirection);
+    }
+
+    /**
      * Trail Balance Report
      */
     public function trialBalance(Request $request)
@@ -56,6 +91,15 @@ class ReportController extends Controller
         $asOfDate = $request->get('as_of_date', date('Y-m-d'));
 
         $accounts = $this->journalService->getTrialBalance($asOfDate);
+
+        $accounts = $this->applyCollectionSort($accounts, $request, [
+            'code' => 'code',
+            'name' => 'name',
+            'group' => 'group',
+            'nature' => 'nature',
+            'debit' => 'debit',
+            'credit' => 'credit',
+        ]);
 
         $totalDebit = $accounts->sum('debit');
         $totalCredit = $accounts->sum('credit');
@@ -539,6 +583,17 @@ class ReportController extends Controller
             ]);
         }
 
+        $accountSummaries = $this->applyCollectionSort($accountSummaries, $request, [
+            'code' => 'code',
+            'name' => 'name',
+            'bank_name' => 'bank_name',
+            'transaction_count' => 'transaction_count',
+            'opening_balance' => 'opening_balance',
+            'inflow' => 'inflow',
+            'outflow' => 'outflow',
+            'closing_balance' => 'closing_balance',
+        ]);
+
         $totalOpening = $accountSummaries->sum('opening_balance');
         $totalInflow = $accountSummaries->sum('inflow');
         $totalOutflow = $accountSummaries->sum('outflow');
@@ -668,6 +723,17 @@ class ReportController extends Controller
 
         $purchases = $purchaseQuery->orderBy('created_at', 'desc')->get();
 
+        $purchases = $this->applyCollectionSort($purchases, $request, [
+            'date' => 'created_at',
+            'po_number' => 'purchase_number',
+            'supplier' => fn ($p) => $p->supplier->full_name ?? '',
+            'warehouse' => fn ($p) => $p->warehouse->name ?? '',
+            'items' => fn ($p) => $p->purchase_items->count(),
+            'ordered_value' => fn ($p) => $p->purchase_items->sum(fn ($i) => $i->quantity * $i->price),
+            'received_value' => fn ($p) => $p->purchase_items->sum(fn ($i) => $i->received_quantity * $i->price),
+            'status' => 'purchase_status',
+        ], 'item_sort', 'item_direction');
+
         // Calculate summary statistics
         $summary = [
             'total_purchases' => $purchases->count(),
@@ -701,6 +767,18 @@ class ReportController extends Controller
         } elseif ($groupBy === 'product') {
             $reportData = $this->groupPurchasesByProduct($purchases);
         }
+
+        $reportData = $this->applyCollectionSort($reportData, $request, [
+            'name' => 'name',
+            'sku' => 'sku',
+            'avg_price' => 'avg_price',
+            'purchase_count' => 'purchase_count',
+            'ordered_qty' => 'ordered_qty',
+            'received_qty' => 'received_qty',
+            'ordered_value' => 'ordered_value',
+            'received_value' => 'received_value',
+            'pending' => fn ($item) => $item['ordered_value'] - $item['received_value'],
+        ]);
 
         // Get related accounting data (bills linked to suppliers)
         $supplierIds = $purchases->pluck('supplier_id')->unique();
@@ -1021,8 +1099,22 @@ class ReportController extends Controller
             $reportData = $this->groupOrdersByDate($allOrders);
         }
 
+        $reportData = $this->applyCollectionSort($reportData, $request, [
+            'name' => 'name',
+            'sku' => 'sku',
+            'avg_price' => 'avg_price',
+            'order_count' => 'order_count',
+            'paid_count' => 'paid_count',
+            'items_sold' => 'items_sold',
+            'quantity_sold' => 'quantity_sold',
+            'total_revenue' => 'total_revenue',
+            'total_shipping' => 'total_shipping',
+            'total_tax' => 'total_tax',
+        ]);
+
         // Paginated orders query for details table
         $ordersQuery = Order::with(['salesChannel', 'items.product'])
+            ->withCount('items')
             ->whereDate('order_date', '>=', $dateFrom)
             ->whereDate('order_date', '<=', $dateTo);
 
@@ -1038,7 +1130,22 @@ class ReportController extends Controller
             $ordersQuery->where('payment_status', $paymentStatus);
         }
 
-        $orders = $ordersQuery->orderBy('order_date', 'desc')->paginate(50);
+        if ($request->get('item_sort') === 'channel') {
+            $ordersQuery->select('orders.*')->leftJoin('sales_channels', 'sales_channels.id', '=', 'orders.sales_channel_id');
+        }
+
+        $ordersQuery = $this->applyQuerySort($ordersQuery, $request, [
+            'date' => 'orders.order_date',
+            'order_number' => 'orders.order_number',
+            'channel' => 'sales_channels.name',
+            'buyer' => 'orders.buyer_name',
+            'items' => 'items_count',
+            'total' => 'orders.total',
+            'payment' => 'orders.payment_status',
+            'status' => 'orders.order_status',
+        ], 'orders.order_date', 'desc', 'item_sort', 'item_direction');
+
+        $orders = $ordersQuery->paginate(50);
 
         // Get related accounting data (payments received in this period)
         $relatedPayments = Payment::where('status', 'posted')
@@ -1338,6 +1445,14 @@ class ReportController extends Controller
         // Group data based on selected grouping
         $groupedData = $this->groupInventoryData($inventoryItems, $groupBy);
 
+        $groupedData = $this->applyCollectionSort($groupedData, $request, [
+            'name' => 'name',
+            'quantity' => 'quantity',
+            'total_value' => 'total_value',
+            'item_count' => 'item_count',
+            'avg_cost' => 'avg_cost',
+        ], 'sort', 'direction');
+
         // Paginate grouped data
         $groupedPerPage = 25;
         $groupedCurrentPage = (int) request()->get('grouped_page', 1);
@@ -1350,6 +1465,16 @@ class ReportController extends Controller
             $groupedCurrentPage,
             ['path' => request()->url(), 'query' => request()->query(), 'pageName' => 'grouped_page']
         );
+
+        $inventoryItems = $this->applyCollectionSort(collect($inventoryItems), $request, [
+            'product_name' => 'product_name',
+            'product_sku' => 'product_sku',
+            'category_name' => 'category_name',
+            'warehouse_name' => 'warehouse_name',
+            'quantity' => 'quantity',
+            'avg_cost' => 'avg_cost',
+            'total_value' => 'total_value',
+        ], 'item_sort', 'item_direction')->all();
 
         // Paginate inventory items for detailed list
         $perPage = 50;
@@ -1706,6 +1831,14 @@ class ReportController extends Controller
         // Convert to collection and paginate
         $checklistCollection = collect($checklistItems);
 
+        $checklistCollection = $this->applyCollectionSort($checklistCollection, $request, [
+            'order_id' => 'ebay_order_id',
+            'product_name' => 'product_name',
+            'sales_channel' => 'sales_channel',
+            'quantity_ordered' => 'quantity_ordered',
+            'total_stock' => 'total_stock',
+        ]);
+
         // Summary statistics
         $summary = [
             'total_orders' => $orders->count(),
@@ -2028,6 +2161,19 @@ class ReportController extends Controller
             ->sortBy([['total_stock', 'asc'], ['product_name', 'asc']])
             ->values();
 
+        $outOfStockCollection = $this->applyCollectionSort($outOfStockCollection, $request, [
+            'product_name' => 'product_name',
+            'product_sku' => 'product_sku',
+            'category_name' => 'category_name',
+            'last_purchase_quantity' => 'last_purchase_quantity',
+            'last_purchase_date' => 'last_purchase_date',
+            'last_order_date' => 'last_order_date',
+            'sold_quantity' => 'sold_quantity',
+            'total_stock' => 'total_stock',
+            'price' => 'price',
+            'status' => fn ($item) => $item['total_stock'],
+        ]);
+
         // Summary statistics
         $summary = [
             'total_out_of_stock' => $outOfStockCollection->where('total_stock', 0)->count(),
@@ -2193,6 +2339,22 @@ class ReportController extends Controller
             ->sortBy([['turnover_rate', 'asc'], ['inventory_value', 'desc']])
             ->values();
 
+        $slowMovingCollection = $this->applyCollectionSort($slowMovingCollection, $request, [
+            'product_name' => 'product_name',
+            'product_sku' => 'product_sku',
+            'category_name' => 'category_name',
+            'last_purchase_quantity' => 'last_purchase_quantity',
+            'last_purchase_date' => 'last_purchase_date',
+            'last_sale_date' => 'last_sale_date',
+            'total_sold' => 'total_sold',
+            'total_stock' => 'total_stock',
+            'order_count' => 'order_count',
+            'daily_sales_rate' => 'daily_sales_rate',
+            'days_of_stock' => 'days_of_stock',
+            'turnover_rate' => 'turnover_rate',
+            'inventory_value' => 'inventory_value',
+        ]);
+
         // Summary statistics
         $summary = [
             'total_items' => $slowMovingCollection->count(),
@@ -2348,13 +2510,45 @@ class ReportController extends Controller
 
         $frequentItemsCollection = collect($frequentItems);
 
+        $frequentItemsCollection = $this->applyCollectionSort($frequentItemsCollection, $request, [
+            'product_name' => 'product_name',
+            'product_sku' => 'product_sku',
+            'category_name' => 'category_name',
+            'total_quantity' => 'total_quantity',
+            'order_count' => 'order_count',
+            'total_revenue' => 'total_revenue',
+            'avg_unit_price' => 'avg_unit_price',
+            'first_order_date' => 'first_order_date',
+            'last_order_date' => 'last_order_date',
+            'current_stock' => 'current_stock',
+            'daily_sales_rate' => 'daily_sales_rate',
+            'days_of_stock' => 'days_of_stock',
+            'avg_per_order' => 'avg_per_order',
+            'last_purchase_date' => 'last_purchase_date',
+            'last_purchase_quantity' => 'last_purchase_quantity',
+        ]);
+
         // Group data if requested
         $groupedData = collect();
         if ($groupBy === 'category') {
             $groupedData = $this->groupFrequentItemsByCategory($frequentItemsCollection);
+            $groupedData = $this->applyCollectionSort($groupedData, $request, [
+                'name' => 'name',
+                'total_quantity' => 'total_quantity',
+                'total_revenue' => 'total_revenue',
+                'order_count' => 'order_count',
+                'item_count' => 'item_count',
+            ], 'cat_sort', 'cat_direction');
         } elseif ($groupBy === 'channel') {
             // Re-query with channel grouping
             $groupedData = $this->getFrequentItemsByChannel($dateFrom, $dateTo, $categoryId, $limit);
+            $groupedData = $this->applyCollectionSort($groupedData, $request, [
+                'name' => 'name',
+                'total_quantity' => 'total_quantity',
+                'order_count' => 'order_count',
+                'total_revenue' => 'total_revenue',
+                'unique_products' => 'unique_products',
+            ], 'chan_sort', 'chan_direction');
         }
 
         // Summary statistics
@@ -3049,6 +3243,24 @@ class ReportController extends Controller
             $reportDataCollection = $this->groupCogsByOrder($orderItems);
         }
 
+        $reportDataCollection = $this->applyCollectionSort($reportDataCollection, $request, [
+            'name' => 'name',
+            'sku' => 'sku',
+            'quantity_sold' => 'quantity_sold',
+            'items_sold' => 'items_sold',
+            'items_count' => 'items_count',
+            'avg_cost' => 'avg_cost',
+            'avg_price' => 'avg_price',
+            'total_cogs' => 'total_cogs',
+            'total_revenue' => 'total_revenue',
+            'gross_profit' => 'gross_profit',
+            'gross_margin' => 'gross_margin',
+            'date' => 'date',
+            'order_date' => 'order_date',
+            'order_number' => 'order_number',
+            'channel' => 'channel',
+        ]);
+
         // Paginate grouped data with custom page name
         $perPage = 50;
         $currentPage = request()->get('grouped_page', 1);
@@ -3100,8 +3312,19 @@ class ReportController extends Controller
             $paginatedQuery->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
+        $paginatedQuery = $this->applyQuerySort($paginatedQuery, $request, [
+            'date' => 'orders.order_date',
+            'order_number' => 'orders.order_number',
+            'product' => 'order_items.title',
+            'sku' => 'order_items.sku',
+            'qty' => 'order_items.quantity',
+            'cost_unit' => 'order_items.cost_at_sale',
+            'total_cogs' => DB::raw('order_items.cost_at_sale * order_items.quantity'),
+            'revenue' => 'order_items.total_price',
+            'profit' => DB::raw('order_items.total_price - (order_items.cost_at_sale * order_items.quantity)'),
+        ], 'orders.order_date', 'desc', 'item_sort', 'item_direction');
+
         $paginatedItems = $paginatedQuery->with(['order.salesChannel', 'product'])
-            ->orderBy('orders.order_date', 'desc')
             ->paginate(50, ['*'], 'items_page');
 
         return view('reports.cogs-report', compact(
@@ -3511,10 +3734,28 @@ class ReportController extends Controller
             $reportDataCollection = $this->groupCogsByOrder($orderItems);
         }
 
-        // Sort by gross profit instead of COGS
+        // Sort by gross profit instead of COGS by default
         $reportDataCollection = $reportDataCollection->sortByDesc(function ($item) {
             return $item['gross_profit'] ?? 0;
         })->values();
+
+        $reportDataCollection = $this->applyCollectionSort($reportDataCollection, $request, [
+            'name' => 'name',
+            'sku' => 'sku',
+            'quantity_sold' => 'quantity_sold',
+            'items_sold' => 'items_sold',
+            'items_count' => 'items_count',
+            'avg_cost' => 'avg_cost',
+            'avg_price' => 'avg_price',
+            'total_cogs' => 'total_cogs',
+            'total_revenue' => 'total_revenue',
+            'gross_profit' => 'gross_profit',
+            'gross_margin' => 'gross_margin',
+            'date' => 'date',
+            'order_date' => 'order_date',
+            'order_number' => 'order_number',
+            'channel' => 'channel',
+        ]);
 
         // Paginate grouped data with custom page name
         $perPage = 50;
@@ -3564,8 +3805,19 @@ class ReportController extends Controller
             $paginatedQuery->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
+        $paginatedQuery = $this->applyQuerySort($paginatedQuery, $request, [
+            'date' => 'orders.order_date',
+            'order_number' => 'orders.order_number',
+            'product' => 'order_items.title',
+            'sku' => 'order_items.sku',
+            'qty' => 'order_items.quantity',
+            'cost_unit' => 'order_items.cost_at_sale',
+            'total_cogs' => DB::raw('order_items.cost_at_sale * order_items.quantity'),
+            'revenue' => 'order_items.total_price',
+            'profit' => DB::raw('order_items.total_price - (order_items.cost_at_sale * order_items.quantity)'),
+        ], 'orders.order_date', 'desc', 'item_sort', 'item_direction');
+
         $paginatedItems = $paginatedQuery->with(['order.salesChannel', 'product'])
-            ->orderBy('orders.order_date', 'desc')
             ->paginate(50, ['*'], 'items_page');
 
         return view('reports.gross-profit-report', compact(
@@ -3777,6 +4029,24 @@ class ReportController extends Controller
         } elseif ($groupBy === 'order') {
             $reportDataCollection = $this->groupCogsByOrder($orderItems);
         }
+
+        $reportDataCollection = $this->applyCollectionSort($reportDataCollection, $request, [
+            'name' => 'name',
+            'sku' => 'sku',
+            'quantity_sold' => 'quantity_sold',
+            'items_sold' => 'items_sold',
+            'items_count' => 'items_count',
+            'avg_cost' => 'avg_cost',
+            'avg_price' => 'avg_price',
+            'total_cogs' => 'total_cogs',
+            'total_revenue' => 'total_revenue',
+            'gross_profit' => 'gross_profit',
+            'gross_margin' => 'gross_margin',
+            'date' => 'date',
+            'order_date' => 'order_date',
+            'order_number' => 'order_number',
+            'channel' => 'channel',
+        ]);
 
         // Paginate grouped data with custom page name
         $perPage = 50;

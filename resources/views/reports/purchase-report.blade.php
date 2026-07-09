@@ -269,20 +269,20 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0 sortable-table">
+                    <table class="table table-hover mb-0">
                         <thead>
                             <tr>
-                                <th>{{ ucfirst($groupBy) }}</th>
+                                @include('partials.sortable-th', ['column' => 'name', 'label' => ucfirst($groupBy)])
                                 @if ($groupBy === 'product')
-                                    <th>SKU</th>
-                                    <th class="text-end">Avg Price</th>
+                                    @include('partials.sortable-th', ['column' => 'sku', 'label' => 'SKU'])
+                                    @include('partials.sortable-th', ['column' => 'avg_price', 'label' => 'Avg Price', 'class' => 'text-end'])
                                 @endif
-                                <th class="text-center">Purchases</th>
-                                <th class="text-end">Ordered Qty</th>
-                                <th class="text-end">Received Qty</th>
-                                <th class="text-end">Ordered Value</th>
-                                <th class="text-end">Received Value</th>
-                                <th class="text-end">Pending</th>
+                                @include('partials.sortable-th', ['column' => 'purchase_count', 'label' => 'Purchases', 'class' => 'text-center'])
+                                @include('partials.sortable-th', ['column' => 'ordered_qty', 'label' => 'Ordered Qty', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'received_qty', 'label' => 'Received Qty', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'ordered_value', 'label' => 'Ordered Value', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'received_value', 'label' => 'Received Value', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => 'pending', 'label' => 'Pending', 'class' => 'text-end'])
                             </tr>
                         </thead>
                         <tbody>
@@ -343,18 +343,18 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0 sortable-table">
+                    <table class="table table-hover mb-0">
                         <thead>
                             <tr>
-                                <th>Date</th>
-                                <th>PO Number</th>
-                                <th>Supplier</th>
-                                <th>Warehouse</th>
-                                <th class="text-center">Items</th>
-                                <th class="text-end">Ordered Value</th>
-                                <th class="text-end">Received Value</th>
-                                <th class="text-center">Status</th>
-                                <th class="text-center no-sort">Actions</th>
+                                @include('partials.sortable-th', ['column' => 'date', 'label' => 'Date', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                @include('partials.sortable-th', ['column' => 'po_number', 'label' => 'PO Number', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                @include('partials.sortable-th', ['column' => 'supplier', 'label' => 'Supplier', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                @include('partials.sortable-th', ['column' => 'warehouse', 'label' => 'Warehouse', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                @include('partials.sortable-th', ['column' => 'items', 'label' => 'Items', 'class' => 'text-center', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                @include('partials.sortable-th', ['column' => 'ordered_value', 'label' => 'Ordered Value', 'class' => 'text-end', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                @include('partials.sortable-th', ['column' => 'received_value', 'label' => 'Received Value', 'class' => 'text-end', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                @include('partials.sortable-th', ['column' => 'status', 'label' => 'Status', 'class' => 'text-center', 'sortParam' => 'item_sort', 'dirParam' => 'item_direction'])
+                                <th class="text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
