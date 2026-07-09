@@ -2969,6 +2969,12 @@ class ReportController extends Controller
                 $q->where('order_items.inventory_updated', true)
                     ->orWhereIn('orders.order_status', ['cancelled', 'refunded'])
                     ->orWhere('orders.payment_status', 'refunded');
+            })
+            // Bundle component lines are excluded - the bundle summary line already
+            // carries the combined cost/revenue for the whole bundle sale.
+            ->where(function ($q) {
+                $q->whereNull('order_items.bundle_product_id')
+                    ->orWhere('order_items.is_bundle_summary', true);
             });
 
         if ($channelId) {
@@ -3060,6 +3066,12 @@ class ReportController extends Controller
                 $q->where('order_items.inventory_updated', true)
                     ->orWhereIn('orders.order_status', ['cancelled', 'refunded'])
                     ->orWhere('orders.payment_status', 'refunded');
+            })
+            // Bundle component lines are excluded - the bundle summary line already
+            // carries the combined cost/revenue for the whole bundle sale.
+            ->where(function ($q) {
+                $q->whereNull('order_items.bundle_product_id')
+                    ->orWhere('order_items.is_bundle_summary', true);
             });
 
         if ($channelId) {
@@ -3340,6 +3352,12 @@ class ReportController extends Controller
                 $q->where('order_items.inventory_updated', true)
                     ->orWhereIn('orders.order_status', ['cancelled', 'refunded'])
                     ->orWhere('orders.payment_status', 'refunded');
+            })
+            // Bundle component lines are excluded - the bundle summary line already
+            // carries the combined cost/revenue for the whole bundle sale.
+            ->where(function ($q) {
+                $q->whereNull('order_items.bundle_product_id')
+                    ->orWhere('order_items.is_bundle_summary', true);
             });
 
         if ($channelId) {
@@ -3425,7 +3443,13 @@ class ReportController extends Controller
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
             ->where('orders.payment_status', 'paid')
-            ->where('order_items.inventory_updated', true);
+            ->where('order_items.inventory_updated', true)
+            // Bundle component lines are excluded - the bundle summary line already
+            // carries the combined cost/revenue for the whole bundle sale.
+            ->where(function ($q) {
+                $q->whereNull('order_items.bundle_product_id')
+                    ->orWhere('order_items.is_bundle_summary', true);
+            });
 
         if ($channelId) {
             $query->where('orders.sales_channel_id', $channelId);
@@ -3506,7 +3530,13 @@ class ReportController extends Controller
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
             ->where('orders.payment_status', 'paid')
-            ->where('order_items.inventory_updated', true);
+            ->where('order_items.inventory_updated', true)
+            // Bundle component lines are excluded - the bundle summary line already
+            // carries the combined cost/revenue for the whole bundle sale.
+            ->where(function ($q) {
+                $q->whereNull('order_items.bundle_product_id')
+                    ->orWhere('order_items.is_bundle_summary', true);
+            });
 
         if ($channelId) {
             $paginatedQuery->where('orders.sales_channel_id', $channelId);
@@ -3571,7 +3601,13 @@ class ReportController extends Controller
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
             ->where('orders.payment_status', 'paid')
-            ->where('order_items.inventory_updated', true);
+            ->where('order_items.inventory_updated', true)
+            // Bundle component lines are excluded - the bundle summary line already
+            // carries the combined cost/revenue for the whole bundle sale.
+            ->where(function ($q) {
+                $q->whereNull('order_items.bundle_product_id')
+                    ->orWhere('order_items.is_bundle_summary', true);
+            });
 
         if ($channelId) {
             $query->where('orders.sales_channel_id', $channelId);
@@ -3657,7 +3693,13 @@ class ReportController extends Controller
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
-            ->where('order_items.inventory_updated', true);
+            ->where('order_items.inventory_updated', true)
+            // Bundle component lines are excluded - the bundle summary line already
+            // carries the combined cost/revenue for the whole bundle sale.
+            ->where(function ($q) {
+                $q->whereNull('order_items.bundle_product_id')
+                    ->orWhere('order_items.is_bundle_summary', true);
+            });
 
         if ($channelId) {
             $query->where('orders.sales_channel_id', $channelId);
@@ -3779,7 +3821,13 @@ class ReportController extends Controller
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
-            ->where('order_items.inventory_updated', true);
+            ->where('order_items.inventory_updated', true)
+            // Bundle component lines are excluded - the bundle summary line already
+            // carries the combined cost/revenue for the whole bundle sale.
+            ->where(function ($q) {
+                $q->whereNull('order_items.bundle_product_id')
+                    ->orWhere('order_items.is_bundle_summary', true);
+            });
 
         if ($channelId) {
             $query->where('orders.sales_channel_id', $channelId);
