@@ -238,7 +238,7 @@
                                     @if ($groupBy === 'product')
                                         <td class="fw-semibold">
                                             @if(!empty($item['product_id']))
-                                                <a href="{{ route('products.show', $item['product_id']) }}">{{ $item['name'] }}</a>
+                                                <a href="{{ route('products.show', $item['product_id']) }}"><span style="white-space: normal; width: 300px; display: block;">{{ $item['name'] }}</span></a>
                                             @else
                                                 {{ $item['name'] }}
                                             @endif
