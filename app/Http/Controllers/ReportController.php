@@ -3522,6 +3522,7 @@ class ReportController extends Controller
             if (!isset($grouped[$orderId])) {
                 $grouped[$orderId] = [
                     'order_number' => $orderNumber,
+                    'ebay_order_id' => $item->order->ebay_order_id,
                     'order_date' => $orderDate,
                     'formatted_date' => $orderDate ? $orderDate->format('M d, Y') : 'Unknown',
                     'channel' => $item->order->salesChannel->name ?? 'Direct Sales',

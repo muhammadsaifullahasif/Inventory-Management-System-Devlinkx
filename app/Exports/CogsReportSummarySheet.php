@@ -71,6 +71,7 @@ class CogsReportSummarySheet implements FromArray, WithHeadings, WithStyles, Wit
             } elseif ($this->groupBy === 'order') {
                 $row = [
                     $item['order_number'],
+                    $item['ebay_order_id'] ?? '-',
                     $item['formatted_date'],
                     $item['channel'],
                     number_format($item['items_count'], 0),
@@ -97,7 +98,7 @@ class CogsReportSummarySheet implements FromArray, WithHeadings, WithStyles, Wit
         } elseif ($this->groupBy === 'date') {
             return ['Date', 'Items Sold', 'Total COGS', 'Total Revenue', 'Gross Profit', 'Margin %'];
         } else { // order
-            return ['Order #', 'Date', 'Channel', 'Items', 'Total COGS', 'Total Revenue', 'Gross Profit', 'Margin %', 'Status'];
+            return ['Order #', 'eBay Order ID', 'Date', 'Channel', 'Items', 'Total COGS', 'Total Revenue', 'Gross Profit', 'Margin %', 'Status'];
         }
     }
 

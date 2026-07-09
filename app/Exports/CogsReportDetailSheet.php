@@ -29,6 +29,7 @@ class CogsReportDetailSheet implements FromArray, WithHeadings, WithStyles, With
             $rows[] = [
                 $item->order->order_date ? $item->order->order_date->format('M d, Y') : '-',
                 $item->order->order_number,
+                $item->order->ebay_order_id ?? '-',
                 $item->order->salesChannel->name ?? '-',
                 $item->product->name ?? $item->title,
                 $item->sku ?? '-',
@@ -46,7 +47,7 @@ class CogsReportDetailSheet implements FromArray, WithHeadings, WithStyles, With
 
     public function headings(): array
     {
-        return ['Date', 'Order #', 'Channel', 'Product', 'SKU', 'Qty', 'Cost/Unit', 'Total COGS', 'Revenue', 'Profit', 'Status'];
+        return ['Date', 'Order #', 'eBay Order ID', 'Channel', 'Product', 'SKU', 'Qty', 'Cost/Unit', 'Total COGS', 'Revenue', 'Profit', 'Status'];
     }
 
     public function styles(Worksheet $sheet)
