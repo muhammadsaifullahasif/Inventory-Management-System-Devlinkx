@@ -3545,6 +3545,7 @@ class ReportController extends Controller
 
             if (!isset($grouped[$orderId])) {
                 $grouped[$orderId] = [
+                    'order_id' => $orderId,
                     'order_number' => $orderNumber,
                     'ebay_order_id' => $item->order->ebay_order_id,
                     'order_date' => $orderDate,

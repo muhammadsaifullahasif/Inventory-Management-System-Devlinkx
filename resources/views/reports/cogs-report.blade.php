@@ -290,7 +290,11 @@
                                         </td>
                                     @else
                                         <td class="fw-semibold">
-                                            {{ $item['order_number'] }}
+                                            @if(!empty($item['order_id']))
+                                                <a href="{{ route('orders.show', $item['order_id']) }}">{{ $item['order_number'] }}</a>
+                                            @else
+                                                {{ $item['order_number'] }}
+                                            @endif
                                             @if($item['is_refunded'] ?? false)
                                                 <span class="badge bg-soft-warning text-warning ms-1">Refunded</span>
                                             @endif
