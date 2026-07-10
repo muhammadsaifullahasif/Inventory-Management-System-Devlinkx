@@ -256,8 +256,8 @@ class EbayFinanceSyncService
      *   ebay_collected_tax: float,
      *   gross_amount: float,
      *   marketplace_fees: array<string, array{label: string, amount: float}>,
-     *   shipping_labels: float,
-     *   other_charges: array<string, array{label: string, amount: float}>,
+     *   shipping_labels: array{debit: float, credit: float, net: float},
+     *   other_charges: array<string, array{label: string, debit: float, credit: float, net: float}>,
      *   expenses_total: float,
      *   refunds: float,
      *   adjustments: float,
@@ -273,18 +273,16 @@ class EbayFinanceSyncService
         $ebayCollectedTax = 0.0;
         $grossAmount = 0.0;
         $marketplaceFees = []; // feeType => amount, net of any refund reversal
-        $shippingLabels = 0.0;
-        $otherCharges = []; // feeType => amount, for NON_SALE_CHARGE items (ad fee, charity, dispute fee, other)
+        $shippingLabelsDebit = 0.0;
+        $shippingLabelsCredit = 0.0;
+        $otherCharges = []; // feeType => ['debit' => .., 'credit' => ..], for NON_SALE_CHARGE items (ad fee, charity, dispute fee, other)
         $refunds = 0.0;
         $adjustments = 0.0; // CREDIT / DISPUTE / anything unclassified, signed
 
         foreach ($transactions as $transaction) {
             $payload = $transaction->raw_payload;
             $amount = (float) $transaction->amount;
-            // DEBIT = cost to seller (positive), CREDIT = reversal/refund of a
-            // prior charge (negative) — SHIPPING_LABEL and NON_SALE_CHARGE both
-            // occur as CREDIT (label voids, ad fee reversals), so sign matters.
-            $cost = $transaction->booking_entry === 'CREDIT' ? -$amount : $amount;
+            $isCredit = $transaction->booking_entry === 'CREDIT';
 
             switch ($transaction->transaction_type) {
                 case 'SALE':
@@ -300,21 +298,29 @@ class EbayFinanceSyncService
                     break;
 
                 case 'SHIPPING_LABEL':
-                    $shippingLabels += $cost;
+                    // Usually DEBIT (label cost), but CREDIT occurs for label
+                    // voids/refunds — track both legs, not just the net.
+                    $isCredit ? $shippingLabelsCredit += $amount : $shippingLabelsDebit += $amount;
                     break;
 
                 case 'NON_SALE_CHARGE':
                     $feeType = $payload['feeType'] ?? 'OTHER_FEES';
-                    $otherCharges[$feeType] = ($otherCharges[$feeType] ?? 0) + $cost;
+                    $otherCharges[$feeType] ??= ['debit' => 0.0, 'credit' => 0.0];
+                    // Usually DEBIT (fee charge), but CREDIT occurs for
+                    // reversals (e.g. ad fee refunded) — track both legs.
+                    $isCredit ? $otherCharges[$feeType]['credit'] += $amount : $otherCharges[$feeType]['debit'] += $amount;
                     break;
 
                 default:
                     // CREDIT, DISPUTE, and anything not yet observed.
-                    $adjustments += $transaction->booking_entry === 'CREDIT' ? $amount : -$amount;
+                    $adjustments += $isCredit ? $amount : -$amount;
             }
         }
 
-        $expensesTotal = array_sum($marketplaceFees) + $shippingLabels + array_sum($otherCharges);
+        $shippingLabelsNet = $shippingLabelsDebit - $shippingLabelsCredit;
+        $otherChargesNet = array_sum(array_map(fn (array $b) => $b['debit'] - $b['credit'], $otherCharges));
+
+        $expensesTotal = array_sum($marketplaceFees) + $shippingLabelsNet + $otherChargesNet;
         $orderEarnings = $grossAmount - $expensesTotal - $refunds + $adjustments;
         $yourCost = (float) $order->items()->sum(DB::raw('cost_at_sale * quantity'));
 
@@ -322,8 +328,12 @@ class EbayFinanceSyncService
             'ebay_collected_tax' => $ebayCollectedTax,
             'gross_amount' => $grossAmount,
             'marketplace_fees' => $this->labelBucket($marketplaceFees),
-            'shipping_labels' => $shippingLabels,
-            'other_charges' => $this->labelBucket($otherCharges),
+            'shipping_labels' => [
+                'debit' => $shippingLabelsDebit,
+                'credit' => $shippingLabelsCredit,
+                'net' => $shippingLabelsNet,
+            ],
+            'other_charges' => $this->labelBucketWithDetail($otherCharges),
             'expenses_total' => $expensesTotal,
             'refunds' => $refunds,
             'adjustments' => $adjustments,
@@ -355,6 +365,26 @@ class EbayFinanceSyncService
             $labeled[$feeType] = [
                 'label' => self::FEE_TYPE_LABELS[$feeType] ?? $this->humanizeFeeType($feeType),
                 'amount' => $amount,
+            ];
+        }
+
+        return $labeled;
+    }
+
+    /**
+     * @param array<string, array{debit: float, credit: float}> $bucket
+     * @return array<string, array{label: string, debit: float, credit: float, net: float}>
+     */
+    protected function labelBucketWithDetail(array $bucket): array
+    {
+        $labeled = [];
+
+        foreach ($bucket as $feeType => $amounts) {
+            $labeled[$feeType] = [
+                'label' => self::FEE_TYPE_LABELS[$feeType] ?? $this->humanizeFeeType($feeType),
+                'debit' => $amounts['debit'],
+                'credit' => $amounts['credit'],
+                'net' => $amounts['debit'] - $amounts['credit'],
             ];
         }
 

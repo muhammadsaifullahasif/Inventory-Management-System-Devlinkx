@@ -323,17 +323,48 @@
                                     <td class="text-end">-{{ $cur }} {{ number_format($fee['amount'], 2) }}</td>
                                 </tr>
                                 @endforeach
-                                @if($earningsBreakdown['shipping_labels'] > 0)
-                                <tr>
-                                    <td class="ps-4 text-muted">Shipping Labels</td>
-                                    <td class="text-end">-{{ $cur }} {{ number_format($earningsBreakdown['shipping_labels'], 2) }}</td>
-                                </tr>
+                                @php $sl = $earningsBreakdown['shipping_labels']; @endphp
+                                @if($sl['debit'] != 0 || $sl['credit'] != 0)
+                                    @if($sl['debit'] > 0 && $sl['credit'] > 0)
+                                    <tr>
+                                        <td class="ps-4 text-muted">Shipping Labels (charged)</td>
+                                        <td class="text-end">-{{ $cur }} {{ number_format($sl['debit'], 2) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="ps-4 text-muted">Shipping Labels (refunded)</td>
+                                        <td class="text-end text-success">+{{ $cur }} {{ number_format($sl['credit'], 2) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="ps-4 text-muted"><em>Shipping Labels (net)</em></td>
+                                        <td class="text-end"><em>{{ $sl['net'] < 0 ? '+' : '-' }}{{ $cur }} {{ number_format(abs($sl['net']), 2) }}</em></td>
+                                    </tr>
+                                    @else
+                                    <tr>
+                                        <td class="ps-4 text-muted">Shipping Labels</td>
+                                        <td class="text-end {{ $sl['net'] < 0 ? 'text-success' : '' }}">{{ $sl['net'] < 0 ? '+' : '-' }}{{ $cur }} {{ number_format(abs($sl['net']), 2) }}</td>
+                                    </tr>
+                                    @endif
                                 @endif
                                 @foreach($earningsBreakdown['other_charges'] as $charge)
-                                <tr>
-                                    <td class="ps-4 text-muted">{{ $charge['label'] }}</td>
-                                    <td class="text-end">-{{ $cur }} {{ number_format($charge['amount'], 2) }}</td>
-                                </tr>
+                                    @if($charge['debit'] > 0 && $charge['credit'] > 0)
+                                    <tr>
+                                        <td class="ps-4 text-muted">{{ $charge['label'] }} (charged)</td>
+                                        <td class="text-end">-{{ $cur }} {{ number_format($charge['debit'], 2) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="ps-4 text-muted">{{ $charge['label'] }} (refunded)</td>
+                                        <td class="text-end text-success">+{{ $cur }} {{ number_format($charge['credit'], 2) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="ps-4 text-muted"><em>{{ $charge['label'] }} (net)</em></td>
+                                        <td class="text-end"><em>{{ $charge['net'] < 0 ? '+' : '-' }}{{ $cur }} {{ number_format(abs($charge['net']), 2) }}</em></td>
+                                    </tr>
+                                    @else
+                                    <tr>
+                                        <td class="ps-4 text-muted">{{ $charge['label'] }}</td>
+                                        <td class="text-end {{ $charge['net'] < 0 ? 'text-success' : '' }}">{{ $charge['net'] < 0 ? '+' : '-' }}{{ $cur }} {{ number_format(abs($charge['net']), 2) }}</td>
+                                    </tr>
+                                    @endif
                                 @endforeach
                                 <tr class="border-top">
                                     <td><strong>Expenses</strong></td>
