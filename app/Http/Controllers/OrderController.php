@@ -1040,6 +1040,7 @@ class OrderController extends Controller
             $trackingNumber = $labelResult['tracking_number'];
             $labelPath      = $labelResult['label_path'];
             $carrierName    = $labelResult['carrier_name'];
+            $shippingCost   = $labelResult['shipping_cost'] ?? null;
 
             // Build tracking URL from carrier's tracking_url base + tracking number
             $trackingUrl = null;
@@ -1058,6 +1059,7 @@ class OrderController extends Controller
                 'fulfillment_status'   => 'fulfilled',
                 'order_status'         => 'shipped',
                 'shipped_at'           => now(),
+                ...($shippingCost !== null ? ['shipping_cost' => $shippingCost] : []),
             ]);
 
             // Deduct inventory for all items
@@ -1162,8 +1164,9 @@ class OrderController extends Controller
                 $unitOverrides
             );
 
-            $packages    = $labelResult['packages'];
-            $carrierName = $labelResult['carrier_name'];
+            $packages     = $labelResult['packages'];
+            $carrierName  = $labelResult['carrier_name'];
+            $shippingCost = $labelResult['shipping_cost'] ?? null;
 
             // Store all tracking numbers
             $trackingNumbers = [];
@@ -1203,6 +1206,7 @@ class OrderController extends Controller
                 'fulfillment_status'   => 'fulfilled',
                 'order_status'         => 'shipped',
                 'shipped_at'           => now(),
+                ...($shippingCost !== null ? ['shipping_cost' => $shippingCost] : []),
             ]);
 
             // Refresh the order from database to verify the update
@@ -1652,6 +1656,60 @@ class OrderController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to issue partial refund: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Manually correct the refunded amount on an eBay order.
+     *
+     * eBay sometimes sends a refund notification without the actual amount,
+     * causing the system to mark the whole order as refunded even when only
+     * a partial refund was issued outside the app. This lets a user fix the
+     * stored refund amount directly; downstream reports/accounting read
+     * order_status/payment_status/total_refunded, so correcting those here
+     * fixes those views too.
+     */
+    public function updateRefundAmount(Request $request, string $id): JsonResponse
+    {
+        $order = Order::find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        if (!$order->isEbayOrder()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This action is only available for eBay orders. Use the standard refund actions instead.',
+            ], 400);
+        }
+
+        $validated = $request->validate([
+            'refund_amount' => ['required', 'numeric', 'min:0', 'max:' . (float) $order->total],
+            'note' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $order->correctRefundAmount((float) $validated['refund_amount'], $validated['note'] ?? null);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Refund amount updated successfully',
+                'data' => $order->fresh(),
+            ]);
+        } catch (Exception $e) {
+            Log::error('Failed to correct refund amount', [
+                'order_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update refund amount: ' . $e->getMessage(),
             ], 500);
         }
     }

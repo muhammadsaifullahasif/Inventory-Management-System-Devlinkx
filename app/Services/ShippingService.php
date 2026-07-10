@@ -791,9 +791,11 @@ class ShippingService
         Storage::put($filename, $labelData);
 
         return [
-            'tracking_number' => $trackingNumber,
-            'label_path'      => $filename,
-            'carrier_name'    => $carrier->name,
+            'tracking_number'   => $trackingNumber,
+            'label_path'        => $filename,
+            'carrier_name'      => $carrier->name,
+            'shipping_cost'     => $result['shipping_cost'] ?? null,
+            'shipping_currency' => $result['shipping_currency'] ?? 'USD',
         ];
     }
 
@@ -999,15 +1001,21 @@ class ShippingService
             Storage::put($filename, $labelData);
 
             $packages[] = [
-                'tracking_number' => $trackingNumber,
-                'label_path'      => $filename,
-                'package_number'  => $i + 1,
+                'tracking_number'   => $trackingNumber,
+                'label_path'        => $filename,
+                'package_number'    => $i + 1,
+                'shipping_cost'     => $result['shipping_cost'] ?? null,
+                'shipping_currency' => $result['shipping_currency'] ?? 'USD',
             ];
         }
 
+        $totalShippingCost = array_sum(array_column($packages, 'shipping_cost'));
+
         return [
-            'packages'     => $packages,
-            'carrier_name' => $carrier->name,
+            'packages'          => $packages,
+            'carrier_name'      => $carrier->name,
+            'shipping_cost'     => $totalShippingCost,
+            'shipping_currency' => $packages[0]['shipping_currency'] ?? 'USD',
         ];
     }
 

@@ -434,6 +434,20 @@
                                                     <i class="feather-dollar-sign"></i>
                                                 </a>
                                             @endif
+                                            {{-- Edit Refund Amount Button (eBay orders only) --}}
+                                            @if($order->isEbayOrder() && ($order->isRefunded() || $order->isPartiallyRefunded() || $order->refund_status))
+                                                <a href="javascript:void(0);"
+                                                    class="avatar-text avatar-md text-warning edit-refund-btn"
+                                                    data-order-id="{{ $order->id }}"
+                                                    data-order-number="{{ $order->order_number }}"
+                                                    data-order-total="{{ $order->total }}"
+                                                    data-total-refunded="{{ $order->total_refunded ?? 0 }}"
+                                                    data-currency="{{ $order->currency ?? 'USD' }}"
+                                                    data-bs-toggle="tooltip"
+                                                    title="Edit Refund Amount">
+                                                    <i class="feather-edit-3"></i>
+                                                </a>
+                                            @endif
                                             {{-- @if($order->order_status !== 'cancelled' && $order->order_status !== 'refunded')
                                                 <a href="javascript:void(0);" class="avatar-text avatar-md text-danger cancel-btn" data-id="{{ $order->id }}" data-bs-toggle="tooltip" title="Cancel Order">
                                                     <i class="feather-x"></i>
@@ -683,6 +697,63 @@
                     <button type="button" class="btn btn-light-brand" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-success" id="submitRefundBtn">
                         <i class="feather-dollar-sign me-1"></i> Issue Refund
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Refund Amount Modal -->
+    <div class="modal fade" id="editRefundModal" tabindex="-1" aria-labelledby="editRefundModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editRefundModalLabel">Edit Refund Amount</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning fs-12 mb-3">
+                        eBay does not always send the actual refund amount. Use this to correct the amount if this order shows as refunded/partially refunded incorrectly. This updates reports and accounting.
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Order</label>
+                        <p class="mb-0" id="editRefundOrderNumber"></p>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label text-muted small">Order Total</label>
+                            <p class="mb-0 fw-semibold" id="editRefundOrderTotal"></p>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small">Currently Recorded Refund</label>
+                            <p class="mb-0 fw-semibold text-info" id="editRefundCurrentAmount"></p>
+                        </div>
+                    </div>
+
+                    <form id="editRefundForm">
+                        <input type="hidden" name="order_id" id="editRefundOrderId">
+
+                        <div class="mb-3">
+                            <label for="editRefundAmount" class="form-label">Correct Refund Amount <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text" id="editRefundCurrency">USD</span>
+                                <input type="number" class="form-control" id="editRefundAmount" name="refund_amount" step="0.01" min="0" placeholder="0.00" required>
+                            </div>
+                            <small class="text-muted">Enter 0 if no refund was actually issued.</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="editRefundNote" class="form-label">Note (Optional)</label>
+                            <textarea class="form-control" id="editRefundNote" name="note" rows="2" placeholder="Reason for correction..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light-brand" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-warning" id="submitEditRefundBtn">
+                        <i class="feather-edit-3 me-1"></i> Save Refund Amount
                     </button>
                 </div>
             </div>
@@ -1082,6 +1153,64 @@
                     error: function(xhr) {
                         alert('Failed to process refund: ' + (xhr.responseJSON?.message || 'Unknown error'));
                         $btn.prop('disabled', false).html('<i class="feather-dollar-sign me-1"></i> Issue Refund');
+                    }
+                });
+            });
+
+            // ----------------------------------------------------------------
+            // Edit Refund Amount Modal
+            // ----------------------------------------------------------------
+            $(document).on('click', '.edit-refund-btn', function() {
+                var $btn = $(this);
+
+                $('#editRefundOrderId').val($btn.data('order-id'));
+                $('#editRefundOrderNumber').text($btn.data('order-number'));
+                $('#editRefundOrderTotal').text($btn.data('currency') + ' ' + parseFloat($btn.data('order-total')).toFixed(2));
+                $('#editRefundCurrentAmount').text($btn.data('currency') + ' ' + parseFloat($btn.data('total-refunded')).toFixed(2));
+                $('#editRefundCurrency').text($btn.data('currency'));
+                $('#editRefundAmount').attr('max', $btn.data('order-total')).val(parseFloat($btn.data('total-refunded')).toFixed(2));
+
+                $('#editRefundForm')[0].reset();
+                $('#editRefundAmount').val(parseFloat($btn.data('total-refunded')).toFixed(2));
+                $('#editRefundNote').val('');
+
+                var editRefundModal = new bootstrap.Modal(document.getElementById('editRefundModal'));
+                editRefundModal.show();
+            });
+
+            $('#submitEditRefundBtn').on('click', function() {
+                var orderId = $('#editRefundOrderId').val();
+                var amount = parseFloat($('#editRefundAmount').val());
+                var note = $('#editRefundNote').val();
+
+                if (isNaN(amount) || amount < 0) {
+                    alert('Please enter a valid refund amount.');
+                    return;
+                }
+
+                var $btn = $(this);
+                $btn.prop('disabled', true).html('<i class="spinner-border spinner-border-sm me-1"></i> Saving...');
+
+                $.ajax({
+                    url: '/orders/' + orderId + '/refund/edit',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        refund_amount: amount,
+                        note: note
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            bootstrap.Modal.getInstance(document.getElementById('editRefundModal')).hide();
+                            location.reload();
+                        } else {
+                            alert(response.message || 'Failed to update refund amount');
+                            $btn.prop('disabled', false).html('<i class="feather-edit-3 me-1"></i> Save Refund Amount');
+                        }
+                    },
+                    error: function(xhr) {
+                        alert('Failed to update refund amount: ' + (xhr.responseJSON?.message || 'Unknown error'));
+                        $btn.prop('disabled', false).html('<i class="feather-edit-3 me-1"></i> Save Refund Amount');
                     }
                 });
             });

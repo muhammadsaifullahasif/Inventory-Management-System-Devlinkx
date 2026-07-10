@@ -389,6 +389,67 @@ class Order extends Model
     }
 
     /**
+     * Manually correct the refunded amount to a known-accurate value.
+     *
+     * eBay's refund webhooks don't always include the real amount (e.g. a
+     * partial refund notification with no RefundAmount), so upstream code
+     * falls back to marking the order fully refunded. This lets a user
+     * overwrite that with the actual amount, and re-derives refund_status /
+     * payment_status / order_status from it so reports/accounting (which key
+     * off those fields) stop treating the order as fully refunded.
+     */
+    public function correctRefundAmount(float $newTotalRefunded, ?string $note = null): void
+    {
+        $newTotalRefunded = max(0, min($newTotalRefunded, (float) $this->total));
+        $previousTotalRefunded = (float) ($this->total_refunded ?? 0);
+        $previousRefundStatus = $this->refund_status;
+        $wasRefundedStatus = $this->order_status === 'refunded';
+
+        $fallbackOrderStatus = $this->delivered_at
+            ? 'delivered'
+            : ($this->shipped_at ? 'shipped' : 'processing');
+
+        $updateData = [
+            'refund_amount' => $newTotalRefunded,
+            'total_refunded' => $newTotalRefunded,
+        ];
+
+        if ($newTotalRefunded <= 0) {
+            $updateData['refund_status'] = null;
+            $updateData['refund_completed_at'] = null;
+            $updateData['payment_status'] = 'paid';
+            if ($wasRefundedStatus) {
+                $updateData['order_status'] = $fallbackOrderStatus;
+            }
+        } elseif ($newTotalRefunded >= (float) $this->total) {
+            $updateData['refund_status'] = 'completed';
+            $updateData['refund_completed_at'] = now();
+            $updateData['payment_status'] = 'refunded';
+            $updateData['order_status'] = 'refunded';
+            $updateData['refund_initiated_at'] = $this->refund_initiated_at ?? now();
+        } else {
+            $updateData['refund_status'] = 'partial';
+            $updateData['refund_completed_at'] = null;
+            $updateData['payment_status'] = 'paid';
+            $updateData['refund_initiated_at'] = $this->refund_initiated_at ?? now();
+            if ($wasRefundedStatus) {
+                $updateData['order_status'] = $fallbackOrderStatus;
+            }
+        }
+
+        $this->update($updateData);
+
+        $this->setMeta('refund_correction_' . time(), [
+            'previous_total_refunded' => $previousTotalRefunded,
+            'previous_refund_status' => $previousRefundStatus,
+            'new_total_refunded' => $newTotalRefunded,
+            'note' => $note,
+            'corrected_by' => auth()->id(),
+            'timestamp' => now()->toIso8601String(),
+        ]);
+    }
+
+    /**
      * Scope for pending orders
      */
     public function scopePending($query)

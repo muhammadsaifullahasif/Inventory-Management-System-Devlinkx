@@ -249,11 +249,16 @@ class FedexService
                 throw new \RuntimeException('FedEx: Shipment created but missing tracking number or label');
             }
 
+            // Extract actual shipping charge from the completed shipment's rating
+            [$shippingCost, $shippingCurrency] = $this->extractShipmentCharge($data);
+
             return [
-                'tracking_number' => $trackingNumber,
-                'label_base64'    => $labelBase64,
-                'label_format'    => $labelFormat,
-                'shipment_id'     => $shipmentId,
+                'tracking_number'   => $trackingNumber,
+                'label_base64'      => $labelBase64,
+                'label_format'      => $labelFormat,
+                'shipment_id'       => $shipmentId,
+                'shipping_cost'     => $shippingCost,
+                'shipping_currency' => $shippingCurrency,
             ];
         } catch (\RuntimeException $e) {
             throw $e;
@@ -261,6 +266,40 @@ class FedexService
             Log::error('FedEx: createShipment exception', ['message' => $e->getMessage()]);
             throw new \RuntimeException("FedEx shipment creation failed: {$e->getMessage()}");
         }
+    }
+
+    /**
+     * Pull the actual net charge out of a createShipment response.
+     * Prefers the ACCOUNT (contracted/discounted) rate, falls back to LIST, then to whatever is first.
+     *
+     * @return array{0: ?float, 1: string} [amount, currency]
+     */
+    protected function extractShipmentCharge(array $data): array
+    {
+        $rateDetails = $data['output']['transactionShipments'][0]['completedShipmentDetail']['shipmentRating']['shipmentRateDetails'] ?? [];
+
+        if (empty($rateDetails)) {
+            return [null, 'USD'];
+        }
+
+        $accountDetail = null;
+        $listDetail    = null;
+
+        foreach ($rateDetails as $detail) {
+            $rateType = $detail['rateType'] ?? '';
+            if ($rateType === 'ACCOUNT' || $rateType === 'PAYOR_ACCOUNT_SHIPMENT') {
+                $accountDetail = $detail;
+            } elseif ($rateType === 'LIST' || $rateType === 'PAYOR_LIST_SHIPMENT') {
+                $listDetail = $detail;
+            }
+        }
+
+        $chosen = $accountDetail ?? $listDetail ?? $rateDetails[0];
+
+        $amount = $chosen['totalNetCharge'] ?? $chosen['totalNetFedExCharge'] ?? null;
+        $currency = $chosen['currency'] ?? 'USD';
+
+        return [$amount !== null ? (float) $amount : null, $currency];
     }
 
     /**
