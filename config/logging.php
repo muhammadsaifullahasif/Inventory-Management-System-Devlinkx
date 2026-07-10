@@ -136,6 +136,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // eBay Finances API sync logs (detailed transaction/fee responses)
+        'ebay-finance-sync' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/ebay/finance-sync.log'),
+            'level' => 'debug',
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
         // eBay order status sync logs (detailed order responses)
         'ebay-order-sync' => [
             'driver' => 'daily',
