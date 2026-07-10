@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('ebay_transaction_id')->unique();
             $table->string('ebay_order_id')->nullable()->index();
             $table->string('transaction_type'); // SALE, SHIPPING_LABEL, NON_SALE_CHARGE, REFUND, ...
-            $table->string('fee_category')->nullable(); // sale | shipping_label | ad_fee | other
+            $table->string('fee_category')->nullable(); // sale | shipping_label | ad_fee | marketplace_fee_adjustment | other
 
             $table->string('booking_entry')->nullable(); // CREDIT | DEBIT
             $table->decimal('amount', 12, 2);

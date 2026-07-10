@@ -18,10 +18,17 @@ use Illuminate\Support\Facades\Log;
  * - transactionType=SALE: revenue transaction, `amount` is already net of
  *   eBay's marketplace fees, `totalFeeAmount` is those fees combined
  *   (final value fee + related per-order fees). Has top-level `orderId`.
- * - transactionType=SHIPPING_LABEL: DEBIT, has top-level `orderId`.
+ * - transactionType=SHIPPING_LABEL: usually DEBIT (label cost), but CREDIT
+ *   occurs for label voids/refunds. Has top-level `orderId`.
  * - transactionType=NON_SALE_CHARGE with feeType=AD_FEE: Promoted Listings
- *   charge, DEBIT. No top-level `orderId` — order is linked via
- *   `references[]` where referenceType=ORDER_ID.
+ *   charge, usually DEBIT but CREDIT occurs for fee reversals. No top-level
+ *   `orderId` — order is linked via `references[]` where
+ *   referenceType=ORDER_ID.
+ * - transactionType=NON_SALE_CHARGE with other feeTypes (e.g.
+ *   FINAL_VALUE_FEE_FIXED_PER_ORDER): a marketplace fee billed outside the
+ *   SALE transaction. Also linked via `references[]`.
+ * - Every DEBIT/CREDIT bucket above is sign-aware: CREDIT reverses a prior
+ *   charge and must subtract from the cost total, not add to it.
  * - Anything else falls into an 'other' bucket rather than being dropped,
  *   since eBay's transaction type list is broader than what's been
  *   observed so far (refunds, disputes, transfers, ...).
@@ -122,8 +129,14 @@ class EbayFinanceSyncService
             return 'shipping_label';
         }
 
-        if ($transactionType === 'NON_SALE_CHARGE' && ($transaction['feeType'] ?? null) === 'AD_FEE') {
-            return 'ad_fee';
+        if ($transactionType === 'NON_SALE_CHARGE') {
+            if (($transaction['feeType'] ?? null) === 'AD_FEE') {
+                return 'ad_fee';
+            }
+
+            // e.g. FINAL_VALUE_FEE_FIXED_PER_ORDER billed outside the SALE
+            // transaction — still a marketplace fee, not a generic "other".
+            return 'marketplace_fee_adjustment';
         }
 
         return 'other';
@@ -169,19 +182,28 @@ class EbayFinanceSyncService
             $signedAmount = $transaction->booking_entry === 'CREDIT' ? $amount : -$amount;
             $netEarnings += $signedAmount;
 
+            // Cost convention: DEBIT = seller charged (positive cost), CREDIT =
+            // fee reversed/refunded (negative cost). Both directions occur for
+            // SHIPPING_LABEL and NON_SALE_CHARGE (e.g. ad fee reversals, label
+            // voids) so the sign must not be dropped.
+            $cost = -$signedAmount;
+
             switch ($transaction->fee_category) {
                 case 'sale':
                     $transactionFee += (float) ($transaction->total_fee_amount ?? 0);
                     break;
                 case 'shipping_label':
-                    $shippingLabelCost += $amount;
+                    $shippingLabelCost += $cost;
                     break;
                 case 'ad_fee':
-                    $adFee += $amount;
+                    $adFee += $cost;
+                    break;
+                case 'marketplace_fee_adjustment':
+                    $transactionFee += $cost;
                     break;
                 default:
                     // Positive = net cost to seller (refunds, disputes); negative = net credit.
-                    $otherFees += -$signedAmount;
+                    $otherFees += $cost;
             }
         }
 
@@ -259,6 +281,10 @@ class EbayFinanceSyncService
         foreach ($transactions as $transaction) {
             $payload = $transaction->raw_payload;
             $amount = (float) $transaction->amount;
+            // DEBIT = cost to seller (positive), CREDIT = reversal/refund of a
+            // prior charge (negative) — SHIPPING_LABEL and NON_SALE_CHARGE both
+            // occur as CREDIT (label voids, ad fee reversals), so sign matters.
+            $cost = $transaction->booking_entry === 'CREDIT' ? -$amount : $amount;
 
             switch ($transaction->transaction_type) {
                 case 'SALE':
@@ -274,12 +300,12 @@ class EbayFinanceSyncService
                     break;
 
                 case 'SHIPPING_LABEL':
-                    $shippingLabels += $amount;
+                    $shippingLabels += $cost;
                     break;
 
                 case 'NON_SALE_CHARGE':
                     $feeType = $payload['feeType'] ?? 'OTHER_FEES';
-                    $otherCharges[$feeType] = ($otherCharges[$feeType] ?? 0) + $amount;
+                    $otherCharges[$feeType] = ($otherCharges[$feeType] ?? 0) + $cost;
                     break;
 
                 default:
