@@ -222,14 +222,20 @@ class EbayFinanceSyncService
      * shipping/tax/discount are NOT included here since they already live
      * on `orders`/`order_items` from the Trading API sync.
      *
+     * Terminology matches eBay's Seller Hub, confirmed against a live order
+     * (09-14822-51712, 2026-07-10): "Expenses" is the combined total of
+     * marketplace fees + shipping labels + other charges (8.78 + 7.09 =
+     * 15.87), NOT shipping/ad-fee alone. "Order earnings" is what eBay
+     * actually pays out (Gross − Expenses − Refunds). "Your cost" and "Net
+     * order earning" (= Order earnings − Your cost) are this app's own
+     * addition — eBay has no concept of product cost.
+     *
      * @return array{
      *   ebay_collected_tax: float,
      *   gross_amount: float,
      *   marketplace_fees: array<string, array{label: string, amount: float}>,
      *   shipping_labels: float,
-     *   charity_donation: float,
-     *   payment_dispute_fee: float,
-     *   expenses: array<string, array{label: string, amount: float}>,
+     *   other_charges: array<string, array{label: string, amount: float}>,
      *   expenses_total: float,
      *   refunds: float,
      *   adjustments: float,
@@ -246,9 +252,8 @@ class EbayFinanceSyncService
         $grossAmount = 0.0;
         $marketplaceFees = []; // feeType => amount, net of any refund reversal
         $shippingLabels = 0.0;
-        $expenses = []; // feeType => amount, for NON_SALE_CHARGE items (ad fee, charity, dispute fee, other)
+        $otherCharges = []; // feeType => amount, for NON_SALE_CHARGE items (ad fee, charity, dispute fee, other)
         $refunds = 0.0;
-        $orderEarnings = 0.0;
         $adjustments = 0.0; // CREDIT / DISPUTE / anything unclassified, signed
 
         foreach ($transactions as $transaction) {
@@ -257,7 +262,6 @@ class EbayFinanceSyncService
 
             switch ($transaction->transaction_type) {
                 case 'SALE':
-                    $orderEarnings += $amount;
                     $ebayCollectedTax += (float) ($payload['ebayCollectedTaxAmount']['value'] ?? 0);
                     $grossAmount += (float) ($payload['totalFeeBasisAmount']['value'] ?? 0);
                     $this->accumulateMarketplaceFees($marketplaceFees, $payload, 1);
@@ -275,7 +279,7 @@ class EbayFinanceSyncService
 
                 case 'NON_SALE_CHARGE':
                     $feeType = $payload['feeType'] ?? 'OTHER_FEES';
-                    $expenses[$feeType] = ($expenses[$feeType] ?? 0) + $amount;
+                    $otherCharges[$feeType] = ($otherCharges[$feeType] ?? 0) + $amount;
                     break;
 
                 default:
@@ -284,21 +288,22 @@ class EbayFinanceSyncService
             }
         }
 
-        $expensesTotal = $shippingLabels + array_sum($expenses);
-        $yourCost = $order->items()->sum(DB::raw('cost_at_sale * quantity'));
+        $expensesTotal = array_sum($marketplaceFees) + $shippingLabels + array_sum($otherCharges);
+        $orderEarnings = $grossAmount - $expensesTotal - $refunds + $adjustments;
+        $yourCost = (float) $order->items()->sum(DB::raw('cost_at_sale * quantity'));
 
         return [
             'ebay_collected_tax' => $ebayCollectedTax,
             'gross_amount' => $grossAmount,
             'marketplace_fees' => $this->labelBucket($marketplaceFees),
             'shipping_labels' => $shippingLabels,
-            'expenses' => $this->labelBucket($expenses),
+            'other_charges' => $this->labelBucket($otherCharges),
             'expenses_total' => $expensesTotal,
             'refunds' => $refunds,
             'adjustments' => $adjustments,
             'order_earnings' => $orderEarnings,
-            'your_cost' => (float) $yourCost,
-            'net_order_earning' => $orderEarnings - $expensesTotal - $refunds + $adjustments,
+            'your_cost' => $yourCost,
+            'net_order_earning' => $orderEarnings - $yourCost,
         ];
     }
 

@@ -323,30 +323,22 @@
                                     <td class="text-end">-{{ $cur }} {{ number_format($fee['amount'], 2) }}</td>
                                 </tr>
                                 @endforeach
-
-                                <tr class="border-top">
-                                    <td><strong>Order Earnings</strong></td>
-                                    <td class="text-end"><strong>{{ $cur }} {{ number_format($earningsBreakdown['order_earnings'], 2) }}</strong></td>
-                                </tr>
-
                                 @if($earningsBreakdown['shipping_labels'] > 0)
                                 <tr>
                                     <td class="ps-4 text-muted">Shipping Labels</td>
                                     <td class="text-end">-{{ $cur }} {{ number_format($earningsBreakdown['shipping_labels'], 2) }}</td>
                                 </tr>
                                 @endif
-                                @foreach($earningsBreakdown['expenses'] as $expense)
+                                @foreach($earningsBreakdown['other_charges'] as $charge)
                                 <tr>
-                                    <td class="ps-4 text-muted">{{ $expense['label'] }}</td>
-                                    <td class="text-end">-{{ $cur }} {{ number_format($expense['amount'], 2) }}</td>
+                                    <td class="ps-4 text-muted">{{ $charge['label'] }}</td>
+                                    <td class="text-end">-{{ $cur }} {{ number_format($charge['amount'], 2) }}</td>
                                 </tr>
                                 @endforeach
-                                @if($earningsBreakdown['expenses_total'] > 0)
-                                <tr>
-                                    <td>Expenses</td>
-                                    <td class="text-end">-{{ $cur }} {{ number_format($earningsBreakdown['expenses_total'], 2) }}</td>
+                                <tr class="border-top">
+                                    <td><strong>Expenses</strong></td>
+                                    <td class="text-end"><strong>-{{ $cur }} {{ number_format($earningsBreakdown['expenses_total'], 2) }}</strong></td>
                                 </tr>
-                                @endif
 
                                 @if($earningsBreakdown['refunds'] != 0)
                                 <tr>
@@ -362,12 +354,16 @@
                                 @endif
 
                                 <tr class="bg-light">
-                                    <td><strong>Net Order Earning</strong></td>
-                                    <td class="text-end"><strong class="text-success">{{ $cur }} {{ number_format($earningsBreakdown['net_order_earning'], 2) }}</strong></td>
+                                    <td><strong>Order Earnings</strong></td>
+                                    <td class="text-end"><strong>{{ $cur }} {{ number_format($earningsBreakdown['order_earnings'], 2) }}</strong></td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted">Your Cost</td>
                                     <td class="text-end text-muted">-{{ $cur }} {{ number_format($earningsBreakdown['your_cost'], 2) }}</td>
+                                </tr>
+                                <tr class="bg-light">
+                                    <td><strong>Net Order Earning</strong></td>
+                                    <td class="text-end"><strong class="text-success">{{ $cur }} {{ number_format($earningsBreakdown['net_order_earning'], 2) }}</strong></td>
                                 </tr>
                             </tbody>
                         </table>
