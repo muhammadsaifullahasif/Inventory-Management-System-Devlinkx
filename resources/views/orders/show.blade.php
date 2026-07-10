@@ -375,7 +375,7 @@
                                     @if($earningsBreakdown['refund_fee_credit'] != 0)
                                     <tr>
                                         <td>Refund to Buyer (total)</td>
-                                        <td class="text-end">-{{ $cur }} {{ number_format($earningsBreakdown['refunds'] + $earningsBreakdown['refund_fee_credit'], 2) }}</td>
+                                        <td class="text-end">-{{ $cur }} {{ number_format($earningsBreakdown['refunds'], 2) }}</td>
                                     </tr>
                                     <tr>
                                         <td class="ps-4 text-muted">eBay Fee Credit</td>
@@ -383,7 +383,7 @@
                                     </tr>
                                     <tr>
                                         <td class="ps-4 text-muted"><em>Your Refund Cost</em></td>
-                                        <td class="text-end"><em>-{{ $cur }} {{ number_format($earningsBreakdown['refunds'], 2) }}</em></td>
+                                        <td class="text-end"><em>-{{ $cur }} {{ number_format($earningsBreakdown['refund_seller_cost'], 2) }}</em></td>
                                     </tr>
                                     @else
                                     <tr>

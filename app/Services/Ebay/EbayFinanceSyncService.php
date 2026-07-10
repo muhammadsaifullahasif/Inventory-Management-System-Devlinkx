@@ -261,6 +261,7 @@ class EbayFinanceSyncService
      *   expenses_total: float,
      *   refunds: float,
      *   refund_fee_credit: float,
+     *   refund_seller_cost: float,
      *   adjustments: float,
      *   order_earnings: float,
      *   your_cost: float,
@@ -294,12 +295,17 @@ class EbayFinanceSyncService
                     break;
 
                 case 'REFUND':
-                    $refunds += $amount;
-                    // amount is only what leaves the seller's payout. eBay also
-                    // credits back the FVF portion of the buyer's refund
-                    // (totalFeeAmount) — track it separately so it's visible,
-                    // in addition to netting it out of marketplace_fees below.
-                    $refundFeeCredit += (float) ($transaction->total_fee_amount ?? 0);
+                    // amount is only what leaves the seller's payout — eBay
+                    // already nets the FVF credit (total_fee_amount) out of it
+                    // before charging the seller. marketplace_fees is ALSO
+                    // netted by that same credit below, so the formula must
+                    // use the full buyer-facing refund (amount + fee credit)
+                    // here — using `amount` alone would credit the seller for
+                    // the FVF twice (once via reduced fees, once via reduced
+                    // refund).
+                    $feeCredit = (float) ($transaction->total_fee_amount ?? 0);
+                    $refunds += $amount + $feeCredit;
+                    $refundFeeCredit += $feeCredit;
                     $this->accumulateMarketplaceFees($marketplaceFees, $payload, -1);
                     break;
 
@@ -343,6 +349,7 @@ class EbayFinanceSyncService
             'expenses_total' => $expensesTotal,
             'refunds' => $refunds,
             'refund_fee_credit' => $refundFeeCredit,
+            'refund_seller_cost' => $refunds - $refundFeeCredit,
             'adjustments' => $adjustments,
             'order_earnings' => $orderEarnings,
             'your_cost' => $yourCost,
