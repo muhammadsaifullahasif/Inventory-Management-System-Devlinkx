@@ -44,13 +44,21 @@ class EbayFinancesApiClient
             ]);
 
         if ($response->failed()) {
-            Log::error('eBay GetTransactions Failed', [
+            Log::channel('ebay')->error('eBay GetTransactions Failed', [
                 'status' => $response->status(),
                 'sales_channel_id' => $salesChannel->id,
                 'offset' => $offset,
+                'body' => $response->body(),
             ]);
             throw new Exception('eBay GetTransactions failed: ' . $response->body());
         }
+
+        Log::channel('ebay')->debug('eBay GetTransactions Response', [
+            'sales_channel_id' => $salesChannel->id,
+            'offset' => $offset,
+            'limit' => $limit,
+            'response' => $response->json(),
+        ]);
 
         return $response->json();
     }
