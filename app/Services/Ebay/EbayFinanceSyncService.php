@@ -260,6 +260,7 @@ class EbayFinanceSyncService
      *   other_charges: array<string, array{label: string, debit: float, credit: float, net: float}>,
      *   expenses_total: float,
      *   refunds: float,
+     *   refund_fee_credit: float,
      *   adjustments: float,
      *   order_earnings: float,
      *   your_cost: float,
@@ -277,6 +278,7 @@ class EbayFinanceSyncService
         $shippingLabelsCredit = 0.0;
         $otherCharges = []; // feeType => ['debit' => .., 'credit' => ..], for NON_SALE_CHARGE items (ad fee, charity, dispute fee, other)
         $refunds = 0.0;
+        $refundFeeCredit = 0.0; // FVF eBay credits back to the seller on a refund — buyer's total refund is $refunds + $refundFeeCredit
         $adjustments = 0.0; // CREDIT / DISPUTE / anything unclassified, signed
 
         foreach ($transactions as $transaction) {
@@ -293,7 +295,11 @@ class EbayFinanceSyncService
 
                 case 'REFUND':
                     $refunds += $amount;
-                    // Fees embedded in a refund are FVF credited back to the seller — net them out.
+                    // amount is only what leaves the seller's payout. eBay also
+                    // credits back the FVF portion of the buyer's refund
+                    // (totalFeeAmount) — track it separately so it's visible,
+                    // in addition to netting it out of marketplace_fees below.
+                    $refundFeeCredit += (float) ($transaction->total_fee_amount ?? 0);
                     $this->accumulateMarketplaceFees($marketplaceFees, $payload, -1);
                     break;
 
@@ -336,6 +342,7 @@ class EbayFinanceSyncService
             'other_charges' => $this->labelBucketWithDetail($otherCharges),
             'expenses_total' => $expensesTotal,
             'refunds' => $refunds,
+            'refund_fee_credit' => $refundFeeCredit,
             'adjustments' => $adjustments,
             'order_earnings' => $orderEarnings,
             'your_cost' => $yourCost,

@@ -371,11 +371,26 @@
                                     <td class="text-end"><strong>-{{ $cur }} {{ number_format($earningsBreakdown['expenses_total'], 2) }}</strong></td>
                                 </tr>
 
-                                @if($earningsBreakdown['refunds'] != 0)
-                                <tr>
-                                    <td>Refunds</td>
-                                    <td class="text-end">-{{ $cur }} {{ number_format($earningsBreakdown['refunds'], 2) }}</td>
-                                </tr>
+                                @if($earningsBreakdown['refunds'] != 0 || $earningsBreakdown['refund_fee_credit'] != 0)
+                                    @if($earningsBreakdown['refund_fee_credit'] != 0)
+                                    <tr>
+                                        <td>Refund to Buyer (total)</td>
+                                        <td class="text-end">-{{ $cur }} {{ number_format($earningsBreakdown['refunds'] + $earningsBreakdown['refund_fee_credit'], 2) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="ps-4 text-muted">eBay Fee Credit</td>
+                                        <td class="text-end text-success">+{{ $cur }} {{ number_format($earningsBreakdown['refund_fee_credit'], 2) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="ps-4 text-muted"><em>Your Refund Cost</em></td>
+                                        <td class="text-end"><em>-{{ $cur }} {{ number_format($earningsBreakdown['refunds'], 2) }}</em></td>
+                                    </tr>
+                                    @else
+                                    <tr>
+                                        <td>Refunds</td>
+                                        <td class="text-end">-{{ $cur }} {{ number_format($earningsBreakdown['refunds'], 2) }}</td>
+                                    </tr>
+                                    @endif
                                 @endif
                                 @if($earningsBreakdown['adjustments'] != 0)
                                 <tr>
