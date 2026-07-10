@@ -280,32 +280,94 @@
                     <h5 class="card-title"><i class="feather-dollar-sign me-2"></i>eBay Earnings</h5>
                 </div>
                 <div class="card-body">
-                    @if(!$order->ebay_financials_synced_at)
+                    @if(!$earningsBreakdown)
                         <p class="text-muted mb-0">Not yet synced. eBay fees/payouts typically finalize a few days after the sale.</p>
                     @else
+                        @php $cur = $order->currency ?? 'USD'; @endphp
                         <table class="table table-sm table-borderless mb-0">
                             <tbody>
                                 <tr>
-                                    <td>Transaction Fee</td>
-                                    <td class="text-end">-{{ $order->currency ?? 'USD' }} {{ number_format($order->ebay_transaction_fee, 2) }}</td>
+                                    <td>Item Subtotal</td>
+                                    <td class="text-end">{{ $cur }} {{ number_format($order->subtotal, 2) }}</td>
                                 </tr>
                                 <tr>
-                                    <td>Shipping Label Cost</td>
-                                    <td class="text-end">-{{ $order->currency ?? 'USD' }} {{ number_format($order->ebay_shipping_label_cost, 2) }}</td>
+                                    <td>Shipping and Handling</td>
+                                    <td class="text-end">{{ $cur }} {{ number_format($order->shipping_cost, 2) }}</td>
                                 </tr>
+                                @if($order->discount > 0)
                                 <tr>
-                                    <td>Ad Fee</td>
-                                    <td class="text-end">-{{ $order->currency ?? 'USD' }} {{ number_format($order->ebay_ad_fee, 2) }}</td>
-                                </tr>
-                                @if($order->ebay_other_fees > 0)
-                                <tr>
-                                    <td>Other Fees</td>
-                                    <td class="text-end">-{{ $order->currency ?? 'USD' }} {{ number_format($order->ebay_other_fees, 2) }}</td>
+                                    <td>Discount</td>
+                                    <td class="text-end text-danger">-{{ $cur }} {{ number_format($order->discount, 2) }}</td>
                                 </tr>
                                 @endif
+                                @if($order->tax > 0)
+                                <tr>
+                                    <td>Seller Collected Tax</td>
+                                    <td class="text-end">{{ $cur }} {{ number_format($order->tax, 2) }}</td>
+                                </tr>
+                                @endif
+                                @if($earningsBreakdown['ebay_collected_tax'] > 0)
+                                <tr>
+                                    <td>eBay Collected Tax</td>
+                                    <td class="text-end">{{ $cur }} {{ number_format($earningsBreakdown['ebay_collected_tax'], 2) }}</td>
+                                </tr>
+                                @endif
+                                <tr>
+                                    <td>Gross Amount</td>
+                                    <td class="text-end">{{ $cur }} {{ number_format($earningsBreakdown['gross_amount'], 2) }}</td>
+                                </tr>
+
+                                @foreach($earningsBreakdown['marketplace_fees'] as $fee)
+                                <tr>
+                                    <td class="ps-4 text-muted">{{ $fee['label'] }}</td>
+                                    <td class="text-end">-{{ $cur }} {{ number_format($fee['amount'], 2) }}</td>
+                                </tr>
+                                @endforeach
+
+                                <tr class="border-top">
+                                    <td><strong>Order Earnings</strong></td>
+                                    <td class="text-end"><strong>{{ $cur }} {{ number_format($earningsBreakdown['order_earnings'], 2) }}</strong></td>
+                                </tr>
+
+                                @if($earningsBreakdown['shipping_labels'] > 0)
+                                <tr>
+                                    <td class="ps-4 text-muted">Shipping Labels</td>
+                                    <td class="text-end">-{{ $cur }} {{ number_format($earningsBreakdown['shipping_labels'], 2) }}</td>
+                                </tr>
+                                @endif
+                                @foreach($earningsBreakdown['expenses'] as $expense)
+                                <tr>
+                                    <td class="ps-4 text-muted">{{ $expense['label'] }}</td>
+                                    <td class="text-end">-{{ $cur }} {{ number_format($expense['amount'], 2) }}</td>
+                                </tr>
+                                @endforeach
+                                @if($earningsBreakdown['expenses_total'] > 0)
+                                <tr>
+                                    <td>Expenses</td>
+                                    <td class="text-end">-{{ $cur }} {{ number_format($earningsBreakdown['expenses_total'], 2) }}</td>
+                                </tr>
+                                @endif
+
+                                @if($earningsBreakdown['refunds'] != 0)
+                                <tr>
+                                    <td>Refunds</td>
+                                    <td class="text-end">-{{ $cur }} {{ number_format($earningsBreakdown['refunds'], 2) }}</td>
+                                </tr>
+                                @endif
+                                @if($earningsBreakdown['adjustments'] != 0)
+                                <tr>
+                                    <td>Other Adjustments</td>
+                                    <td class="text-end {{ $earningsBreakdown['adjustments'] < 0 ? 'text-danger' : '' }}">{{ $earningsBreakdown['adjustments'] > 0 ? '+' : '-' }}{{ $cur }} {{ number_format(abs($earningsBreakdown['adjustments']), 2) }}</td>
+                                </tr>
+                                @endif
+
                                 <tr class="bg-light">
-                                    <td><strong>Net Earnings</strong></td>
-                                    <td class="text-end"><strong class="text-success">{{ $order->currency ?? 'USD' }} {{ number_format($order->ebay_net_earnings, 2) }}</strong></td>
+                                    <td><strong>Net Order Earning</strong></td>
+                                    <td class="text-end"><strong class="text-success">{{ $cur }} {{ number_format($earningsBreakdown['net_order_earning'], 2) }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Your Cost</td>
+                                    <td class="text-end text-muted">-{{ $cur }} {{ number_format($earningsBreakdown['your_cost'], 2) }}</td>
                                 </tr>
                             </tbody>
                         </table>

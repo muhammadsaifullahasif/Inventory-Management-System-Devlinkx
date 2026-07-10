@@ -5,6 +5,7 @@ namespace App\Services\Ebay;
 use App\Models\EbayFinanceTransaction;
 use App\Models\Order;
 use App\Models\SalesChannel;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -192,5 +193,145 @@ class EbayFinanceSyncService
             'ebay_net_earnings' => $netEarnings,
             'ebay_financials_synced_at' => now(),
         ]);
+    }
+
+    /**
+     * Known eBay fee-type labels for the itemized earnings breakdown.
+     * Anything not listed here still displays via humanizeFeeType() rather
+     * than being dropped — eBay's fee-type list is broader than what's
+     * been observed in this account's data so far.
+     */
+    protected const FEE_TYPE_LABELS = [
+        'FINAL_VALUE_FEE' => 'Final Value Fee (variable)',
+        'FINAL_VALUE_FEE_FIXED_PER_ORDER' => 'Final Value Fee (fixed)',
+        'HIGH_ITEM_NOT_AS_DESCRIBED_FEE' => 'Very High "Item Not As Described" Fee',
+        'INTERNATIONAL_FEE' => 'International Fee',
+        'BELOW_STANDARD_FEE' => 'Below Standard Performance Fee',
+        'BELOW_STANDARD_SHIPPING_FEE' => 'Below Standard Performance Fee (Shipping)',
+        'DEPOSIT_PROCESSING_FEE' => 'Deposit Processing Fee',
+        'REGULATORY_OPERATING_FEE' => 'Regulatory Operating Fee',
+        'CHARITY_DONATION' => 'Charity Donation',
+        'PAYMENT_DISPUTE_FEE' => 'Payment Dispute Fee',
+        'OTHER_FEES' => 'Other Fees',
+    ];
+
+    /**
+     * Build the itemized per-order earnings breakdown (mirrors eBay's own
+     * Order Details earnings page) from already-synced EbayFinanceTransaction
+     * rows. Pure read — no API calls, no writes. Item price/subtotal/
+     * shipping/tax/discount are NOT included here since they already live
+     * on `orders`/`order_items` from the Trading API sync.
+     *
+     * @return array{
+     *   ebay_collected_tax: float,
+     *   gross_amount: float,
+     *   marketplace_fees: array<string, array{label: string, amount: float}>,
+     *   shipping_labels: float,
+     *   charity_donation: float,
+     *   payment_dispute_fee: float,
+     *   expenses: array<string, array{label: string, amount: float}>,
+     *   expenses_total: float,
+     *   refunds: float,
+     *   adjustments: float,
+     *   order_earnings: float,
+     *   your_cost: float,
+     *   net_order_earning: float,
+     * }
+     */
+    public function buildEarningsBreakdown(Order $order): array
+    {
+        $transactions = EbayFinanceTransaction::where('order_id', $order->id)->get();
+
+        $ebayCollectedTax = 0.0;
+        $grossAmount = 0.0;
+        $marketplaceFees = []; // feeType => amount, net of any refund reversal
+        $shippingLabels = 0.0;
+        $expenses = []; // feeType => amount, for NON_SALE_CHARGE items (ad fee, charity, dispute fee, other)
+        $refunds = 0.0;
+        $orderEarnings = 0.0;
+        $adjustments = 0.0; // CREDIT / DISPUTE / anything unclassified, signed
+
+        foreach ($transactions as $transaction) {
+            $payload = $transaction->raw_payload;
+            $amount = (float) $transaction->amount;
+
+            switch ($transaction->transaction_type) {
+                case 'SALE':
+                    $orderEarnings += $amount;
+                    $ebayCollectedTax += (float) ($payload['ebayCollectedTaxAmount']['value'] ?? 0);
+                    $grossAmount += (float) ($payload['totalFeeBasisAmount']['value'] ?? 0);
+                    $this->accumulateMarketplaceFees($marketplaceFees, $payload, 1);
+                    break;
+
+                case 'REFUND':
+                    $refunds += $amount;
+                    // Fees embedded in a refund are FVF credited back to the seller — net them out.
+                    $this->accumulateMarketplaceFees($marketplaceFees, $payload, -1);
+                    break;
+
+                case 'SHIPPING_LABEL':
+                    $shippingLabels += $amount;
+                    break;
+
+                case 'NON_SALE_CHARGE':
+                    $feeType = $payload['feeType'] ?? 'OTHER_FEES';
+                    $expenses[$feeType] = ($expenses[$feeType] ?? 0) + $amount;
+                    break;
+
+                default:
+                    // CREDIT, DISPUTE, and anything not yet observed.
+                    $adjustments += $transaction->booking_entry === 'CREDIT' ? $amount : -$amount;
+            }
+        }
+
+        $expensesTotal = $shippingLabels + array_sum($expenses);
+        $yourCost = $order->items()->sum(DB::raw('cost_at_sale * quantity'));
+
+        return [
+            'ebay_collected_tax' => $ebayCollectedTax,
+            'gross_amount' => $grossAmount,
+            'marketplace_fees' => $this->labelBucket($marketplaceFees),
+            'shipping_labels' => $shippingLabels,
+            'expenses' => $this->labelBucket($expenses),
+            'expenses_total' => $expensesTotal,
+            'refunds' => $refunds,
+            'adjustments' => $adjustments,
+            'order_earnings' => $orderEarnings,
+            'your_cost' => (float) $yourCost,
+            'net_order_earning' => $orderEarnings - $expensesTotal - $refunds + $adjustments,
+        ];
+    }
+
+    protected function accumulateMarketplaceFees(array &$bucket, array $payload, int $sign): void
+    {
+        foreach ($payload['orderLineItems'] ?? [] as $lineItem) {
+            foreach ($lineItem['marketplaceFees'] ?? [] as $fee) {
+                $feeType = $fee['feeType'] ?? 'OTHER_FEES';
+                $bucket[$feeType] = ($bucket[$feeType] ?? 0) + $sign * (float) ($fee['amount']['value'] ?? 0);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, float> $bucket
+     * @return array<string, array{label: string, amount: float}>
+     */
+    protected function labelBucket(array $bucket): array
+    {
+        $labeled = [];
+
+        foreach ($bucket as $feeType => $amount) {
+            $labeled[$feeType] = [
+                'label' => self::FEE_TYPE_LABELS[$feeType] ?? $this->humanizeFeeType($feeType),
+                'amount' => $amount,
+            ];
+        }
+
+        return $labeled;
+    }
+
+    protected function humanizeFeeType(string $feeType): string
+    {
+        return ucwords(strtolower(str_replace('_', ' ', $feeType)));
     }
 }

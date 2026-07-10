@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use App\Services\ShippingService;
+use App\Services\Ebay\EbayFinanceSyncService;
 
 class OrderController extends Controller
 {
@@ -279,7 +280,11 @@ class OrderController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'type', 'is_default']);
 
-        return view('orders.show', compact('order', 'metaData', 'shippingCarriers'));
+        $earningsBreakdown = $order->isEbayOrder() && $order->ebay_financials_synced_at
+            ? app(EbayFinanceSyncService::class)->buildEarningsBreakdown($order)
+            : null;
+
+        return view('orders.show', compact('order', 'metaData', 'shippingCarriers', 'earningsBreakdown'));
     }
 
     /**
