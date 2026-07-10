@@ -273,6 +273,48 @@
                 </div>
             </div>
 
+            <!-- eBay Finances -->
+            @if($order->isEbayOrder())
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="card-title"><i class="feather-dollar-sign me-2"></i>eBay Earnings</h5>
+                </div>
+                <div class="card-body">
+                    @if(!$order->ebay_financials_synced_at)
+                        <p class="text-muted mb-0">Not yet synced. eBay fees/payouts typically finalize a few days after the sale.</p>
+                    @else
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td>Transaction Fee</td>
+                                    <td class="text-end">-{{ $order->currency ?? 'USD' }} {{ number_format($order->ebay_transaction_fee, 2) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Shipping Label Cost</td>
+                                    <td class="text-end">-{{ $order->currency ?? 'USD' }} {{ number_format($order->ebay_shipping_label_cost, 2) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Ad Fee</td>
+                                    <td class="text-end">-{{ $order->currency ?? 'USD' }} {{ number_format($order->ebay_ad_fee, 2) }}</td>
+                                </tr>
+                                @if($order->ebay_other_fees > 0)
+                                <tr>
+                                    <td>Other Fees</td>
+                                    <td class="text-end">-{{ $order->currency ?? 'USD' }} {{ number_format($order->ebay_other_fees, 2) }}</td>
+                                </tr>
+                                @endif
+                                <tr class="bg-light">
+                                    <td><strong>Net Earnings</strong></td>
+                                    <td class="text-end"><strong class="text-success">{{ $order->currency ?? 'USD' }} {{ number_format($order->ebay_net_earnings, 2) }}</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p class="text-muted fs-11 mt-2 mb-0">Synced {{ $order->ebay_financials_synced_at->diffForHumans() }}</p>
+                    @endif
+                </div>
+            </div>
+            @endif
+
             <!-- Order Meta Data -->
             @if(count($metaData) > 0)
             <div class="card mt-4">

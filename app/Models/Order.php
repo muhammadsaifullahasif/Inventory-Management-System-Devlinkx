@@ -78,6 +78,13 @@ class Order extends Model
         // Shipment deadline fields
         'shipment_deadline',
         'handling_time_days',
+        // eBay Finances API summary fields
+        'ebay_transaction_fee',
+        'ebay_shipping_label_cost',
+        'ebay_ad_fee',
+        'ebay_other_fees',
+        'ebay_net_earnings',
+        'ebay_financials_synced_at',
     ];
 
     protected $casts = [
@@ -104,6 +111,12 @@ class Order extends Model
         'total' => 'decimal:2',
         'refund_amount' => 'decimal:2',
         'total_refunded' => 'decimal:2',
+        'ebay_transaction_fee' => 'decimal:2',
+        'ebay_shipping_label_cost' => 'decimal:2',
+        'ebay_ad_fee' => 'decimal:2',
+        'ebay_other_fees' => 'decimal:2',
+        'ebay_net_earnings' => 'decimal:2',
+        'ebay_financials_synced_at' => 'datetime',
     ];
 
     /**

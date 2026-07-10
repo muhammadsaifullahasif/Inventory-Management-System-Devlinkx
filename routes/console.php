@@ -46,4 +46,10 @@ Schedule::command('ebay:sync-orders')
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/ebay-order-sync.log'));
 
+// Sync eBay finance data (fees, shipping labels, ad charges) hourly, 7-day lookback
+Schedule::command('ebay:sync-finances')
+    ->hourly()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/ebay-finance-sync.log'));
+
 Schedule::command('queue:release-stale')->everyFiveMinutes();
