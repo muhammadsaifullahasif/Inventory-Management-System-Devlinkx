@@ -129,6 +129,10 @@ class EbayFinanceSyncService
             return 'shipping_label';
         }
 
+        if ($transactionType === 'REFUND') {
+            return 'refund';
+        }
+
         if ($transactionType === 'NON_SALE_CHARGE') {
             if (($transaction['feeType'] ?? null) === 'AD_FEE') {
                 return 'ad_fee';
@@ -176,6 +180,7 @@ class EbayFinanceSyncService
         $shippingLabelCost = 0.0;
         $adFee = 0.0;
         $otherFees = 0.0;
+        $refundTotal = 0.0;
 
         foreach ($transactions as $transaction) {
             $amount = (float) $transaction->amount;
@@ -201,6 +206,13 @@ class EbayFinanceSyncService
                 case 'marketplace_fee_adjustment':
                     $transactionFee += $cost;
                     break;
+                case 'refund':
+                    // Buyer-facing refund = amount actually paid out to the
+                    // buyer (total_fee_amount is the FVF eBay credits back to
+                    // the seller, already netted out of `amount`) — same
+                    // formula as buildEarningsBreakdown()'s 'refunds' bucket.
+                    $refundTotal += $amount + (float) ($transaction->total_fee_amount ?? 0);
+                    break;
                 default:
                     // Positive = net cost to seller (refunds, disputes); negative = net credit.
                     $otherFees += $cost;
@@ -215,6 +227,16 @@ class EbayFinanceSyncService
             'ebay_net_earnings' => $netEarnings,
             'ebay_financials_synced_at' => now(),
         ]);
+
+        // Finance API gives the real refunded amount, unlike Trading API
+        // refund notifications which sometimes lack RefundAmount and get
+        // defaulted to "fully refunded" upstream (see
+        // Order::correctRefundAmount docblock). Only touch the order when
+        // the figure actually changed, since correctRefundAmount() always
+        // writes a refund_correction_* meta log entry.
+        if (abs($refundTotal - (float) ($order->total_refunded ?? 0)) > 0.01) {
+            $order->correctRefundAmount($refundTotal, 'eBay Finance API refund sync');
+        }
     }
 
     /**
