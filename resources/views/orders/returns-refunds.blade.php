@@ -200,7 +200,7 @@
                 </table>
             </div>
             <div class="mt-3">
-                {{ $orders->appends(request()->query())->links() }}
+                {{ $orders->appends(request()->query())->links('pagination::bootstrap-5') }}
             </div>
         </div>
     </div>
