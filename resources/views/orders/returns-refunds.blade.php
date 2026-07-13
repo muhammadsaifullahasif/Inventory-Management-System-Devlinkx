@@ -73,7 +73,7 @@
     <div class="card mb-3">
         <div class="card-body">
             <form method="GET" action="{{ route('orders.returns-refunds') }}" class="row g-2 align-items-end">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label fs-12 text-muted">Search</label>
                     <input type="text" name="search" class="form-control form-control-sm" placeholder="Order #, buyer, email"
                         value="{{ request('search') }}">
@@ -115,7 +115,7 @@
                     <label class="form-label fs-12 text-muted">To Date</label>
                     <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}">
                 </div>
-                <div class="col-md-1">
+                <div class="col-md-2 d-flex align-items-end gap-2">
                     <button type="submit" class="btn btn-primary btn-sm"><i class="feather-search"></i></button>
                     <a href="{{ route('orders.returns-refunds') }}" class="btn btn-light-brand btn-sm">
                         <i class="feather-x me-2"></i>
