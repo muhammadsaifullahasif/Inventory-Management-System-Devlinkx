@@ -204,7 +204,9 @@
             </div>
         </div>
     </div>
+@endsection
 
+@push('modals')
     <!-- Create Return Modal -->
     <div class="modal fade" id="createReturnModal" tabindex="-1">
         <div class="modal-dialog">
@@ -237,7 +239,7 @@
             </div>
         </div>
     </div>
-@endsection
+@endpush
 
 @push('scripts')
 <script>
