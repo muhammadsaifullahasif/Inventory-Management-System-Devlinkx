@@ -1594,7 +1594,7 @@ class OrderController extends Controller
         ]);
 
         try {
-            $orders = Order::whereIn('id', $request->ids)->get();
+            $orders = Order::whereIn('id', $request->ids)->with('items')->get();
             $count = 0;
 
             foreach ($orders as $order) {

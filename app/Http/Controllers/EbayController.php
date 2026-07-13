@@ -223,18 +223,27 @@ class EbayController extends Controller
                 return redirect()->back()->with('error', 'No default rack found for the default warehouse.');
             }
 
+            // Cache resolved categories per name within this run to avoid repeat lookups for shared categories
+            $categoryCache = [];
+
             foreach ($allItems as $index => $item) {
                 try {
-                    // Get or create category
-                    $category = Category::whereLike('name', '%' . $item['category']['name'] . '%')->first();
-                    if ($category == null) {
-                        $category = Category::create([
-                            'name' => $item['category']['name'],
-                            'slug' => Str::slug($item['category']['name']),
-                        ]);
-                        if (!$category) {
-                            $category = Category::first();
+                    // Get or create category (cached by name for this sync run)
+                    $categoryName = $item['category']['name'];
+                    if (array_key_exists($categoryName, $categoryCache)) {
+                        $category = $categoryCache[$categoryName];
+                    } else {
+                        $category = Category::whereLike('name', '%' . $categoryName . '%')->first();
+                        if ($category == null) {
+                            $category = Category::create([
+                                'name' => $categoryName,
+                                'slug' => Str::slug($categoryName),
+                            ]);
+                            if (!$category) {
+                                $category = Category::first();
+                            }
                         }
+                        $categoryCache[$categoryName] = $category;
                     }
 
                     if (!$category) {
