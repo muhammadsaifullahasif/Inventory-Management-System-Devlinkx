@@ -917,6 +917,14 @@ class OrderController extends Controller
                     ->orWhereDate('updated_at', '>=', $request->date_from);
             });
         }
+        if ($request->filled('date_to')) {
+            $query->where(function ($q) use ($request) {
+                $q->whereDate('return_requested_at', '<=', $request->date_to)
+                    ->orWhereDate('cancellation_requested_at', '<=', $request->date_to)
+                    ->orWhereDate('refund_initiated_at', '<=', $request->date_to)
+                    ->orWhereDate('updated_at', '<=', $request->date_to);
+            });
+        }
 
         // Search
         if ($request->filled('search')) {

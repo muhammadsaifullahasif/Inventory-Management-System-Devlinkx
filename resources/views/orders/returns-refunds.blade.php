@@ -75,12 +75,12 @@
             <form method="GET" action="{{ route('orders.returns-refunds') }}" class="row g-2 align-items-end">
                 <div class="col-md-3">
                     <label class="form-label fs-12 text-muted">Search</label>
-                    <input type="text" name="search" class="form-control" placeholder="Order #, buyer, email"
+                    <input type="text" name="search" class="form-control form-control-sm" placeholder="Order #, buyer, email"
                         value="{{ request('search') }}">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fs-12 text-muted">Sales Channel</label>
-                    <select name="sales_channel_id" class="form-select">
+                    <select name="sales_channel_id" class="form-select form-select-sm">
                         <option value="">All Channels</option>
                         @foreach($salesChannels as $channel)
                             <option value="{{ $channel->id }}" @selected(request('sales_channel_id') == $channel->id)>{{ $channel->name }}</option>
@@ -89,7 +89,7 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fs-12 text-muted">Type</label>
-                    <select name="type" class="form-select">
+                    <select name="type" class="form-select form-select-sm">
                         <option value="">All Types</option>
                         <option value="return" @selected(request('type') == 'return')>Return</option>
                         <option value="cancellation" @selected(request('type') == 'cancellation')>Cancellation</option>
@@ -99,7 +99,7 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fs-12 text-muted">Status</label>
-                    <select name="status" class="form-select">
+                    <select name="status" class="form-select form-select-sm">
                         <option value="">All Statuses</option>
                         <option value="pending" @selected(request('status') == 'pending')>Pending</option>
                         <option value="processing" @selected(request('status') == 'processing')>Processing</option>
@@ -109,10 +109,15 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fs-12 text-muted">From Date</label>
-                    <input type="date" name="date_from" class="form-control" value="{{ request('date_from') }}">
+                    <input type="date" name="date_from" class="form-control form-control-sm" value="{{ request('date_from') }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fs-12 text-muted">To Date</label>
+                    <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}">
                 </div>
                 <div class="col-md-1">
-                    <button type="submit" class="btn btn-primary w-100"><i class="feather-search"></i></button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="feather-search"></i></button>
+                    <a href="{{ route('orders.returns-refunds') }}" class="btn btn-light-brand btn-sm"></a>
                 </div>
             </form>
         </div>
