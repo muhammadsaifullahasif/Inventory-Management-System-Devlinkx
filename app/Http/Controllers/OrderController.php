@@ -51,6 +51,15 @@ class OrderController extends Controller
             $query->where('fulfillment_status', $request->fulfillment_status);
         }
 
+        // Filter by return status
+        if ($request->filled('return_status')) {
+            if ($request->return_status === 'none') {
+                $query->whereNull('return_status');
+            } else {
+                $query->where('return_status', $request->return_status);
+            }
+        }
+
         // Filter by date range
         if ($request->filled('date_from')) {
             $query->whereDate('order_date', '>=', $request->date_from);

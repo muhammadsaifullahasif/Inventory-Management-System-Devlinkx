@@ -92,6 +92,24 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
+                                <label class="form-label">Return Status</label>
+                                <select name="return_status" class="form-select form-select-sm">
+                                    <option value="">All</option>
+                                    <option value="requested" {{ request('return_status') == 'requested' ? 'selected' : '' }}>Requested</option>
+                                    <option value="return_requested" {{ request('return_status') == 'return_requested' ? 'selected' : '' }}>Return Requested</option>
+                                    <option value="approved" {{ request('return_status') == 'approved' ? 'selected' : '' }}>Approved</option>
+                                    <option value="return_shipped" {{ request('return_status') == 'return_shipped' ? 'selected' : '' }}>Return Shipped</option>
+                                    <option value="return_delivered" {{ request('return_status') == 'return_delivered' ? 'selected' : '' }}>Return Delivered</option>
+                                    <option value="return_received" {{ request('return_status') == 'return_received' ? 'selected' : '' }}>Return Received</option>
+                                    <option value="action_required" {{ request('return_status') == 'action_required' ? 'selected' : '' }}>Action Required</option>
+                                    <option value="escalated" {{ request('return_status') == 'escalated' ? 'selected' : '' }}>Escalated</option>
+                                    <option value="declined" {{ request('return_status') == 'declined' ? 'selected' : '' }}>Declined</option>
+                                    <option value="refunded" {{ request('return_status') == 'refunded' ? 'selected' : '' }}>Refunded</option>
+                                    <option value="closed" {{ request('return_status') == 'closed' ? 'selected' : '' }}>Closed</option>
+                                    <option value="none" {{ request('return_status') == 'none' ? 'selected' : '' }}>No Return</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
                                 <label class="form-label">Ship By Deadline</label>
                                 <select name="shipment_deadline" class="form-select form-select-sm">
                                     <option value="">All</option>
