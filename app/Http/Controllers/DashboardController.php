@@ -33,14 +33,14 @@ class DashboardController extends Controller
         $startOfLastMonth = Carbon::now()->subMonth()->startOfMonth();
         $endOfLastMonth = Carbon::now()->subMonth()->endOfMonth();
 
+        // Orders by Status (computed once, reused by summary stats below)
+        $ordersByStatus = $this->getOrdersByStatus();
+
         // Summary Statistics
-        $stats = $this->getSummaryStats($today, $startOfMonth, $endOfMonth, $startOfLastMonth, $endOfLastMonth);
+        $stats = $this->getSummaryStats($today, $startOfMonth, $endOfMonth, $startOfLastMonth, $endOfLastMonth, $ordersByStatus);
 
         // Sales Chart Data (Last 30 days)
         $salesChartData = $this->getSalesChartData();
-
-        // Orders by Status
-        $ordersByStatus = $this->getOrdersByStatus();
 
         // Top Selling Products
         $topProducts = $this->getTopSellingProducts();
@@ -147,41 +147,47 @@ class DashboardController extends Controller
         return redirect()->route('dashboard')->with('success', 'Dashboard widgets reset to default.');
     }
 
-    protected function getSummaryStats($today, $startOfMonth, $endOfMonth, $startOfLastMonth, $endOfLastMonth)
+    protected function getSummaryStats($today, $startOfMonth, $endOfMonth, $startOfLastMonth, $endOfLastMonth, $ordersByStatus = [])
     {
         // Total Products
         $totalProducts = Product::where('active_status', '1')->where('delete_status', '0')->count();
 
-        // Total Orders Today
-        $ordersToday = Order::whereDate('created_at', $today)->count();
+        // Today/this-month/last-month order counts + paid revenue in one scan
+        // (range covers startOfLastMonth..endOfMonth, which also contains "today")
+        $todayStr = $today->format('Y-m-d');
+        $summary = Order::whereBetween('created_at', [$startOfLastMonth, $endOfMonth])
+            ->selectRaw(
+                "SUM(CASE WHEN DATE(created_at) = ? THEN 1 ELSE 0 END) as orders_today,
+                 SUM(CASE WHEN created_at BETWEEN ? AND ? THEN 1 ELSE 0 END) as orders_this_month,
+                 SUM(CASE WHEN created_at BETWEEN ? AND ? THEN 1 ELSE 0 END) as orders_last_month,
+                 SUM(CASE WHEN DATE(created_at) = ? AND payment_status = 'paid' THEN total ELSE 0 END) as revenue_today,
+                 SUM(CASE WHEN created_at BETWEEN ? AND ? AND payment_status = 'paid' THEN total ELSE 0 END) as revenue_this_month,
+                 SUM(CASE WHEN created_at BETWEEN ? AND ? AND payment_status = 'paid' THEN total ELSE 0 END) as revenue_last_month",
+                [
+                    $todayStr,
+                    $startOfMonth, $endOfMonth,
+                    $startOfLastMonth, $endOfLastMonth,
+                    $todayStr,
+                    $startOfMonth, $endOfMonth,
+                    $startOfLastMonth, $endOfLastMonth,
+                ]
+            )
+            ->first();
 
-        // Total Orders This Month
-        $ordersThisMonth = Order::whereBetween('created_at', [$startOfMonth, $endOfMonth])->count();
-        $ordersLastMonth = Order::whereBetween('created_at', [$startOfLastMonth, $endOfLastMonth])->count();
+        $ordersToday = (int) $summary->orders_today;
+        $ordersThisMonth = (int) $summary->orders_this_month;
+        $ordersLastMonth = (int) $summary->orders_last_month;
         $ordersGrowth = $ordersLastMonth > 0 ? round((($ordersThisMonth - $ordersLastMonth) / $ordersLastMonth) * 100, 1) : 100;
 
-        // Revenue Today
-        $revenueToday = Order::whereDate('created_at', $today)
-            ->where('payment_status', 'paid')
-            ->sum('total');
-
-        // Revenue This Month
-        $revenueThisMonth = Order::whereBetween('created_at', [$startOfMonth, $endOfMonth])
-            ->where('payment_status', 'paid')
-            ->sum('total');
-        $revenueLastMonth = Order::whereBetween('created_at', [$startOfLastMonth, $endOfLastMonth])
-            ->where('payment_status', 'paid')
-            ->sum('total');
+        $revenueToday = (float) $summary->revenue_today;
+        $revenueThisMonth = (float) $summary->revenue_this_month;
+        $revenueLastMonth = (float) $summary->revenue_last_month;
         $revenueGrowth = $revenueLastMonth > 0 ? round((($revenueThisMonth - $revenueLastMonth) / $revenueLastMonth) * 100, 1) : 100;
 
-        // Pending Orders
-        $pendingOrders = Order::where('order_status', 'pending')->count();
-
-        // Processing Orders
-        $processingOrders = Order::where('order_status', 'processing')->count();
-
-        // Shipped Orders
-        $shippedOrders = Order::where('order_status', 'shipped')->count();
+        // Order status counts reused from getOrdersByStatus() — avoids 3 extra queries
+        $pendingOrders = (int) ($ordersByStatus['pending'] ?? 0);
+        $processingOrders = (int) ($ordersByStatus['processing'] ?? 0);
+        $shippedOrders = (int) ($ordersByStatus['shipped'] ?? 0);
 
         // Total Stock Value
         $totalStockValue = DB::table('product_stocks')
@@ -351,24 +357,37 @@ class DashboardController extends Controller
 
     protected function getMonthlyComparison()
     {
+        $rangeStart = Carbon::now()->subMonths(5)->startOfMonth();
+        $rangeEnd = Carbon::now()->endOfMonth();
+
+        // Single query - group by year-month
+        $monthlyData = Order::selectRaw(
+                "DATE_FORMAT(created_at, '%Y-%m') as ym,
+                 COUNT(*) as order_count,
+                 SUM(CASE WHEN payment_status = 'paid' THEN total ELSE 0 END) as revenue"
+            )
+            ->whereBetween('created_at', [$rangeStart, $rangeEnd])
+            ->groupBy('ym')
+            ->get()
+            ->keyBy('ym');
+
         $months = collect();
         $revenues = collect();
         $orders = collect();
 
         for ($i = 5; $i >= 0; $i--) {
             $date = Carbon::now()->subMonths($i);
-            $startOfMonth = $date->copy()->startOfMonth();
-            $endOfMonth = $date->copy()->endOfMonth();
+            $ymKey = $date->format('Y-m');
 
             $months->push($date->format('M Y'));
 
-            $monthRevenue = Order::whereBetween('created_at', [$startOfMonth, $endOfMonth])
-                ->where('payment_status', 'paid')
-                ->sum('total');
-            $revenues->push(round($monthRevenue, 2));
-
-            $monthOrders = Order::whereBetween('created_at', [$startOfMonth, $endOfMonth])->count();
-            $orders->push($monthOrders);
+            if ($monthlyData->has($ymKey)) {
+                $revenues->push(round($monthlyData[$ymKey]->revenue, 2));
+                $orders->push((int) $monthlyData[$ymKey]->order_count);
+            } else {
+                $revenues->push(0);
+                $orders->push(0);
+            }
         }
 
         return [
