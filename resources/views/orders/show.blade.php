@@ -544,6 +544,57 @@
                 </div>
             </div>
             @endif
+
+            <!-- Returns Card -->
+            <div class="card mt-4">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h5 class="card-title"><i class="feather-corner-up-left me-2"></i>Returns ({{ $order->returns->count() }})</h5>
+                    <button type="button" class="btn btn-sm btn-light-brand" data-bs-toggle="modal" data-bs-target="#createReturnModal">
+                        <i class="feather-plus me-1"></i> Create Return
+                    </button>
+                </div>
+                <div class="card-body">
+                    @forelse($order->returns as $return)
+                        <div class="border rounded p-2 mb-2">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="badge bg-soft-{{ $return->source === 'ebay' ? 'info' : 'secondary' }} text-{{ $return->source === 'ebay' ? 'info' : 'secondary' }} fs-10">
+                                        {{ strtoupper($return->source) }} #{{ $return->id }}
+                                    </span>
+                                    <span class="badge bg-soft-{{ $return->status === 'item_received' || $return->status === 'closed' ? 'success' : 'warning' }} text-{{ $return->status === 'item_received' || $return->status === 'closed' ? 'success' : 'warning' }} fs-10">
+                                        {{ ucfirst(str_replace('_', ' ', $return->status)) }}
+                                    </span>
+                                    <span class="d-block fs-11 text-muted mt-1">{{ $return->reason }}</span>
+                                </div>
+                                @if($return->status !== 'item_received' && $return->status !== 'closed')
+                                    <button type="button" class="btn btn-xs btn-light-success mark-received-btn" data-return-id="{{ $return->id }}">
+                                        <i class="feather-package me-1"></i>Mark Received &amp; Restock
+                                    </button>
+                                @endif
+                            </div>
+                            <table class="table table-sm mb-0 mt-2">
+                                <tbody>
+                                    @foreach($return->items as $ri)
+                                        <tr>
+                                            <td class="fs-12">{{ $ri->orderItem->title ?? 'Item' }}</td>
+                                            <td class="fs-12 text-center" style="width: 80px;">Qty {{ $ri->quantity }}</td>
+                                            <td class="text-end" style="width: 100px;">
+                                                @if($ri->restocked)
+                                                    <span class="badge bg-soft-success text-success fs-10"><i class="feather-check-circle"></i> Restocked</span>
+                                                @else
+                                                    <span class="badge bg-soft-secondary text-secondary fs-10">Not restocked</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @empty
+                        <p class="text-muted mb-0 fs-13">No returns for this order yet.</p>
+                    @endforelse
+                </div>
+            </div>
         </div>
 
         <!-- Customer & Shipping Sidebar -->
@@ -997,6 +1048,49 @@
             </div>
         </div>
     </div> --}}
+
+    <!-- Create Return Modal -->
+    <div class="modal fade" id="createReturnModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="createReturnForm">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Create Return &mdash; {{ $order->order_number }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Items to return</label>
+                            @php
+                                $returnableItems = $order->items->filter(fn($i) => !$i->bundle_product_id || $i->is_bundle_summary);
+                            @endphp
+                            @forelse($returnableItems as $item)
+                                <div class="form-check">
+                                    <input class="form-check-input cr-item" type="checkbox" value="{{ $item->id }}" id="crItem{{ $item->id }}">
+                                    <label class="form-check-label" for="crItem{{ $item->id }}">{{ $item->title }} (qty {{ $item->quantity }})</label>
+                                </div>
+                            @empty
+                                <p class="text-muted mb-0">No items on this order.</p>
+                            @endforelse
+                            <div class="fs-11 text-muted mt-1">Full ordered quantity of each selected item will be returned.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Reason <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="crReason" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea class="form-control" id="crNotes" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Return</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 @endpush
 
 @push('scripts')
@@ -1558,6 +1652,70 @@
                 });
             });
 
+        });
+    </script>
+    <script>
+        $(function () {
+            $('#createReturnForm').on('submit', function (e) {
+                e.preventDefault();
+
+                var itemIds = $('.cr-item:checked').map(function () { return $(this).val(); }).get();
+                if (itemIds.length === 0) {
+                    alert('Select at least one item to return');
+                    return;
+                }
+
+                var payload = {
+                    _token: '{{ csrf_token() }}',
+                    reason: $('#crReason').val(),
+                    notes: $('#crNotes').val(),
+                    items: itemIds.map(function (id) { return { order_item_id: id }; })
+                };
+
+                $.ajax({
+                    url: '{{ route('orders.returns.store', $order->id) }}',
+                    type: 'POST',
+                    data: payload,
+                    success: function (response) {
+                        if (response.success) {
+                            location.reload();
+                        } else {
+                            alert(response.message || 'Failed to create return');
+                        }
+                    },
+                    error: function (xhr) {
+                        alert('Failed to create return: ' + (xhr.responseJSON?.message || 'Unknown error'));
+                    }
+                });
+            });
+
+            $('.mark-received-btn').on('click', function () {
+                if (!confirm('Mark item(s) received and restock inventory now?')) {
+                    return;
+                }
+
+                var $btn = $(this);
+                var returnId = $btn.data('return-id');
+                $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Restocking...');
+
+                $.ajax({
+                    url: '/orders/returns/' + returnId + '/mark-received',
+                    type: 'POST',
+                    data: { _token: '{{ csrf_token() }}' },
+                    success: function (response) {
+                        if (response.success) {
+                            location.reload();
+                        } else {
+                            alert(response.message || 'Failed to mark received');
+                            $btn.prop('disabled', false).html('<i class="feather-package me-1"></i>Mark Received &amp; Restock');
+                        }
+                    },
+                    error: function (xhr) {
+                        alert('Failed: ' + (xhr.responseJSON?.message || 'Unknown error'));
+                        $btn.prop('disabled', false).html('<i class="feather-package me-1"></i>Mark Received &amp; Restock');
+                    }
+                });
+            });
         });
     </script>
 @endpush
