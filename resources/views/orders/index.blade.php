@@ -310,6 +310,17 @@
                                         @if($isPartiallyRefunded)
                                             <span class="d-block fs-11 text-muted">{{ $order->currency ?? 'USD' }} {{ number_format($order->total_refunded, 2) }} refunded</span>
                                         @endif
+                                        @if($order->return_status)
+                                            @php
+                                                $returnColor = in_array($order->return_status, ['closed', 'completed', 'return_received']) ? 'success'
+                                                    : (in_array($order->return_status, ['declined', 'cancelled']) ? 'danger' : 'warning');
+                                            @endphp
+                                            <span class="d-block mt-1">
+                                                <span class="badge bg-soft-{{ $returnColor }} text-{{ $returnColor }} fs-10">
+                                                    Return: {{ ucfirst(str_replace('_', ' ', $order->return_status)) }}
+                                                </span>
+                                            </span>
+                                        @endif
                                     </td>
                                     <td data-column="address_type">
                                         @php

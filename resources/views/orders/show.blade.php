@@ -132,6 +132,21 @@
                                         <span class="badge bg-soft-{{ $fulfillmentColor }} text-{{ $fulfillmentColor }}">{{ ucfirst(str_replace('_', ' ', $order->fulfillment_status ?? 'N/A')) }}</span>
                                     </td>
                                 </tr>
+                                @if($order->return_status)
+                                <tr>
+                                    <td class="text-muted">Return Status:</td>
+                                    <td>
+                                        @php
+                                            $returnColor = in_array($order->return_status, ['closed', 'completed', 'return_received']) ? 'success'
+                                                : (in_array($order->return_status, ['declined', 'cancelled']) ? 'danger' : 'warning');
+                                        @endphp
+                                        <span class="badge bg-soft-{{ $returnColor }} text-{{ $returnColor }}">{{ ucfirst(str_replace('_', ' ', $order->return_status)) }}</span>
+                                        @if($order->return_reason)
+                                            <span class="d-block fs-11 text-muted">{{ $order->return_reason }}</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                                @endif
                                 @if($order->shipped_at)
                                 <tr>
                                     <td class="text-muted">Shipped At:</td>
