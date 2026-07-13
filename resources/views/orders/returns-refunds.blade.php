@@ -242,7 +242,7 @@
 @push('scripts')
 <script>
 $(function () {
-    var $modal = $('#createReturnModal');
+    var createReturnModal = new bootstrap.Modal(document.getElementById('createReturnModal'));
     var currentOrderId = null;
 
     $('.create-return-btn').on('click', function () {
@@ -260,7 +260,7 @@ $(function () {
             );
         });
 
-        $modal.modal('show');
+        createReturnModal.show();
     });
 
     $('#createReturnForm').on('submit', function (e) {
