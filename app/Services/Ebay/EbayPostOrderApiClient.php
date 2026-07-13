@@ -332,6 +332,7 @@ class EbayPostOrderApiClient
                 ->get(self::POST_ORDER_API_URL . '/return/search', $params);
 
             $data = $response->json();
+            $this->logReturnResponse('getReturns', null, $response->status(), $data);
 
             if (!$response->successful()) {
                 Log::channel('ebay')->error('Failed to get returns', [
@@ -381,6 +382,7 @@ class EbayPostOrderApiClient
                 ->get(self::POST_ORDER_API_URL . "/return/{$returnId}");
 
             $data = $response->json();
+            $this->logReturnResponse('getReturn', $returnId, $response->status(), $data);
 
             if (!$response->successful()) {
                 Log::channel('ebay')->error('Failed to get return details', [
@@ -431,6 +433,7 @@ class EbayPostOrderApiClient
                 ]));
 
             $data = $response->json();
+            $this->logReturnResponse('approveReturn', $returnId, $response->status(), $data);
 
             if (!$response->successful()) {
                 Log::channel('ebay')->error('Failed to approve return', [
@@ -483,6 +486,7 @@ class EbayPostOrderApiClient
                 ->post(self::POST_ORDER_API_URL . "/return/{$returnId}/decide", $body);
 
             $data = $response->json();
+            $this->logReturnResponse('declineReturn', $returnId, $response->status(), $data);
 
             if (!$response->successful()) {
                 Log::channel('ebay')->error('Failed to decline return', [
@@ -540,6 +544,7 @@ class EbayPostOrderApiClient
                 ->post(self::POST_ORDER_API_URL . "/return/{$returnId}/provide_shipping_label", $body);
 
             $data = $response->json();
+            $this->logReturnResponse('provideReturnShippingLabel', $returnId, $response->status(), $data);
 
             if (!$response->successful()) {
                 Log::channel('ebay')->error('Failed to provide return shipping label', [
@@ -588,6 +593,7 @@ class EbayPostOrderApiClient
                 ->post(self::POST_ORDER_API_URL . "/return/{$returnId}/mark_as_received", $body);
 
             $data = $response->json();
+            $this->logReturnResponse('markReturnReceived', $returnId, $response->status(), $data);
 
             if (!$response->successful()) {
                 Log::channel('ebay')->error('Failed to mark return as received', [
@@ -639,6 +645,7 @@ class EbayPostOrderApiClient
                 ->post(self::POST_ORDER_API_URL . "/return/{$returnId}/close", $body);
 
             $data = $response->json();
+            $this->logReturnResponse('closeReturn', $returnId, $response->status(), $data);
 
             if (!$response->successful()) {
                 Log::channel('ebay')->error('Failed to close return', [
@@ -884,6 +891,7 @@ class EbayPostOrderApiClient
                 ->post(self::POST_ORDER_API_URL . "/return/{$returnId}/issue_refund", $body);
 
             $data = $response->json();
+            $this->logReturnResponse('issueReturnRefund', $returnId, $response->status(), $data);
 
             if (!$response->successful()) {
                 Log::channel('ebay')->error('Failed to issue return refund', [
@@ -1076,6 +1084,32 @@ class EbayPostOrderApiClient
     // =========================================
     // HELPERS
     // =========================================
+
+    /**
+     * Log a single eBay return-related API response to its own file.
+     * Mirrors EbayController::saveNotificationToFile so all raw eBay
+     * responses for the return module are inspectable individually.
+     */
+    private function logReturnResponse(string $action, ?string $returnId, int $status, ?array $data): void
+    {
+        $timestamp = now();
+        $directory = storage_path('logs/ebay/returns/' . $timestamp->format('Y-m-d'));
+
+        if (!file_exists($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $filename = $timestamp->format('H-i-s-u') . '_' . $action
+            . ($returnId ? "_{$returnId}" : '') . '.json';
+
+        file_put_contents($directory . '/' . $filename, json_encode([
+            'action' => $action,
+            'return_id' => $returnId,
+            'http_status' => $status,
+            'response' => $data,
+            'logged_at' => $timestamp->toIso8601String(),
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    }
 
     /**
      * Get REST API headers for eBay requests.
