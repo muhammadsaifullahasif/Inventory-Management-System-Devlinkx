@@ -398,7 +398,9 @@
                                     </td>
                                     <td class="text-end fw-semibold">{{ number_format($order->total, 2) }}</td>
                                     <td class="text-center">
-                                        @if ($order->payment_status === 'paid')
+                                        @if ($order->isPartiallyRefunded() && !$order->isRefunded())
+                                            <span class="badge bg-soft-info text-info">Partially Refunded</span>
+                                        @elseif ($order->payment_status === 'paid')
                                             <span class="badge bg-soft-success text-success">Paid</span>
                                         @elseif ($order->payment_status === 'pending')
                                             <span class="badge bg-soft-warning text-warning">Pending</span>

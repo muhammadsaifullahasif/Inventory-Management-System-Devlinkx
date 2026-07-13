@@ -105,9 +105,16 @@
                                                 'failed' => 'danger',
                                                 'awaiting_payment' => 'warning',
                                             ];
-                                            $paymentColor = $paymentColors[$order->payment_status] ?? 'secondary';
+                                            $isPartiallyRefunded = $order->isPartiallyRefunded() && !$order->isRefunded();
+                                            $paymentLabel = $isPartiallyRefunded
+                                                ? 'Partially Refunded'
+                                                : ucfirst(str_replace('_', ' ', $order->payment_status ?? 'N/A'));
+                                            $paymentColor = $isPartiallyRefunded ? 'info' : ($paymentColors[$order->payment_status] ?? 'secondary');
                                         @endphp
-                                        <span class="badge bg-soft-{{ $paymentColor }} text-{{ $paymentColor }}">{{ ucfirst(str_replace('_', ' ', $order->payment_status ?? 'N/A')) }}</span>
+                                        <span class="badge bg-soft-{{ $paymentColor }} text-{{ $paymentColor }}">{{ $paymentLabel }}</span>
+                                        @if($isPartiallyRefunded)
+                                            <span class="d-block fs-11 text-muted">{{ $order->currency ?? 'USD' }} {{ number_format($order->total_refunded, 2) }} refunded</span>
+                                        @endif
                                     </td>
                                 </tr>
                                 <tr>
