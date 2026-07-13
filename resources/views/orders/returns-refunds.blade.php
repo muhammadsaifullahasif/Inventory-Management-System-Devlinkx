@@ -1,5 +1,20 @@
 @extends('layouts.app')
 
+@push('styles')
+<style>
+    .sortable-header {
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .sortable-header:hover {
+        color: var(--bs-primary) !important;
+    }
+    .sortable-header.active {
+        color: var(--bs-primary) !important;
+    }
+</style>
+@endpush
+
 @section('header')
     <!-- [ page-header ] start -->
     <div class="page-header">
@@ -110,11 +125,53 @@
                 <table class="table table-hover align-middle">
                     <thead>
                         <tr>
-                            <th>Order</th>
-                            <th>Channel</th>
-                            <th>Status</th>
+                            @php
+                                $currentSort = request('sort_by');
+                                $currentOrder = request('sort_order', 'asc');
+                                $sortableHeaders = [
+                                    'order_number' => 'Order',
+                                    'channel' => 'Channel',
+                                    'customer' => 'Customer',
+                                    'status' => 'Status',
+                                ];
+                            @endphp
+                            @foreach($sortableHeaders as $key => $label)
+                                <th>
+                                    @php
+                                        $isActive = $currentSort === $key;
+                                        $nextOrder = ($isActive && $currentOrder === 'asc') ? 'desc' : 'asc';
+                                        $sortUrl = request()->fullUrlWithQuery(['sort_by' => $key, 'sort_order' => $nextOrder]);
+                                    @endphp
+                                    <a href="{{ $sortUrl }}" class="d-flex align-items-center text-dark text-decoration-none sortable-header {{ $isActive ? 'active fw-semibold' : '' }}">
+                                        {{ $label }}
+                                        <span class="ms-1">
+                                            @if($isActive)
+                                                <i class="feather-arrow-{{ $currentOrder === 'asc' ? 'up' : 'down' }} fs-12"></i>
+                                            @else
+                                                <i class="feather-chevrons-up fs-10 text-muted opacity-50"></i>
+                                            @endif
+                                        </span>
+                                    </a>
+                                </th>
+                            @endforeach
                             <th>Return Items / Restock</th>
-                            <th>Refund</th>
+                            <th>
+                                @php
+                                    $isActive = $currentSort === 'refund';
+                                    $nextOrder = ($isActive && $currentOrder === 'asc') ? 'desc' : 'asc';
+                                    $sortUrl = request()->fullUrlWithQuery(['sort_by' => 'refund', 'sort_order' => $nextOrder]);
+                                @endphp
+                                <a href="{{ $sortUrl }}" class="d-flex align-items-center text-dark text-decoration-none sortable-header {{ $isActive ? 'active fw-semibold' : '' }}">
+                                    Refund
+                                    <span class="ms-1">
+                                        @if($isActive)
+                                            <i class="feather-arrow-{{ $currentOrder === 'asc' ? 'up' : 'down' }} fs-12"></i>
+                                        @else
+                                            <i class="feather-chevrons-up fs-10 text-muted opacity-50"></i>
+                                        @endif
+                                    </span>
+                                </a>
+                            </th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
@@ -123,13 +180,21 @@
                             <tr>
                                 <td>
                                     <a href="{{ route('orders.show', $order->id) }}"><strong>{{ $order->order_number }}</strong></a>
-                                    <div class="fs-11 text-muted">{{ $order->buyer_name ?? $order->buyer_email }}</div>
+                                    @if($order->ebay_order_id)
+                                        <span class="d-block fs-11 text-muted">eBay: {{ \Illuminate\Support\Str::limit($order->ebay_order_id, 20) }}</span>
+                                    @endif
                                 </td>
                                 <td>
                                     @if($order->salesChannel)
                                         <span class="badge bg-soft-info text-info">{{ $order->salesChannel->name }}</span>
                                     @else
                                         <span class="badge bg-soft-secondary text-secondary">Local</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    <span class="fw-semibold">{{ $order->buyer_name ?? 'N/A' }}</span>
+                                    @if($order->buyer_email)
+                                        <span class="d-block fs-11 text-muted">{{ $order->buyer_email }}</span>
                                     @endif
                                 </td>
                                 <td>
@@ -193,7 +258,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-4">No returns, cancellations, or refunds found.</td>
+                                <td colspan="7" class="text-center text-muted py-4">No returns, cancellations, or refunds found.</td>
                             </tr>
                         @endforelse
                     </tbody>

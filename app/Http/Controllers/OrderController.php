@@ -929,8 +929,21 @@ class OrderController extends Controller
             });
         }
 
-        // Sort by most recent activity
-        $query->orderByRaw('COALESCE(return_requested_at, cancellation_requested_at, refund_initiated_at, updated_at) DESC');
+        // Sort — default to most recent activity, or a whitelisted column if requested
+        $sortableColumns = [
+            'order_number' => 'order_number',
+            'channel' => 'sales_channel_id',
+            'customer' => 'buyer_name',
+            'status' => 'return_status',
+            'refund' => 'total_refunded',
+        ];
+
+        if ($request->filled('sort_by') && isset($sortableColumns[$request->sort_by])) {
+            $sortOrder = $request->input('sort_order', 'asc') === 'desc' ? 'desc' : 'asc';
+            $query->orderBy($sortableColumns[$request->sort_by], $sortOrder);
+        } else {
+            $query->orderByRaw('COALESCE(return_requested_at, cancellation_requested_at, refund_initiated_at, updated_at) DESC');
+        }
 
         $perPage = $request->input('per_page', 20);
         $orders = $query->paginate($perPage);
