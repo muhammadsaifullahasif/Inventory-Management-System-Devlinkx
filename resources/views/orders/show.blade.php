@@ -100,6 +100,7 @@
                                         @php
                                             $paymentColors = [
                                                 'pending' => 'warning',
+                                                'unpaid' => 'warning',
                                                 'paid' => 'success',
                                                 'refunded' => 'info',
                                                 'failed' => 'danger',
