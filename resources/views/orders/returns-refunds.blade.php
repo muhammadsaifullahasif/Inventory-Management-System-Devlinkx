@@ -117,7 +117,10 @@
                 </div>
                 <div class="col-md-1">
                     <button type="submit" class="btn btn-primary btn-sm"><i class="feather-search"></i></button>
-                    <a href="{{ route('orders.returns-refunds') }}" class="btn btn-light-brand btn-sm"></a>
+                    <a href="{{ route('orders.returns-refunds') }}" class="btn btn-light-brand btn-sm">
+                        <i class="feather-x me-2"></i>
+                        Clear
+                    </a>
                 </div>
             </form>
         </div>
