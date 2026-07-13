@@ -1097,6 +1097,17 @@ class OrderController extends Controller
                 ...($shippingCost !== null ? ['shipping_cost' => $shippingCost] : []),
             ]);
 
+            Log::channel('shipping-cost')->info('Single-package label: shipping_cost save result', [
+                'order_id'                => $order->id,
+                'order_number'            => $order->order_number,
+                'carrier_id'              => $carrier->id,
+                'tracking_number'         => $trackingNumber,
+                'amount_from_fedex'       => $shippingCost,
+                'currency_from_fedex'     => $labelResult['shipping_currency'] ?? null,
+                'attempted_save'          => $shippingCost !== null,
+                'saved_shipping_cost'     => $order->fresh()->shipping_cost,
+            ]);
+
             // Deduct inventory for all items
             foreach ($order->items as $item) {
                 if (!$item->inventory_updated) {
@@ -1246,6 +1257,18 @@ class OrderController extends Controller
 
             // Refresh the order from database to verify the update
             $order->refresh();
+
+            Log::channel('shipping-cost')->info('Multi-package label: shipping_cost save result', [
+                'order_id'            => $order->id,
+                'order_number'        => $order->order_number,
+                'carrier_id'          => $carrier->id,
+                'package_count'       => $packageCount,
+                'per_package_costs'   => array_column($packages, 'shipping_cost', 'package_number'),
+                'amount_from_fedex'   => $shippingCost,
+                'currency_from_fedex' => $labelResult['shipping_currency'] ?? null,
+                'attempted_save'      => $shippingCost !== null,
+                'saved_shipping_cost' => $order->shipping_cost,
+            ]);
 
             // Deduct inventory for all items
             foreach ($order->items as $item) {

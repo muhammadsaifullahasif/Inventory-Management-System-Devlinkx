@@ -276,9 +276,16 @@ class FedexService
      */
     protected function extractShipmentCharge(array $data): array
     {
+        $shipmentId  = $data['output']['transactionShipments'][0]['shipmentId'] ?? null;
         $rateDetails = $data['output']['transactionShipments'][0]['completedShipmentDetail']['shipmentRating']['shipmentRateDetails'] ?? [];
 
         if (empty($rateDetails)) {
+            Log::channel('shipping-cost')->info('FedEx: shipment charge extraction — no rate details in response', [
+                'shipment_id'      => $shipmentId,
+                'amount_found'     => false,
+                'amount'           => null,
+                'shipment_rating'  => $data['output']['transactionShipments'][0]['completedShipmentDetail']['shipmentRating'] ?? null,
+            ]);
             return [null, 'USD'];
         }
 
@@ -298,6 +305,16 @@ class FedexService
 
         $amount = $chosen['totalNetCharge'] ?? $chosen['totalNetFedExCharge'] ?? null;
         $currency = $chosen['currency'] ?? 'USD';
+
+        Log::channel('shipping-cost')->info('FedEx: shipment charge extraction result', [
+            'shipment_id'        => $shipmentId,
+            'amount_found'       => $amount !== null,
+            'amount'             => $amount,
+            'currency'           => $currency,
+            'chosen_rate_type'   => $chosen['rateType'] ?? null,
+            'chosen_rate_detail' => $chosen,
+            'all_rate_details'   => $rateDetails,
+        ]);
 
         return [$amount !== null ? (float) $amount : null, $currency];
     }

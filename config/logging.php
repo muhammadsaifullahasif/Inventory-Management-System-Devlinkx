@@ -154,6 +154,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Shipping label carrier rate/charge extraction (diagnoses missing shipping_cost)
+        'shipping-cost' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/shipping/shipping-cost.log'),
+            'level' => 'debug',
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];
