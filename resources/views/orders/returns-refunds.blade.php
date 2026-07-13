@@ -116,7 +116,10 @@
                     <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}">
                 </div>
                 <div class="col-md-2 d-flex align-items-end gap-2">
-                    <button type="submit" class="btn btn-primary btn-sm"><i class="feather-search"></i></button>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="feather-search me-2"></i>
+                        Filter
+                    </button>
                     <a href="{{ route('orders.returns-refunds') }}" class="btn btn-light-brand btn-sm">
                         <i class="feather-x me-2"></i>
                         Clear
