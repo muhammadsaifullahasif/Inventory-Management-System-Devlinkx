@@ -18,6 +18,7 @@ use App\Services\Ebay\EbayOrderService;
 use App\Services\Ebay\EbayNotificationService;
 use App\Services\Ebay\EbayPostOrderApiClient;
 use App\Models\Order;
+use App\Models\OrderReturn;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Jobs\ImportEbayListingsJob;
@@ -1674,6 +1675,16 @@ class EbayController extends Controller
                         'event' => 'ReturnReceivedBySeller',
                         'timestamp' => now()->toIso8601String(),
                     ]);
+                }
+
+                // Restock inventory for the returned line item(s). Refunds never
+                // restock on their own — only a confirmed physical return does.
+                $orderReturn = OrderReturn::with('items')->where('ebay_return_id', $returnId)->first();
+                if ($orderReturn) {
+                    foreach ($orderReturn->items as $returnItem) {
+                        $returnItem->restock();
+                    }
+                    $orderReturn->update(['status' => 'item_received', 'received_at' => now()]);
                 }
             }
 

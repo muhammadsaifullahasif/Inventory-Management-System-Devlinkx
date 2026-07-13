@@ -81,6 +81,14 @@ class OrderItem extends Model
     }
 
     /**
+     * Return records referencing this order item
+     */
+    public function returnItems()
+    {
+        return $this->hasMany(OrderReturnItem::class);
+    }
+
+    /**
      * Update inventory for this order item
      * Decrements the product stock quantity, records COGS, and syncs to all sales channels
      */

@@ -7,6 +7,8 @@ use Carbon\Carbon;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\OrderItem;
+use App\Models\OrderReturn;
+use App\Models\OrderReturnItem;
 use App\Models\SalesChannel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -1365,6 +1367,37 @@ class EbayOrderService
                 'return_id' => $returnId,
                 'return_reason' => $returnReason,
             ]);
+
+            // Create/refresh the local return record (line-item level, restock tracking).
+            // Item-specific returns match by ebay_item_id; if eBay didn't scope to one
+            // item, treat it as a whole-order return covering every order item.
+            $orderReturn = OrderReturn::updateOrCreate(
+                ['ebay_return_id' => $returnId],
+                [
+                    'order_id' => $order->id,
+                    'sales_channel_id' => $order->sales_channel_id,
+                    'source' => 'ebay',
+                    'status' => 'requested',
+                    'reason' => $returnReason,
+                    'buyer_comments' => $returnData['BuyerComments'] ?? $returnData['buyerComments'] ?? null,
+                    'requested_at' => now(),
+                ]
+            );
+
+            if ($orderReturn->items()->doesntExist()) {
+                $items = !empty($itemId)
+                    ? $order->items()->where('ebay_item_id', $itemId)->get()
+                    : $order->items;
+
+                foreach ($items as $item) {
+                    OrderReturnItem::create([
+                        'order_return_id' => $orderReturn->id,
+                        'order_item_id' => $item->id,
+                        'product_id' => $item->product_id,
+                        'quantity' => $item->quantity,
+                    ]);
+                }
+            }
 
             DB::commit();
 

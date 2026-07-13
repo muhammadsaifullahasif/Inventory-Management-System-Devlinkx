@@ -816,7 +816,7 @@ class OrderController extends Controller
      */
     public function returnsRefunds(Request $request)
     {
-        $query = Order::with(['items', 'salesChannel'])
+        $query = Order::with(['items', 'salesChannel', 'returns.items.orderItem'])
             ->where(function ($q) {
                 // Orders with return status
                 $q->whereNotNull('return_status')

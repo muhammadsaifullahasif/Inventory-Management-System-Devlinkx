@@ -11,6 +11,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OrderReturnController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProductController;
@@ -258,6 +259,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/orders/sync-ebay-status', [OrderController::class, 'syncEbayOrderStatus'])->name('orders.sync-ebay-status');
     Route::post('/orders/close-fedex-shipments', [OrderController::class, 'closeFedExShipments'])->name('orders.close-fedex-shipments');
     Route::get('/orders-statistics', [OrderController::class, 'statistics'])->name('orders.statistics');
+    Route::get('/orders-returns-refunds', [OrderController::class, 'returnsRefunds'])->name('orders.returns-refunds');
+
+    // Returns (manual + eBay, restock-tracked)
+    Route::post('/orders/{orderId}/returns', [OrderReturnController::class, 'store'])->name('orders.returns.store');
+    Route::post('/orders/returns/{returnId}/approve', [OrderReturnController::class, 'approve'])->name('orders.returns.approve');
+    Route::post('/orders/returns/{returnId}/decline', [OrderReturnController::class, 'decline'])->name('orders.returns.decline');
+    Route::post('/orders/returns/{returnId}/mark-received', [OrderReturnController::class, 'markReceived'])->name('orders.returns.mark-received');
+    Route::post('/orders/returns/{returnId}/close', [OrderReturnController::class, 'close'])->name('orders.returns.close');
 
 
     // Shipping

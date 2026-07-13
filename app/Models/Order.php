@@ -144,6 +144,14 @@ class Order extends Model
     }
 
     /**
+     * Get the return records (line-item level, restock tracking) for this order
+     */
+    public function returns()
+    {
+        return $this->hasMany(OrderReturn::class);
+    }
+
+    /**
      * Get the order meta data
      */
     public function metas()
