@@ -1401,6 +1401,14 @@ class EbayOrderService
 
             DB::commit();
 
+            Log::channel('ebay')->info('ReturnCreated processed', [
+                'order_id' => $order->id,
+                'return_id' => $returnId,
+                'item_id' => $itemId,
+                'reason' => $returnReason,
+                'data' => $returnData,
+            ]);
+
             return $order;
 
         } catch (Exception $e) {
@@ -1460,6 +1468,14 @@ class EbayOrderService
 
             DB::commit();
 
+            Log::channel('ebay')->info('ReturnShipped processed', [
+                'order_id' => $order->id,
+                'return_id' => $returnId,
+                'tracking_number' => $trackingNumber,
+                'shipping_carrier' => $shippingCarrier,
+                'data' => $returnData,
+            ]);
+
             return $order;
 
         } catch (Exception $e) {
@@ -1504,6 +1520,12 @@ class EbayOrderService
             ]);
 
             DB::commit();
+
+            Log::channel('ebay')->info('ReturnDelivered processed', [
+                'order_id' => $order->id,
+                'return_id' => $returnId,
+                'data' => $returnData,
+            ]);
 
             return $order;
 
@@ -1573,6 +1595,14 @@ class EbayOrderService
             ]);
 
             DB::commit();
+
+            Log::channel('ebay')->info('ReturnClosed processed', [
+                'order_id' => $order->id,
+                'return_id' => $returnId,
+                'close_reason' => $closeReason,
+                'refund_status' => $refundStatus,
+                'data' => $returnData,
+            ]);
 
             return $order;
 
