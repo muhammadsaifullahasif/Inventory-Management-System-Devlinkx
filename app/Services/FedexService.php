@@ -438,12 +438,27 @@ class FedexService
                 ->post("{$endpoint}/track/v1/trackingnumbers", $payload);
 
             if (!$response->successful()) {
+                $errorBody = $response->json();
+                $errorCode = $errorBody['errors'][0]['code'] ?? '';
+                $errorMessage = $errorBody['errors'][0]['message']
+                    ?? $errorBody['error_description']
+                    ?? $response->body();
+
                 Log::warning('FedEx: getTrackingStatus failed', [
                     'status'          => $response->status(),
                     'body'            => $response->body(),
                     'tracking_number' => $trackingNumber,
                 ]);
-                throw new \RuntimeException('FedEx tracking request failed');
+
+                if ($response->status() === 403 || $errorCode === 'FORBIDDEN.ERROR') {
+                    throw new \RuntimeException(
+                        "FedEx authorization failed. Please ensure: (1) Track API is enabled in your FedEx Developer Portal project, " .
+                        "(2) Your account number is authorized for tracking, (3) You're using the correct sandbox/production credentials. " .
+                        "Original error: {$errorMessage}"
+                    );
+                }
+
+                throw new \RuntimeException("FedEx tracking request failed: {$errorMessage}");
             }
 
             $data = $response->json();
