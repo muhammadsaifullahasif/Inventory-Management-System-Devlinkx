@@ -745,6 +745,12 @@ class EbayOrderService
             DB::beginTransaction();
 
             if ($order) {
+                // Once we've generated our own carrier label, its cost is authoritative -
+                // don't let a re-sent/duplicate eBay notification stomp it back to eBay's
+                // (often 0.0) shipping cost figure.
+                if (!empty($order->shipping_label_path)) {
+                    unset($orderData['shipping_cost']);
+                }
                 $order->update($orderData);
             } else {
                 $orderData['order_number'] = Order::generateOrderNumber();
