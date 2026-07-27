@@ -55,12 +55,13 @@ class PriceComparisonService
     }
 
     /**
-     * Build an eBay search keyword for the product. Prefers barcode/SKU
-     * (more precise match) and falls back to the product name.
+     * Build an eBay search keyword for the product. Uses the product title —
+     * barcode/SKU values are internal identifiers, not listed on eBay, and
+     * return zero results.
      */
     protected function buildSearchKeyword(Product $product): string
     {
-        return $product->barcode ?: $product->name ?: '';
+        return $product->name ?: '';
     }
 
     /**
