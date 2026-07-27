@@ -15,7 +15,6 @@ class PriceComparisonService
 {
     private const TOP_SELLERS_COUNT = 4;
     private const SEARCH_LIMIT = 50;
-    private const DETAIL_CANDIDATE_LIMIT = 15;
 
     public function __construct(protected EbayBrowseClient $browseClient)
     {
@@ -38,9 +37,7 @@ class PriceComparisonService
 
         $itemSummaries = $this->browseClient->searchActiveListings($keyword, self::SEARCH_LIMIT);
 
-        $candidates = $this->pickCandidateSellers($itemSummaries);
-
-        $topSellers = $this->rankSellersBySales($candidates);
+        $topSellers = $this->rankSellersBySales($itemSummaries);
 
         if (empty($topSellers)) {
             Log::channel('ebay-price-comparison')->info('No competing sellers found', [
@@ -68,79 +65,43 @@ class PriceComparisonService
     }
 
     /**
-     * Deduplicate search results down to one (best-relevance) listing per
-     * seller, capped at DETAIL_CANDIDATE_LIMIT — the pool that gets a
-     * per-item detail lookup for real sold-quantity data.
+     * Group raw itemSummaries entries by seller, keep each seller's
+     * best-selling listing (by estimatedSoldQuantity), and return the top N
+     * sellers sorted by units sold, highest first.
      *
-     * @return array<int, array{seller: string, price: float, currency: string, item_id: ?string, url: ?string}>
+     * @return array<int, array{seller: string, price: float, currency: string, sold: int, item_id: ?string, url: ?string}>
      */
-    protected function pickCandidateSellers(array $itemSummaries): array
+    protected function rankSellersBySales(array $itemSummaries): array
     {
         $bySeller = [];
 
         foreach ($itemSummaries as $item) {
             $seller = $item['seller']['username'] ?? null;
-            if (!$seller || isset($bySeller[$seller])) {
+            if (!$seller) {
                 continue;
             }
 
-            $bySeller[$seller] = [
-                'seller' => $seller,
-                'price' => (float) ($item['price']['value'] ?? 0),
-                'currency' => $item['price']['currency'] ?? 'USD',
-                'item_id' => $item['itemId'] ?? null,
-                'url' => $item['itemWebUrl'] ?? null,
-            ];
+            $sold = (int) ($item['estimatedAvailabilities'][0]['estimatedSoldQuantity'] ?? 0);
+            $price = (float) ($item['price']['value'] ?? 0);
+            $currency = $item['price']['currency'] ?? 'USD';
 
-            if (count($bySeller) >= self::DETAIL_CANDIDATE_LIMIT) {
-                break;
+            if (!isset($bySeller[$seller]) || $sold > $bySeller[$seller]['sold']) {
+                $bySeller[$seller] = [
+                    'seller' => $seller,
+                    'price' => $price,
+                    'currency' => $currency,
+                    'sold' => $sold,
+                    'item_id' => $item['itemId'] ?? null,
+                    'url' => $item['itemWebUrl'] ?? null,
+                ];
             }
         }
 
-        return array_values($bySeller);
-    }
+        $sellers = array_values($bySeller);
 
-    /**
-     * Look up sold-quantity for each candidate via the item detail endpoint
-     * (not available on search results), and return the top N sellers
-     * sorted by units sold, highest first.
-     *
-     * @return array<int, array{seller: string, price: float, currency: string, sold: int, item_id: ?string, url: ?string}>
-     */
-    protected function rankSellersBySales(array $candidates): array
-    {
-        foreach ($candidates as &$candidate) {
-            $candidate['sold'] = $this->fetchSoldQuantity($candidate['item_id']);
-        }
-        unset($candidate);
+        usort($sellers, fn ($a, $b) => $b['sold'] <=> $a['sold']);
 
-        usort($candidates, fn ($a, $b) => $b['sold'] <=> $a['sold']);
-
-        return array_slice($candidates, 0, self::TOP_SELLERS_COUNT);
-    }
-
-    /**
-     * Fetch estimatedSoldQuantity for a single item. Detail lookups can fail
-     * per-item (rate limit, delisted item); treat as 0 sold rather than
-     * aborting the whole comparison.
-     */
-    protected function fetchSoldQuantity(?string $itemId): int
-    {
-        if (!$itemId) {
-            return 0;
-        }
-
-        try {
-            $detail = $this->browseClient->getItemDetail($itemId);
-        } catch (\Throwable $e) {
-            Log::channel('ebay-price-comparison')->warning('Item detail lookup failed, treating as 0 sold', [
-                'item_id' => $itemId,
-                'error' => $e->getMessage(),
-            ]);
-            return 0;
-        }
-
-        return (int) ($detail['estimatedAvailabilities'][0]['estimatedSoldQuantity'] ?? 0);
+        return array_slice($sellers, 0, self::TOP_SELLERS_COUNT);
     }
 
     /**
