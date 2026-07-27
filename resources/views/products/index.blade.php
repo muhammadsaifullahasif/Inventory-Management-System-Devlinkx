@@ -387,7 +387,7 @@
                                                 @else
                                                     <span class="fw-semibold">${{ number_format($comparison->competitor_price, 2) }}</span>
                                                 @endif
-                                                <span class="text-muted fs-11">{{ $comparison->competitor_seller }}</span>
+                                                <span class="text-muted fs-11">{{ $comparison->competitor_seller }} ({{ $comparison->items_sold_last_month }} sold)</span>
                                             </div>
                                         @empty
                                             <span class="text-muted fs-12">-</span>

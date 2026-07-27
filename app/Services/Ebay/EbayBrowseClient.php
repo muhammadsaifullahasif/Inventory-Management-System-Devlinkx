@@ -32,7 +32,9 @@ class EbayBrowseClient
     }
 
     /**
-     * Search active listings for a keyword, cheapest first.
+     * Search active listings for a keyword. Requests the EXTENDED fieldgroup
+     * so each item carries estimatedAvailabilities.estimatedSoldQuantity,
+     * used to rank competitors by sales volume rather than just price.
      *
      * @return array<int, array> raw itemSummaries entries from eBay
      */
@@ -48,8 +50,8 @@ class EbayBrowseClient
             ])
             ->get(self::BASE_URL . '/item_summary/search', [
                 'q' => $keyword,
-                'filter' => 'buyingOptions:{FIXED_PRICE}',
-                'sort' => 'price',
+                'filter' => 'buyingOptions:{FIXED_PRICE},itemLocationCountry:US',
+                'fieldgroups' => 'EXTENDED',
                 'limit' => $limit,
             ]);
 

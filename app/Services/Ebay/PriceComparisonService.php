@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Finds competing eBay sellers for a product among active listings, ranks
- * them by lowest price, and stores the top sellers' prices.
+ * them by estimated units sold, and stores the top sellers' prices.
  */
 class PriceComparisonService
 {
@@ -37,7 +37,7 @@ class PriceComparisonService
 
         $itemSummaries = $this->browseClient->searchActiveListings($keyword, self::SEARCH_LIMIT);
 
-        $topSellers = $this->rankSellersByPrice($itemSummaries);
+        $topSellers = $this->rankSellersBySales($itemSummaries);
 
         if (empty($topSellers)) {
             Log::channel('ebay-price-comparison')->info('No competing sellers found', [
@@ -65,12 +65,13 @@ class PriceComparisonService
     }
 
     /**
-     * Group raw itemSummaries entries by seller, keep each seller's cheapest
-     * listing, and return the top N sellers sorted by lowest price.
+     * Group raw itemSummaries entries by seller, keep each seller's
+     * best-selling listing (by estimatedSoldQuantity), and return the top N
+     * sellers sorted by units sold, highest first.
      *
-     * @return array<int, array{seller: string, price: float, currency: string, item_id: ?string, url: ?string}>
+     * @return array<int, array{seller: string, price: float, currency: string, sold: int, item_id: ?string, url: ?string}>
      */
-    protected function rankSellersByPrice(array $itemSummaries): array
+    protected function rankSellersBySales(array $itemSummaries): array
     {
         $bySeller = [];
 
@@ -80,14 +81,16 @@ class PriceComparisonService
                 continue;
             }
 
+            $sold = (int) ($item['estimatedAvailabilities'][0]['estimatedSoldQuantity'] ?? 0);
             $price = (float) ($item['price']['value'] ?? 0);
             $currency = $item['price']['currency'] ?? 'USD';
 
-            if (!isset($bySeller[$seller]) || $price < $bySeller[$seller]['price']) {
+            if (!isset($bySeller[$seller]) || $sold > $bySeller[$seller]['sold']) {
                 $bySeller[$seller] = [
                     'seller' => $seller,
                     'price' => $price,
                     'currency' => $currency,
+                    'sold' => $sold,
                     'item_id' => $item['itemId'] ?? null,
                     'url' => $item['itemWebUrl'] ?? null,
                 ];
@@ -96,7 +99,7 @@ class PriceComparisonService
 
         $sellers = array_values($bySeller);
 
-        usort($sellers, fn ($a, $b) => $a['price'] <=> $b['price']);
+        usort($sellers, fn ($a, $b) => $b['sold'] <=> $a['sold']);
 
         return array_slice($sellers, 0, self::TOP_SELLERS_COUNT);
     }
@@ -117,6 +120,7 @@ class PriceComparisonService
                     'competitor_seller' => $seller['seller'],
                     'competitor_price' => $seller['price'],
                     'currency' => $seller['currency'],
+                    'items_sold_last_month' => $seller['sold'],
                     'ebay_item_id' => $seller['item_id'],
                     'listing_url' => $seller['url'],
                     'rank' => $index + 1,
