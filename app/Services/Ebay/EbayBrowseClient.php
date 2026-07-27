@@ -32,9 +32,9 @@ class EbayBrowseClient
     }
 
     /**
-     * Search active listings for a keyword. Requests the EXTENDED fieldgroup
-     * so each item carries estimatedAvailabilities.estimatedSoldQuantity,
-     * used to rank competitors by sales volume rather than just price.
+     * Search active listings for a keyword, bestMatch relevance order
+     * (eBay's default sort). Sold-quantity data is not available on search
+     * results — use getItemDetail() per candidate for that.
      *
      * @return array<int, array> raw itemSummaries entries from eBay
      */
@@ -51,7 +51,6 @@ class EbayBrowseClient
             ->get(self::BASE_URL . '/item_summary/search', [
                 'q' => $keyword,
                 'filter' => 'buyingOptions:{FIXED_PRICE},itemLocationCountry:US',
-                'fieldgroups' => 'EXTENDED',
                 'limit' => $limit,
             ]);
 
@@ -70,5 +69,34 @@ class EbayBrowseClient
         ]);
 
         return $response->json('itemSummaries', []);
+    }
+
+    /**
+     * Fetch full item detail, including estimatedAvailabilities.
+     * estimatedSoldQuantity — only present on the single-item endpoint, not
+     * on item_summary/search results.
+     */
+    public function getItemDetail(string $itemId): array
+    {
+        $token = $this->apiClient->getApplicationToken();
+
+        $response = Http::timeout(self::DEFAULT_TIMEOUT)
+            ->connectTimeout(self::DEFAULT_CONNECT_TIMEOUT)
+            ->withToken($token)
+            ->withHeaders([
+                'X-EBAY-C-MARKETPLACE-ID' => 'EBAY_US',
+            ])
+            ->get(self::BASE_URL . '/item/' . $itemId);
+
+        if ($response->failed()) {
+            Log::channel('ebay-price-comparison')->error('eBay Browse item detail failed', [
+                'item_id' => $itemId,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            throw new Exception('eBay Browse item detail failed: ' . $response->body());
+        }
+
+        return $response->json();
     }
 }
