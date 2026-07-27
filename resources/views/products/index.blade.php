@@ -222,6 +222,7 @@
                             ['key' => 'location', 'label' => 'Location', 'default' => true],
                             ['key' => 'category', 'label' => 'Category', 'default' => true],
                             ['key' => 'sales_channels', 'label' => 'Sales Channels', 'default' => true],
+                            ['key' => 'price_comparison', 'label' => 'Price Comparison', 'default' => true],
                         ];
                     @endphp
                     @include('partials.column-toggle', ['tableId' => 'productsTable', 'cookieName' => 'products_columns', 'columns' => $productColumns])
@@ -256,6 +257,7 @@
                                         'location' => ['label' => 'Location', 'column' => null, 'style' => ''],
                                         'category' => ['label' => 'Category', 'column' => 'category_id', 'style' => ''],
                                         'sales_channels' => ['label' => 'Sales Channels', 'column' => 'sales_channels_count', 'style' => ''],
+                                        'price_comparison' => ['label' => 'Price Comparison', 'column' => null, 'style' => ''],
                                     ];
                                 @endphp
                                 @foreach($sortableColumns as $key => $col)
@@ -377,6 +379,20 @@
                                             @endforeach
                                         </span>
                                     </td>
+                                    <td data-column="price_comparison">
+                                        @forelse ($product->priceComparisons as $comparison)
+                                            <div class="mb-1">
+                                                @if($comparison->listing_url)
+                                                    <a href="{{ $comparison->listing_url }}" target="_blank" class="fw-semibold text-decoration-none">${{ number_format($comparison->competitor_price, 2) }}</a>
+                                                @else
+                                                    <span class="fw-semibold">${{ number_format($comparison->competitor_price, 2) }}</span>
+                                                @endif
+                                                <span class="text-muted fs-11">{{ $comparison->competitor_seller }} ({{ $comparison->items_sold_last_month }} sold)</span>
+                                            </div>
+                                        @empty
+                                            <span class="text-muted fs-12">-</span>
+                                        @endforelse
+                                    </td>
                                     {{-- <td><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($product->created_at)->format('d M, Y') }}</span></td> --}}
                                     <td>
                                         <div class="hstack gap-2 justify-content-end">
@@ -424,7 +440,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="text-center py-4 text-muted">No products found.</td>
+                                    <td colspan="11" class="text-center py-4 text-muted">No products found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
