@@ -1,0 +1,435 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\SalesChannel;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use App\Services\Ebay\EbayNotificationService;
+use App\Services\Ebay\EbayApiClient;
+use App\Services\SalesChannelAccountService;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+
+class SalesChannelController extends Controller
+{
+    protected EbayNotificationService $notificationService;
+    protected SalesChannelAccountService $accountService;
+
+    public function __construct(EbayNotificationService $notificationService, SalesChannelAccountService $accountService)
+    {
+        $this->notificationService = $notificationService;
+        $this->accountService = $accountService;
+        $this->middleware(PermissionMiddleware::using('view sales-channels'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('add sales-channels'), ['only' => ['create', 'store']]);
+        $this->middleware(PermissionMiddleware::using('edit sales-channels'), ['only' => ['edit', 'update']]);
+        $this->middleware(PermissionMiddleware::using('delete sales-channels'), ['only' => ['destroy']]);
+    }
+
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(Request $request)
+    {
+        $query = SalesChannel::query();
+
+        // Filter by search term (name)
+        if ($request->filled('search')) {
+            $query->where('name', 'like', "%{$request->search}%");
+        }
+
+        // Filter by connection status (has valid tokens)
+        if ($request->filled('status')) {
+            if ($request->status === 'connected') {
+                $query->whereNotNull('access_token')
+                      ->where('access_token_expires_at', '>', now());
+            } elseif ($request->status === 'disconnected') {
+                $query->where(function ($q) {
+                    $q->whereNull('access_token')
+                      ->orWhere('access_token_expires_at', '<=', now());
+                });
+            }
+        }
+
+        // Sort
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        $perPage = $request->input('per_page', 25);
+        $sales_channels = $query->paginate($perPage)->withQueryString();
+        return view('sales-channel.index', compact('sales_channels', 'perPage'));
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create()
+    {
+        return view('sales-channel.new');
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'client_id' => 'required|string',
+            'client_secret' => 'required|string',
+            'ru_name' => 'required|string',
+            'user_scopes' => 'required|string',
+        ]);
+
+        try {
+            // Store sales channel with credentials from form
+            $sales_channel = new SalesChannel();
+            $sales_channel->name = $request->input('name');
+            $sales_channel->client_id = $request->input('client_id');
+            $sales_channel->client_secret = $request->input('client_secret');
+            $sales_channel->ru_name = $request->input('ru_name');
+            $sales_channel->user_scopes = $request->input('user_scopes');
+            $sales_channel->save();
+
+            // Create accounting accounts for this sales channel
+            $this->accountService->createAccountsForChannel($sales_channel);
+
+            session(['sales_channel_id' => $sales_channel->id]);
+
+            return redirect($this->buildEbayAuthUrl($sales_channel));
+        } catch (\Exception $e) {
+            Log::error('Failed to create sales channel', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->withErrors(['error' => 'An error occurred while creating the sales channel: ' . $e->getMessage()])->withInput();
+        }
+    }
+
+    /**
+     * Build eBay OAuth authorization URL with proper encoding.
+     * eBay requires spaces in scopes to be %20, not + signs.
+     */
+    protected function buildEbayAuthUrl(SalesChannel $salesChannel): string
+    {
+        // Clean up scopes - remove any extra whitespace and ensure single spaces
+        $scopes = preg_replace('/\s+/', ' ', trim($salesChannel->user_scopes));
+
+        $url = env('EBAY_AUTH_URL')
+            . '?client_id=' . rawurlencode($salesChannel->client_id)
+            . '&response_type=code'
+            . '&redirect_uri=' . rawurlencode($salesChannel->ru_name)
+            . '&scope=' . rawurlencode($scopes);
+
+        return $url;
+    }
+
+    public function ebay_callback(Request $request)
+    {
+        try {
+            $code = request('code');
+
+            if (!$code) {
+                // Check for error response from eBay
+                $error = request('error');
+                $errorDescription = request('error_description');
+                Log::error('eBay callback: No authorization code received', [
+                    'error' => $error,
+                    'error_description' => $errorDescription,
+                ]);
+                throw new \Exception('Authorization failed: ' . ($errorDescription ?? $error ?? 'No code received'));
+            }
+
+            $sales_channel_id = session('sales_channel_id');
+            if (!$sales_channel_id) {
+                Log::error('eBay callback: No sales_channel_id in session');
+                throw new \Exception('Session expired. Please try connecting again.');
+            }
+
+            $sales_channel = SalesChannel::find($sales_channel_id);
+            if (!$sales_channel) {
+                Log::error('eBay callback: Sales channel not found', ['id' => $sales_channel_id]);
+                throw new \Exception('Sales channel not found.');
+            }
+
+            $response = Http::asForm()
+                ->withBasicAuth($sales_channel->client_id, $sales_channel->client_secret)
+                ->post(env('EBAY_TOKEN_URL'), [
+                    'grant_type'   => 'authorization_code',
+                    'code'         => $code,
+                    'redirect_uri' => $sales_channel->ru_name,
+                ]);
+
+            $response_data = $response->json();
+
+            if ($response->failed() || isset($response_data['error'])) {
+                Log::error('eBay callback error', [
+                    'status' => $response->status(),
+                    'error' => $response_data['error'] ?? null,
+                    'error_description' => $response_data['error_description'] ?? null,
+                    'body' => $response->body(),
+                ]);
+                $errorMsg = $response_data['error_description'] ?? $response_data['error'] ?? 'Failed to retrieve eBay access token';
+                throw new \Exception($errorMsg);
+            }
+
+            $sales_channel->authorization_code = $code;
+            $sales_channel->access_token = $response_data['access_token'];
+            $sales_channel->access_token_expires_at = now()->addSeconds($response_data['expires_in']);
+            $sales_channel->refresh_token = $response_data['refresh_token'];
+            $sales_channel->refresh_token_expires_at = now()->addSeconds($response_data['refresh_token_expires_in']);
+            $sales_channel->save();
+
+            // Fetch and store the eBay UserID for this account
+            $this->fetchAndStoreEbayUserId($sales_channel);
+
+            // Subscribe to eBay notifications for orders
+            $notificationResult = $this->subscribeToEbayNotifications($sales_channel);
+
+            $message = 'Sales Channel created or updated successfully.';
+            if ($notificationResult['success']) {
+                $message .= ' Order notifications enabled.';
+            } else {
+                $message .= ' Warning: Could not enable notifications - ' . ($notificationResult['error'] ?? 'Unknown error');
+            }
+
+            return redirect()->route('sales-channels.index')->with('success', $message);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->route('sales-channels.index')->with('error', 'Authorization code is missing or invalid.');
+        } catch (\Exception $e) {
+            Log::error('eBay callback error', ['error' => $e->getMessage()]);
+            return redirect()->route('sales-channels.index')->with('error', 'Error during authorization: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Subscribe to eBay notifications for a sales channel
+     * Subscribes to ALL available eBay notification events
+     */
+    protected function subscribeToEbayNotifications(SalesChannel $salesChannel): array
+    {
+        try {
+            // Subscribe to ALL Platform Notifications (Trading API) events
+            $result = $this->notificationService->subscribeToAllEvents($salesChannel);
+
+            return ['success' => true, 'result' => $result];
+        } catch (\Exception $e) {
+            Log::error('Failed to subscribe to eBay notifications', [
+                'sales_channel_id' => $salesChannel->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Fetch and store the eBay UserID for the sales channel
+     * This is used to identify which sales channel incoming webhooks belong to
+     */
+    protected function fetchAndStoreEbayUserId(SalesChannel $salesChannel): void
+    {
+        try {
+            $xml = '<?xml version="1.0" encoding="utf-8"?>
+                <GetUserRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                    <ErrorLanguage>en_US</ErrorLanguage>
+                </GetUserRequest>';
+
+            $response = Http::timeout(60)
+                ->withHeaders([
+                    'X-EBAY-API-SITEID' => EbayApiClient::API_SITE_ID,
+                    'X-EBAY-API-COMPATIBILITY-LEVEL' => EbayApiClient::API_COMPATIBILITY_LEVEL,
+                    'X-EBAY-API-CALL-NAME' => 'GetUser',
+                    'X-EBAY-API-IAF-TOKEN' => $salesChannel->access_token,
+                    'Content-Type' => 'text/xml',
+                ])
+                ->withBody($xml, 'text/xml')
+                ->post('https://api.ebay.com/ws/api.dll');
+
+            if ($response->successful()) {
+                $xmlResponse = simplexml_load_string($response->body());
+                $userId = (string) ($xmlResponse->User->UserID ?? '');
+
+                if (!empty($userId)) {
+                    $salesChannel->ebay_user_id = $userId;
+                    $salesChannel->save();
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning('Failed to fetch eBay UserID', [
+                'sales_channel_id' => $salesChannel->id,
+                'error' => $e->getMessage(),
+            ]);
+            // Don't throw - this is not critical for the OAuth flow
+        }
+    }
+
+    /**
+     * Check current notification preferences from eBay
+     * Shows which events are actually subscribed on eBay
+     */
+    public function checkNotificationStatus(string $id)
+    {
+        try {
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            // Get notification preferences from eBay
+            $result = $this->notificationService->getNotificationPreferences($salesChannel);
+
+            $preferences = $result['preferences'] ?? [];
+            $enabledEvents = $preferences['enabled_events'] ?? [];
+            $applicationPrefs = $preferences['application_delivery_preferences'] ?? [];
+
+            // Get the webhook URL
+            $webhookUrl = $this->notificationService->getWebhookUrl($salesChannel);
+
+            return response()->json([
+                'success' => true,
+                'sales_channel' => [
+                    'id' => $salesChannel->id,
+                    'name' => $salesChannel->name,
+                ],
+                'webhook_url' => $webhookUrl,
+                'application_settings' => $applicationPrefs,
+                'enabled_events_count' => count($enabledEvents),
+                'enabled_events' => $enabledEvents,
+                'all_preferences' => $preferences['user_delivery_preferences'] ?? [],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to check eBay notification status', [
+                'sales_channel_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Manually re-subscribe to eBay notifications
+     */
+    public function resubscribeNotifications(string $id)
+    {
+        try {
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            // Re-subscribe to all events
+            $result = $this->notificationService->subscribeToAllEvents($salesChannel);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Successfully re-subscribed to ' . count($result['events']) . ' notification events',
+                'webhook_url' => $result['webhook_url'],
+                'events' => $result['events'],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to re-subscribe to eBay notifications', [
+                'sales_channel_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Disable eBay notifications
+     */
+    public function disableNotifications(string $id)
+    {
+        try {
+            $salesChannel = SalesChannel::findOrFail($id);
+
+            $result = $this->notificationService->disablePlatformNotifications($salesChannel);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Notifications disabled successfully',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(string $id)
+    {
+        //
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(string $id)
+    {
+        $sales_channel = SalesChannel::findOrFail($id);
+        return view('sales-channel.edit', compact('sales_channel'));
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, string $id)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'client_id' => 'required|string',
+            'client_secret' => 'required|string',
+            'ru_name' => 'required|string',
+            'user_scopes' => 'required|string',
+        ]);
+
+        try {
+            $sales_channel = SalesChannel::findOrFail($id);
+            $sales_channel->name = $request->input('name');
+            $sales_channel->client_id = $request->input('client_id');
+            $sales_channel->client_secret = $request->input('client_secret');
+            $sales_channel->ru_name = $request->input('ru_name');
+            $sales_channel->user_scopes = $request->input('user_scopes');
+
+            // If reconnecting, redirect to eBay OAuth
+            if ($request->has('reconnect')) {
+                $sales_channel->save();
+                session(['sales_channel_id' => $sales_channel->id]);
+                return redirect($this->buildEbayAuthUrl($sales_channel));
+            }
+
+            $sales_channel->save();
+            return redirect()->route('sales-channels.index')->with('success', 'Sales Channel updated successfully.');
+        } catch (\Exception $e) {
+            Log::error('Failed to update sales channel', [
+                'id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->withErrors(['error' => 'An error occurred while updating the sales channel: ' . $e->getMessage()])->withInput();
+        }
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(string $id)
+    {
+        try {
+            $sales_channel = SalesChannel::findOrFail($id);
+            $sales_channel->delete();
+
+            return redirect()->route('sales-channels.index')->with('success', 'Sales Channel deleted successfully.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'An error occurred while deleting the sales channel: ' . $e->getMessage());
+        }
+    }
+}

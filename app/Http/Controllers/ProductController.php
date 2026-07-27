@@ -1,0 +1,1940 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Imports\ProductsImport;
+use App\Models\Brand;
+use App\Models\Category;
+use App\Models\OrderItem;
+use App\Models\Product;
+use App\Models\ProductBundleComponent;
+use App\Models\PurchaseItem;
+use App\Models\Rack;
+use App\Models\SalesChannel;
+use App\Models\SalesChannelProduct;
+use App\Models\Warehouse;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Facades\Excel;
+use Spatie\Permission\Middleware\PermissionMiddleware;
+
+class ProductController extends Controller
+{
+    protected $aliases = [
+        'name' => ['name', 'product_name', 'title', 'product_title'],
+        'sku' => ['sku', 'item_sku', 'product_sku'],
+        'barcode' => ['barcode', 'ean', 'upc', 'code'],
+        'regular_price' => ['regular_price', 'price', 'base_price'],
+        'sale_price' => ['sale_price', 'discount_price', 'offer_price'],
+        'quantity' => ['qty', 'quantity', 'stock', 'stock_qty', 'stock_quantity'],
+        'rack' => ['racks', 'rack', 'racks_id', 'rack_id']
+    ];
+
+    public function __construct()
+    {
+        $this->middleware(PermissionMiddleware::using('view products'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('add products'), ['only' => ['create', 'store']]);
+        $this->middleware(PermissionMiddleware::using('edit products'), ['only' => ['edit', 'update']]);
+        $this->middleware(PermissionMiddleware::using('delete products'), ['only' => ['destroy']]);
+    }
+    
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(Request $request)
+    {
+        $query = Product::with(['sales_channels', 'category', 'brand', 'product_stocks.warehouse', 'product_stocks.rack', 'bundleComponents']);
+
+        // Filter by search term (name, sku, barcode)
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('sku', 'like', "%{$search}%")
+                  ->orWhere('barcode', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter by category
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        // Filter by brand
+        if ($request->filled('brand_id')) {
+            $query->where('brand_id', $request->brand_id);
+        }
+
+        // Filter by sales channel
+        if ($request->filled('sales_channel_id')) {
+            $query->whereHas('sales_channels', function ($q) use ($request) {
+                $q->where('sales_channels.id', $request->sales_channel_id);
+            });
+        }
+
+        // Filter by product type
+        if ($request->filled('product_type')) {
+            if ($request->product_type === 'bundle') {
+                $query->where('is_bundle', true);
+            } elseif ($request->product_type === 'regular') {
+                $query->where('is_bundle', false);
+            }
+        }
+
+        // Combined filter for stock status with warehouse/rack
+        // This ensures we check stock status within the specific warehouse/rack context
+        $warehouseId = $request->warehouse_id;
+        $rackId = $request->rack_id;
+        $stockStatus = $request->stock_status;
+
+        $applyStockLocationFilter = function ($stockQuery) use ($warehouseId, $rackId, ) {
+            if ($warehouseId) {
+                $stockQuery->where('warehouse_id', $warehouseId);
+            }
+            
+            if ($rackId) {
+                $stockQuery->where('rack_id', $rackId);
+            }
+        };
+
+        // // Component is considered out if available stock in selected location is less than required qty for one bundle
+        $applyOutOfStockComponentCondition = function ($componentQuery) use ($warehouseId, $rackId) {
+            $sql = "(
+                SELECT COALESCE(SUM(CAST(ps.quantity AS decimal(15,4))), 0)
+                FROM product_stocks ps
+                WHERE ps.product_id = product_bundle_components.component_product_id
+                    AND ps.active_status = '1'
+                    AND ps.delete_status = '0'";
+
+            $bindings = [];
+
+            if ($warehouseId) {
+                $sql .= " AND ps.warehouse_id = ?";
+                $bindings[] = $warehouseId;
+            }
+
+            if ($rackId) {
+                $sql .= " AND ps.rack_id = ?";
+                $bindings[] = $rackId;
+            }
+
+            $sql .= ") < product_bundle_components.quantity_required";
+
+            $componentQuery->whereRaw($sql, $bindings);
+        };
+
+        if ($warehouseId || $rackId || $stockStatus) {
+            $query->where(function ($q) use (
+                $warehouseId, 
+                $rackId, 
+                $stockStatus, 
+                $applyStockLocationFilter, 
+                $applyOutOfStockComponentCondition
+            ) {
+                if ($stockStatus === 'out_of_stock') {
+                    $q->where(function ($stockStatusQuery) use ($applyStockLocationFilter, $applyOutOfStockComponentCondition) {
+                        // Regular products out_of_stock
+                        $stockStatusQuery->where(function ($regularQuery) use ($applyStockLocationFilter) {
+                            $regularQuery->where('is_bundle', false)
+                                ->where(function ($outOfStockQuery) use ($applyStockLocationFilter) {
+                                    $outOfStockQuery->whereHas('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                                        $applyStockLocationFilter($stockQuery);
+                                        $stockQuery->where('quantity', '<=', 0);
+                                    })->orWhereDoesntHave('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                                        $applyStockLocationFilter($stockQuery);
+                                    });
+                                });
+                        })
+                        // Bundle products out_of_stock (if any component is out/insufficient)
+                        ->orWhere(function ($bundleQuery) use ($applyOutOfStockComponentCondition) {
+                            $bundleQuery->where('is_bundle', true)
+                                ->where(function ($bundleOutOfStockQuery) use ($applyOutOfStockComponentCondition) {
+                                    $bundleOutOfStockQuery->whereDoesntHave('bundleComponents')
+                                        ->orWhereHas('bundleComponents', function ($componentQuery) use ($applyOutOfStockComponentCondition) {
+                                            $applyOutOfStockComponentCondition($componentQuery);
+                                        });
+                                });
+                        });
+                    });
+                } else if ($stockStatus === 'in_stock') {
+                    $q->where(function ($stockStatusQuery) use ($applyStockLocationFilter, $applyOutOfStockComponentCondition) {
+                        // Regular products in_stock
+                        $stockStatusQuery->where(function ($regularQuery) use ($applyStockLocationFilter) {
+                            $regularQuery->where('is_bundle', false)
+                                ->whereHas('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                                    $applyStockLocationFilter($stockQuery);
+                                    $stockQuery->where('quantity', '>', 0);
+                                });
+                        })
+                        // Bundle products in_stock (all components must be in/sufficient)
+                        ->orWhere(function ($bundleQuery) use ($applyOutOfStockComponentCondition) {
+                            $bundleQuery->where('is_bundle', true)
+                                ->whereHas('bundleComponents')
+                                ->whereDoesntHave('bundleComponents', function ($componentQuery) use ($applyOutOfStockComponentCondition) {
+                                    $applyOutOfStockComponentCondition($componentQuery);
+                                });
+                        });
+                    });
+                } else {
+                    // No stock status filter, just warehouse/rack
+                    $q->whereHas('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                        $applyStockLocationFilter($stockQuery);
+                    });
+
+                    // Bundle products: filter by components in warehouse (only for warehouse filter, not rack/stock status)
+                    if ($warehouseId && !$rackId) {
+                        $q->orWhere(function ($bundleQuery) use ($warehouseId) {
+                            $bundleQuery->where('is_bundle', true)
+                                ->whereHas('bundleComponents.product.product_stocks', function ($componentStockQuery) use ($warehouseId) {
+                                    $componentStockQuery->where('warehouse_id', $warehouseId);
+                                });
+                        });
+                    }
+                }
+            });
+        }
+
+        /*if ($warehouseId || $rackId || $stockStatus) {
+            $query->where(function ($q) use ($warehouseId, $rackId, $stockStatus) {
+                // For out_of_stock filter, we need products with either:
+                // 1. Stock records with quantity <= 0, OR
+                // 2. No stock records at all
+                if ($stockStatus === 'out_of_stock') {
+                    $q->where(function ($outOfStockQuery) use ($warehouseId, $rackId) {
+                        // Products with stock records showing 0 or negative quantity
+                        $outOfStockQuery->whereHas('product_stocks', function ($stockQuery) use ($warehouseId, $rackId) {
+                            if ($warehouseId) {
+                                $stockQuery->where('warehouse_id', $warehouseId);
+                            }
+                            if ($rackId) {
+                                $stockQuery->where('rack_id', $rackId);
+                            }
+                            $stockQuery->where('quantity', '<=', 0);
+                        })
+                        // OR products with no stock records at all
+                        ->orWhereDoesntHave('product_stocks', function ($stockQuery) use ($warehouseId, $rackId) {
+                            if ($warehouseId) {
+                                $stockQuery->where('warehouse_id', $warehouseId);
+                            }
+                            if ($rackId) {
+                                $stockQuery->where('rack_id', $rackId);
+                            }
+                        });
+                    });
+                } elseif ($stockStatus === 'in_stock') {
+                    // For in_stock, only products with stock > 0
+                    $q->whereHas('product_stocks', function ($stockQuery) use ($warehouseId, $rackId) {
+                        if ($warehouseId) {
+                            $stockQuery->where('warehouse_id', $warehouseId);
+                        }
+                        if ($rackId) {
+                            $stockQuery->where('rack_id', $rackId);
+                        }
+                        $stockQuery->where('quantity', '>', 0);
+                    });
+                } else {
+                    // No stock status filter, just warehouse/rack
+                    $q->whereHas('product_stocks', function ($stockQuery) use ($warehouseId, $rackId) {
+                        if ($warehouseId) {
+                            $stockQuery->where('warehouse_id', $warehouseId);
+                        }
+                        if ($rackId) {
+                            $stockQuery->where('rack_id', $rackId);
+                        }
+                    });
+                }
+
+                // Bundle products: filter by components in warehouse (only for warehouse filter, not rack/stock status)
+                if ($warehouseId && !$rackId && !$stockStatus) {
+                    $q->orWhere(function ($bundleQuery) use ($warehouseId) {
+                        $bundleQuery->where('is_bundle', true)
+                            ->whereHas('bundleComponents.product.product_stocks', function ($componentStockQuery) use ($warehouseId) {
+                                $componentStockQuery->where('warehouse_id', $warehouseId);
+                            });
+                    });
+                }
+            });
+        }*/
+
+        // Filter by date range
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        // Sort
+        $sortBy = $request->input('sort_by', 'id');
+        $sortOrder = $request->input('sort_order', 'desc');
+
+        // Handle special sorting for computed columns
+        if ($sortBy === 'quantity') {
+            // Sort by total stock quantity using subquery
+            $query->withSum('product_stocks', 'quantity')
+                  ->orderBy('product_stocks_sum_quantity', $sortOrder);
+        } elseif ($sortBy === 'sales_channels_count') {
+            // Sort by number of sales channels
+            $query->withCount('sales_channels')
+                  ->orderBy('sales_channels_count', $sortOrder);
+        } else {
+            $query->orderBy($sortBy, $sortOrder);
+        }
+
+        $perPage = $request->input('per_page', 25);
+        $products = $query->paginate($perPage)->withQueryString();
+
+        // Get filter options
+        $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
+        $salesChannels = SalesChannel::where('active_status', 1)->orderBy('name')->get();
+        $warehouses = Warehouse::orderBy('name')->get();
+        $racks = Rack::with('warehouse')->orderBy('name')->get();
+
+        return view('products.index', compact('products', 'categories', 'brands', 'salesChannels', 'warehouses', 'racks', 'perPage'));
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create()
+    {
+        $categories = Category::all();
+        $brands = Brand::all();
+        $warehouses = Warehouse::where('active_status', '1')->where('delete_status', '0')->get();
+        // Get all non-bundle products for bundle components
+        $products = Product::where('is_bundle', false)
+            ->where('active_status', '1')
+            ->where('delete_status', '0')
+            ->orderBy('name')
+            ->get();
+        // $salesChannels = SalesChannel::where('active_status', 1)->get();
+        // return view('products.new', compact('categories', 'brands', 'salesChannels', 'products', 'warehouses'));
+        return view('products.new', compact('categories', 'brands', 'products', 'warehouses'));
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'sku' => 'required|string|max:100|unique:products,sku',
+            'category_id' => 'required|exists:categories,id',
+            'brand_id' => 'nullable|exists:brands,id',
+            'short_description' => 'nullable|string|max:500',
+            'description' => 'nullable|string',
+            'regular_price' => 'required|numeric|min:0',
+            'sale_price' => 'nullable|numeric|min:0',
+            'product_image' => 'nullable|image|max:2048',
+            'is_featured' => 'sometimes|boolean',
+            'active_status' => 'sometimes|boolean',
+            'sales_channels' => 'nullable|array',
+            'sales_channels.*' => 'exists:sales_channels,id',
+            'is_bundle' => 'sometimes|boolean',
+            'bundle_type' => 'nullable|string|in:pair,kit,set,bundle',
+            'components' => 'required_if:is_bundle,1|array|min:2',
+            'components.*.product_id' => 'required|exists:products,id',
+            'components.*.quantity' => 'required|integer|min:1',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            // Product creation logic here
+            $product = new Product();
+            $product->name = $request->name;
+            $product->sku = $request->sku;
+            $product->barcode = $request->sku; // Use SKU as barcode
+            $product->category_id = $request->category_id;
+            $product->brand_id = $request->brand_id;
+            $product->is_bundle = $request->has('is_bundle') && $request->is_bundle;
+            $product->bundle_type = $request->is_bundle ? $request->bundle_type : null;
+            if (empty($request->sale_price)) {
+                $product->price = $request->regular_price;
+            } else {
+                $product->price = $request->sale_price;
+            }
+
+            if($request->has('product_image') != '') {
+                $image = $request->product_image;
+                $ext = $image->getClientOriginalExtension();
+                $imageName = time() . '.' . $ext;
+
+                $image->move(public_path('uploads'), $imageName);
+                $product->product_image = $imageName;
+            }
+            $product->save();
+
+            $product->product_meta()->createMany([
+                [
+                    'meta_key' => 'weight',
+                    'meta_value' => $request->weight,
+                ],
+                [
+                    'meta_key' => 'length',
+                    'meta_value' => $request->length,
+                ],
+                [
+                    'meta_key' => 'width',
+                    'meta_value' => $request->width,
+                ],
+                [
+                    'meta_key' => 'height',
+                    'meta_value' => $request->height,
+                ],
+                [
+                    'meta_key' => 'regular_price',
+                    'meta_value' => $request->regular_price,
+                ],
+                [
+                    'meta_key' => 'sale_price',
+                    'meta_value' => $request->sale_price,
+                ],
+                [
+                    'meta_key' => 'alert_quantity',
+                    'meta_value' => $request->alert_quantity ?? 0,
+                ]
+            ]);
+
+            // Handle bundle components
+            if ($product->is_bundle && $request->has('components')) {
+                foreach ($request->components as $component) {
+                    ProductBundleComponent::create([
+                        'bundle_product_id' => $product->id,
+                        'component_product_id' => $component['product_id'],
+                        'quantity_required' => $component['quantity'],
+                    ]);
+                }
+            }
+
+            // Handle Sales Channels - Create listings
+            // $selectedChannels = $request->input('sales_channels', []);
+            // if (!empty($selectedChannels)) {
+            //     $this->syncSalesChannels($product, $selectedChannels, []);
+            // }
+
+            DB::commit();
+
+            return redirect()->route('products.index')->with('success', $product->is_bundle ? 'Bundle created successfully.' : 'Product created successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Product creation failed', ['error' => $e->getMessage()]);
+            return redirect()->back()->with('error', 'An error occurred while creating the product: ' . $e->getMessage())->withInput();
+        }
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(string $id)
+    {
+        $product = Product::findOrFail($id);
+
+        if ($product->is_bundle) {
+            // For bundles → get component product IDs
+            $componentIds = $product->bundleComponents()->pluck('component_product_id')->toArray();
+
+            // Purchase history for bundle components
+            $purchaseHistory = PurchaseItem::whereIn('product_id', $componentIds)
+                ->with([
+                    'purchase:id,purchase_number,supplier_id,warehouse_id,created_at',
+                    'purchase.supplier:id,first_name,last_name',
+                    'purchase.warehouse:id,name',
+                    'product:id,name,sku'
+                ])
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            // Order history for bundle (sold as bundle) + components
+            $orderHistory = OrderItem::where(function ($q) use ($product, $componentIds) {
+                    $q->where('bundle_product_id', $product->id) // Sold as this bundle
+                      ->orWhereIn('product_id', $componentIds);  // Or component sold individually
+                })
+                ->with(['order:id,order_number,sales_channel_id,order_date,total', 'order.salesChannel:id,name', 'product:id,name,sku', 'bundleProduct:id,name'])
+                ->whereHas('order', fn($q) => $q->whereNotIn('order_status', ['cancelled']))
+                ->orderBy('created_at', 'desc')
+                ->get();
+        } else {
+            // Regular product
+            $purchaseHistory = $product->purchaseItems()
+                ->with(['purchase:id,purchase_number,supplier_id,warehouse_id,created_at', 'purchase.supplier:id,first_name,last_name', 'purchase.warehouse:id,name'])
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $orderHistory = $product->orderItems()
+                ->with(['order:id,order_number,sales_channel_id,order_date,total', 'order.salesChannel:id,name'])
+                ->whereHas('order', fn($q) => $q->whereNotIn('order_status', ['cancelled']))
+                ->orderBy('created_at', 'desc')
+                ->get();
+        }
+
+        $purchaseStats = [
+            'total_qty' => $purchaseHistory->sum('quantity'),
+            'total_cost' => $purchaseHistory->sum(fn($item) => $item->quantity * $item->price),
+            'purchase_count' => $purchaseHistory->unique('purchase_id')->count(),
+        ];
+
+        $orderStats = [
+            'total_qty' => $orderHistory->sum('quantity'),
+            'total_revenue' => $orderHistory->sum('total_price'),
+            'order_count' => $orderHistory->unique('order_id')->count(),
+        ];
+
+        return view('products.show', compact('product', 'purchaseHistory', 'purchaseStats', 'orderHistory', 'orderStats'));
+    }
+
+    /**
+     * Search the specified resource.
+     */
+    public function search(string $query)
+    {
+        $products = Product::where('name', 'LIKE', "%$query%")
+            ->orWhere('sku', 'LIKE', "%$query%")
+            ->orWhere('barcode', 'LIKE', "%$query%")
+            ->orWhereHas('category', function ($categoryQuery) use ($query) {
+                $categoryQuery->where('name', 'LIKE', "%$query%");
+            })
+            ->orWhereHas('brand', function ($brandQuery) use ($query) {
+                $brandQuery->where('name', 'LIKE', "%$query%");
+            })
+            ->get();
+
+        return response()->json($products);
+
+        // return view('products.index', compact('products'));
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(string $id)
+    {
+        $product = Product::with(['sales_channels', 'product_stocks.warehouse', 'product_stocks.rack', 'bundleComponents.product.product_stocks'])->findOrFail($id);
+        $categories = Category::all();
+        $brands = Brand::all();
+        $warehouses = Warehouse::where('active_status', '1')->where('delete_status', '0')->get();
+        $salesChannels = SalesChannel::where('active_status', 1)->get();
+        // Get all non-bundle products for bundle components
+        $products = Product::where('is_bundle', false)
+            ->where('active_status', '1')
+            ->where('delete_status', '0')
+            ->orderBy('name')
+            ->get();
+        return view('products.edit', compact('product', 'categories', 'brands', 'salesChannels', 'products', 'warehouses'));
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, string $id)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'sku' => 'required|string|max:100|unique:products,sku,' . $id,
+            'category_id' => 'required|exists:categories,id',
+            'brand_id' => 'nullable|exists:brands,id',
+            'short_description' => 'nullable|string|max:500',
+            'description' => 'nullable|string',
+            'regular_price' => 'required|numeric|min:0',
+            'sale_price' => 'nullable|numeric|min:0',
+            'product_image' => 'nullable|image|max:2048',
+            'is_featured' => 'sometimes|boolean',
+            'active_status' => 'sometimes|boolean',
+            'sales_channels' => 'nullable|array',
+            'sales_channels.*' => 'exists:sales_channels,id',
+            'is_bundle' => 'sometimes|boolean',
+            'bundle_type' => 'nullable|string|in:pair,kit,set,bundle',
+            'components' => 'required_if:is_bundle,1|array|min:2',
+            'components.*.product_id' => 'required|exists:products,id',
+            'components.*.quantity' => 'required|integer|min:1',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $product = Product::with('sales_channels')->findOrFail($id);
+            $oldSku = $product->sku;
+            $currentChannelIds = $product->sales_channels->pluck('id')->toArray();
+
+            $product->name = $request->name;
+            $product->sku = $request->sku;
+            $product->barcode = $request->sku; // Use SKU as barcode
+            $product->category_id = $request->category_id;
+            $product->brand_id = $request->brand_id;
+            $product->is_bundle = $request->has('is_bundle') && $request->is_bundle;
+            $product->bundle_type = $request->is_bundle ? $request->bundle_type : null;
+            if (empty($request->sale_price)) {
+                $product->price = $request->regular_price;
+            } else {
+                $product->price = $request->sale_price;
+            }
+
+            if($request->has('product_image') != '') {
+                $image = $request->product_image;
+                $ext = $image->getClientOriginalExtension();
+                $imageName = time() . '.' . $ext;
+
+                $image->move(public_path('uploads'), $imageName);
+                $product->product_image = $imageName;
+            }
+            $product->save();
+
+            // Update product meta
+            foreach (['weight', 'length', 'width', 'height', 'regular_price', 'sale_price'] as $metaKey) {
+                $metaValue = $request->$metaKey;
+                $product->product_meta()->updateOrCreate(
+                    ['meta_key' => $metaKey],
+                    ['meta_value' => $metaValue]
+                );
+            }
+
+            // Handle bundle components
+            if ($product->is_bundle) {
+                // Delete existing components
+                ProductBundleComponent::where('bundle_product_id', $product->id)->delete();
+
+                // Create new components
+                if ($request->has('components')) {
+                    foreach ($request->components as $component) {
+                        ProductBundleComponent::create([
+                            'bundle_product_id' => $product->id,
+                            'component_product_id' => $component['product_id'],
+                            'quantity_required' => $component['quantity'],
+                        ]);
+                    }
+                }
+            } else {
+                // If bundle was disabled, remove all components
+                ProductBundleComponent::where('bundle_product_id', $product->id)->delete();
+            }
+
+            // Handle Sales Channels sync
+            $selectedChannels = $request->input('sales_channels', []);
+            $this->syncSalesChannels($product, $selectedChannels, $currentChannelIds, $oldSku !== $request->sku);
+
+            DB::commit();
+
+            return redirect()->back()->with('success', $product->is_bundle ? 'Bundle updated successfully.' : 'Product updated successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Product update failed', ['error' => $e->getMessage(), 'product_id' => $id]);
+            return redirect()->back()->with('error', 'An error occurred while updating the product: ' . $e->getMessage())->withInput();
+        }
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(string $id)
+    {
+        try {
+            $product = Product::findOrFail($id);
+            if ($product->is_bundle) {
+                $product->delete();
+                return redirect()->route('products.index')->with('success', 'Bundle deleted successfully.');
+            } else {
+                if ($product->product_stocks->sum('quantity') > 0) {
+                    return redirect()->back()->with('error', 'You can\'t delete the product which has stock.');
+                } else {
+                    $product->delete();
+                    return redirect()->route('products.index')->with('success', 'Product deleted successfully.');
+                }
+            }
+
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'An error occurred while deleting the product: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Bulk delete products.
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:products,id',
+        ]);
+
+        try {
+            $products = Product::with('product_stocks')->whereIn('id', $request->ids)->get();
+            $deleted = 0;
+            $skipped = 0;
+            $skippedNames = [];
+
+            foreach ($products as $product) {
+                if ($product->is_bundle) {
+                    // Bundles can be deleted directly
+                    $product->delete();
+                    $deleted++;
+                } else {
+                    // Regular products: check stock before deletion
+                    if ($product->product_stocks->sum('quantity') > 0) {
+                        $skipped++;
+                        $skippedNames[] = $product->name;
+                    } else {
+                        $product->delete();
+                        $deleted++;
+                    }
+                }
+            }
+
+            $message = $deleted . ' product(s) deleted successfully.';
+            if ($skipped > 0) {
+                $message .= ' ' . $skipped . ' product(s) skipped (have stock): ' . implode(', ', array_slice($skippedNames, 0, 3));
+                if ($skipped > 3) {
+                    $message .= '...';
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'deleted' => $deleted,
+                'skipped' => $skipped,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting products: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Bulk sync products to a sales channel.
+     */
+    public function bulkSync(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:products,id',
+            'sales_channel_id' => 'required|integer|exists:sales_channels,id',
+        ]);
+
+        try {
+            $products = Product::with('sales_channels')->whereIn('id', $request->ids)->get();
+            $channel = SalesChannel::findOrFail($request->sales_channel_id);
+            $synced = 0;
+            $skipped = 0;
+            $errors = 0;
+
+            $ebayController = app(\App\Http\Controllers\EbayController::class);
+            $inventorySyncService = app(\App\Services\Inventory\InventorySyncService::class);
+
+            foreach ($products as $product) {
+                // Only process eBay channels
+                if (!$channel->isEbay()) {
+                    continue;
+                }
+
+                try {
+                    $alreadyLinked = $product->sales_channels->contains('id', $channel->id);
+
+                    if ($alreadyLinked) {
+                        // Already linked - just sync inventory
+                        $syncResult = $inventorySyncService->syncToStore($product, $channel, 'bulk_sync');
+
+                        if ($syncResult->success) {
+                            $synced++;
+                        } else {
+                            // Update error status on pivot
+                            $product->sales_channels()->updateExistingPivot($channel->id, [
+                                'listing_status' => SalesChannelProduct::STATUS_ERROR,
+                                'listing_error' => $syncResult->reason,
+                            ]);
+                            $errors++;
+                        }
+                    } else {
+                        // Not linked yet - find eBay listing and link
+                        $existingListing = $ebayController->findEbayListingBySku($channel, $product->sku);
+
+                        if ($existingListing) {
+                            // Found listing - link it with default visible_quantity (10)
+                            $listingUrl = "https://www.ebay.com/itm/{$existingListing['ItemID']}";
+
+                            $product->sales_channels()->attach($channel->id, [
+                                'listing_url' => $listingUrl,
+                                'external_listing_id' => $existingListing['ItemID'],
+                                'listing_status' => SalesChannelProduct::STATUS_ACTIVE,
+                                'listing_format' => $existingListing['ListingType'] ?? 'FixedPriceItem',
+                                'visible_quantity' => 10, // Default formula threshold
+                                'sync_enabled' => true,
+                                'last_synced_at' => now(),
+                            ]);
+
+                            // Sync inventory using formula (VisibleStockCalculator)
+                            $syncResult = $inventorySyncService->syncToStore($product, $channel, 'bulk_sync');
+
+                            // Update listing status based on sync result
+                            if (!$syncResult->success && $syncResult->status === 'failed') {
+                                $product->sales_channels()->updateExistingPivot($channel->id, [
+                                    'listing_status' => SalesChannelProduct::STATUS_ERROR,
+                                    'listing_error' => $syncResult->reason,
+                                ]);
+                                $errors++;
+                            } else {
+                                $synced++;
+                            }
+                        } else {
+                            // No listing found on eBay
+                            $errors++;
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Bulk sync failed for product', [
+                        'product_id' => $product->id,
+                        'channel_id' => $channel->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                    $errors++;
+                }
+            }
+
+            $message = $synced . ' product(s) synced to ' . $channel->name . '.';
+            if ($errors > 0) {
+                $message .= ' ' . $errors . ' failed.';
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'synced' => $synced,
+                'errors' => $errors,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while syncing products: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Print barcode for the specified product.
+     */
+    public function printBarcode(string $id)
+    {
+        $product = Product::findOrFail($id);
+        return view('products.print-barcode', compact('product'));
+    }
+
+    /**
+     * Print barcode view for the specified product.
+     */
+    public function printBarcodeView(Request $request, string $id)
+    {
+        $product = Product::findOrFail($id);
+        $quantity = (int) $request->get('quantity', 21);
+        $quantity = max(1, min(100, $quantity)); // Clamp between 1 and 100
+        $columns = (int) $request->get('columns', 3);
+        $columns = max(2, min(5, $columns)); // Clamp between 2 and 5
+
+        $pdf = Pdf::loadView('products.barcode', compact('product', 'quantity', 'columns'))
+            ->setPaper('a4', 'portrait');
+        return $pdf->download('barcode_' . $product->barcode . '.pdf');
+    }
+
+    /**
+     * Show bulk barcode printing form.
+     */
+    public function bulkPrintBarcodeForm()
+    {
+        $brands = Brand::all();
+        $categories = Category::all();
+        $products = Product::whereNotNull('barcode')->orderBy('name')->get();
+        return view('products.bulk-print-barcode', compact('products', 'brands', 'categories'));
+    }
+
+    /**
+     * Generate PDF with barcodes for multiple products.
+     */
+    public function bulkPrintBarcode(Request $request)
+    {
+        $request->validate([
+            'products' => 'required|array|min:1',
+            'products.*.id' => 'required|exists:products,id',
+            'products.*.quantity' => 'required|integer|min:1|max:100',
+            'columns' => 'nullable|integer|min:2|max:5',
+        ]);
+
+        $columns = (int) $request->get('columns', 3);
+        $columns = max(2, min(5, $columns)); // Clamp between 2 and 5
+
+        $productsData = [];
+        foreach ($request->products as $productInput) {
+            $product = Product::find($productInput['id']);
+            if ($product && $product->barcode) {
+                $productsData[] = [
+                    'product' => $product,
+                    'quantity' => (int) $productInput['quantity'],
+                ];
+            }
+        }
+
+        if (empty($productsData)) {
+            return redirect()->back()->with('error', 'No valid products selected for barcode printing.');
+        }
+
+        $pdf = Pdf::loadView('products.bulk-barcode', compact('productsData', 'columns'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->download('barcodes_' . date('Y-m-d_H-i-s') . '.pdf');
+    }
+
+    /**
+     * Sync product with sales channels (inventory management only)
+     * - Link products to existing eBay listings by SKU (don't create new listings)
+     * - Update inventory/quantity on eBay when product is updated
+     * - Unlink products from channels when unchecked (don't end listings on eBay)
+     */
+    protected function syncSalesChannels(Product $product, array $selectedChannelIds, array $currentChannelIds, bool $skuChanged = false): void
+    {
+        $ebayController = app(EbayController::class);
+
+        // Channels to add (newly selected - link to existing eBay listing)
+        $channelsToAdd = array_diff($selectedChannelIds, $currentChannelIds);
+
+        // Channels to remove (unchecked - just unlink, don't end listing)
+        $channelsToRemove = array_diff($currentChannelIds, $selectedChannelIds);
+
+        // Channels to update (still selected - sync inventory)
+        $channelsToUpdate = array_intersect($selectedChannelIds, $currentChannelIds);
+
+        // Process new channels - Find and link existing eBay listings by SKU
+        foreach ($channelsToAdd as $channelId) {
+            $channel = SalesChannel::find($channelId);
+            if (!$channel || !$channel->isEbay()) {
+                continue;
+            }
+
+            try {
+                // Find existing eBay listing by SKU
+                $existingListing = $ebayController->findEbayListingBySku($channel, $product->sku);
+
+                if ($existingListing) {
+                    // Found listing - link it with default settings
+                    $listingUrl = "https://www.ebay.com/itm/{$existingListing['ItemID']}";
+
+                    $product->sales_channels()->attach($channelId, [
+                        'listing_url' => $listingUrl,
+                        'external_listing_id' => $existingListing['ItemID'],
+                        'listing_status' => SalesChannelProduct::STATUS_ACTIVE,
+                        'listing_format' => $existingListing['ListingType'] ?? 'FixedPriceItem',
+                        'visible_quantity' => 10, // Default threshold
+                        'sync_enabled' => true,
+                    ]);
+
+                    // Sync inventory using InventorySyncService (applies threshold logic)
+                    $inventorySyncService = app(\App\Services\Inventory\InventorySyncService::class);
+                    $syncResult = $inventorySyncService->syncToStore($product, $channel, 'manual', 'product_link');
+
+                    // Update status based on sync result
+                    if (!$syncResult->success && $syncResult->status === 'failed') {
+                        $product->sales_channels()->updateExistingPivot($channelId, [
+                            'listing_status' => SalesChannelProduct::STATUS_ERROR,
+                            'listing_error' => $syncResult->reason,
+                        ]);
+                    }
+
+                } else {
+                    // No listing found on eBay - attach with "not found" status
+                    // $product->sales_channels()->attach($channelId, [
+                    //     'listing_status' => 'not_found',
+                    //     'listing_error' => "No eBay listing found with SKU: {$product->sku}",
+                    //     'last_synced_at' => now(),
+                    // ]);
+
+                }
+
+            } catch (\Exception $e) {
+                // $product->sales_channels()->attach($channelId, [
+                //     'listing_status' => SalesChannelProduct::STATUS_ERROR,
+                //     'listing_error' => $e->getMessage(),
+                //     'last_synced_at' => now(),
+                // ]);
+
+                Log::error('Failed to link product to sales channel', [
+                    'product_id' => $product->id,
+                    'channel_id' => $channelId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Process removed channels - Just unlink (don't end listing on eBay)
+        foreach ($channelsToRemove as $channelId) {
+            // Simply detach - the listing remains on eBay, we just stop managing it
+            $product->sales_channels()->detach($channelId);
+
+        }
+
+        // Process existing channels - Sync inventory, dimensions, and SKU (if changed)
+        foreach ($channelsToUpdate as $channelId) {
+            $channel = SalesChannel::find($channelId);
+            if (!$channel || !$channel->isEbay()) {
+                continue;
+            }
+
+            try {
+                $pivot = $product->sales_channels()->where('sales_channel_id', $channelId)->first()?->pivot;
+                $externalId = $pivot?->external_listing_id;
+
+                // Skip if no external ID (listing not found)
+                if (!$externalId) {
+                    // Try to find listing again by SKU
+                    $existingListing = $ebayController->findEbayListingBySku($channel, $product->sku);
+                    if ($existingListing) {
+                        $externalId = $existingListing['ItemID'];
+                        $listingUrl = "https://www.ebay.com/itm/{$externalId}";
+
+                        // Update pivot with found listing
+                        $product->sales_channels()->updateExistingPivot($channelId, [
+                            'external_listing_id' => $externalId,
+                            'listing_url' => $listingUrl,
+                            'listing_format' => $existingListing['ListingType'] ?? 'FixedPriceItem',
+                        ]);
+                    } else {
+                        continue; // Still no listing found
+                    }
+                }
+
+                // Sync product data to eBay (quantity, weight, dimensions, and SKU if changed)
+                $result = $ebayController->syncProductToEbay($channel, $externalId, $product, $skuChanged);
+
+                $product->sales_channels()->updateExistingPivot($channelId, [
+                    'listing_status' => $result['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
+                    'listing_error' => $result['success'] ? null : $this->extractListingError($result),
+                    'last_synced_at' => now(),
+                ]);
+
+            } catch (\Exception $e) {
+                $product->sales_channels()->updateExistingPivot($channelId, [
+                    'listing_status' => SalesChannelProduct::STATUS_ERROR,
+                    'listing_error' => $e->getMessage(),
+                    'last_synced_at' => now(),
+                ]);
+
+                Log::error('Failed to sync product on sales channel', [
+                    'product_id' => $product->id,
+                    'channel_id' => $channelId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Extract error message from eBay API result
+     */
+    private function extractListingError(array $result): ?string
+    {
+        // Check for 'message' key (from exception handling in EbayController)
+        if (!empty($result['message'])) {
+            return $result['message'];
+        }
+
+        // Check for 'errors' array (from eBay API response)
+        if (!empty($result['errors']) && is_array($result['errors'])) {
+            $errorMessages = [];
+            foreach ($result['errors'] as $error) {
+                if (isset($error['long_message'])) {
+                    $errorMessages[] = $error['long_message'];
+                } elseif (isset($error['short_message'])) {
+                    $errorMessages[] = $error['short_message'];
+                }
+            }
+            return !empty($errorMessages) ? implode('; ', $errorMessages) : null;
+        }
+
+        // Fallback to 'error' key
+        return $result['error'] ?? null;
+    }
+
+    /**
+     * Sync a product's inventory to all linked sales channels
+     * This is a public static method that can be called from other controllers (e.g., PurchaseController)
+     */
+    public static function syncProductInventoryToChannels(Product $product): void
+    {
+        // Use InventorySyncService to apply threshold logic
+        $inventorySyncService = app(\App\Services\Inventory\InventorySyncService::class);
+
+        $inventorySyncService->syncToAllStores($product, 'manual', 'stock_update');
+    }
+
+    /**
+     * Static version of extractListingError for use in static context
+     */
+    private static function extractListingErrorStatic(array $result): ?string
+    {
+        if (!empty($result['message'])) {
+            return $result['message'];
+        }
+
+        if (!empty($result['errors']) && is_array($result['errors'])) {
+            $errorMessages = [];
+            foreach ($result['errors'] as $error) {
+                if (isset($error['long_message'])) {
+                    $errorMessages[] = $error['long_message'];
+                } elseif (isset($error['short_message'])) {
+                    $errorMessages[] = $error['short_message'];
+                }
+            }
+            return !empty($errorMessages) ? implode('; ', $errorMessages) : null;
+        }
+
+        return $result['error'] ?? null;
+    }
+
+    /**
+     * Calculate bundle stock based on component availability (AJAX endpoint)
+     */
+    public function calculateStock(Request $request)
+    {
+        $request->validate([
+            'components' => 'required|array|min:1',
+            'components.*.product_id' => 'required|exists:products,id',
+            'components.*.quantity' => 'required|integer|min:1',
+        ]);
+
+        $minStock = PHP_INT_MAX;
+        $limitingComponent = null;
+        $details = [];
+
+        foreach ($request->components as $component) {
+            $product = Product::find($component['product_id']);
+            if (!$product) {
+                continue;
+            }
+
+            $componentStock = $product->available_stock;
+            $possibleBundles = (int) floor($componentStock / $component['quantity']);
+
+            $details[] = [
+                'product_name' => $product->name,
+                'product_sku' => $product->sku,
+                'required_qty' => $component['quantity'],
+                'available_stock' => $componentStock,
+                'possible_bundles' => $possibleBundles,
+            ];
+
+            if ($possibleBundles < $minStock) {
+                $minStock = $possibleBundles;
+                $limitingComponent = $product->name;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'available_bundles' => $minStock === PHP_INT_MAX ? 0 : $minStock,
+            'limiting_component' => $limitingComponent,
+            'components' => $details,
+        ]);
+    }
+
+    /**
+     * Update product stock quantities
+     */
+    public function updateStock(Request $request, string $id)
+    {
+        $request->validate([
+            'stock_id' => 'required|array',
+            'stock_id.*' => 'required|exists:product_stocks,id',
+            'rack' => 'required|array', 
+            'rack.*' => 'required|exists:racks,id', 
+            'quantity' => 'required|array',
+            'quantity.*' => 'required|numeric|min:0',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $product = Product::findOrFail($id);
+
+            foreach ($request->stock_id as $index => $stockId) {
+                $stock = $product->product_stocks()->find($stockId);
+                if ($stock) {
+                    $stock->rack_id = $request->rack[$index];
+                    $stock->quantity = $request->quantity[$index];
+                    $stock->save();
+                }
+            }
+
+            // Sync inventory to all linked sales channels
+            self::syncProductInventoryToChannels($product);
+
+            DB::commit();
+
+            return redirect()->back()->with('success', 'Stock quantities updated successfully and synced to sales channels.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Stock update failed', ['error' => $e->getMessage(), 'product_id' => $id]);
+            return redirect()->back()->with('error', 'An error occurred while updating stock: ' . $e->getMessage());
+        }
+    }
+
+    public function import_products()
+    {
+        return view('products.import');
+    }
+
+    public function downloadImportTemplate()
+    {
+        $filePath = public_path('Products.csv');
+
+        if (!file_exists($filePath)) {
+            abort(404, 'Template file not found.');
+        }
+
+        return response()->download($filePath, 'Products.csv', [
+            'Content-Type' => 'text/csv',
+        ]);
+    }
+
+    protected function normalizedHeader($header)
+    {
+        return strtolower(trim(str_replace([' ', '#'], ['_', ''], $header)));
+    }
+
+    public function import_products_preview(Request $request)
+    {
+        $request->validate([
+            'upload' => 'required|file|mimes:csv,txt',
+        ]);
+
+        $categories = Category::where('active_status', 1)->get();
+
+        $brands = Brand::where('active_status', 1)->get();
+
+        $data = Excel::toArray(new ProductsImport, $request->file('upload'));
+
+        // $rows = $data[0];
+        $headers = $data[0][0];
+        $normalizedHeaders = [];
+
+        foreach ($headers as $header) {
+            $clean = $this->normalizedHeader($header);
+            $mapped = $clean;
+            foreach ($this->aliases as $dbField => $words) {
+                foreach ($words as $word) {
+                    if ($clean === $this->normalizedHeader($word)) {
+                        $mapped = $dbField;
+                        break 2;
+                    }
+                }
+            }
+
+            $normalizedHeaders[] = $mapped;
+        }
+        $rows = array_slice($data[0], 1);
+
+        $mapped = [];
+        foreach ($rows as $row) {
+            unset($normalizedHeaders[0]);
+            unset($row[0]);
+            if (count($normalizedHeaders) === count($row)) {
+                $mapped[] = array_combine($normalizedHeaders, $row);
+            }
+        }
+        // dd($mapped);
+        // unset($rows[0]);
+
+        $products = [];
+
+        foreach ($mapped as $row) {
+            $product = Product::where('sku', $row['sku'])->where('barcode', $row['barcode'])->first();
+            $products[] = [
+                'name' => $row['name'],
+                'sku' => $row['sku'],
+                'barcode' => $row['barcode'],
+                'description' => $row['description'],
+                'regular_price' => $row['regular_price'],
+                'sale_price' => $row['sale_price'],
+                'weight' => $row['weight'],
+                'length' => $row['length'],
+                'width' => $row['width'],
+                'height' => $row['height'],
+                'category_id' => $row['category'] ?? '',
+                'brand_id' => $row['brand'] ?? '',
+            ];
+        }
+
+        // dd($products);
+
+        // Store products in session for validation failure redirect
+        session(['import_products' => $products]);
+
+        return view('products.import-preview', compact('products', 'categories', 'brands'));
+    }
+
+    /**
+     * Show import preview page (GET route for validation failure redirect)
+     */
+    public function import_products_preview_show()
+    {
+        $products = session('import_products', []);
+
+        if (empty($products)) {
+            return redirect()->route('products.import')
+                ->with('error', 'No import data found. Please upload a file first.');
+        }
+
+        $categories = Category::where('active_status', 1)->get();
+        $brands = Brand::where('active_status', 1)->get();
+
+        return view('products.import-preview', compact('products', 'categories', 'brands'));
+    }
+
+    public function import_products_store(Request $request)
+    {
+        // Validate the request
+        $validator = Validator::make($request->all(), [
+            'products' => 'required|array',
+            'products.name' => 'required|array|min:1',
+            'products.name.*' => 'required|string|max:255',
+            'products.sku' => 'required|array|min:1',
+            'products.sku.*' => 'required|string|max:100',
+            'products.barcode' => 'required|array|min:1',
+            'products.barcode.*' => 'required|string|max:100',
+            'products.category' => 'required|array|min:1',
+            'products.category.*' => 'required|exists:categories,id',
+            'products.regular_price' => 'required|array|min:1',
+            'products.regular_price.*' => 'required|numeric|min:0',
+            'products.sale_price' => 'nullable|array',
+            'products.sale_price.*' => 'nullable|numeric|min:0',
+            'products.brand' => 'nullable|array',
+            'products.brand.*' => 'nullable|exists:brands,id',
+            'products.description' => 'nullable|array',
+            'products.description.*' => 'nullable|string',
+            'products.weight' => 'nullable|array',
+            'products.weight.*' => 'nullable|numeric|min:0',
+            'products.length' => 'nullable|array',
+            'products.length.*' => 'nullable|numeric|min:0',
+            'products.width' => 'nullable|array',
+            'products.width.*' => 'nullable|numeric|min:0',
+            'products.height' => 'nullable|array',
+            'products.height.*' => 'nullable|numeric|min:0',
+        ], [
+            'products.name.*.required' => 'Product name is required for row :position.',
+            'products.sku.*.required' => 'SKU is required for row :position.',
+            'products.barcode.*.required' => 'Barcode is required for row :position.',
+            'products.category.*.required' => 'Category is required for row :position.',
+            'products.category.*.exists' => 'Invalid category selected for row :position.',
+            'products.regular_price.*.required' => 'Regular price is required for row :position.',
+            'products.regular_price.*.numeric' => 'Regular price must be a number for row :position.',
+            'products.regular_price.*.min' => 'Regular price must be at least 0 for row :position.',
+            'products.sale_price.*.numeric' => 'Sale price must be a number for row :position.',
+            'products.brand.*.exists' => 'Invalid brand selected for row :position.',
+        ]);
+
+        if ($validator->fails()) {
+            // Rebuild products array from request for session storage
+            $productsColumn = $request->products;
+            $productCount = count($productsColumn['name'] ?? []);
+            $products = [];
+
+            for ($i = 0; $i < $productCount; $i++) {
+                $products[] = [
+                    'name' => $productsColumn['name'][$i] ?? null,
+                    'description' => $productsColumn['description'][$i] ?? null,
+                    'category_id' => $productsColumn['category'][$i] ?? null,
+                    'brand_id' => $productsColumn['brand'][$i] ?? null,
+                    'sku' => $productsColumn['sku'][$i] ?? null,
+                    'barcode' => $productsColumn['barcode'][$i] ?? null,
+                    'regular_price' => $productsColumn['regular_price'][$i] ?? null,
+                    'sale_price' => $productsColumn['sale_price'][$i] ?? null,
+                    'weight' => $productsColumn['weight'][$i] ?? null,
+                    'length' => $productsColumn['length'][$i] ?? null,
+                    'width' => $productsColumn['width'][$i] ?? null,
+                    'height' => $productsColumn['height'][$i] ?? null,
+                ];
+            }
+
+            // Store in session so the GET route can display the form again
+            session(['import_products' => $products]);
+
+            return redirect()->route('products.import.preview.show')
+                ->withErrors($validator);
+        }
+
+        $productsColumn = $request->products;
+
+        // Count number of products
+        $productCount = count($productsColumn['name']);
+
+        // Build row-based array
+        $products = [];
+
+        for ($i = 0; $i < $productCount; $i++) {
+            $products[] = [
+                'name' => $productsColumn['name'][$i] ?? null,
+                'description' => $productsColumn['description'][$i] ?? null,
+                'category' => $productsColumn['category'][$i] ?? null,
+                'brand' => $productsColumn['brand'][$i] ?? null,
+                'sku' => $productsColumn['sku'][$i] ?? null,
+                'barcode' => $productsColumn['barcode'][$i] ?? null,
+                'regular_price' => $productsColumn['regular_price'][$i] ?? null,
+                'sale_price' => $productsColumn['sale_price'][$i] ?? null,
+                'weight' => $productsColumn['weight'][$i] ?? null,
+                'length' => $productsColumn['length'][$i] ?? null,
+                'width' => $productsColumn['width'][$i] ?? null,
+                'height' => $productsColumn['height'][$i] ?? null,
+            ];
+        }
+
+        try {
+            DB::beginTransaction();
+
+            foreach ($products as $product) {
+                // dd($product);
+                $productExists = Product::where('sku', $product['sku'])
+                    ->where('barcode', $product['barcode'])
+                    ->first();
+                
+                if (!$productExists) {
+                    // Product creation logic here
+                    $productNew = new Product();
+                    $productNew->name = $product['name'];
+                    $productNew->sku = $product['sku'];
+                    $productNew->barcode = $product['barcode'];
+                    $productNew->category_id = $product['category'];
+                    $productNew->brand_id = $product['brand'];
+                    $productNew->description = $product['description'];
+                    if (empty($product['sale_price']) || $product['sale_price'] == 0) {
+                        $productNew->price = $product['regular_price'];
+                    } else {
+                        $productNew->price = $product['sale_price'];
+                    }
+                    $productNew->save();
+
+                    $productExists = $productNew;
+                } else {
+                    $productExists->name = $product['name'];
+                    $productExists->sku = $product['sku'];
+                    $productExists->barcode = $product['barcode'];
+                    $productExists->category_id = $product['category'];
+                    $productExists->brand_id = $product['brand'];
+                    $productExists->description = $product['description'];
+                    if (empty($product['sale_price']) || $product['sale_price'] == 0) {
+                        $productExists->price = $product['regular_price'];
+                    } else {
+                        $productExists->price = $product['sale_price'];
+                    }
+                    $productExists->save();
+                }
+
+                // Update product meta
+                foreach (['weight', 'length', 'width', 'height', 'regular_price', 'sale_price'] as $metaKey) {
+                    $metaValue = $product[$metaKey];
+                    $productExists->product_meta()->updateOrCreate(
+                        ['meta_key' => $metaKey],
+                        ['meta_value' => $metaValue]
+                    );
+                }
+
+                // Add stock using update with DB::raw or create
+                // $productExists->product_stocks()
+                //     ->where('product_id', $productExists->id)
+                //     ->where('warehouse_id', $request->warehouse_id)
+                //     ->where('rack_id', $product['rack'])
+                //     ->update(['quantity' => DB::raw('quantity + ' . $product['quantity'])])
+                //     ?: $productExists->product_stocks()->create([
+                //         'product_id' => $productExists->id,
+                //         'warehouse_id' => $request->warehouse_id,
+                //         'rack_id' => $product['rack'],
+                //         'quantity' => $product['quantity']
+                //     ]);
+            }
+
+            DB::commit();
+
+            return redirect()->route('products.index')->with('success', 'Product imported successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Product creation failed', ['error' => $e->getMessage()]);
+            return redirect()->route('products.index')->with('error', 'An error occurred while importing the products: ' . $e->getMessage())->withInput();
+        }
+    }
+
+    /**
+     * Show bulk update form.
+     */
+    public function bulkUpdateForm(Request $request)
+    {
+        $query = Product::with(['category', 'brand'])->where('delete_status', '0');
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('sku', 'like', "%{$search}%")
+                  ->orWhere('barcode', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        if ($request->filled('brand_id')) {
+            $query->where('brand_id', $request->brand_id);
+        }
+
+        $products = $query->orderBy('name')->get();
+
+        // Eager-load meta as key-value per product
+        $productsMeta = [];
+        foreach ($products as $product) {
+            $productsMeta[$product->id] = $product->product_meta()
+                ->pluck('meta_value', 'meta_key')
+                ->toArray();
+        }
+
+        $categories = Category::orderBy('name')->get();
+        $brands     = Brand::orderBy('name')->get();
+
+        return view('products.bulk-update', compact('products', 'productsMeta', 'categories', 'brands'));
+    }
+
+    /**
+     * Save bulk update changes.
+     */
+    public function bulkUpdate(Request $request)
+    {
+        $request->validate([
+            'products'           => 'required|array|min:1',
+            'products.*.id'      => 'required|exists:products,id',
+            'products.*.sku'     => 'nullable|string|max:100',
+            'products.*.barcode' => 'nullable|string|max:100',
+            'products.*.weight'  => 'nullable|numeric|min:0',
+            'products.*.length'  => 'nullable|numeric|min:0',
+            'products.*.width'   => 'nullable|numeric|min:0',
+            'products.*.height'  => 'nullable|numeric|min:0',
+        ]);
+
+        $updated  = 0;
+        $skipped  = 0;
+        $errors   = [];
+
+        try {
+            DB::beginTransaction();
+
+            foreach ($request->products as $row) {
+                $product = Product::find($row['id']);
+                if (!$product) {
+                    $skipped++;
+                    continue;
+                }
+
+                $skuChanged = false;
+
+                // SKU — check uniqueness before saving
+                if (!empty($row['sku']) && $row['sku'] !== $product->sku) {
+                    $exists = Product::where('sku', $row['sku'])
+                        ->where('id', '!=', $product->id)
+                        ->exists();
+                    if ($exists) {
+                        $errors[] = "SKU \"{$row['sku']}\" already in use (product: {$product->name}).";
+                        $skipped++;
+                        continue;
+                    }
+                    $product->sku = $row['sku'];
+                    $skuChanged = true;
+                }
+
+                // Barcode — check uniqueness before saving
+                if (isset($row['barcode']) && $row['barcode'] !== $product->barcode) {
+                    if (!empty($row['barcode'])) {
+                        $exists = Product::where('barcode', $row['barcode'])
+                            ->where('id', '!=', $product->id)
+                            ->exists();
+                        if ($exists) {
+                            $errors[] = "Barcode \"{$row['barcode']}\" already in use (product: {$product->name}).";
+                            $skipped++;
+                            continue;
+                        }
+                    }
+                    $product->barcode = $row['barcode'] ?: null;
+                }
+
+                $product->save();
+
+                // Dimensions stored in product_meta
+                $metaKeys = ['weight', 'length', 'width', 'height'];
+                foreach ($metaKeys as $key) {
+                    if (array_key_exists($key, $row)) {
+                        $product->product_meta()->updateOrCreate(
+                            ['product_id' => $product->id, 'meta_key' => $key],
+                            ['meta_value' => $row[$key] !== '' ? $row[$key] : null]
+                        );
+                    }
+                }
+
+                // Push new SKU to all linked sales channels
+                if ($skuChanged) {
+                    $ebayController = app(EbayController::class);
+                    foreach ($product->activeSalesChannels as $channel) {
+                        $itemId = $channel->pivot->external_listing_id;
+                        if ($itemId) {
+                            try {
+                                $ebayController->syncProductToEbay($channel, $itemId, $product, true);
+                            } catch (\Throwable $e) {
+                                // Silent failure for eBay sync during bulk update
+                            }
+                        }
+                    }
+                }
+
+                $updated++;
+            }
+
+            DB::commit();
+
+            $message = "{$updated} product(s) updated successfully.";
+            if ($skipped) {
+                $message .= " {$skipped} skipped.";
+            }
+            if (!empty($errors)) {
+                $message .= ' Issues: ' . implode(' ', $errors);
+            }
+
+            return redirect()->route('products.bulk-update.form')
+                ->with('success', $message);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Bulk product update failed', ['error' => $e->getMessage()]);
+            return redirect()->back()
+                ->with('error', 'An error occurred: ' . $e->getMessage())
+                ->withInput();
+        }
+    }
+
+    /**
+     * Export active products to Excel
+     */
+    public function export(Request $request)
+    {
+        try {
+            // Increase execution time and memory for large exports
+            set_time_limit(300); // 5 minutes
+            ini_set('memory_limit', '512M');
+
+            // Build query with same filters as index method
+            $query = Product::with(['category', 'brand', 'product_stocks.warehouse', 'product_stocks.rack', 'sales_channels']);
+
+            // Filter by search term (name, sku, barcode)
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('sku', 'like', "%{$search}%")
+                      ->orWhere('barcode', 'like', "%{$search}%");
+                });
+            }
+
+            // Filter by category
+            if ($request->filled('category_id')) {
+                $query->where('category_id', $request->category_id);
+            }
+
+            // Filter by brand
+            if ($request->filled('brand_id')) {
+                $query->where('brand_id', $request->brand_id);
+            }
+
+            // Filter by sales channel
+            if ($request->filled('sales_channel_id')) {
+                $query->whereHas('sales_channels', function ($q) use ($request) {
+                    $q->where('sales_channels.id', $request->sales_channel_id);
+                });
+            }
+
+            // Filter by product type
+            if ($request->filled('product_type')) {
+                if ($request->product_type === 'bundle') {
+                    $query->where('is_bundle', true);
+                } elseif ($request->product_type === 'regular') {
+                    $query->where('is_bundle', false);
+                }
+            }
+
+            // Combined filter for stock status with warehouse/rack
+            $warehouseId = $request->warehouse_id;
+            $rackId = $request->rack_id;
+            $stockStatus = $request->stock_status;
+
+            $applyStockLocationFilter = function ($stockQuery) use ($warehouseId, $rackId, ) {
+                if ($warehouseId) {
+                    $stockQuery->where('warehouse_id', $warehouseId);
+                }
+                
+                if ($rackId) {
+                    $stockQuery->where('rack_id', $rackId);
+                }
+            };
+
+            // // Component is considered out if available stock in selected location is less than required qty for one bundle
+            $applyOutOfStockComponentCondition = function ($componentQuery) use ($warehouseId, $rackId) {
+                $sql = "(
+                    SELECT COALESCE(SUM(CAST(ps.quantity AS decimal(15,4))), 0)
+                    FROM product_stocks ps
+                    WHERE ps.product_id = product_bundle_components.component_product_id
+                        AND ps.active_status = '1'
+                        AND ps.delete_status = '0'";
+
+                $bindings = [];
+
+                if ($warehouseId) {
+                    $sql .= " AND ps.warehouse_id = ?";
+                    $bindings[] = $warehouseId;
+                }
+
+                if ($rackId) {
+                    $sql .= " AND ps.rack_id = ?";
+                    $bindings[] = $rackId;
+                }
+
+                $sql .= ") < product_bundle_components.quantity_required";
+
+                $componentQuery->whereRaw($sql, $bindings);
+            };
+
+            if ($warehouseId || $rackId || $stockStatus) {
+                $query->where(function ($q) use (
+                    $warehouseId, 
+                    $rackId, 
+                    $stockStatus, 
+                    $applyStockLocationFilter, 
+                    $applyOutOfStockComponentCondition
+                ) {
+                    if ($stockStatus === 'out_of_stock') {
+                        $q->where(function ($stockStatusQuery) use ($applyStockLocationFilter, $applyOutOfStockComponentCondition) {
+                            // Regular products out_of_stock
+                            $stockStatusQuery->where(function ($regularQuery) use ($applyStockLocationFilter) {
+                                $regularQuery->where('is_bundle', false)
+                                    ->where(function ($outOfStockQuery) use ($applyStockLocationFilter) {
+                                        $outOfStockQuery->whereHas('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                                            $applyStockLocationFilter($stockQuery);
+                                            $stockQuery->where('quantity', '<=', 0);
+                                        })->orWhereDoesntHave('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                                            $applyStockLocationFilter($stockQuery);
+                                        });
+                                    });
+                            })
+                            // Bundle products out_of_stock (if any component is out/insufficient)
+                            ->orWhere(function ($bundleQuery) use ($applyOutOfStockComponentCondition) {
+                                $bundleQuery->where('is_bundle', true)
+                                    ->where(function ($bundleOutOfStockQuery) use ($applyOutOfStockComponentCondition) {
+                                        $bundleOutOfStockQuery->whereDoesntHave('bundleComponents')
+                                            ->orWhereHas('bundleComponents', function ($componentQuery) use ($applyOutOfStockComponentCondition) {
+                                                $applyOutOfStockComponentCondition($componentQuery);
+                                            });
+                                    });
+                            });
+                        });
+                    } else if ($stockStatus === 'in_stock') {
+                        $q->where(function ($stockStatusQuery) use ($applyStockLocationFilter, $applyOutOfStockComponentCondition) {
+                            // Regular products in_stock
+                            $stockStatusQuery->where(function ($regularQuery) use ($applyStockLocationFilter) {
+                                $regularQuery->where('is_bundle', false)
+                                    ->whereHas('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                                        $applyStockLocationFilter($stockQuery);
+                                        $stockQuery->where('quantity', '>', 0);
+                                    });
+                            })
+                            // Bundle products in_stock (all components must be in/sufficient)
+                            ->orWhere(function ($bundleQuery) use ($applyOutOfStockComponentCondition) {
+                                $bundleQuery->where('is_bundle', true)
+                                    ->whereHas('bundleComponents')
+                                    ->whereDoesntHave('bundleComponents', function ($componentQuery) use ($applyOutOfStockComponentCondition) {
+                                        $applyOutOfStockComponentCondition($componentQuery);
+                                    });
+                            });
+                        });
+                    } else {
+                        // No stock status filter, just warehouse/rack
+                        $q->whereHas('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                            $applyStockLocationFilter($stockQuery);
+                        });
+
+                        // Bundle products: filter by components in warehouse (only for warehouse filter, not rack/stock status)
+                        if ($warehouseId && !$rackId) {
+                            $q->orWhere(function ($bundleQuery) use ($warehouseId) {
+                                $bundleQuery->where('is_bundle', true)
+                                    ->whereHas('bundleComponents.product.product_stocks', function ($componentStockQuery) use ($warehouseId) {
+                                        $componentStockQuery->where('warehouse_id', $warehouseId);
+                                    });
+                            });
+                        }
+                    }
+                });
+            }
+
+            // if ($warehouseId || $rackId || $stockStatus) {
+            //     $query->where(function ($q) use ($warehouseId, $rackId, $stockStatus) {
+            //         // For out_of_stock filter, we need products with either:
+            //         // 1. Stock records with quantity <= 0, OR
+            //         // 2. No stock records at all
+            //         if ($stockStatus === 'out_of_stock') {
+            //             $q->where(function ($outOfStockQuery) use ($warehouseId, $rackId) {
+            //                 // Products with stock records showing 0 or negative quantity
+            //                 $outOfStockQuery->whereHas('product_stocks', function ($stockQuery) use ($warehouseId, $rackId) {
+            //                     if ($warehouseId) {
+            //                         $stockQuery->where('warehouse_id', $warehouseId);
+            //                     }
+            //                     if ($rackId) {
+            //                         $stockQuery->where('rack_id', $rackId);
+            //                     }
+            //                     $stockQuery->where('quantity', '<=', 0);
+            //                 })
+            //                 // OR products with no stock records at all
+            //                 ->orWhereDoesntHave('product_stocks', function ($stockQuery) use ($warehouseId, $rackId) {
+            //                     if ($warehouseId) {
+            //                         $stockQuery->where('warehouse_id', $warehouseId);
+            //                     }
+            //                     if ($rackId) {
+            //                         $stockQuery->where('rack_id', $rackId);
+            //                     }
+            //                 });
+            //             });
+            //         } elseif ($stockStatus === 'in_stock') {
+            //             // For in_stock, only products with stock > 0
+            //             $q->whereHas('product_stocks', function ($stockQuery) use ($warehouseId, $rackId) {
+            //                 if ($warehouseId) {
+            //                     $stockQuery->where('warehouse_id', $warehouseId);
+            //                 }
+            //                 if ($rackId) {
+            //                     $stockQuery->where('rack_id', $rackId);
+            //                 }
+            //                 $stockQuery->where('quantity', '>', 0);
+            //             });
+            //         } else {
+            //             // No stock status filter, just warehouse/rack
+            //             $q->whereHas('product_stocks', function ($stockQuery) use ($warehouseId, $rackId) {
+            //                 if ($warehouseId) {
+            //                     $stockQuery->where('warehouse_id', $warehouseId);
+            //                 }
+            //                 if ($rackId) {
+            //                     $stockQuery->where('rack_id', $rackId);
+            //                 }
+            //             });
+            //         }
+
+            //         // Bundle products: filter by components in warehouse (only for warehouse filter, not rack/stock status)
+            //         if ($warehouseId && !$rackId && !$stockStatus) {
+            //             $q->orWhere(function ($bundleQuery) use ($warehouseId) {
+            //                 $bundleQuery->where('is_bundle', true)
+            //                     ->whereHas('bundleComponents.product.product_stocks', function ($componentStockQuery) use ($warehouseId) {
+            //                         $componentStockQuery->where('warehouse_id', $warehouseId);
+            //                     });
+            //             });
+            //         }
+            //     });
+            // }
+
+            // Filter by date range
+            if ($request->filled('date_from')) {
+                $query->whereDate('created_at', '>=', $request->date_from);
+            }
+            if ($request->filled('date_to')) {
+                $query->whereDate('created_at', '<=', $request->date_to);
+            }
+
+            // Get products
+            $products = $query->get();
+
+            // Check if image column is requested (images slow down export significantly)
+            $includeImages = $request->has('columns') && in_array('image', $request->get('columns', []));
+
+            // Prepare data for export
+            $data = [];
+            foreach ($products as $product) {
+                // Calculate total stock
+                $totalStock = $product->product_stocks->sum('quantity');
+
+                // Get warehouse/rack details
+                $warehouseDetails = $product->product_stocks->map(function ($stock) {
+                    return ($stock->warehouse->name ?? 'N/A') . ' / ' . ($stock->rack->name ?? 'N/A') . ': ' . $stock->quantity;
+                })->join('; ');
+
+                // Get sales channels
+                $salesChannels = $product->sales_channels->pluck('name')->join(', ');
+
+                // Get product meta data
+                $meta = $product->product_meta;
+
+                $data[] = [
+                    'id' => $product->id,
+                    'product_image' => $includeImages ? $product->product_image : null,
+                    'name' => $product->name,
+                    'sku' => $product->sku,
+                    'barcode' => $product->barcode ?? '',
+                    'category_name' => $product->category->name ?? 'N/A',
+                    'brand_name' => $product->brand->name ?? 'N/A',
+                    'price' => $product->price,
+                    'total_stock' => $totalStock,
+                    'warehouse_details' => $warehouseDetails ?: 'No stock',
+                    'sales_channels' => $salesChannels ?: 'None',
+                    'is_bundle' => $product->is_bundle ? 'Yes' : 'No',
+                    'is_featured' => $product->is_featured ? 'Yes' : 'No',
+                    'weight' => $meta['weight'] ?? '',
+                    'weight_unit' => $meta['weight_unit'] ?? '',
+                    'length' => $meta['length'] ?? '',
+                    'width' => $meta['width'] ?? '',
+                    'height' => $meta['height'] ?? '',
+                    'dimension_unit' => $meta['dimension_unit'] ?? '',
+                    'short_description' => $product->short_description ?? '',
+                    'description' => strip_tags($product->description ?? ''),
+                ];
+            }
+
+            // Define columns for export
+            $columns = [
+                'id' => ['label' => '#', 'field' => 'id'],
+                'image' => ['label' => 'Image', 'field' => 'product_image'],
+                'name' => ['label' => 'Product Name', 'field' => 'name'],
+                'sku' => ['label' => 'SKU', 'field' => 'sku'],
+                'barcode' => ['label' => 'Barcode', 'field' => 'barcode'],
+                'category_name' => ['label' => 'Category', 'field' => 'category_name'],
+                'brand_name' => ['label' => 'Brand', 'field' => 'brand_name'],
+                'price' => ['label' => 'Price', 'field' => 'price', 'format' => 'decimal'],
+                'total_stock' => ['label' => 'Total Stock', 'field' => 'total_stock', 'format' => 'decimal'],
+                'warehouse_details' => ['label' => 'Warehouse / Rack Details', 'field' => 'warehouse_details'],
+                'sales_channels' => ['label' => 'Sales Channels', 'field' => 'sales_channels'],
+                'is_bundle' => ['label' => 'Bundle', 'field' => 'is_bundle'],
+                'is_featured' => ['label' => 'Featured', 'field' => 'is_featured'],
+                'weight' => ['label' => 'Weight', 'field' => 'weight'],
+                'weight_unit' => ['label' => 'Weight Unit', 'field' => 'weight_unit'],
+                'length' => ['label' => 'Length', 'field' => 'length'],
+                'width' => ['label' => 'Width', 'field' => 'width'],
+                'height' => ['label' => 'Height', 'field' => 'height'],
+                'dimension_unit' => ['label' => 'Dimension Unit', 'field' => 'dimension_unit'],
+                'short_description' => ['label' => 'Short Description', 'field' => 'short_description'],
+                'description' => ['label' => 'Description', 'field' => 'description'],
+            ];
+
+            // Get visible columns from request or use default (excluding image by default for performance)
+            $defaultColumns = ['id', 'name', 'sku', 'barcode', 'category_name', 'brand_name', 'price', 'total_stock', 'warehouse_details', 'sales_channels', 'is_bundle', 'is_featured'];
+            $visibleColumns = $request->get('columns', $defaultColumns);
+
+            // Create export
+            $export = new \App\Exports\ReportExport($data, $columns, $visibleColumns, 'Active Products');
+
+            // Generate filename
+            $filename = 'active_products_' . date('Y-m-d_His') . '.xlsx';
+
+            return Excel::download($export, $filename);
+
+        } catch (\Exception $e) {
+            Log::error('Product export failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return redirect()->back()->with('error', 'Export failed: ' . $e->getMessage());
+        }
+    }
+}

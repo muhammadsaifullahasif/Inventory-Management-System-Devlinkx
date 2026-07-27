@@ -1,0 +1,409 @@
+<?php
+
+namespace App\Jobs;
+
+use Exception;
+use Throwable;
+use App\Models\Rack;
+use App\Models\Product;
+use App\Models\Category;
+use App\Models\Warehouse;
+use Illuminate\Support\Str;
+use App\Models\SalesChannel;
+use App\Models\EbayImportLog;
+use App\Models\SalesChannelProduct;
+use App\Services\Ebay\EbayApiClient;
+use App\Services\Ebay\EbayService;
+use App\Services\Inventory\VisibleStockCalculator;
+use Illuminate\Bus\Queueable;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+
+class ImportEbayListingsJob implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public $tries = 10;
+    public $timeout = 1800;
+    public $failOnTimeout = true;
+    public $deleteWhenMissingModels = true;
+    public $backoff = [900, 1800, 3600];
+
+    private const API_COOLDOWN_MICROSECONDS = 250000;
+    private const RATE_LIMIT_RELEASE_SECONDS = 1800;
+
+    protected array $items;
+    protected string $salesChannelId;
+    protected int $batchNumber;
+    protected int $totalBatches;
+    protected ?int $importLogId;
+    protected ?int $pageNumber; // Page number to fetch from eBay
+    protected int $pageSize;
+
+    public function __construct(array $items, string $salesChannelId, int $batchNumber = 1, int $totalBatches = 1, ?int $importLogId = null, ?int $pageNumber = null, int $pageSize = 50)
+    {
+        $this->items = $items;
+        $this->salesChannelId = $salesChannelId;
+        $this->batchNumber = $batchNumber;
+        $this->totalBatches = $totalBatches;
+        $this->importLogId = $importLogId;
+        $this->pageNumber = $pageNumber;
+        $this->pageSize = max(1, $pageSize);
+    }
+
+    public function handle(EbayApiClient $client, EbayService $ebayService, VisibleStockCalculator $calculator): void
+    {
+
+        $insertedCount = 0;
+        $updatedCount = 0;
+        $errorCount = 0;
+        $errors = [];
+
+        // Get default warehouse and rack for new products
+        $warehouse = Warehouse::where('is_default', true)->first();
+        if (!$warehouse) {
+            Log::error('eBay Import Job Error: No default warehouse found.');
+            $this->updateImportLog(0, 0, count($this->items));
+            throw new Exception('No default warehouse found.');
+        }
+
+        $rack = Rack::where('warehouse_id', $warehouse->id)->where('is_default', true)->first();
+        if (!$rack) {
+            Log::error('eBay Import Job Error: No default rack found', ['warehouse_id' => $warehouse->id]);
+            $this->updateImportLog(0, 0, count($this->items));
+            throw new Exception('No default rack found for the default warehouse.');
+        }
+
+        $salesChannel = SalesChannel::find($this->salesChannelId);
+        if (!$salesChannel) {
+            throw new Exception('Sales channel not found.');
+        }
+
+        // Ensure valid token for pushing updates to eBay
+        $client->ensureValidToken($salesChannel);
+
+        // If items array is empty, fetch the page from eBay
+        if (empty($this->items) && $this->pageNumber !== null) {
+            try {
+                $pageResult = $ebayService->getActiveListings($salesChannel, $this->pageNumber, $this->pageSize);
+                $this->items = $pageResult['items'] ?? [];
+            } catch (Throwable $e) {
+                if ($this->releaseIfRateLimited($e, 'fetching active listings page')) {
+                    return;
+                }
+
+                throw $e;
+            }
+        }
+
+        // If still no items after fetching, update log and return
+        if (empty($this->items)) {
+            $this->updateImportLog(0, 0, 0);
+            return;
+        }
+
+        foreach ($this->items as $item) {
+            try {
+                $itemId = $item['item_id'] ?? '';
+                // Use eBay SKU if exists, otherwise use ItemID
+                $ebaySku = !empty($item['sku']) ? $item['sku'] : $itemId;
+
+                // Find existing product by SKU OR ItemID
+                $existingProduct = Product::where('sku', $ebaySku)
+                    ->orWhere('sku', $itemId)
+                    ->first();
+
+                if ($existingProduct) {
+                    // EXISTING PRODUCT: Push local stock/dimensions TO eBay
+                    $this->syncExistingProductToEbay(
+                        $existingProduct,
+                        $item,
+                        $salesChannel,
+                        $ebayService,
+                        $calculator
+                    );
+                    $updatedCount++;
+
+                } else {
+                    // NEW PRODUCT: Create locally from eBay data
+                    $product = $this->createProductFromEbay(
+                        $item,
+                        $ebaySku,
+                        $warehouse,
+                        $rack, 
+                        $salesChannel, 
+                        $ebayService
+                    );
+
+                    // Link to sales channel
+                    $product->sales_channels()->syncWithoutDetaching([
+                        $this->salesChannelId => [
+                            'listing_url' => $item['listing_url'] ?? null,
+                            'external_listing_id' => $itemId,
+                            'listing_status' => SalesChannelProduct::STATUS_ACTIVE,
+                            'last_synced_at' => now(),
+                        ]
+                    ]);
+
+                    $insertedCount++;
+                }
+            } catch (Throwable $e) {
+                $errorCount++;
+                $errors[] = [
+                    'item_id' => $item['item_id'] ?? 'unknown',
+                    'title' => $item['title'] ?? 'N/A',
+                    'error' => $e->getMessage(),
+                ];
+
+                Log::error('eBay Import Job Item Error', [
+                    'batch' => $this->batchNumber,
+                    'item_id' => $item['item_id'] ?? 'unknown',
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            }
+        }
+
+        $this->updateImportLog($insertedCount, $updatedCount, $errorCount, $errors);
+
+    }
+
+    /**
+     * Sync existing product TO eBay (push local stock/dimensions).
+     */
+    protected function syncExistingProductToEbay(
+        Product $product,
+        array $ebayItem,
+        SalesChannel $salesChannel,
+        EbayService $ebayService,
+        VisibleStockCalculator $calculator
+    ): void {
+        $itemId = $ebayItem['item_id'];
+
+        // Get or create pivot record first (needed for calculation)
+        $listing = SalesChannelProduct::where('product_id', $product->id)
+            ->where('sales_channel_id', $this->salesChannelId)
+            ->first();
+
+        if (!$listing) {
+            // Create pivot if doesn't exist
+            $product->sales_channels()->attach($this->salesChannelId, [
+                'listing_url' => $ebayItem['listing_url'] ?? "https://www.ebay.com/itm/{$itemId}",
+                'external_listing_id' => $itemId,
+                'listing_status' => SalesChannelProduct::STATUS_ACTIVE,
+                'visible_quantity' => 10, // Default threshold
+                'sync_enabled' => true,
+            ]);
+
+            $listing = SalesChannelProduct::where('product_id', $product->id)
+                ->where('sales_channel_id', $this->salesChannelId)
+                ->first();
+        }
+
+        // Calculate buffered visible quantity (overselling protection)
+        $calcResult = $calculator->calculate($product, $listing);
+        $visibleQuantity = $calcResult->visibleQuantity;
+
+        // Get dimensions from product meta (use query to avoid serialization issues in queue)
+        $meta = $product->product_meta()->pluck('meta_value', 'meta_key')->toArray();
+
+        $fields = [
+            'quantity'       => (int) $visibleQuantity, // Use buffered quantity, NOT raw stock
+            'weight'         => (float) ($meta['weight'] ?? 0),
+            'weight_unit'    => $meta['weight_unit'] ?? 'lbs',
+            'length'         => (float) ($meta['length'] ?? 0),
+            'width'          => (float) ($meta['width'] ?? 0),
+            'height'         => (float) ($meta['height'] ?? 0),
+            'dimension_unit' => $meta['dimension_unit'] ?? 'inches',
+        ];
+
+        // Push to eBay using ReviseItem (supports quantity + dimensions)
+        $ebayResult = $ebayService->reviseItem($salesChannel, $itemId, $fields);
+        $this->pauseAfterApiCall();
+
+        // Update pivot record with sync info
+        $pivotData = [
+            'listing_url' => $ebayItem['listing_url'] ?? "https://www.ebay.com/itm/{$itemId}",
+            'external_listing_id' => $itemId,
+            'listing_status' => $ebayResult['success'] ? SalesChannelProduct::STATUS_ACTIVE : SalesChannelProduct::STATUS_ERROR,
+            'listing_error' => $ebayResult['success'] ? null : ($ebayResult['errors'][0]['message'] ?? 'Sync failed'),
+            'last_synced_at' => now(),
+            'last_synced_quantity' => $visibleQuantity, // Track what we pushed
+        ];
+
+        $product->sales_channels()->updateExistingPivot($this->salesChannelId, $pivotData);
+    }
+
+    /**
+     * Create new product from eBay listing data.
+     */
+    protected function createProductFromEbay(
+        array $item,
+        string $sku,
+        Warehouse $warehouse,
+        Rack $rack, 
+        SalesChannel $salesChannel,
+        EbayService $ebayService
+    ): Product {
+        $itemId = $item['item_id'];
+        // Get or create category - extract last segment from eBay category path
+        // eBay returns: "Home & Garden:Household Supplies & Cleaning:Trash Cans & Wastebaskets"
+        // We want: "Trash Cans & Wastebaskets"
+        $fullCategoryPath = $item['category']['name'] ?? 'Uncategorized';
+        $categoryParts = explode(':', $fullCategoryPath);
+        $categoryName = trim(end($categoryParts)) ?: 'Uncategorized';
+
+        $category = Category::whereLike('name', '%' . $categoryName . '%')->first();
+        if (!$category) {
+            $category = Category::create([
+                'name' => $categoryName,
+                'slug' => Str::slug($categoryName),
+            ]);
+        }
+        if (!$category) {
+            $category = Category::first();
+        }
+
+        if (!$category) {
+            throw new Exception('No category found and unable to create a new one.');
+        }
+
+        // Store the first image URL directly (no download)
+        $productImage = null;
+        if (!empty($item['images'][0])) {
+            $productImage = $item['images'][0];
+        }
+
+        // Create product
+        $product = Product::create([
+            'sku' => $sku,
+            'name' => $item['title'] ?? '',
+            'barcode' => $sku,
+            'category_id' => $category->id,
+            'short_description' => '',
+            'description' => $item['description'] ?? '',
+            'price' => $item['price']['value'] ?? 0,
+            'product_image' => $productImage,
+        ]);
+
+        // Create product meta
+        $metaData = [
+            ['product_id' => $product->id, 'meta_key' => 'regular_price', 'meta_value' => $item['regular_price']['value'] ?? $item['price']['value'] ?? ''],
+            ['product_id' => $product->id, 'meta_key' => 'sale_price', 'meta_value' => $item['sale_price']['value'] ?? ''],
+            ['product_id' => $product->id, 'meta_key' => 'weight', 'meta_value' => $item['dimensions']['weight'] ?? ''],
+            ['product_id' => $product->id, 'meta_key' => 'weight_unit', 'meta_value' => $item['dimensions']['weight_unit'] ?? 'lbs'],
+            ['product_id' => $product->id, 'meta_key' => 'length', 'meta_value' => $item['dimensions']['length'] ?? ''],
+            ['product_id' => $product->id, 'meta_key' => 'width', 'meta_value' => $item['dimensions']['width'] ?? ''],
+            ['product_id' => $product->id, 'meta_key' => 'height', 'meta_value' => $item['dimensions']['height'] ?? ''],
+            ['product_id' => $product->id, 'meta_key' => 'dimension_unit', 'meta_value' => $item['dimensions']['dimension_unit'] ?? 'inches'],
+            ['product_id' => $product->id, 'meta_key' => 'condition', 'meta_value' => $item['condition'] ?? ''],
+            ['product_id' => $product->id, 'meta_key' => 'ebay_item_id', 'meta_value' => $item['item_id'] ?? ''],
+        ];
+
+        $product->product_meta()->upsert($metaData, ['product_id', 'meta_key'], ['meta_value']);
+
+        // Store additional image URLs in meta
+        if (!empty($item['images'])) {
+            $imageUrls = array_slice($item['images'], 0, 5);
+            foreach ($imageUrls as $index => $imageUrl) {
+                $product->product_meta()->updateOrCreate(
+                    ['product_id' => $product->id, 'meta_key' => 'image_url_' . ($index + 1)],
+                    ['meta_value' => $imageUrl]
+                );
+            }
+        }
+
+        $fields = [
+            'quantity'       => 0,
+        ];
+
+        // Push to eBay using ReviseItem (supports quantity + dimensions)
+        $result = $ebayService->reviseItem($salesChannel, $itemId, $fields);
+        $this->pauseAfterApiCall();
+
+        // Add stock to default warehouse/rack
+        // $quantity = max(0, (($item['quantity'] ?? 0) - ($item['quantity_sold'] ?? 0)));
+        // ProductStock::create([
+        //     'product_id' => $product->id,
+        //     'warehouse_id' => $warehouse->id,
+        //     'rack_id' => $rack->id,
+        //     'quantity' => $quantity,
+        //     'active_status' => '1',
+        //     'delete_status' => '0',
+        // ]);
+
+        return $product;
+    }
+
+    protected function pauseAfterApiCall(): void
+    {
+        usleep(self::API_COOLDOWN_MICROSECONDS);
+    }
+
+    protected function releaseIfRateLimited(Throwable $e, string $operation): bool
+    {
+        if (!$this->isRateLimitException($e)) {
+            return false;
+        }
+
+        Log::warning('eBay import job released due to API usage limit', [
+            'batch' => $this->batchNumber,
+            'page' => $this->pageNumber,
+            'operation' => $operation,
+            'release_after_seconds' => self::RATE_LIMIT_RELEASE_SECONDS,
+            'attempt' => method_exists($this, 'attempts') ? $this->attempts() : null,
+            'error' => $e->getMessage(),
+        ]);
+
+        $this->release(self::RATE_LIMIT_RELEASE_SECONDS);
+
+        return true;
+    }
+
+    protected function isRateLimitException(Throwable $e): bool
+    {
+        return str_contains(strtolower($e->getMessage()), 'call usage limit has been reached');
+    }
+
+    protected function updateImportLog(int $inserted, int $updated, int $failed, array $errors = []): void
+    {
+        if (!$this->importLogId) {
+            return;
+        }
+
+        try {
+            $importLog = EbayImportLog::find($this->importLogId);
+            $importLog?->recordBatchResult($inserted, $updated, $failed, $errors, $this->batchNumber);
+        } catch (Exception $e) {
+            Log::error('Failed to update import log', [
+                'import_log_id' => $this->importLogId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function failed(Throwable $exception): void
+    {
+        Log::error('eBay Import Job Failed', [
+            'batch' => $this->batchNumber,
+            'total_batches' => $this->totalBatches,
+            'error' => $exception->getMessage(),
+            'trace' => $exception->getTraceAsString(),
+        ]);
+
+        if ($this->importLogId) {
+            try {
+                $importLog = EbayImportLog::find($this->importLogId);
+                $importLog?->markBatchFailed($this->batchNumber, $exception->getMessage());
+            } catch (Exception $e) {
+                Log::error('Failed to update import log on job failure', [
+                    'import_log_id' => $this->importLogId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+}

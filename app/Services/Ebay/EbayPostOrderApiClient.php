@@ -1,0 +1,1206 @@
+<?php
+
+namespace App\Services\Ebay;
+
+use Exception;
+use App\Models\SalesChannel;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * eBay Post-Order API Client for returns, cancellations, and inquiries.
+ *
+ * The Post-Order API is a RESTful API (unlike the Trading API which is XML-based).
+ * It handles:
+ * - Return requests (GET, respond to, close)
+ * - Cancellation requests (GET, approve, reject)
+ * - Inquiry/INR cases
+ * - Issue refunds
+ *
+ * API Documentation: https://developer.ebay.com/api-docs/sell/fulfillment/overview.html
+ *
+ * Usage:
+ *   $client = app(EbayPostOrderApiClient::class);
+ *   $channel = app(EbayApiClient::class)->ensureValidToken($salesChannel);
+ *   $returns = $client->getReturns($channel);
+ */
+class EbayPostOrderApiClient
+{
+    // Post-Order API base URLs
+    private const POST_ORDER_API_URL = 'https://api.ebay.com/post-order/v2';
+    private const FULFILLMENT_API_URL = 'https://api.ebay.com/sell/fulfillment/v1';
+
+    // Request timeout in seconds
+    private const REQUEST_TIMEOUT = 60;
+
+    public function __construct(
+        private EbayApiClient $tradingApiClient,
+    ) {}
+
+    // =========================================
+    // CANCELLATIONS
+    // =========================================
+
+    /**
+     * Get cancellation requests for a channel.
+     * Uses the Sell Fulfillment API to search for orders with cancellation requests.
+     */
+    public function getCancellations(SalesChannel $channel, int $limit = 50, int $offset = 0): array
+    {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->get(self::FULFILLMENT_API_URL . '/order', [
+                    'filter' => 'orderfulfillmentstatus:{NOT_STARTED|IN_PROGRESS}',
+                    'limit' => $limit,
+                    'offset' => $offset,
+                ]);
+
+            $data = $response->json();
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to get cancellations', [
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to fetch cancellations',
+                    'cancellations' => [],
+                ];
+            }
+
+            // Filter orders with cancellation requests
+            $cancellations = [];
+            foreach ($data['orders'] ?? [] as $order) {
+                if (!empty($order['cancelStatus']['cancelState']) &&
+                    $order['cancelStatus']['cancelState'] !== 'NONE_REQUESTED') {
+                    $cancellations[] = $this->parseCancellation($order);
+                }
+            }
+
+            return [
+                'success' => true,
+                'total' => count($cancellations),
+                'cancellations' => $cancellations,
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Get cancellations exception', [
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+                'cancellations' => [],
+            ];
+        }
+    }
+
+    /**
+     * Approve a cancellation request.
+     */
+    public function approveCancellation(SalesChannel $channel, string $orderId): array
+    {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->post(self::POST_ORDER_API_URL . "/cancellation/{$orderId}/approve");
+
+            $data = $response->json();
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to approve cancellation', [
+                    'order_id' => $orderId,
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to approve cancellation',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Cancellation approved successfully',
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Approve cancellation exception', [
+                'order_id' => $orderId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Reject a cancellation request.
+     */
+    public function rejectCancellation(SalesChannel $channel, string $orderId, string $reason = ''): array
+    {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $body = [];
+            if (!empty($reason)) {
+                $body['shipmentDate'] = gmdate('Y-m-d\TH:i:s\Z');
+                $body['trackingNumber'] = '';
+            }
+
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->post(self::POST_ORDER_API_URL . "/cancellation/{$orderId}/reject", $body);
+
+            $data = $response->json();
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to reject cancellation', [
+                    'order_id' => $orderId,
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to reject cancellation',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Cancellation rejected successfully',
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Reject cancellation exception', [
+                'order_id' => $orderId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Create a seller-initiated cancellation.
+     */
+    public function createCancellation(
+        SalesChannel $channel,
+        string $legacyOrderId,
+        string $reason = 'OUT_OF_STOCK',
+        ?string $buyerNote = null
+    ): array {
+
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $body = [
+                'legacyOrderId' => $legacyOrderId,
+                'cancelReason' => $reason,
+            ];
+
+            // NOTE: eBay's Post-Order API v2 /cancellation endpoint is primarily designed for
+            // BUYER-INITIATED cancellations that sellers approve/reject. For seller-initiated
+            // cancellations, eBay requires sellers to manually cancel through Seller Hub or
+            // use the issueRefund endpoint to effectively cancel by refunding.
+            //
+            // As of 2026, eBay requires Digital Signatures for EU/UK sellers for Post-Order API calls.
+            // Many users report 401 errors when trying to use this endpoint for seller cancellations.
+            //
+            // Alternative: Issue a full refund which effectively cancels the order
+
+            // Add buyer note if provided
+            if ($buyerNote) {
+                $body['reasonForCancellation'] = $buyerNote;
+            }
+
+            // Log to both ebay channel and default log for debugging
+            $requestLog = [
+                'order_id' => $legacyOrderId,
+                'reason' => $reason,
+                'body' => $body,
+                'api_url' => self::POST_ORDER_API_URL . '/cancellation',
+                'token_length' => strlen($channel->access_token ?? ''),
+                'token_expires_at' => $channel->access_token_expires_at,
+                'token_is_expired' => $channel->access_token_expires_at ? now()->greaterThan($channel->access_token_expires_at) : null,
+                'note' => 'eBay Post-Order API may not support seller-initiated cancellations',
+            ];
+
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->post(self::POST_ORDER_API_URL . '/cancellation', $body);
+
+            $data = $response->json();
+
+            if (!$response->successful()) {
+                $errorLog = [
+                    'order_id' => $legacyOrderId,
+                    'reason' => $reason,
+                    'status' => $response->status(),
+                    'response' => $data,
+                    'body' => $body,
+                    'response_body' => $response->body(),
+                ];
+                Log::error('eBay: Failed to create cancellation', $errorLog);
+
+                $errorMessage = 'Failed to create cancellation on eBay';
+                if (isset($data['errors'][0]['message'])) {
+                    $errorMessage = $data['errors'][0]['message'];
+                } elseif (isset($data['message'])) {
+                    $errorMessage = $data['message'];
+                } elseif (isset($data['error'])) {
+                    $errorMessage = $data['error'];
+                } elseif ($response->status() === 401) {
+                    $errorMessage = 'eBay API authentication failed. Note: eBay\'s Post-Order API has limitations for seller-initiated cancellations. Please cancel manually on eBay Seller Hub.';
+                }
+
+                return [
+                    'success' => false,
+                    'message' => $errorMessage,
+                    'error_details' => $data,
+                    'http_status' => $response->status(),
+                    'note' => 'eBay requires sellers to cancel orders manually through Seller Hub or issue a full refund',
+                ];
+            }
+
+            $successLog = [
+                'order_id' => $legacyOrderId,
+                'cancellation_id' => $data['cancellationId'] ?? '',
+            ];
+
+            return [
+                'success' => true,
+                'cancellation_id' => $data['cancellationId'] ?? '',
+                'message' => 'Cancellation request created successfully',
+            ];
+
+        } catch (Exception $e) {
+            $exceptionLog = [
+                'order_id' => $legacyOrderId,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ];
+            Log::channel('ebay')->error('Create cancellation exception', $exceptionLog);
+            Log::error('eBay: Create cancellation exception', $exceptionLog);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    // =========================================
+    // RETURNS
+    // =========================================
+
+    /**
+     * Get return requests for a channel.
+     */
+    public function getReturns(
+        SalesChannel $channel,
+        int $limit = 50,
+        int $offset = 0,
+        ?string $returnState = null
+    ): array {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $params = [
+                'limit' => $limit,
+                'offset' => $offset,
+            ];
+
+            if ($returnState) {
+                $params['return_state'] = $returnState;
+            }
+
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->get(self::POST_ORDER_API_URL . '/return/search', $params);
+
+            $data = $response->json();
+            $this->logReturnResponse('getReturns', null, $response->status(), $data);
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to get returns', [
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to fetch returns',
+                    'returns' => [],
+                ];
+            }
+
+            $returns = [];
+            foreach ($data['members'] ?? [] as $returnCase) {
+                $returns[] = $this->parseReturn($returnCase);
+            }
+
+            return [
+                'success' => true,
+                'total' => $data['total'] ?? count($returns),
+                'returns' => $returns,
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Get returns exception', [
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+                'returns' => [],
+            ];
+        }
+    }
+
+    /**
+     * Get a single return request details.
+     */
+    public function getReturn(SalesChannel $channel, string $returnId): array
+    {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->get(self::POST_ORDER_API_URL . "/return/{$returnId}");
+
+            $data = $response->json();
+            $this->logReturnResponse('getReturn', $returnId, $response->status(), $data);
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to get return details', [
+                    'return_id' => $returnId,
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to fetch return details',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'return' => $this->parseReturn($data),
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Get return exception', [
+                'return_id' => $returnId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Approve a return request (accept the return).
+     */
+    public function approveReturn(SalesChannel $channel, string $returnId, ?string $comments = null): array
+    {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $body = [];
+            if ($comments) {
+                $body['comments'] = ['content' => $comments];
+            }
+
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->post(self::POST_ORDER_API_URL . "/return/{$returnId}/decide", array_merge($body, [
+                    'decision' => 'ACCEPT',
+                ]));
+
+            $data = $response->json();
+            $this->logReturnResponse('approveReturn', $returnId, $response->status(), $data);
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to approve return', [
+                    'return_id' => $returnId,
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to approve return',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Return approved successfully',
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Approve return exception', [
+                'return_id' => $returnId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Decline a return request.
+     */
+    public function declineReturn(SalesChannel $channel, string $returnId, string $reason, ?string $comments = null): array
+    {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $body = [
+                'decision' => 'DECLINE',
+                'reason' => $reason,
+            ];
+
+            if ($comments) {
+                $body['comments'] = ['content' => $comments];
+            }
+
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->post(self::POST_ORDER_API_URL . "/return/{$returnId}/decide", $body);
+
+            $data = $response->json();
+            $this->logReturnResponse('declineReturn', $returnId, $response->status(), $data);
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to decline return', [
+                    'return_id' => $returnId,
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to decline return',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Return declined successfully',
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Decline return exception', [
+                'return_id' => $returnId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Provide a return shipping label to the buyer.
+     */
+    public function provideReturnShippingLabel(
+        SalesChannel $channel,
+        string $returnId,
+        string $trackingNumber,
+        string $shippingCarrier,
+        ?string $labelUrl = null
+    ): array {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $body = [
+                'trackingNumber' => $trackingNumber,
+                'shippingCarrier' => $shippingCarrier,
+            ];
+
+            if ($labelUrl) {
+                $body['returnLabelImageUrl'] = $labelUrl;
+            }
+
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->post(self::POST_ORDER_API_URL . "/return/{$returnId}/provide_shipping_label", $body);
+
+            $data = $response->json();
+            $this->logReturnResponse('provideReturnShippingLabel', $returnId, $response->status(), $data);
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to provide return shipping label', [
+                    'return_id' => $returnId,
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to provide shipping label',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Shipping label provided successfully',
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Provide return shipping label exception', [
+                'return_id' => $returnId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Mark a return item as received.
+     */
+    public function markReturnReceived(SalesChannel $channel, string $returnId, ?string $comments = null): array
+    {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $body = [];
+            if ($comments) {
+                $body['comments'] = ['content' => $comments];
+            }
+
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->post(self::POST_ORDER_API_URL . "/return/{$returnId}/mark_as_received", $body);
+
+            $data = $response->json();
+            $this->logReturnResponse('markReturnReceived', $returnId, $response->status(), $data);
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to mark return as received', [
+                    'return_id' => $returnId,
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to mark return as received',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Return marked as received successfully',
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Mark return received exception', [
+                'return_id' => $returnId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Close a return case.
+     */
+    public function closeReturn(SalesChannel $channel, string $returnId, string $closeReason, ?string $comments = null): array
+    {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $body = [
+                'closeReason' => $closeReason,
+            ];
+
+            if ($comments) {
+                $body['comments'] = ['content' => $comments];
+            }
+
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->post(self::POST_ORDER_API_URL . "/return/{$returnId}/close", $body);
+
+            $data = $response->json();
+            $this->logReturnResponse('closeReturn', $returnId, $response->status(), $data);
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to close return', [
+                    'return_id' => $returnId,
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to close return',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Return closed successfully',
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Close return exception', [
+                'return_id' => $returnId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    // =========================================
+    // REFUNDS
+    // =========================================
+
+    /**
+     * Issue a refund for an order.
+     * Uses the Fulfillment API for refunds.
+     *
+     * @param SalesChannel $channel
+     * @param string $orderId The eBay order ID
+     * @param float $amount Total refund amount
+     * @param string $reasonForRefund Refund reason code
+     * @param string|null $comment Optional comment for the refund
+     * @param string $currency Currency code (default: USD)
+     */
+    public function issueRefund(
+        SalesChannel $channel,
+        string $orderId,
+        float $amount,
+        string $reasonForRefund = 'BUYER_CANCEL',
+        ?string $comment = null,
+        string $currency = 'USD'
+    ): array {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $body = [
+                'reasonForRefund' => $reasonForRefund,
+                'refundItems' => [
+                    [
+                        'refundAmount' => [
+                            'value' => number_format($amount, 2, '.', ''),
+                            'currency' => $currency,
+                        ],
+                    ],
+                ],
+            ];
+
+            if ($comment) {
+                $body['comment'] = $comment;
+            }
+
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->post(self::FULFILLMENT_API_URL . "/order/{$orderId}/issue_refund", $body);
+
+            $data = $response->json();
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to issue refund', [
+                    'order_id' => $orderId,
+                    'amount' => $amount,
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to issue refund',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'refund_id' => $data['refundId'] ?? '',
+                'refund_status' => $data['refundStatus'] ?? '',
+                'message' => 'Refund issued successfully',
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Issue refund exception', [
+                'order_id' => $orderId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Issue a partial refund for specific line items.
+     * Uses the Fulfillment API for line-item level refunds.
+     *
+     * @param SalesChannel $channel
+     * @param string $orderId The eBay order ID
+     * @param array $lineItems Array of line items to refund:
+     *   [
+     *     ['line_item_id' => 'xxx', 'amount' => 10.00, 'quantity' => 1],
+     *     ...
+     *   ]
+     * @param string $reasonForRefund Refund reason code
+     * @param string|null $comment Optional comment
+     * @param string $currency Currency code
+     */
+    public function issuePartialRefund(
+        SalesChannel $channel,
+        string $orderId,
+        array $lineItems,
+        string $reasonForRefund = 'BUYER_CANCEL',
+        ?string $comment = null,
+        string $currency = 'USD'
+    ): array {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $refundItems = [];
+            $totalAmount = 0;
+
+            foreach ($lineItems as $item) {
+                $refundItem = [
+                    'refundAmount' => [
+                        'value' => number_format($item['amount'], 2, '.', ''),
+                        'currency' => $currency,
+                    ],
+                ];
+
+                // Add line item ID if specified
+                if (!empty($item['line_item_id'])) {
+                    $refundItem['lineItemId'] = $item['line_item_id'];
+                }
+
+                // Add quantity if specified (for partial quantity refunds)
+                if (!empty($item['quantity'])) {
+                    $refundItem['quantity'] = (int) $item['quantity'];
+                }
+
+                $refundItems[] = $refundItem;
+                $totalAmount += $item['amount'];
+            }
+
+            $body = [
+                'reasonForRefund' => $reasonForRefund,
+                'refundItems' => $refundItems,
+            ];
+
+            if ($comment) {
+                $body['comment'] = $comment;
+            }
+
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->post(self::FULFILLMENT_API_URL . "/order/{$orderId}/issue_refund", $body);
+
+            $data = $response->json();
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to issue partial refund', [
+                    'order_id' => $orderId,
+                    'line_items' => $lineItems,
+                    'total_amount' => $totalAmount,
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to issue partial refund',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'refund_id' => $data['refundId'] ?? '',
+                'refund_status' => $data['refundStatus'] ?? '',
+                'total_refunded' => $totalAmount,
+                'message' => 'Partial refund issued successfully',
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Issue partial refund exception', [
+                'order_id' => $orderId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Issue a refund for a return.
+     */
+    public function issueReturnRefund(
+        SalesChannel $channel,
+        string $returnId,
+        float $amount,
+        ?string $comments = null
+    ): array {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $body = [
+                'refundDetail' => [
+                    'itemizedRefundDetail' => [
+                        [
+                            'refundAmount' => [
+                                'value' => number_format($amount, 2, '.', ''),
+                                'currency' => 'USD',
+                            ],
+                            'refundFeeType' => 'PURCHASE_PRICE',
+                        ],
+                    ],
+                ],
+            ];
+
+            if ($comments) {
+                $body['comments'] = ['content' => $comments];
+            }
+
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->post(self::POST_ORDER_API_URL . "/return/{$returnId}/issue_refund", $body);
+
+            $data = $response->json();
+            $this->logReturnResponse('issueReturnRefund', $returnId, $response->status(), $data);
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to issue return refund', [
+                    'return_id' => $returnId,
+                    'amount' => $amount,
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to issue refund',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Return refund issued successfully',
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Issue return refund exception', [
+                'return_id' => $returnId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    // =========================================
+    // INQUIRIES / INR (Item Not Received)
+    // =========================================
+
+    /**
+     * Get inquiry cases (Item Not Received, etc.).
+     */
+    public function getInquiries(SalesChannel $channel, int $limit = 50, int $offset = 0): array
+    {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->get(self::POST_ORDER_API_URL . '/inquiry/search', [
+                    'limit' => $limit,
+                    'offset' => $offset,
+                ]);
+
+            $data = $response->json();
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to get inquiries', [
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to fetch inquiries',
+                    'inquiries' => [],
+                ];
+            }
+
+            $inquiries = [];
+            foreach ($data['members'] ?? [] as $inquiry) {
+                $inquiries[] = $this->parseInquiry($inquiry);
+            }
+
+            return [
+                'success' => true,
+                'total' => $data['total'] ?? count($inquiries),
+                'inquiries' => $inquiries,
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Get inquiries exception', [
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+                'inquiries' => [],
+            ];
+        }
+    }
+
+    /**
+     * Provide shipment info to resolve an inquiry.
+     */
+    public function provideInquiryShipmentInfo(
+        SalesChannel $channel,
+        string $inquiryId,
+        string $trackingNumber,
+        string $shippingCarrier,
+        string $shippedDate
+    ): array {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $body = [
+                'shippingCarrierName' => $shippingCarrier,
+                'trackingNumber' => $trackingNumber,
+                'shippedDate' => $shippedDate,
+            ];
+
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->post(self::POST_ORDER_API_URL . "/inquiry/{$inquiryId}/provide_shipment_info", $body);
+
+            $data = $response->json();
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to provide inquiry shipment info', [
+                    'inquiry_id' => $inquiryId,
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to provide shipment info',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Shipment info provided successfully',
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Provide inquiry shipment info exception', [
+                'inquiry_id' => $inquiryId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Issue a refund for an inquiry (INR resolution).
+     */
+    public function issueInquiryRefund(SalesChannel $channel, string $inquiryId, ?string $comments = null): array
+    {
+        $channel = $this->tradingApiClient->ensureValidToken($channel);
+
+        try {
+            $body = [];
+            if ($comments) {
+                $body['comments'] = ['content' => $comments];
+            }
+
+            $response = Http::timeout(self::REQUEST_TIMEOUT)
+                ->withHeaders($this->getRestApiHeaders($channel))
+                ->post(self::POST_ORDER_API_URL . "/inquiry/{$inquiryId}/issue_refund", $body);
+
+            $data = $response->json();
+
+            if (!$response->successful()) {
+                Log::channel('ebay')->error('Failed to issue inquiry refund', [
+                    'inquiry_id' => $inquiryId,
+                    'status' => $response->status(),
+                    'response' => $data,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => $data['errors'][0]['message'] ?? 'Failed to issue refund',
+                ];
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Inquiry refund issued successfully',
+            ];
+
+        } catch (Exception $e) {
+            Log::channel('ebay')->error('Issue inquiry refund exception', [
+                'inquiry_id' => $inquiryId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    // =========================================
+    // HELPERS
+    // =========================================
+
+    /**
+     * Log a single eBay return-related API response to its own file.
+     * Mirrors EbayController::saveNotificationToFile so all raw eBay
+     * responses for the return module are inspectable individually.
+     */
+    private function logReturnResponse(string $action, ?string $returnId, int $status, ?array $data): void
+    {
+        $timestamp = now();
+        $directory = storage_path('logs/ebay/returns/' . $timestamp->format('Y-m-d'));
+
+        if (!file_exists($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $filename = $timestamp->format('H-i-s-u') . '_' . $action
+            . ($returnId ? "_{$returnId}" : '') . '.json';
+
+        file_put_contents($directory . '/' . $filename, json_encode([
+            'action' => $action,
+            'return_id' => $returnId,
+            'http_status' => $status,
+            'response' => $data,
+            'logged_at' => $timestamp->toIso8601String(),
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * Get REST API headers for eBay requests.
+     */
+    private function getRestApiHeaders(SalesChannel $channel): array
+    {
+        return [
+            'Authorization' => 'Bearer ' . $channel->access_token,
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+            'X-EBAY-C-MARKETPLACE-ID' => 'EBAY_US',
+        ];
+    }
+
+
+    /**
+     * Parse a cancellation from API response.
+     */
+    private function parseCancellation(array $order): array
+    {
+        $cancelStatus = $order['cancelStatus'] ?? [];
+
+        return [
+            'order_id' => $order['orderId'] ?? '',
+            'legacy_order_id' => $order['legacyOrderId'] ?? '',
+            'cancel_state' => $cancelStatus['cancelState'] ?? '',
+            'cancel_requests' => array_map(function ($req) {
+                return [
+                    'cancel_request_id' => $req['cancelRequestId'] ?? '',
+                    'cancel_reason' => $req['cancelReason'] ?? '',
+                    'cancel_request_state' => $req['cancelRequestState'] ?? '',
+                    'requested_date' => $req['requestedDate'] ?? '',
+                    'cancel_initiated_by' => $req['cancelInitiator'] ?? '',
+                ];
+            }, $cancelStatus['cancelRequests'] ?? []),
+            'buyer_username' => $order['buyer']['username'] ?? '',
+            'order_total' => $order['pricingSummary']['total']['value'] ?? 0,
+            'currency' => $order['pricingSummary']['total']['currency'] ?? 'USD',
+            'created_date' => $order['creationDate'] ?? '',
+        ];
+    }
+
+    /**
+     * Parse a return case from API response.
+     */
+    private function parseReturn(array $returnCase): array
+    {
+        return [
+            'return_id' => $returnCase['returnId'] ?? '',
+            'order_id' => $returnCase['orderId'] ?? '',
+            'legacy_order_id' => $returnCase['legacyOrderId'] ?? '',
+            'state' => $returnCase['state'] ?? $returnCase['currentType'] ?? '',
+            'status' => $returnCase['status'] ?? '',
+            'return_reason' => $returnCase['returnReason'] ?? $returnCase['detail']['reason']['reasonType'] ?? '',
+            'return_reason_description' => $returnCase['detail']['reason']['description'] ?? '',
+            'buyer_comments' => $returnCase['detail']['buyerComments'] ?? '',
+            'creation_date' => $returnCase['creationDate'] ?? '',
+            'close_date' => $returnCase['closeDate'] ?? '',
+            'item' => [
+                'item_id' => $returnCase['detail']['itemDetail']['itemId'] ?? '',
+                'title' => $returnCase['detail']['itemDetail']['itemTitle'] ?? '',
+                'return_quantity' => $returnCase['detail']['itemDetail']['returnQuantity'] ?? 1,
+            ],
+            'seller_response_due_date' => $returnCase['sellerResponseDue']['respondByDate'] ?? '',
+            'refund_amount' => $returnCase['refundAmount']['value'] ?? null,
+            'refund_status' => $returnCase['refundStatus'] ?? '',
+            'shipping_cost_paid_by' => $returnCase['returnShippingCostPayer'] ?? '',
+        ];
+    }
+
+    /**
+     * Parse an inquiry from API response.
+     */
+    private function parseInquiry(array $inquiry): array
+    {
+        return [
+            'inquiry_id' => $inquiry['inquiryId'] ?? '',
+            'order_id' => $inquiry['orderId'] ?? '',
+            'legacy_order_id' => $inquiry['legacyOrderId'] ?? '',
+            'state' => $inquiry['state'] ?? '',
+            'status' => $inquiry['status'] ?? '',
+            'inquiry_type' => $inquiry['type'] ?? '',
+            'creation_date' => $inquiry['creationDate'] ?? '',
+            'escalation_date' => $inquiry['escalationDate'] ?? '',
+            'close_date' => $inquiry['closeDate'] ?? '',
+            'item' => [
+                'item_id' => $inquiry['itemId'] ?? '',
+                'title' => $inquiry['itemTitle'] ?? '',
+            ],
+            'buyer_username' => $inquiry['buyer']['username'] ?? '',
+            'seller_response_due_date' => $inquiry['sellerMakeItRightByDate'] ?? '',
+        ];
+    }
+}

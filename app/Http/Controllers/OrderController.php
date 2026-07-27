@@ -1,0 +1,1849 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Exception;
+use Carbon\Carbon;
+use App\Models\Order;
+use App\Models\Shipping;
+use App\Models\SalesChannel;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use App\Services\ShippingService;
+use App\Services\Ebay\EbayFinanceSyncService;
+
+class OrderController extends Controller
+{
+    protected ShippingService $shippingService;
+
+    public function __construct(ShippingService $shippingService)
+    {
+        $this->shippingService = $shippingService;
+    }
+
+    /**
+     * Display a listing of orders
+     */
+    public function index(Request $request)
+    {
+        $query = Order::with(['items', 'salesChannel']);
+
+        // Filter by sales channel
+        if ($request->filled('sales_channel_id')) {
+            $query->where('sales_channel_id', $request->sales_channel_id);
+        }
+
+        // Filter by order status
+        if ($request->filled('order_status')) {
+            $query->where('order_status', $request->order_status);
+        }
+
+        // Filter by payment status
+        if ($request->filled('payment_status')) {
+            $query->where('payment_status', $request->payment_status);
+        }
+
+        // Filter by fulfillment status
+        if ($request->filled('fulfillment_status')) {
+            $query->where('fulfillment_status', $request->fulfillment_status);
+        }
+
+        // Filter by return status
+        if ($request->filled('return_status')) {
+            if ($request->return_status === 'none') {
+                $query->whereNull('return_status');
+            } else {
+                $query->where('return_status', $request->return_status);
+            }
+        }
+
+        // Filter by date range
+        if ($request->filled('date_from')) {
+            $query->whereDate('order_date', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('order_date', '<=', $request->date_to);
+        }
+
+        // Search by order number, buyer email, or eBay order ID
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('order_number', 'like', "%{$search}%")
+                    ->orWhere('ebay_order_id', 'like', "%{$search}%")
+                    ->orWhere('buyer_email', 'like', "%{$search}%")
+                    ->orWhere('buyer_name', 'like', "%{$search}%")
+                    ->orWhereHas('items', function ($itemQuery) use ($search) {
+                        $itemQuery->where('sku', 'like', "%{$search}%")
+                            ->orWhere('title', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        // Filter by shipment deadline
+        if ($request->filled('shipment_deadline')) {
+            $deadlineFilter = $request->shipment_deadline;
+
+            // Exclude already shipped/cancelled/refunded orders from deadline filters
+            $query->whereNotIn('order_status', ['shipped', 'delivered', 'cancelled', 'refunded']);
+
+            switch ($deadlineFilter) {
+                case 'overdue':
+                    $query->whereNotNull('shipment_deadline')
+                        ->where('shipment_deadline', '<', now());
+                    break;
+
+                case 'today':
+                    $query->whereNotNull('shipment_deadline')
+                        ->whereDate('shipment_deadline', today());
+                    break;
+
+                case 'tomorrow':
+                    $query->whereNotNull('shipment_deadline')
+                        ->whereDate('shipment_deadline', today()->addDay());
+                    break;
+
+                case 'this_week':
+                    $query->whereNotNull('shipment_deadline')
+                        ->where('shipment_deadline', '>=', now())
+                        ->where('shipment_deadline', '<=', now()->endOfWeek());
+                    break;
+            }
+        }
+
+        // Sort
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        // Paginate
+        $perPage = $request->input('per_page', 25);
+        $orders = $query->paginate($perPage);
+
+        // Get sales channels for filter dropdown
+        $salesChannels = SalesChannel::all();
+
+        // Get active carriers for the ship modal
+        $shippingCarriers = Shipping::where('active_status', '1')
+            ->where('delete_status', '0')
+            ->orderBy('is_default', 'desc')
+            ->orderBy('name')
+            ->get(['id', 'name', 'type', 'is_default']);
+
+        // Return JSON if requested via API
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'data' => $orders,
+            ]);
+        }
+
+        return view('orders.index', compact('orders', 'salesChannels', 'shippingCarriers', 'perPage'));
+    }
+
+    /**
+     * Show the form for creating a new order (for web views)
+     */
+    public function create()
+    {
+        $salesChannels = SalesChannel::all();
+
+        return view('orders.create', compact('salesChannels'));
+    }
+
+    /**
+     * Store a newly created order
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'sales_channel_id' => 'required|exists:sales_channels,id',
+            'buyer_email' => 'nullable|email',
+            'buyer_name' => 'nullable|string|max:255',
+            'shipping_name' => 'nullable|string|max:255',
+            'shipping_address_line1' => 'nullable|string',
+            'shipping_city' => 'nullable|string|max:255',
+            'shipping_state' => 'nullable|string|max:255',
+            'shipping_postal_code' => 'nullable|string|max:50',
+            'shipping_country' => 'nullable|string|max:10',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'nullable|exists:products,id',
+            'items.*.title' => 'required|string',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.unit_price' => 'required|numeric|min:0',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            // Calculate totals
+            $subtotal = 0;
+            foreach ($validated['items'] as $item) {
+                $subtotal += $item['quantity'] * $item['unit_price'];
+            }
+
+            $shippingCost = $request->input('shipping_cost', 0);
+            $tax = $request->input('tax', 0);
+            $discount = $request->input('discount', 0);
+            $total = $subtotal + $shippingCost + $tax - $discount;
+
+            // Create order
+            $order = Order::create([
+                'order_number' => Order::generateOrderNumber(),
+                'sales_channel_id' => $validated['sales_channel_id'],
+                'buyer_email' => $validated['buyer_email'] ?? null,
+                'buyer_name' => $validated['buyer_name'] ?? null,
+                'shipping_name' => $validated['shipping_name'] ?? null,
+                'shipping_address_line1' => $validated['shipping_address_line1'] ?? null,
+                'shipping_city' => $validated['shipping_city'] ?? null,
+                'shipping_state' => $validated['shipping_state'] ?? null,
+                'shipping_postal_code' => $validated['shipping_postal_code'] ?? null,
+                'shipping_country' => $validated['shipping_country'] ?? null,
+                'subtotal' => $subtotal,
+                'shipping_cost' => $shippingCost,
+                'tax' => $tax,
+                'discount' => $discount,
+                'total' => $total,
+                'currency' => $request->input('currency', 'USD'),
+                'order_status' => 'pending',
+                'payment_status' => $request->input('payment_status', 'pending'),
+                'fulfillment_status' => 'unfulfilled',
+                'order_date' => now(),
+            ]);
+
+            // Create order items
+            foreach ($validated['items'] as $itemData) {
+                $order->items()->create([
+                    'product_id' => $itemData['product_id'] ?? null,
+                    'title' => $itemData['title'],
+                    'sku' => $itemData['sku'] ?? null,
+                    'quantity' => $itemData['quantity'],
+                    'unit_price' => $itemData['unit_price'],
+                    'total_price' => $itemData['quantity'] * $itemData['unit_price'],
+                    'currency' => $request->input('currency', 'USD'),
+                ]);
+
+            }
+
+            DB::commit();
+
+            // Validate shipping address if a carrier has address validation enabled
+            if ($order->shipping_address_line1) {
+                $this->shippingService->validateOrderAddress($order);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order created successfully',
+                'data' => $order->load('items'),
+            ], 201);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to create order', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create order: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Display the specified order
+     */
+    public function show(Request $request, string $id)
+    {
+        $order = Order::with(['items.product.product_meta', 'metas', 'salesChannel', 'returns.items.orderItem'])->find($id);
+
+        if (!$order) {
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Order not found',
+                ], 404);
+            }
+            abort(404, 'Order not found');
+        }
+
+        // Prepare meta data for easier access in view
+        $metaData = [];
+        foreach ($order->metas as $meta) {
+            $metaData[$meta->meta_key] = $meta->value_as_array ?? $meta->meta_value;
+        }
+
+        // Return JSON if requested via API
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'data' => $order,
+            ]);
+        }
+
+        $shippingCarriers = Shipping::where('active_status', '1')
+            ->where('delete_status', '0')
+            ->orderBy('is_default', 'desc')
+            ->orderBy('name')
+            ->get(['id', 'name', 'type', 'is_default']);
+
+        $earningsBreakdown = $order->isEbayOrder() && $order->ebay_financials_synced_at
+            ? app(EbayFinanceSyncService::class)->buildEarningsBreakdown($order)
+            : null;
+
+        return view('orders.show', compact('order', 'metaData', 'shippingCarriers', 'earningsBreakdown'));
+    }
+
+    /**
+     * Show the form for editing the specified order (for web views)
+     */
+    public function edit(string $id)
+    {
+        $order = Order::with(['items', 'salesChannel'])->findOrFail($id);
+        $salesChannels = SalesChannel::all();
+
+        return view('orders.edit', compact('order', 'salesChannels'));
+    }
+
+    /**
+     * Update the specified order
+     */
+    public function update(Request $request, string $id): JsonResponse
+    {
+        $order = Order::find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        $validated = $request->validate([
+            'order_status' => 'nullable|in:pending,processing,shipped,delivered,cancelled,refunded,ready_for_pickup,cancellation_requested',
+            'payment_status' => 'nullable|in:pending,paid,refunded,failed,awaiting_payment',
+            'fulfillment_status' => 'nullable|in:unfulfilled,partially_fulfilled,fulfilled,ready_for_pickup',
+            'shipping_carrier' => 'nullable|string|max:255',
+            'tracking_number' => 'nullable|string|max:255',
+        ]);
+
+        try {
+            // Track status changes
+            $statusChanged = false;
+            if (isset($validated['order_status']) && $order->order_status !== $validated['order_status']) {
+                $statusChanged = true;
+            }
+
+            // Update shipped_at if status changes to shipped
+            if (isset($validated['order_status']) && $validated['order_status'] === 'shipped' && !$order->shipped_at) {
+                $validated['shipped_at'] = now();
+            }
+
+            $order->update($validated);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order updated successfully',
+                'data' => $order->fresh(['items']),
+            ]);
+
+        } catch (Exception $e) {
+            Log::error('Failed to update order', ['order_id' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update order: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove the specified order
+     */
+    public function destroy(string $id): JsonResponse
+    {
+        $order = Order::find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        try {
+            // Restore inventory if items were deducted
+            foreach ($order->items as $item) {
+                if ($item->inventory_updated) {
+                    $item->restoreInventory();
+                }
+            }
+
+            $order->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order deleted successfully',
+            ]);
+
+        } catch (Exception $e) {
+            Log::error('Failed to delete order', ['order_id' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete order: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get order by eBay order ID
+     */
+    public function getByEbayOrderId(string $ebayOrderId): JsonResponse
+    {
+        $order = Order::with(['items', 'metas'])
+            ->where('ebay_order_id', $ebayOrderId)
+            ->first();
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $order,
+        ]);
+    }
+
+    /**
+     * Return order items with product dimensions for the rate-quote modal.
+     * Used by the orders/index ship modal to populate the items table via AJAX.
+     */
+    public function rateInfo(string $id): JsonResponse
+    {
+        $order = Order::with(['items.product.product_meta'])->findOrFail($id);
+
+        // Filter to only include main items (bundles + regular products), exclude bundle components
+        $mainItems = $order->items->filter(function ($item) {
+            // Include if: not a bundle component OR is the bundle summary itself
+            return !$item->bundle_product_id || $item->is_bundle_summary;
+        });
+
+        $items = $mainItems->map(function ($item) {
+            $meta = $item->product?->product_meta ?? [];
+            return [
+                'order_item_id' => $item->id,
+                'title'         => $item->title,
+                'sku'           => $item->sku ?? 'N/A',
+                'price'         => (float) ($item->unit_price ?? 0), 
+                'quantity'      => (int) $item->quantity,
+                'weight'        => (float) ($meta['weight'] ?? 0),
+                'length'        => (float) ($meta['length'] ?? 0),
+                'width'         => (float) ($meta['width']  ?? 0),
+                'height'        => (float) ($meta['height'] ?? 0),
+            ];
+        })->values();
+
+        return response()->json(['success' => true, 'items' => $items]);
+    }
+
+    /**
+     * Get estimated shipping rates for an order from a specific carrier.
+     * Accepts package-level dimensions for accurate multi-package rate quotes.
+     * Does NOT create a shipment — read-only cost estimate only.
+     */
+    public function getShippingRates(Request $request): JsonResponse
+    {
+        $request->validate([
+            'order_id'                  => 'required|integer|exists:orders,id',
+            'carrier_id'                => 'required|integer|exists:shippings,id',
+            'packages'                  => 'nullable|array',
+            'packages.*.weight'         => 'nullable|numeric|min:0',
+            'packages.*.length'         => 'nullable|numeric|min:0',
+            'packages.*.width'          => 'nullable|numeric|min:0',
+            'packages.*.height'         => 'nullable|numeric|min:0',
+            'packages.*.declared_value' => 'nullable',
+            'weight_unit'               => 'nullable|string|in:lbs,kg,oz',
+            'dimension_unit'            => 'nullable|string|in:in,cm',
+        ]);
+
+        // dd($request->all());
+
+        $order    = Order::with(['items.product.product_meta'])->findOrFail($request->order_id);
+        $carrier  = Shipping::findOrFail($request->carrier_id);
+        $packages = $request->input('packages', []);
+
+        // Get unit overrides (defaults to carrier settings if not provided)
+        $unitOverrides = [
+            'weight_unit'    => $request->input('weight_unit'),
+            'dimension_unit' => $request->input('dimension_unit'),
+        ];
+
+        try {
+            $rates = $this->shippingService->getRatesForOrder($order, $carrier, $packages, $unitOverrides);
+
+            $shipperAddress = implode(', ', array_filter([
+                $carrier->shipper_name,
+                $carrier->shipper_address,
+                $carrier->shipper_city,
+                $carrier->shipper_state,
+                $carrier->shipper_postal_code,
+                $carrier->shipper_country,
+            ]));
+
+            return response()->json([
+                'success'         => true,
+                'rates'           => $rates,
+                'shipper'         => $shipperAddress ?: null,
+                'carrier_name'    => $carrier->name,
+                'default_service' => $carrier->default_service,
+                'package_count'   => count($packages) ?: 1,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('getShippingRates failed', ['order_id' => $request->order_id, 'error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Update order fulfillment (mark as shipped)
+     */
+    public function markAsShipped(Request $request, string $id): JsonResponse
+    {
+        $order = Order::with('salesChannel')->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        $validated = $request->validate([
+            'shipping_carrier' => 'required|string|max:255',
+            'tracking_number' => 'required|string|max:255',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $order->update([
+                'shipping_carrier' => $validated['shipping_carrier'],
+                'tracking_number' => $validated['tracking_number'],
+                'fulfillment_status' => 'fulfilled',
+                'order_status' => 'shipped',
+                'shipped_at' => now(),
+            ]);
+
+            // Deduct inventory for all items
+            foreach ($order->items as $item) {
+                if (!$item->inventory_updated) {
+                    $item->updateInventory();
+                }
+            }
+
+            DB::commit();
+
+            // Sync shipment to eBay if this is an eBay order
+            $ebayResult = null;
+            if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+                $ebayResult = $this->syncShipmentToEbay($order, $validated['shipping_carrier'], $validated['tracking_number']);
+            }
+
+            $message = 'Order marked as shipped';
+            if ($ebayResult) {
+                if ($ebayResult['success']) {
+                    $message .= ' and synced to eBay';
+                } else {
+                    $message .= '. eBay sync failed: ' . ($ebayResult['message'] ?? 'Unknown error');
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => $order->fresh(['items']),
+                'ebay_sync' => $ebayResult,
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to mark order as shipped', ['order_id' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to mark order as shipped: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Sync shipment tracking to eBay.
+     * Supports multiple tracking numbers for multi-package shipments.
+     *
+     * @param Order $order The order to sync
+     * @param string|array $shippingCarrier Single carrier or array of carriers
+     * @param string|array $trackingNumber Single tracking number or array of tracking numbers
+     */
+    protected function syncShipmentToEbay(Order $order, string|array $shippingCarrier, string|array $trackingNumber): array
+    {
+        try {
+            $salesChannel = $order->salesChannel;
+            if (!$salesChannel || !$salesChannel->isEbay()) {
+                return [
+                    'success' => false,
+                    'message' => 'Not an eBay sales channel',
+                ];
+            }
+
+            $ebayController = app(EbayController::class);
+
+            // Get item ID and transaction ID from order items for fallback
+            $firstItem = $order->items->first();
+            $itemId = $firstItem?->ebay_item_id;
+            $transactionId = $firstItem?->ebay_transaction_id;
+
+            $result = $ebayController->markOrderAsShipped(
+                $salesChannel,
+                $order->ebay_order_id,
+                $shippingCarrier,
+                $trackingNumber,
+                $itemId,
+                $transactionId
+            );
+
+            // Log the sync attempt
+            $order->setMeta('ebay_shipment_sync_' . time(), [
+                'shipping_carrier' => $shippingCarrier,
+                'tracking_number' => $trackingNumber,
+                'is_multi_package' => is_array($trackingNumber),
+                'package_count' => is_array($trackingNumber) ? count($trackingNumber) : 1,
+                'result' => $result,
+                'synced_at' => now()->toIso8601String(),
+            ]);
+                
+            if (!$result['success']) {
+                Log::warning('Failed to sync shipment to eBay', [
+                    'order_id' => $order->id,
+                    'ebay_order_id' => $order->ebay_order_id,
+                    'result' => $result,
+                ]);
+            }
+
+            return $result;
+
+        } catch (Exception $e) {
+            Log::error('Exception syncing shipment to eBay', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Cancel an order
+     */
+    public function cancel(Request $request, string $id): JsonResponse
+    {
+
+        $order = Order::with('salesChannel')->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        if ($order->order_status === 'cancelled') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order is already cancelled',
+            ], 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Restore inventory
+            foreach ($order->items as $item) {
+                if ($item->inventory_updated) {
+                    $item->restoreInventory();
+                }
+            }
+
+            $order->update([
+                'order_status' => 'cancelled',
+                'cancel_status' => $request->input('reason', 'Cancelled by user'),
+            ]);
+
+            DB::commit();
+
+            // Sync cancellation to eBay if this is an eBay order
+            $ebayResult = null;
+            if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+                $ebayResult = $this->syncCancellationToEbay($order, $request->input('reason'));
+            }
+
+            $message = 'Order cancelled successfully';
+            if ($ebayResult) {
+                if ($ebayResult['success']) {
+                    $message .= ' and synced to eBay';
+                } else {
+                    $message .= '. eBay sync failed: ' . ($ebayResult['message'] ?? 'Unknown error');
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => $order->fresh(['items']),
+                'ebay_sync' => $ebayResult,
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to cancel order', ['order_id' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to cancel order: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Sync order cancellation to eBay
+     */
+    protected function syncCancellationToEbay(Order $order, ?string $reason = null): array
+    {
+
+        try {
+            $salesChannel = $order->salesChannel;
+            if (!$salesChannel || !$salesChannel->isEbay()) {
+                Log::warning('Order is not an eBay order', [
+                    'order_id' => $order->id,
+                    'sales_channel_id' => $salesChannel?->id,
+                ]);
+                return [
+                    'success' => false,
+                    'message' => 'Not an eBay sales channel',
+                ];
+            }
+
+            $ebayController = app(EbayController::class);
+
+            // Map cancellation reason to eBay reason codes
+            $ebayReason = $this->mapCancellationReasonToEbay($reason);
+            $buyerNote = $reason ? "Order cancelled: " . $reason : "Order has been cancelled";
+
+            $response = $ebayController->createCancellation(
+                new \Illuminate\Http\Request([
+                    'reason' => $ebayReason,
+                    'buyer_note' => $buyerNote,
+                ]),
+                $salesChannel->id,
+                $order->ebay_order_id
+            );
+
+            // Extract result from JsonResponse
+            $result = json_decode($response->getContent(), true);
+
+            // Log the sync attempt
+            $order->setMeta('ebay_cancellation_sync_' . time(), [
+                'reason' => $ebayReason,
+                'buyer_note' => $buyerNote,
+                'result' => $result,
+                'synced_at' => now()->toIso8601String(),
+            ]);
+
+            if (!$result['success'] ?? false) {
+                Log::warning('Failed to sync cancellation to eBay', [
+                    'order_id' => $order->id,
+                    'ebay_order_id' => $order->ebay_order_id,
+                    'result' => $result,
+                ]);
+            }
+
+            return $result;
+
+        } catch (Exception $e) {
+            Log::error('Exception syncing cancellation to eBay', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Map local cancellation reason to eBay reason code
+     */
+    protected function mapCancellationReasonToEbay(?string $reason): string
+    {
+        if (!$reason) {
+            return 'OUT_OF_STOCK';
+        }
+
+        $reason = strtolower($reason);
+
+        // Map common reasons to eBay codes
+        if (str_contains($reason, 'out of stock') || str_contains($reason, 'no stock')) {
+            return 'OUT_OF_STOCK';
+        }
+        if (str_contains($reason, 'buyer')) {
+            return 'BUYER_ASKED_CANCEL';
+        }
+        if (str_contains($reason, 'address') || str_contains($reason, 'shipping')) {
+            return 'BUYER_ASKED_CANCEL';
+        }
+
+        // Default to OUT_OF_STOCK
+        return 'OUT_OF_STOCK';
+    }
+
+    /**
+     * Display returns, cancellations, and refunds management page
+     */
+    public function returnsRefunds(Request $request)
+    {
+        $query = Order::with(['items', 'salesChannel', 'returns.items.orderItem'])
+            ->where(function ($q) {
+                // Orders with return status
+                $q->whereNotNull('return_status')
+                    // Or orders with cancellation
+                    ->orWhere('order_status', 'cancelled')
+                    ->orWhereNotNull('cancel_status')
+                    // Or orders that have been refunded (full or partial)
+                    ->orWhereNotNull('refund_status')
+                    ->orWhere('payment_status', 'refunded')
+                    ->orWhere('total_refunded', '>', 0);
+            });
+
+        // Filter by sales channel
+        if ($request->filled('sales_channel_id')) {
+            $query->where('sales_channel_id', $request->sales_channel_id);
+        }
+
+        // Filter by type
+        if ($request->filled('type')) {
+            switch ($request->type) {
+                case 'return':
+                    $query->whereNotNull('return_status');
+                    break;
+                case 'cancellation':
+                    $query->where(function ($q) {
+                        $q->where('order_status', 'cancelled')
+                            ->orWhereNotNull('cancel_status');
+                    });
+                    break;
+                case 'refund':
+                    $query->where(function ($q) {
+                        $q->where('refund_status', 'completed')
+                            ->orWhere('payment_status', 'refunded');
+                    })->where(function ($q) {
+                        $q->whereRaw('total_refunded >= total')
+                            ->orWhere('total_refunded', 0)
+                            ->orWhereNull('total_refunded');
+                    });
+                    break;
+                case 'partial_refund':
+                    $query->where('refund_status', 'partial')
+                        ->orWhere(function ($q) {
+                            $q->where('total_refunded', '>', 0)
+                                ->whereRaw('total_refunded < total');
+                        });
+                    break;
+            }
+        }
+
+        // Filter by status
+        if ($request->filled('status')) {
+            switch ($request->status) {
+                case 'pending':
+                    $query->where(function ($q) {
+                        $q->whereIn('return_status', ['open', 'pending', 'awaiting', 'requested'])
+                            ->orWhereIn('cancel_status', ['CancelRequested', 'CancelPending', 'cancellation_requested'])
+                            ->orWhere('refund_status', 'pending');
+                    });
+                    break;
+                case 'processing':
+                    $query->where(function ($q) {
+                        $q->whereIn('return_status', ['processing', 'in_progress', 'shipped'])
+                            ->orWhere('refund_status', 'processing');
+                    });
+                    break;
+                case 'completed':
+                    $query->where(function ($q) {
+                        $q->whereIn('return_status', ['closed', 'completed'])
+                            ->orWhere('order_status', 'cancelled')
+                            ->orWhere('refund_status', 'completed')
+                            ->orWhere('payment_status', 'refunded');
+                    });
+                    break;
+                case 'cancelled':
+                    $query->where(function ($q) {
+                        $q->whereIn('return_status', ['cancelled', 'declined'])
+                            ->orWhereIn('cancel_status', ['CancelRejected', 'CancelDeclined']);
+                    });
+                    break;
+            }
+        }
+
+        // Filter by date range
+        if ($request->filled('date_from')) {
+            $query->where(function ($q) use ($request) {
+                $q->whereDate('return_requested_at', '>=', $request->date_from)
+                    ->orWhereDate('cancellation_requested_at', '>=', $request->date_from)
+                    ->orWhereDate('refund_initiated_at', '>=', $request->date_from)
+                    ->orWhereDate('updated_at', '>=', $request->date_from);
+            });
+        }
+        if ($request->filled('date_to')) {
+            $query->where(function ($q) use ($request) {
+                $q->whereDate('return_requested_at', '<=', $request->date_to)
+                    ->orWhereDate('cancellation_requested_at', '<=', $request->date_to)
+                    ->orWhereDate('refund_initiated_at', '<=', $request->date_to)
+                    ->orWhereDate('updated_at', '<=', $request->date_to);
+            });
+        }
+
+        // Search
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('order_number', 'like', "%{$search}%")
+                    ->orWhere('ebay_order_id', 'like', "%{$search}%")
+                    ->orWhere('buyer_email', 'like', "%{$search}%")
+                    ->orWhere('buyer_name', 'like', "%{$search}%");
+            });
+        }
+
+        // Sort — default to most recent activity, or a whitelisted column if requested
+        $sortableColumns = [
+            'order_number' => 'order_number',
+            'channel' => 'sales_channel_id',
+            'customer' => 'buyer_name',
+            'status' => 'return_status',
+            'refund' => 'total_refunded',
+        ];
+
+        if ($request->filled('sort_by') && isset($sortableColumns[$request->sort_by])) {
+            $sortOrder = $request->input('sort_order', 'asc') === 'desc' ? 'desc' : 'asc';
+            $query->orderBy($sortableColumns[$request->sort_by], $sortOrder);
+        } else {
+            $query->orderByRaw('COALESCE(return_requested_at, cancellation_requested_at, refund_initiated_at, updated_at) DESC');
+        }
+
+        $perPage = $request->input('per_page', 20);
+        $orders = $query->paginate($perPage);
+
+        // Get sales channels for filter dropdown
+        $salesChannels = SalesChannel::all();
+
+        // Calculate statistics
+        $stats = [
+            'active_returns' => Order::whereNotNull('return_status')
+                ->whereNotIn('return_status', ['closed', 'cancelled', 'completed'])
+                ->count(),
+            'pending_cancellations' => Order::whereNotNull('cancel_status')
+                ->whereIn('cancel_status', ['CancelRequested', 'CancelPending', 'cancellation_requested'])
+                ->where('order_status', '!=', 'cancelled')
+                ->count(),
+            'total_refunded' => Order::where('total_refunded', '>', 0)->sum('total_refunded')
+                + Order::whereNull('total_refunded')->where('refund_amount', '>', 0)->sum('refund_amount'),
+            'refunded_orders' => Order::where(function ($q) {
+                    $q->where('payment_status', 'refunded')
+                        ->orWhere('refund_status', 'completed');
+                })->count(),
+            'currency' => 'USD', // Default currency for display
+        ];
+
+        return view('orders.returns-refunds', compact('orders', 'salesChannels', 'stats'));
+    }
+
+    /**
+     * Get order statistics
+     */
+    public function statistics(Request $request): JsonResponse
+    {
+        $salesChannelId = $request->input('sales_channel_id');
+        $dateFrom = $request->input('date_from', now()->subDays(30)->toDateString());
+        $dateTo = $request->input('date_to', now()->toDateString());
+
+        $query = Order::query();
+
+        if ($salesChannelId) {
+            $query->where('sales_channel_id', $salesChannelId);
+        }
+
+        $query->whereDate('order_date', '>=', $dateFrom)
+            ->whereDate('order_date', '<=', $dateTo);
+
+        $stats = [
+            'total_orders' => (clone $query)->count(),
+            'total_revenue' => (clone $query)->where('payment_status', 'paid')->sum('total'),
+            'pending_orders' => (clone $query)->where('order_status', 'pending')->count(),
+            'processing_orders' => (clone $query)->where('order_status', 'processing')->count(),
+            'shipped_orders' => (clone $query)->where('order_status', 'shipped')->count(),
+            'delivered_orders' => (clone $query)->where('order_status', 'delivered')->count(),
+            'cancelled_orders' => (clone $query)->where('order_status', 'cancelled')->count(),
+            'unfulfilled_orders' => (clone $query)->where('fulfillment_status', 'unfulfilled')->count(),
+            'average_order_value' => (clone $query)->where('payment_status', 'paid')->avg('total') ?? 0,
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => $stats,
+            'date_range' => [
+                'from' => $dateFrom,
+                'to' => $dateTo,
+            ],
+        ]);
+    }
+
+    /**
+     * Generate a shipping label for an order.
+     * Creates a shipment with the carrier, stores the label, and marks the order as shipped.
+     */
+    public function generateShippingLabel(Request $request, string $id): JsonResponse
+    {
+        $order = Order::with(['items.product.product_meta', 'salesChannel'])->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        $validated = $request->validate([
+            'carrier_id'                => 'required|integer|exists:shippings,id',
+            'service_code'              => 'required|string',
+            'items'                     => 'nullable|array',
+            'items.*.order_item_id'     => 'nullable|integer',
+            'items.*.weight'            => 'nullable|numeric|min:0',
+            'items.*.length'            => 'nullable|numeric|min:0',
+            'items.*.width'             => 'nullable|numeric|min:0',
+            'items.*.height'            => 'nullable|numeric|min:0',
+            'weight_unit'               => 'nullable|string|in:lbs,kg,oz',
+            'dimension_unit'            => 'nullable|string|in:in,cm',
+            'customer_reference'        => 'nullable|string|max:30',
+        ]);
+
+        $carrier      = Shipping::findOrFail($validated['carrier_id']);
+        $serviceCode  = $validated['service_code'];
+        $itemOverrides = $validated['items'] ?? [];
+
+        // Get unit overrides and customer reference (defaults to carrier settings if not provided)
+        $unitOverrides = [
+            'weight_unit'        => $request->input('weight_unit'),
+            'dimension_unit'     => $request->input('dimension_unit'),
+            'customer_reference' => $request->input('customer_reference'),
+        ];
+
+        try {
+            DB::beginTransaction();
+
+            // Generate label via ShippingService
+            $labelResult = $this->shippingService->generateLabelForOrder(
+                $order,
+                $carrier,
+                $serviceCode,
+                $itemOverrides,
+                $unitOverrides
+            );
+
+            $trackingNumber = $labelResult['tracking_number'];
+            $labelPath      = $labelResult['label_path'];
+            $carrierName    = $labelResult['carrier_name'];
+            $shippingCost   = $labelResult['shipping_cost'] ?? null;
+
+            // Build tracking URL from carrier's tracking_url base + tracking number
+            $trackingUrl = null;
+            if ($carrier->tracking_url) {
+                $trackingUrl = $carrier->tracking_url . $trackingNumber;
+            }
+
+            // Update order with shipping info and mark as shipped
+            $order->update([
+                'shipping_carrier'     => $carrierName,
+                'shipping_id'          => $carrier->id,
+                'tracking_number'      => $trackingNumber,
+                'tracking_url'         => $trackingUrl,
+                'shipping_label_path'  => $labelPath,
+                'label_generated_at'   => now(),
+                'fulfillment_status'   => 'fulfilled',
+                'order_status'         => 'shipped',
+                'shipped_at'           => now(),
+                ...($shippingCost !== null ? ['shipping_cost' => $shippingCost] : []),
+            ]);
+
+            Log::channel('shipping-cost')->info('Single-package label: shipping_cost save result', [
+                'order_id'                => $order->id,
+                'order_number'            => $order->order_number,
+                'carrier_id'              => $carrier->id,
+                'tracking_number'         => $trackingNumber,
+                'amount_from_fedex'       => $shippingCost,
+                'currency_from_fedex'     => $labelResult['shipping_currency'] ?? null,
+                'attempted_save'          => $shippingCost !== null,
+                'saved_shipping_cost'     => $order->fresh()->shipping_cost,
+            ]);
+
+            // Deduct inventory for all items
+            foreach ($order->items as $item) {
+                if (!$item->inventory_updated) {
+                    $item->updateInventory();
+                }
+            }
+
+            DB::commit();
+
+            // Sync shipment to eBay if this is an eBay order
+            $ebayResult = null;
+            // if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+            //     $ebayResult = $this->syncShipmentToEbay($order, $carrierName, $trackingNumber);
+            // }
+
+            $message = 'Shipping label generated and order marked as shipped';
+            if ($ebayResult) {
+                if ($ebayResult['success']) {
+                    $message .= ' and synced to eBay';
+                } else {
+                    $message .= '. eBay sync failed: ' . ($ebayResult['message'] ?? 'Unknown error');
+                }
+            }
+
+            return response()->json([
+                'success'         => true,
+                'message'         => $message,
+                'tracking_number' => $trackingNumber,
+                'label_url'       => route('orders.label', $order->id),
+                'data'            => $order->fresh(['items']),
+                'ebay_sync'       => $ebayResult,
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to generate shipping label', [
+                'order_id' => $id,
+                'error'    => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate shipping label: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate multiple shipping labels for an order (multi-package shipment).
+     * Creates multiple shipments with the carrier and pushes all tracking numbers to eBay.
+     */
+    public function generateMultiPackageLabels(Request $request, string $id): JsonResponse
+    {
+        $order = Order::with(['items.product.product_meta', 'salesChannel'])->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        $validated = $request->validate([
+            'carrier_id'                    => 'required|integer|exists:shippings,id',
+            'service_code'                  => 'required|string',
+            'package_count'                 => 'required|integer|min:1|max:10',
+            'packages'                      => 'required|array|min:1',
+            'packages.*.weight'             => 'required|numeric|min:0.1',
+            'packages.*.length'             => 'nullable|numeric|min:0',
+            'packages.*.width'              => 'nullable|numeric|min:0',
+            'packages.*.height'             => 'nullable|numeric|min:0',
+            'packages.*.customer_reference' => 'nullable|string|max:30',
+            'weight_unit'                   => 'nullable|string|in:lbs,kg,oz',
+            'dimension_unit'                => 'nullable|string|in:in,cm',
+        ]);
+
+        $carrier       = Shipping::findOrFail($validated['carrier_id']);
+        $serviceCode   = $validated['service_code'];
+        $packageCount  = (int) $validated['package_count'];
+        $packageOverrides = $validated['packages'] ?? [];
+
+        // Get unit overrides (customer_reference will be handled per-package in ShippingService)
+        $unitOverrides = [
+            'weight_unit'    => $request->input('weight_unit'),
+            'dimension_unit' => $request->input('dimension_unit'),
+        ];
+
+        // dd($request->all());
+
+        try {
+            DB::beginTransaction();
+
+            // Generate multiple labels via ShippingService
+            $labelResult = $this->shippingService->generateMultipleLabelsForOrder(
+                $order,
+                $carrier,
+                $serviceCode,
+                $packageCount,
+                $packageOverrides,
+                $unitOverrides
+            );
+
+            $packages     = $labelResult['packages'];
+            $carrierName  = $labelResult['carrier_name'];
+            $shippingCost = $labelResult['shipping_cost'] ?? null;
+
+            // Store all tracking numbers
+            $trackingNumbers = [];
+            $labelPaths = [];
+
+            // Clear any previous multi-package data
+            $order->clearAllTrackingNumbers();
+
+            foreach ($packages as $package) {
+                $trackingNumbers[] = $package['tracking_number'];
+                $labelPaths[] = $package['label_path'];
+
+                // Store in order meta for multi-package tracking
+                $order->addTrackingNumber(
+                    $package['tracking_number'],
+                    $carrierName,
+                    $package['label_path']
+                );
+            }
+
+            // Build tracking URL from carrier's tracking_url base + first tracking number
+            $trackingUrl = null;
+            if ($carrier->tracking_url && !empty($trackingNumbers[0])) {
+                $trackingUrl = $carrier->tracking_url . $trackingNumbers[0];
+            }
+
+            // Update order with primary shipping info (first package) and mark as shipped
+            $trackingNumbersString = implode(', ', $trackingNumbers);
+
+            $order->update([
+                'shipping_carrier'     => $carrierName,
+                'shipping_id'          => $carrier->id,
+                'tracking_number'      => $trackingNumbersString, // Store all tracking numbers comma-separated
+                'tracking_url'         => $trackingUrl,
+                'shipping_label_path'  => $labelPaths[0], // Store first label path
+                'label_generated_at'   => now(),
+                'fulfillment_status'   => 'fulfilled',
+                'order_status'         => 'shipped',
+                'shipped_at'           => now(),
+                ...($shippingCost !== null ? ['shipping_cost' => $shippingCost] : []),
+            ]);
+
+            // Refresh the order from database to verify the update
+            $order->refresh();
+
+            Log::channel('shipping-cost')->info('Multi-package label: shipping_cost save result', [
+                'order_id'            => $order->id,
+                'order_number'        => $order->order_number,
+                'carrier_id'          => $carrier->id,
+                'package_count'       => $packageCount,
+                'per_package_costs'   => array_column($packages, 'shipping_cost', 'package_number'),
+                'amount_from_fedex'   => $shippingCost,
+                'currency_from_fedex' => $labelResult['shipping_currency'] ?? null,
+                'attempted_save'      => $shippingCost !== null,
+                'saved_shipping_cost' => $order->shipping_cost,
+            ]);
+
+            // Deduct inventory for all items
+            foreach ($order->items as $item) {
+                if (!$item->inventory_updated) {
+                    $item->updateInventory();
+                }
+            }
+
+            DB::commit();
+
+            // Sync ALL tracking numbers to eBay if this is an eBay order
+            $ebayResult = null;
+            if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+                $ebayResult = $this->syncShipmentToEbay($order, $carrierName, $trackingNumbers);
+            }
+
+            $message = $packageCount . ' shipping labels generated and order marked as shipped';
+            if ($ebayResult) {
+                if ($ebayResult['success']) {
+                    $message .= ' and all ' . count($trackingNumbers) . ' tracking numbers synced to eBay';
+                } else {
+                    $message .= '. eBay sync failed: ' . ($ebayResult['message'] ?? 'Unknown error');
+                }
+            }
+
+            return response()->json([
+                'success'          => true,
+                'message'          => $message,
+                'tracking_numbers' => $trackingNumbers,
+                'packages'         => $packages,
+                'label_urls'       => array_map(function ($pkg) use ($order) {
+                    return route('orders.label', $order->id) . '?package=' . $pkg['package_number'];
+                }, $packages),
+                'data'             => $order->fresh(['items']),
+                'ebay_sync'        => $ebayResult,
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to generate multi-package shipping labels', [
+                'order_id'      => $id,
+                'package_count' => $packageCount,
+                'error'         => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate shipping labels: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Download the shipping label for an order.
+     * Supports multi-package orders via ?package=N query parameter.
+     */
+    public function downloadLabel(Request $request, string $id)
+    {
+        $order = Order::find($id);
+
+        if (!$order) {
+            abort(404, 'Order not found');
+        }
+
+        // Check if a specific package is requested
+        $packageNumber = $request->query('package');
+
+        if ($packageNumber) {
+            // Multi-package: get label from order meta
+            $packages = $order->getMetaArray('shipping_packages', []);
+            $packageIndex = (int) $packageNumber - 1;
+
+            if (!isset($packages[$packageIndex])) {
+                abort(404, 'Package not found');
+            }
+
+            $labelPath = $packages[$packageIndex]['label_path'] ?? null;
+            if (!$labelPath || !Storage::exists($labelPath)) {
+                abort(404, 'Shipping label file not found for package ' . $packageNumber);
+            }
+
+            $filename = "label-{$order->order_number}-pkg{$packageNumber}.pdf";
+            return Storage::download($labelPath, $filename);
+        }
+
+        // Single package or first label
+        if (!$order->shipping_label_path) {
+            abort(404, 'No shipping label found for this order');
+        }
+
+        if (!Storage::exists($order->shipping_label_path)) {
+            abort(404, 'Shipping label file not found');
+        }
+
+        $filename = "label-{$order->order_number}.pdf";
+
+        return Storage::download($order->shipping_label_path, $filename);
+    }
+
+    /**
+     * Cancel/void a shipping label for an order.
+     * Cancels the shipment with FedEx, clears tracking info, and removes tracking from eBay if applicable.
+     */
+    public function cancelLabel(Request $request, string $id): JsonResponse
+    {
+        $order = Order::with('salesChannel')->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        if (!$order->tracking_number) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order has no tracking number to cancel',
+            ], 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $trackingNumber = $order->tracking_number;
+            $carrierName = $order->shipping_carrier;
+
+            // Cancel the shipment with the carrier (FedEx)
+            $cancelResult = $this->shippingService->cancelLabelForOrder($order);
+
+            if (!$cancelResult['success']) {
+                throw new Exception($cancelResult['message'] ?? 'Failed to cancel shipment with carrier');
+            }
+
+            // Clear shipping info from order and revert status
+            $order->update([
+                'tracking_number'      => null,
+                'tracking_url'         => null,
+                'shipping_label_path'  => null,
+                'label_generated_at'   => null,
+                'shipping_carrier'     => null,
+                'shipping_id'          => null,
+                'fulfillment_status'   => 'unfulfilled',
+                'order_status'         => 'processing',
+                'shipped_at'           => null,
+            ]);
+
+            // Restore inventory for all items (since we're un-shipping)
+            foreach ($order->items as $item) {
+                if ($item->inventory_updated) {
+                    $item->restoreInventory();
+                }
+            }
+
+            DB::commit();
+
+            // Remove tracking from eBay if this is an eBay order
+            $ebayResult = null;
+            if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+                $ebayResult = $this->removeTrackingFromEbay($order);
+            }
+
+            $message = 'Shipping label cancelled successfully';
+            if ($ebayResult) {
+                if ($ebayResult['success']) {
+                    $message .= ' and tracking removed from eBay';
+                } else {
+                    $message .= '. eBay tracking removal failed: ' . ($ebayResult['message'] ?? 'Unknown error');
+                }
+            }
+
+            // Log the cancellation
+            $order->setMeta('label_cancelled_' . time(), [
+                'tracking_number' => $trackingNumber,
+                'carrier' => $carrierName,
+                'cancelled_at' => now()->toIso8601String(),
+                'cancelled_by' => auth()->user()?->name ?? 'System',
+                'ebay_result' => $ebayResult,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => $order->fresh(['items']),
+                'ebay_sync' => $ebayResult,
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to cancel shipping label', [
+                'order_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to cancel shipping label: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove tracking information from eBay order.
+     * Marks the order as not shipped on eBay.
+     */
+    protected function removeTrackingFromEbay(Order $order): array
+    {
+        try {
+            $salesChannel = $order->salesChannel;
+            if (!$salesChannel || !$salesChannel->isEbay()) {
+                return [
+                    'success' => false,
+                    'message' => 'Not an eBay sales channel',
+                ];
+            }
+
+            $ebayController = app(EbayController::class);
+
+            // Get item ID and transaction ID from order items for fallback
+            $firstItem = $order->items->first();
+            $itemId = $firstItem?->ebay_item_id;
+            $transactionId = $firstItem?->ebay_transaction_id;
+
+            // Mark as not shipped (this removes the shipped status on eBay)
+            // Note: eBay doesn't allow removing tracking once added, but marking as not shipped
+            // effectively tells eBay the item hasn't been shipped yet
+            $result = $ebayController->markOrderAsNotShipped(
+                $salesChannel,
+                $order->ebay_order_id,
+                $itemId,
+                $transactionId
+            );
+
+            // Log the sync attempt
+            $order->setMeta('ebay_tracking_removed_' . time(), [
+                'result' => $result,
+                'removed_at' => now()->toIso8601String(),
+            ]);
+
+            if (!$result['success']) {
+                Log::warning('Failed to remove tracking from eBay', [
+                    'order_id' => $order->id,
+                    'ebay_order_id' => $order->ebay_order_id,
+                    'result' => $result,
+                ]);
+            }
+
+            return $result;
+
+        } catch (Exception $e) {
+            Log::error('Exception removing tracking from eBay', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Issue a full refund for a local (non-eBay) order.
+     */
+    public function refund(Request $request, string $id): JsonResponse
+    {
+        $order = Order::find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        if ($order->isEbayOrder()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Use the eBay API endpoints for eBay orders',
+            ], 400);
+        }
+
+        if (!$order->canBeRefunded()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order cannot be refunded. It may already be refunded or not paid.',
+            ], 400);
+        }
+
+        $validated = $request->validate([
+            'reason' => 'nullable|string|max:500',
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $refundAmount = $order->getRefundableAmount();
+
+            $order->update([
+                'refund_status' => 'completed',
+                'refund_amount' => $order->total,
+                'total_refunded' => $order->total,
+                'refund_initiated_at' => now(),
+                'refund_completed_at' => now(),
+                'payment_status' => 'refunded',
+            ]);
+
+            // Log the refund
+            $order->setMeta('refund_log_' . time(), [
+                'type' => 'full_refund',
+                'amount' => $refundAmount,
+                'reason' => $validated['reason'] ?? null,
+                'comment' => $validated['comment'] ?? null,
+                'timestamp' => now()->toIso8601String(),
+                'processed_by' => auth()->user()?->name ?? 'System',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order refunded successfully',
+                'refund_amount' => $refundAmount,
+                'data' => $order->fresh(),
+            ]);
+
+        } catch (Exception $e) {
+            Log::error('Failed to refund local order', [
+                'order_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to refund order: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Bulk delete orders
+     */
+    public function bulkDelete(Request $request): JsonResponse
+    {
+        $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:orders,id',
+        ]);
+
+        try {
+            $orders = Order::whereIn('id', $request->ids)->with('items')->get();
+            $count = 0;
+
+            foreach ($orders as $order) {
+                // Restore inventory if items were deducted
+                foreach ($order->items as $item) {
+                    if ($item->inventory_updated) {
+                        $item->restoreInventory();
+                    }
+                }
+                $order->delete();
+                $count++;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $count . ' order(s) deleted successfully.',
+            ]);
+        } catch (Exception $e) {
+            Log::error('Failed to bulk delete orders', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while deleting orders: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Issue a partial refund for a local (non-eBay) order.
+     */
+    public function partialRefund(Request $request, string $id): JsonResponse
+    {
+        $order = Order::find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        if ($order->isEbayOrder()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Use the eBay API endpoints for eBay orders',
+            ], 400);
+        }
+
+        $maxRefundable = $order->getRefundableAmount();
+
+        if ($maxRefundable <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order has already been fully refunded',
+            ], 400);
+        }
+
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01', "max:{$maxRefundable}"],
+            'reason' => 'nullable|string|max:500',
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $amount = (float) $validated['amount'];
+
+            // Record the partial refund
+            $order->recordPartialRefund($amount);
+
+            // Log the refund
+            $order->setMeta('refund_log_' . time(), [
+                'type' => 'partial_refund',
+                'amount' => $amount,
+                'reason' => $validated['reason'] ?? null,
+                'comment' => $validated['comment'] ?? null,
+                'timestamp' => now()->toIso8601String(),
+                'processed_by' => auth()->user()?->name ?? 'System',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Partial refund issued successfully',
+                'refund_amount' => $amount,
+                'total_refunded' => $order->fresh()->total_refunded,
+                'data' => $order->fresh(),
+            ]);
+
+        } catch (Exception $e) {
+            Log::error('Failed to issue partial refund for local order', [
+                'order_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to issue partial refund: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Manually correct the refunded amount on an eBay order.
+     *
+     * eBay sometimes sends a refund notification without the actual amount,
+     * causing the system to mark the whole order as refunded even when only
+     * a partial refund was issued outside the app. This lets a user fix the
+     * stored refund amount directly; downstream reports/accounting read
+     * order_status/payment_status/total_refunded, so correcting those here
+     * fixes those views too.
+     */
+    public function updateRefundAmount(Request $request, string $id): JsonResponse
+    {
+        $order = Order::find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found',
+            ], 404);
+        }
+
+        if (!$order->isEbayOrder()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This action is only available for eBay orders. Use the standard refund actions instead.',
+            ], 400);
+        }
+
+        $validated = $request->validate([
+            'refund_amount' => ['required', 'numeric', 'min:0', 'max:' . (float) $order->total],
+            'note' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $order->correctRefundAmount((float) $validated['refund_amount'], $validated['note'] ?? null);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Refund amount updated successfully',
+                'data' => $order->fresh(),
+            ]);
+        } catch (Exception $e) {
+            Log::error('Failed to correct refund amount', [
+                'order_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update refund amount: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Manually trigger eBay order status sync.
+     * Dispatches the UpdateEbayOrderStatusJob to sync cancel/refund/return statuses.
+     */
+    public function syncEbayOrderStatus(): JsonResponse
+    {
+        try {
+            \App\Jobs\UpdateEbayOrderStatusJob::dispatch(90);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'eBay order status sync has been queued. Statuses will be updated shortly.',
+            ]);
+        } catch (Exception $e) {
+            Log::error('Failed to dispatch eBay order status sync', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to start sync: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Close FedEx Ground shipments for the day (End of Day).
+     * This commits shipments to FedEx and generates the manifest for pickup.
+     */
+    public function closeFedExShipments(Request $request): JsonResponse
+    {
+        try {
+            // Get the default FedEx carrier
+            $carrier = Shipping::where('type', 'fedex')
+                ->where('active_status', '1')
+                ->where('delete_status', '0')
+                ->first();
+
+            if (!$carrier) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No active FedEx carrier found.',
+                ], 404);
+            }
+
+            $fedexService = new \App\Services\FedexService($carrier);
+            $closeDate = $request->input('close_date', date('Y-m-d'));
+
+            $result = $fedexService->closeShipments($closeDate);
+
+            // Save manifest if present
+            if (!empty($result['manifest'])) {
+                $filename = "fedex-manifests/manifest-{$closeDate}.pdf";
+                Storage::put($filename, base64_decode($result['manifest']));
+                $result['manifest_path'] = $filename;
+            }
+
+            return response()->json([
+                'success' => $result['success'],
+                'message' => $result['message'],
+                'confirmation_number' => $result['confirmation_number'] ?? null,
+                'manifest_path' => $result['manifest_path'] ?? null,
+            ]);
+        } catch (Exception $e) {
+            Log::error('Failed to close FedEx shipments', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to close shipments: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+}
