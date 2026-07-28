@@ -88,7 +88,11 @@ Route::get('/run-queue', function() {
 })->middleware('auth');
 
 Route::get('/test-artisan', function () {
-    dd('Route working');
+    Artisan::call('queue:work', [
+        '--once' => true,
+    ]);
+
+    return Artisan::output();
 });
 
 // Process all queue jobs (use with caution - may timeout)
