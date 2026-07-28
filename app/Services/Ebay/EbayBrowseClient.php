@@ -50,7 +50,7 @@ class EbayBrowseClient
             ])
             ->get(self::BASE_URL . '/item_summary/search', [
                 'q' => $keyword,
-                'filter' => 'buyingOptions:{FIXED_PRICE},itemLocationCountry:US',
+                'filter' => 'buyingOptions:{FIXED_PRICE}',
                 'fieldgroups' => 'EXTENDED',
                 'limit' => $limit,
             ]);
