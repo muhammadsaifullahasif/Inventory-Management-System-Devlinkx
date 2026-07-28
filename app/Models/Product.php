@@ -39,6 +39,158 @@ class Product extends Model
     }
 
     /**
+     * Shared catalog filters (search/category/brand/sales channel/product
+     * type/stock+warehouse+rack/date range) — same logic ProductController
+     * uses for the products list and export, extracted so other queries
+     * (e.g. Market Research) can filter through the product relation.
+     */
+    public function scopeCatalogFilter($query, \Illuminate\Http\Request $request)
+    {
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('sku', 'like', "%{$search}%")
+                  ->orWhere('barcode', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        if ($request->filled('brand_id')) {
+            $query->where('brand_id', $request->brand_id);
+        }
+
+        if ($request->filled('sales_channel_id')) {
+            $query->whereHas('sales_channels', function ($q) use ($request) {
+                $q->where('sales_channels.id', $request->sales_channel_id);
+            });
+        }
+
+        if ($request->filled('product_type')) {
+            if ($request->product_type === 'bundle') {
+                $query->where('is_bundle', true);
+            } elseif ($request->product_type === 'regular') {
+                $query->where('is_bundle', false);
+            }
+        }
+
+        $warehouseId = $request->warehouse_id;
+        $rackId = $request->rack_id;
+        $stockStatus = $request->stock_status;
+
+        $applyStockLocationFilter = function ($stockQuery) use ($warehouseId, $rackId) {
+            if ($warehouseId) {
+                $stockQuery->where('warehouse_id', $warehouseId);
+            }
+            if ($rackId) {
+                $stockQuery->where('rack_id', $rackId);
+            }
+        };
+
+        $applyOutOfStockComponentCondition = function ($componentQuery) use ($warehouseId, $rackId) {
+            $sql = "(
+                SELECT COALESCE(SUM(CAST(ps.quantity AS decimal(15,4))), 0)
+                FROM product_stocks ps
+                WHERE ps.product_id = product_bundle_components.component_product_id
+                    AND ps.active_status = '1'
+                    AND ps.delete_status = '0'";
+
+            $bindings = [];
+
+            if ($warehouseId) {
+                $sql .= " AND ps.warehouse_id = ?";
+                $bindings[] = $warehouseId;
+            }
+
+            if ($rackId) {
+                $sql .= " AND ps.rack_id = ?";
+                $bindings[] = $rackId;
+            }
+
+            $sql .= ") < product_bundle_components.quantity_required";
+
+            $componentQuery->whereRaw($sql, $bindings);
+        };
+
+        if ($warehouseId || $rackId || $stockStatus) {
+            $query->where(function ($q) use (
+                $warehouseId,
+                $rackId,
+                $stockStatus,
+                $applyStockLocationFilter,
+                $applyOutOfStockComponentCondition
+            ) {
+                if ($stockStatus === 'out_of_stock') {
+                    $q->where(function ($stockStatusQuery) use ($applyStockLocationFilter, $applyOutOfStockComponentCondition) {
+                        $stockStatusQuery->where(function ($regularQuery) use ($applyStockLocationFilter) {
+                            $regularQuery->where('is_bundle', false)
+                                ->where(function ($outOfStockQuery) use ($applyStockLocationFilter) {
+                                    $outOfStockQuery->whereHas('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                                        $applyStockLocationFilter($stockQuery);
+                                        $stockQuery->where('quantity', '<=', 0);
+                                    })->orWhereDoesntHave('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                                        $applyStockLocationFilter($stockQuery);
+                                    });
+                                });
+                        })
+                        ->orWhere(function ($bundleQuery) use ($applyOutOfStockComponentCondition) {
+                            $bundleQuery->where('is_bundle', true)
+                                ->where(function ($bundleOutOfStockQuery) use ($applyOutOfStockComponentCondition) {
+                                    $bundleOutOfStockQuery->whereDoesntHave('bundleComponents')
+                                        ->orWhereHas('bundleComponents', function ($componentQuery) use ($applyOutOfStockComponentCondition) {
+                                            $applyOutOfStockComponentCondition($componentQuery);
+                                        });
+                                });
+                        });
+                    });
+                } elseif ($stockStatus === 'in_stock') {
+                    $q->where(function ($stockStatusQuery) use ($applyStockLocationFilter, $applyOutOfStockComponentCondition) {
+                        $stockStatusQuery->where(function ($regularQuery) use ($applyStockLocationFilter) {
+                            $regularQuery->where('is_bundle', false)
+                                ->whereHas('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                                    $applyStockLocationFilter($stockQuery);
+                                    $stockQuery->where('quantity', '>', 0);
+                                });
+                        })
+                        ->orWhere(function ($bundleQuery) use ($applyOutOfStockComponentCondition) {
+                            $bundleQuery->where('is_bundle', true)
+                                ->whereHas('bundleComponents')
+                                ->whereDoesntHave('bundleComponents', function ($componentQuery) use ($applyOutOfStockComponentCondition) {
+                                    $applyOutOfStockComponentCondition($componentQuery);
+                                });
+                        });
+                    });
+                } else {
+                    $q->whereHas('product_stocks', function ($stockQuery) use ($applyStockLocationFilter) {
+                        $applyStockLocationFilter($stockQuery);
+                    });
+
+                    if ($warehouseId && !$rackId) {
+                        $q->orWhere(function ($bundleQuery) use ($warehouseId) {
+                            $bundleQuery->where('is_bundle', true)
+                                ->whereHas('bundleComponents.product.product_stocks', function ($componentStockQuery) use ($warehouseId) {
+                                    $componentStockQuery->where('warehouse_id', $warehouseId);
+                                });
+                        });
+                    }
+                }
+            });
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        return $query;
+    }
+
+    /**
      * Get bundle components (for bundle products)
      */
     public function bundleComponents()
