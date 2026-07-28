@@ -88,12 +88,7 @@ Route::get('/run-queue', function() {
 })->middleware('auth');
 
 Route::get('/test-artisan', function () {
-    Artisan::call('queue:work', [
-        '--queue' => 'ebay-imports',
-        '--once' => true,
-    ]);
-
-    return Artisan::output();
+    dd('Route working');
 });
 
 // Process all queue jobs (use with caution - may timeout)
