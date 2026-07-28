@@ -46,9 +46,7 @@ class ProductController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Product::with(['sales_channels', 'category', 'brand', 'product_stocks.warehouse', 'product_stocks.rack', 'bundleComponents', 'priceComparisons' => function ($q) {
-            $q->orderBy('rank');
-        }]);
+        $query = Product::with(['sales_channels', 'category', 'brand', 'product_stocks.warehouse', 'product_stocks.rack', 'bundleComponents']);
 
         // Filter by search term (name, sku, barcode)
         if ($request->filled('search')) {
