@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exports\ReportExport;
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Product;
 use App\Models\ProductPriceComparison;
 use App\Models\Rack;
 use App\Models\SalesChannel;
@@ -21,12 +22,14 @@ class MarketResearchController extends Controller
     }
 
     /**
-     * Columns sortable via sort_by. Product-level columns need the products
-     * table joined; comparison-level columns sort directly.
+     * Product-level columns sortable via sort_by on the index listing (one
+     * row per product there, so sorting is on the product, not a single
+     * competitor row).
      */
     private const PRODUCT_SORT_COLUMNS = [
-        'product_name' => 'products.name',
-        'our_price' => 'products.price',
+        'product_name' => 'name',
+        'our_price' => 'price',
+        'price_last_compared_at' => 'price_last_compared_at',
     ];
 
     private const COMPARISON_SORT_COLUMNS = [
@@ -38,26 +41,35 @@ class MarketResearchController extends Controller
     ];
 
     /**
-     * List captured eBay competitor price comparisons, filterable by the
-     * same product catalog filters as the Products page.
+     * List products that have captured eBay competitor price comparisons —
+     * one row per product, all competitors stacked in a single column —
+     * filterable by the same product catalog filters as the Products page.
      */
     public function index(Request $request)
     {
         $perPage = (int) $request->get('per_page', 20);
 
-        $comparisons = $this->buildQuery($request)
-            ->select('product_price_comparisons.*')
+        $sortBy = self::PRODUCT_SORT_COLUMNS[$request->input('sort_by')] ?? 'price_last_compared_at';
+        $sortOrder = $request->input('sort_order', 'desc') === 'asc' ? 'asc' : 'desc';
+
+        $products = Product::query()
+            ->whereHas('priceComparisons')
+            ->with(['priceComparisons' => function ($q) {
+                $q->orderBy('rank');
+            }])
+            ->catalogFilter($request)
+            ->orderBy($sortBy, $sortOrder)
             ->paginate($perPage)
             ->withQueryString();
 
         return view('market-research.index', array_merge(
-            compact('comparisons', 'perPage'),
+            compact('products', 'perPage'),
             $this->filterOptions()
         ));
     }
 
     /**
-     * Export the filtered comparisons to Excel.
+     * Export the filtered comparisons to Excel (one row per competitor).
      */
     public function export(Request $request)
     {

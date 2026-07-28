@@ -141,7 +141,7 @@
                                 </a>
                             </div>
                             <div class="col-md-2 offset-md-4 d-flex align-items-end justify-content-end">
-                                <span class="text-muted fs-12">{{ $comparisons->total() }} results</span>
+                                <span class="text-muted fs-12">{{ $products->total() }} results</span>
                             </div>
                         </div>
                     </form>
@@ -150,7 +150,7 @@
         </div>
     </div>
 
-    <!-- Comparisons Table -->
+    <!-- Products Table -->
     <div class="col-12">
         <div class="card">
             <div class="card-body p-0">
@@ -159,27 +159,23 @@
                         <thead>
                             <tr>
                                 @php
-                                    $currentSort = request('sort_by', 'captured_at');
+                                    $currentSort = request('sort_by', 'price_last_compared_at');
                                     $currentOrder = request('sort_order', 'desc');
                                     $sortableColumns = [
-                                        'product_name' => ['label' => 'Product', 'column' => 'product_name'],
-                                        'our_price' => ['label' => 'Our Price', 'column' => 'our_price'],
-                                        'rank' => ['label' => 'Rank', 'column' => 'rank'],
-                                        'competitor_seller' => ['label' => 'Competitor', 'column' => 'competitor_seller'],
-                                        'competitor_price' => ['label' => 'Competitor Price', 'column' => 'competitor_price'],
-                                        'items_sold_last_month' => ['label' => 'Units Sold', 'column' => 'items_sold_last_month'],
-                                        'captured_at' => ['label' => 'Captured', 'column' => 'captured_at'],
+                                        'product_name' => 'Product',
+                                        'our_price' => 'Our Price',
+                                        'price_last_compared_at' => 'Last Compared',
                                     ];
                                 @endphp
-                                @foreach($sortableColumns as $key => $col)
+                                @foreach($sortableColumns as $key => $label)
                                     <th data-column="{{ $key }}">
                                         @php
-                                            $isActive = $currentSort === $col['column'];
+                                            $isActive = $currentSort === $key;
                                             $nextOrder = ($isActive && $currentOrder === 'asc') ? 'desc' : 'asc';
-                                            $sortUrl = request()->fullUrlWithQuery(['sort_by' => $col['column'], 'sort_order' => $nextOrder]);
+                                            $sortUrl = request()->fullUrlWithQuery(['sort_by' => $key, 'sort_order' => $nextOrder]);
                                         @endphp
                                         <a href="{{ $sortUrl }}" class="d-flex align-items-center text-dark text-decoration-none sortable-header {{ $isActive ? 'active' : '' }}">
-                                            {{ $col['label'] }}
+                                            {{ $label }}
                                             <span class="sort-arrows ms-1">
                                                 @if($isActive)
                                                     @if($currentOrder === 'asc')
@@ -194,55 +190,48 @@
                                         </a>
                                     </th>
                                 @endforeach
-                                <th class="text-end">Listing</th>
+                                <th>Competitor Price</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse ($comparisons as $comparison)
+                            @forelse ($products as $product)
                                 <tr>
                                     <td>
                                         <div class="d-flex align-items-center">
-                                            @if($comparison->product)
-                                                @if($comparison->product->getImageUrl())
-                                                    <img src="{{ $comparison->product->getImageUrl() }}" alt="{{ $comparison->product->name }}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">
-                                                @else
-                                                    <div class="bg-light rounded d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
-                                                        <i class="feather-image text-muted"></i>
-                                                    </div>
-                                                @endif
-                                                <a href="{{ route('products.edit', $comparison->product->id) }}" class="text-dark fw-semibold text-decoration-none">
-                                                    {{ $comparison->product->name }}
-                                                </a>
+                                            @if($product->getImageUrl())
+                                                <img src="{{ $product->getImageUrl() }}" alt="{{ $product->name }}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">
                                             @else
-                                                <span class="text-muted">Deleted product</span>
+                                                <div class="bg-light rounded d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
+                                                    <i class="feather-image text-muted"></i>
+                                                </div>
                                             @endif
+                                            <a href="{{ route('products.edit', $product->id) }}" class="text-dark fw-semibold text-decoration-none">
+                                                {{ $product->name }}
+                                            </a>
                                         </div>
                                     </td>
-                                    <td>
-                                        {{ $comparison->product ? '$' . number_format($comparison->product->price, 2) : '-' }}
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-light-primary">#{{ $comparison->rank }}</span>
-                                    </td>
-                                    <td>{{ $comparison->competitor_seller }}</td>
-                                    <td class="fw-semibold">
-                                        {{ $comparison->currency }} {{ number_format($comparison->competitor_price, 2) }}
-                                    </td>
-                                    <td>{{ $comparison->items_sold_last_month }}</td>
+                                    <td>${{ number_format($product->price, 2) }}</td>
                                     <td class="text-muted fs-12">
-                                        {{ $comparison->captured_at?->format('M d, Y H:i') }}
+                                        {{ $product->price_last_compared_at ? \Carbon\Carbon::parse($product->price_last_compared_at)->format('M d, Y H:i') : '-' }}
                                     </td>
-                                    <td class="text-end">
-                                        @if($comparison->listing_url)
-                                            <a href="{{ $comparison->listing_url }}" target="_blank" class="btn btn-sm btn-light-brand">
-                                                <i class="feather-external-link"></i>
-                                            </a>
-                                        @endif
+                                    <td data-column="price_comparison">
+                                        @forelse ($product->priceComparisons as $comparison)
+                                            <div class="mb-1">
+                                                @if($comparison->listing_url)
+                                                    <a href="{{ $comparison->listing_url }}" target="_blank" class="fw-semibold text-decoration-none">${{ number_format($comparison->competitor_price, 2) }}</a>
+                                                @else
+                                                    <span class="fw-semibold">${{ number_format($comparison->competitor_price, 2) }}</span>
+                                                @endif
+                                                <span class="text-muted fs-11">{{ $comparison->competitor_seller }} ({{ $comparison->items_sold_last_month }} sold)</span>
+                                            </div>
+                                        @empty
+                                            <span class="text-muted fs-12">-</span>
+                                        @endforelse
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="text-center text-muted py-4">No price comparison data captured yet.</td>
+                                    <td colspan="4" class="text-center text-muted py-4">No price comparison data captured yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -254,7 +243,7 @@
                     @include('partials.per-page-dropdown', ['perPage' => $perPage])
                 </div>
                 <div>
-                    {{ $comparisons->links('pagination::bootstrap-5') }}
+                    {{ $products->links('pagination::bootstrap-5') }}
                 </div>
             </div>
         </div>
