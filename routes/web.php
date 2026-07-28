@@ -92,7 +92,7 @@ Route::get('/test-artisan', function () {
         '--once' => true,
     ]);
 
-    return Artisan::output();
+    return shell_exec('php artisan --version');
 });
 
 // Process all queue jobs (use with caution - may timeout)
