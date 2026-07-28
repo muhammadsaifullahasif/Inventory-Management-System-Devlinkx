@@ -50,7 +50,7 @@ class EbayBrowseClient
             ])
             ->get(self::BASE_URL . '/item_summary/search', [
                 'q' => $keyword,
-                'filter' => 'buyingOptions:{FIXED_PRICE}',
+                'filter' => 'buyingOptions:{FIXED_PRICE}, itemLocationCountry:US',
                 'fieldgroups' => 'EXTENDED',
                 'limit' => $limit,
             ]);
@@ -65,6 +65,54 @@ class EbayBrowseClient
         }
 
         Log::channel('ebay-price-comparison')->debug('eBay Browse search response', [
+            'keyword' => $keyword,
+            'response' => $response->json(),
+        ]);
+
+        return $response->json('itemSummaries', []);
+    }
+
+    /**
+     * Search active listings by image (visual match), optionally refined by
+     * a keyword. eBay's search_by_image endpoint takes the image in the
+     * POST body and everything else (including "q") as query params, same
+     * as item_summary/search.
+     *
+     * @return array<int, array> raw itemSummaries entries from eBay
+     */
+    public function searchByImage(string $base64Image, ?string $keyword = null, int $limit = self::DEFAULT_LIMIT): array
+    {
+        $token = $this->apiClient->getApplicationToken();
+
+        $query = [
+            'filter' => 'buyingOptions:{FIXED_PRICE}, itemLocationCountry:US',
+            'limit' => $limit,
+        ];
+
+        if ($keyword) {
+            $query['q'] = $keyword;
+        }
+
+        $response = Http::timeout(self::DEFAULT_TIMEOUT)
+            ->connectTimeout(self::DEFAULT_CONNECT_TIMEOUT)
+            ->withToken($token)
+            ->withHeaders([
+                'X-EBAY-C-MARKETPLACE-ID' => 'EBAY_US',
+            ])
+            ->post(self::BASE_URL . '/item_summary/search_by_image?' . http_build_query($query), [
+                'image' => $base64Image,
+            ]);
+
+        if ($response->failed()) {
+            Log::channel('ebay-price-comparison')->error('eBay Browse image search failed', [
+                'keyword' => $keyword,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            throw new Exception('eBay Browse image search failed: ' . $response->body());
+        }
+
+        Log::channel('ebay-price-comparison')->debug('eBay Browse image search response', [
             'keyword' => $keyword,
             'response' => $response->json(),
         ]);

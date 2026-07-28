@@ -5,6 +5,7 @@ namespace App\Services\Ebay;
 use App\Models\Product;
 use App\Models\ProductPriceComparison;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -35,7 +36,11 @@ class PriceComparisonService
             return 0;
         }
 
-        $itemSummaries = $this->browseClient->searchActiveListings($keyword, self::SEARCH_LIMIT);
+        $imageBase64 = $this->fetchProductImageBase64($product);
+
+        $itemSummaries = $imageBase64
+            ? $this->browseClient->searchByImage($imageBase64, $keyword, self::SEARCH_LIMIT)
+            : $this->browseClient->searchActiveListings($keyword, self::SEARCH_LIMIT);
 
         $topSellers = $this->rankSellersBySales($itemSummaries);
 
@@ -62,6 +67,46 @@ class PriceComparisonService
     protected function buildSearchKeyword(Product $product): string
     {
         return $product->name ?: '';
+    }
+
+    /**
+     * Fetch the product's image and base64-encode it for eBay's
+     * search_by_image call. Returns null (falls back to text-only search)
+     * if the product has no image or it can't be read.
+     */
+    protected function fetchProductImageBase64(Product $product): ?string
+    {
+        $url = $product->getImageUrl();
+
+        if (!$url) {
+            return null;
+        }
+
+        try {
+            if (filter_var($url, FILTER_VALIDATE_URL) && !str_starts_with($url, url('/'))) {
+                $response = Http::timeout(30)->get($url);
+                if ($response->failed()) {
+                    return null;
+                }
+                return base64_encode($response->body());
+            }
+
+            $relativePath = str_starts_with($product->product_image, 'products/')
+                ? storage_path('app/public/' . $product->product_image)
+                : public_path('uploads/' . $product->product_image);
+
+            if (!is_file($relativePath)) {
+                return null;
+            }
+
+            return base64_encode(file_get_contents($relativePath));
+        } catch (\Throwable $e) {
+            Log::channel('ebay-price-comparison')->warning('Failed to read product image for image search', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 
     /**
