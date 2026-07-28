@@ -87,6 +87,15 @@ Route::get('/run-queue', function() {
     ]);
 })->middleware('auth');
 
+Route::get('/test-artisan', function () {
+    Artisan::call('queue:work', [
+        '--queue' => 'ebay-imports',
+        '--once' => true,
+    ]);
+
+    return Artisan::output();
+});
+
 // Process all queue jobs (use with caution - may timeout)
 Route::get('/run-queue-all', function() {
     if (!app()->environment('local')) {
