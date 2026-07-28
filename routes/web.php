@@ -70,6 +70,8 @@ Route::get('/run-queue', function() {
         ]);
     }
 
+    dd(request()->all());
+
     // Process one job using the job's own timeout/backoff configuration.
     Artisan::call('queue:work', [
         '--queue' => 'ebay-imports',
