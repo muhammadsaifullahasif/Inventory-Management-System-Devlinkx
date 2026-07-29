@@ -46,10 +46,10 @@ php artisan migrate
 ### Step 3: Start Queue Worker
 ```bash
 # For development (single worker)
-php artisan queue:work
+php artisan queue:work database
 
 # For production (with options)
-php artisan queue:work --queue=default --tries=3 --timeout=3600
+php artisan queue:work database --queue=default --tries=3 --timeout=3600
 
 # Using Supervisor (recommended for production)
 # See: https://laravel.com/docs/queues#supervisor-configuration
@@ -233,10 +233,10 @@ failed_jobs            - Failed jobs
 ### Jobs Not Processing
 ```bash
 # Check if worker is running
-php artisan queue:work
+php artisan queue:work database
 
 # Debug mode
-php artisan queue:work --debug
+php artisan queue:work database --debug
 
 # Check failed jobs
 php artisan queue:failed
@@ -257,9 +257,9 @@ $chunkSize = 50;  // Instead of 100
 ### High Server Load
 Use multiple workers:
 ```bash
-php artisan queue:work &
-php artisan queue:work &
-php artisan queue:work &
+php artisan queue:work database &
+php artisan queue:work database &
+php artisan queue:work database &
 ```
 
 ---
@@ -284,7 +284,7 @@ ImportEbayListings::dispatch($id, 'active')
     ->onQueue('low');
 
 // Worker command
-php artisan queue:work --queues=high,default,low
+php artisan queue:work database --queues=high,default,low
 ```
 
 ### Job Middleware

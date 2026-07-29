@@ -172,7 +172,7 @@ If you can't install supervisor (shared hosting), use cron instead:
 * * * * * /usr/bin/php /home/u776021627/domains/inventory.satmec.com/public_html/artisan schedule:run >> /dev/null 2>&1
 
 # Add this for queue worker (processes jobs every minute):
-* * * * * /usr/bin/php /home/u776021627/domains/inventory.satmec.com/public_html/artisan queue:work --stop-when-empty --max-time=50 >> /dev/null 2>&1
+* * * * * /usr/bin/php /home/u776021627/domains/inventory.satmec.com/public_html/artisan queue:work database --stop-when-empty --max-time=50 >> /dev/null 2>&1
 ```
 
 Note: Cron-only setup processes queue jobs once per minute. Supervisor is preferred for continuous processing.

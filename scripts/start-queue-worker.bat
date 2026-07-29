@@ -29,7 +29,7 @@ echo Log file: storage\logs\worker.log
 echo Press Ctrl+C to stop
 
 :loop
-php artisan queue:work --sleep=3 --tries=3 --max-time=3600 --memory=512 >> storage\logs\worker.log 2>&1
+php artisan queue:work database --sleep=3 --tries=3 --max-time=3600 --memory=512 >> storage\logs\worker.log 2>&1
 echo Worker restarting... (waiting 5 seconds)
 timeout /t 5 /nobreak > nul
 goto loop
