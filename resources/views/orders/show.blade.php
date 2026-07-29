@@ -251,7 +251,13 @@
                                                     <span class="d-block fs-11 text-muted mt-1">{{ $item->ebay_item_id }}</span>
                                                 @endif
                                             </td>
-                                            <td><code class="fs-11">{{ $item->sku }}</code></td>
+                                            <td>
+                                                @if($item->product)
+                                                    <code class="fs-11"><a href="{{ route('products.show', $item->product_id) }}">{{ $item->sku }}</a></code>
+                                                @else
+                                                    <code class="fs-11">{{ $item->sku }}</code>
+                                                @endif
+                                            </td>
                                             <td class="text-center fw-bold">{{ $item->quantity }}</td>
                                             <td class="text-end fw-semibold">{{ $order->currency ?? 'USD' }} {{ number_format($item->unit_price, 2) }}</td>
                                             <td class="text-end fw-bold">{{ $order->currency ?? 'USD' }} {{ number_format($item->total_price, 2) }}</td>
@@ -270,7 +276,13 @@
                                                         ↳ {{ $component->title }}
                                                     </span>
                                                 </td>
-                                                <td><code class="fs-11 text-muted">{{ $component->sku }}</code></td>
+                                                <td>
+                                                    @if($component->product)
+                                                        <code class="fs-11 text-muted"><a href="{{ route('products.show', $component->product_id) }}">{{ $component->sku }}</a></code>
+                                                    @else
+                                                        <code class="fs-11 text-muted">{{ $component->sku }}</code>
+                                                    @endif
+                                                </td>
                                                 <td class="text-center">{{ $component->quantity }}</td>
                                                 <td class="text-end text-muted">-</td>
                                                 <td class="text-end text-muted">-</td>
@@ -305,7 +317,9 @@
                                                 @endif
                                             </td>
                                             <td>
-                                                @if($item->sku)
+                                                @if($item->sku && $item->product)
+                                                    <code class="fs-11"><a href="{{ route('products.show', $item->product_id) }}">{{ $item->sku }}</a></code>
+                                                @elseif($item->sku)
                                                     <code class="fs-11">{{ $item->sku }}</code>
                                                 @else
                                                     <span class="text-muted fs-11">-</span>
@@ -926,7 +940,11 @@
                                             <tr>
                                                 <td>
                                                     <strong>{{ \Illuminate\Support\Str::limit($item->title, 40) }}</strong>
-                                                    <span class="d-block text-muted fs-11">{{ $item->sku ?? 'N/A' }}</span>
+                                                    @if($item->sku && $item->product)
+                                                        <a href="{{ route('products.show', $item->product_id) }}" class="d-block fs-11">{{ $item->sku }}</a>
+                                                    @else
+                                                        <span class="d-block text-muted fs-11">{{ $item->sku ?? 'N/A' }}</span>
+                                                    @endif
                                                 </td>
                                                 <td class="text-center">{{ $item->quantity }}</td>
                                                 <td class="text-end">${{ number_format($item->unit_price ?? 0, 2) }}</td>

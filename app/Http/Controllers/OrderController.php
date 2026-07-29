@@ -141,6 +141,7 @@ class OrderController extends Controller
             ]);
         }
 
+        // return $orders;
         return view('orders.index', compact('orders', 'salesChannels', 'shippingCarriers', 'perPage'));
     }
 
