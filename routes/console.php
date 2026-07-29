@@ -15,10 +15,6 @@ Artisan::command('inspire', function () {
 |--------------------------------------------------------------------------
 */
 
-// Automatically runs the queue worker every minute cleanly via internal code routing
-Schedule::command('queue:work database --queue=ebay-imports,inventory-sync,default --stop-when-empty --max-time=50 --timeout=1800')
-    ->everyMinute();
-
 // Check delivery status for shipped orders every 2 hours
 Schedule::command('orders:check-delivery-status --limit=100')
     ->everyTwoHours()
@@ -57,3 +53,7 @@ Schedule::command('ebay:sync-finances')
     ->appendOutputTo(storage_path('logs/ebay-finance-sync.log'));
 
 Schedule::command('queue:release-stale')->everyFiveMinutes();
+
+// Automatically runs the queue worker every minute cleanly via internal code routing
+Schedule::command('queue:work database --queue=ebay-imports,inventory-sync,default --stop-when-empty --max-time=50 --timeout=1800')
+    ->everyMinute();
