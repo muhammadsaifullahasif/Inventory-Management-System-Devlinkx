@@ -127,29 +127,29 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
-        // eBay notification and API logs
+        // eBay notification and API logs (errors only)
         'ebay' => [
             'driver' => 'daily',
             'path' => storage_path('logs/ebay/ebay.log'),
-            'level' => 'debug',
+            'level' => 'error',
             'days' => 30, // Keep logs for 30 days for notification analysis
             'replace_placeholders' => true,
         ],
 
-        // eBay Finances API sync logs (detailed transaction/fee responses)
+        // eBay Finances API sync logs (errors only)
         'ebay-finance-sync' => [
             'driver' => 'daily',
             'path' => storage_path('logs/ebay/finance-sync.log'),
-            'level' => 'debug',
+            'level' => 'error',
             'days' => 30,
             'replace_placeholders' => true,
         ],
 
-        // eBay order status sync logs (detailed order responses)
+        // eBay order status sync logs (errors only)
         'ebay-order-sync' => [
             'driver' => 'daily',
             'path' => storage_path('logs/ebay/order-status-sync.log'),
-            'level' => 'debug',
+            'level' => 'error',
             'days' => 14,
             'replace_placeholders' => true,
         ],
