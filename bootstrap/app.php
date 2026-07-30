@@ -19,5 +19,11 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Capture context for every logged exception
+        $exceptions->withContext(function (Throwable $e) {
+            return [
+                'executed_from_file' => $e->getFile(), 
+                'executed_at_line' => $e->getLine(), 
+            ];
+        });
     })->create();
