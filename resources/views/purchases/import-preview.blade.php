@@ -217,7 +217,7 @@
                                             {{ $product['product_name'] ?? 'Unknown Product' }}
                                         </td>
                                         <td>
-                                            <select name="purchases[{{ $index }}][products][{{ $pIndex }}][rack_id]" class="form-select form-select-sm rack-select">
+                                            <select name="purchases[{{ $index }}][products][{{ $pIndex }}][rack_id]" class="form-select form-select-sm rack-select" required>
                                                 <option value="">Select Rack</option>
                                                 @if (isset($purchase['warehouse_id']) && isset($racks[$purchase['warehouse_id']]))
                                                     @foreach ($racks[$purchase['warehouse_id']] as $rack)

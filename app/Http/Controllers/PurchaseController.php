@@ -909,10 +909,18 @@ class PurchaseController extends Controller
 
     /**
      * Store imported purchases.
-     * Imported purchases are marked as fully received and stock is added immediately.
+     * Imported purchases are created as 'pending' only - no stock is added.
+     * Stock is added later via the manual Receive Stock flow, same as manually-created purchases.
      */
     public function import_purchases_store(Request $request)
     {
+        $request->validate([
+            'purchases.*.products.*.rack_id' => 'required|exists:racks,id',
+        ], [
+            'purchases.*.products.*.rack_id.required' => 'Select a rack for every product before importing.',
+            'purchases.*.products.*.rack_id.exists'   => 'One of the selected racks is invalid.',
+        ]);
+
         try {
             DB::beginTransaction();
 
@@ -921,8 +929,6 @@ class PurchaseController extends Controller
             if (empty($purchases)) {
                 return redirect()->route('purchases.import')->with('error', 'No purchases to import.');
             }
-
-            $productsToSync = [];
 
             // Initialize inventory accounting service
             $inventoryAccountingService = new InventoryAccountingService();
@@ -933,7 +939,7 @@ class PurchaseController extends Controller
                     continue;
                 }
 
-                // Create the purchase with 'received' status (imported = already received)
+                // Create the purchase with pending status - stock is added later via Receive Stock
                 $purchase = Purchase::create([
                     'purchase_number' => $purchase_row['purchase_number'],
                     'supplier_id'     => $purchase_row['supplier_id'],
@@ -941,13 +947,10 @@ class PurchaseController extends Controller
                     'purchase_note'   => $purchase_row['purchase_note'] ?? null,
                     'duties_customs'  => $purchase_row['duties_customs'] ?? 0,
                     'freight_charges' => $purchase_row['freight_charges'] ?? 0,
-                    'purchase_status' => 'received',
+                    'purchase_status' => 'pending',
                 ]);
 
-                // Load supplier for accounting
-                $purchase->load('supplier');
-
-                // Create purchase items
+                // Create purchase items (no stock added yet - will be added on receive)
                 $products = $purchase_row['products'] ?? [];
 
                 foreach ($products as $productInput) {
@@ -961,78 +964,29 @@ class PurchaseController extends Controller
                         continue;
                     }
 
-                    $incomingQty   = (float) ($productInput['quantity'] ?? 1);
-                    $purchasePrice = (float) ($productInput['price'] ?? 0);
-                    $warehouseId   = $purchase_row['warehouse_id'];
-                    $rackId        = $productInput['rack_id'] ?? null;
-
-                    // Create purchase item - mark as fully received
-                    $purchaseItem = $purchase->purchase_items()->create([
+                    $purchase->purchase_items()->create([
                         'product_id'        => $product->id,
                         'barcode'           => $product->barcode ?? '',
                         'sku'               => $product->sku ?? '',
                         'name'              => $product->name,
-                        'quantity'          => $incomingQty,
-                        'received_quantity' => $incomingQty, // Fully received
-                        'received_at'       => now(),
-                        'price'             => $purchasePrice,
+                        'quantity'          => (float) ($productInput['quantity'] ?? 1),
+                        'received_quantity' => 0,
+                        'price'             => (float) ($productInput['price'] ?? 0),
                         'note'              => $productInput['note'] ?? null,
-                        'rack_id'           => $rackId,
+                        'rack_id'           => $productInput['rack_id'],
                     ]);
-
-                    // Calculate new weighted average cost
-                    $newAvgCost = $inventoryAccountingService->calculateWeightedAverageCost(
-                        $product->id,
-                        $incomingQty,
-                        $purchasePrice
-                    );
-
-                    // Add to stock
-                    $stockQuery = $product->product_stocks()
-                        ->where('warehouse_id', $warehouseId);
-
-                    if ($rackId) {
-                        $stockQuery->where('rack_id', $rackId);
-                    } else {
-                        $stockQuery->whereNull('rack_id');
-                    }
-
-                    $existingStock = $stockQuery->first();
-
-                    if ($existingStock) {
-                        $existingStock->quantity = (float) $existingStock->quantity + $incomingQty;
-                        $existingStock->avg_cost = $newAvgCost;
-                        $existingStock->save();
-                    } else {
-                        $product->product_stocks()->create([
-                            'warehouse_id'  => $warehouseId,
-                            'rack_id'       => $rackId,
-                            'quantity'      => $incomingQty,
-                            'avg_cost'      => $newAvgCost,
-                            'active_status' => '1',
-                            'delete_status' => '0',
-                        ]);
-                    }
-
-                    // Update avg_cost on all ProductStock records for this product
-                    $inventoryAccountingService->updateProductStockCost($product->id, $newAvgCost);
-
-                    $productsToSync[$product->id] = $product;
                 }
 
-                // Record Purchase Bill (includes all items, duties and freight)
-                $purchase->load('purchase_items');
+                // Load supplier for accounting
+                $purchase->load('supplier', 'purchase_items');
+
+                // Record Purchase Bill (creates liability in Accounts Payable) - same as manual creation
                 $inventoryAccountingService->recordPurchaseBill($purchase);
             }
 
             DB::commit();
 
-            // Sync inventory to all linked sales channels
-            foreach ($productsToSync as $productToSync) {
-                ProductController::syncProductInventoryToChannels($productToSync);
-            }
-
-            return redirect()->route('purchases.index')->with('success', 'Purchase(s) imported and received successfully. Accounting entries recorded.');
+            return redirect()->route('purchases.index')->with('success', 'Purchase(s) imported successfully. Use "Receive Stock" to add items to inventory.');
 
         } catch (\Exception $e) {
             DB::rollBack();
