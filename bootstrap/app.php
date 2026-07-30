@@ -19,12 +19,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
         ]);
     })
-    ->withExceptions(function (Exceptions $exceptions): void {
+    ->withExceptions(function (Exceptions $exceptions) {
         // Capture context for every logged exception
         $exceptions->withContext(function (Throwable $e) {
             return [
-                'executed_from_file' => $e->getFile(), 
-                'executed_at_line' => $e->getLine(), 
+                'executed_from_file' => $e->getFile(),
+                'executed_at_line' => $e->getLine(),
             ];
         });
     })->create();
