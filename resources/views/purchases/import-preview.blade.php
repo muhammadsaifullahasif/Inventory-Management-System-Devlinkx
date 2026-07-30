@@ -236,7 +236,7 @@
                                             <input type="text" name="purchases[{{ $index }}][products][{{ $pIndex }}][note]" class="form-control form-control-sm" value="{{ $product['note'] ?? '' }}" placeholder="Note">
                                         </td>
                                         <td>
-                                            <span class="subtotal fw-semibold">{{ number_format(($product['quantity'] ?? 1) * ($product['price'] ?? 0), 2) }}</span>
+                                            <span class="subtotal fw-semibold">{{ number_format(($product['quantity'] ?? 1) * ($product['price'] ?? 0), 2, '.', '') }}</span>
                                         </td>
                                         <td class="text-center">
                                             <a href="javascript:void(0)" class="text-danger remove-product-btn">
@@ -402,7 +402,7 @@ $(document).ready(function(){
     function calculatePurchaseTotal(card) {
         var itemsTotal = 0;
         card.find('.subtotal').each(function(){
-            itemsTotal += parseFloat($(this).text()) || 0;
+            itemsTotal += parseFloat($(this).text().replace(/,/g, '')) || 0;
         });
 
         var dutiesCustoms = parseFloat(card.find('.duties-input').val()) || 0;
@@ -418,7 +418,7 @@ $(document).ready(function(){
     function calculateGrandTotal() {
         var grandTotal = 0;
         $('.purchase-total').each(function(){
-            var val = $(this).text().replace('$', '').replace(',', '');
+            var val = $(this).text().replace('$', '').replace(/,/g, '');
             grandTotal += parseFloat(val) || 0;
         });
         $('#grandTotal').text('$' + grandTotal.toFixed(2));
