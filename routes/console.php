@@ -56,4 +56,4 @@ Schedule::command('queue:release-stale')->everyFiveMinutes();
 
 // Automatically runs the queue worker every minute cleanly via internal code routing
 Schedule::command('queue:work database --queue=ebay-imports,inventory-sync,default --stop-when-empty --max-time=50 --timeout=1800')
-    ->everyMinute();
+    ->everyFiveMinutes();
