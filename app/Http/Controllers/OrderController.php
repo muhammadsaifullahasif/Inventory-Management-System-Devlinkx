@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use App\Services\ShippingService;
 use App\Services\Ebay\EbayFinanceSyncService;
+use Maatwebsite\Excel\Facades\Excel;
 
 class OrderController extends Controller
 {
@@ -822,9 +823,9 @@ class OrderController extends Controller
     }
 
     /**
-     * Display returns, cancellations, and refunds management page
+     * Build the filtered/sorted query shared by the Returns & Refunds page and its export.
      */
-    public function returnsRefunds(Request $request)
+    protected function buildReturnsRefundsQuery(Request $request)
     {
         $query = Order::with(['items', 'salesChannel', 'returns.items.orderItem'])
             ->where(function ($q) {
@@ -953,6 +954,29 @@ class OrderController extends Controller
         } else {
             $query->orderByRaw('COALESCE(return_requested_at, cancellation_requested_at, refund_initiated_at, updated_at) DESC');
         }
+
+        return $query;
+    }
+
+    /**
+     * Export the Returns & Refunds list (same filters as the page) to Excel.
+     */
+    public function exportReturnsRefunds(Request $request)
+    {
+        $orders = $this->buildReturnsRefundsQuery($request)->get();
+
+        return Excel::download(
+            new \App\Exports\ReturnsRefundsExport($orders),
+            'returns-refunds-' . now()->format('Y-m-d') . '.xlsx'
+        );
+    }
+
+    /**
+     * Display returns, cancellations, and refunds management page
+     */
+    public function returnsRefunds(Request $request)
+    {
+        $query = $this->buildReturnsRefundsQuery($request);
 
         $perPage = $request->input('per_page', 20);
         $orders = $query->paginate($perPage);

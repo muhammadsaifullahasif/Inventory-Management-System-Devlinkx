@@ -124,6 +124,10 @@
                         <i class="feather-x me-2"></i>
                         Clear
                     </a>
+                    <a href="{{ route('orders.returns-refunds.export', request()->query()) }}" class="btn btn-success btn-sm">
+                        <i class="feather-download me-2"></i>
+                        Export
+                    </a>
                 </div>
             </form>
         </div>
@@ -166,6 +170,7 @@
                                 </th>
                             @endforeach
                             <th>Return Items / Restock</th>
+                            <th>Refund Initiated</th>
                             <th>
                                 @php
                                     $isActive = $currentSort === 'refund';
@@ -251,6 +256,13 @@
                                     @endforelse
                                 </td>
                                 <td>
+                                    @if($order->refund_initiated_at)
+                                        {{ $order->refund_initiated_at->format('M d, Y H:i') }}
+                                    @else
+                                        <span class="text-muted fs-11">—</span>
+                                    @endif
+                                </td>
+                                <td>
                                     @if($order->total_refunded > 0)
                                         <strong>{{ $order->currency ?? 'USD' }} {{ number_format($order->total_refunded, 2) }}</strong>
                                         <div class="fs-11 text-muted">of {{ number_format($order->total, 2) }}</div>
@@ -269,7 +281,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">No returns, cancellations, or refunds found.</td>
+                                <td colspan="8" class="text-center text-muted py-4">No returns, cancellations, or refunds found.</td>
                             </tr>
                         @endforelse
                     </tbody>
