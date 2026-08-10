@@ -89,18 +89,20 @@ class JournalEntry extends Model
         $year = date('Y');
         $month = date('m');
 
+        $prefixLength = strlen($prefix . $year . $month);
+
         $lastEntry = static::whereYear('created_at', $year)
             ->whereMonth('created_at', $month)
-            ->orderBy('id', 'desc')
+            ->orderByRaw('CAST(SUBSTRING(entry_number, ' . ($prefixLength + 1) . ') AS UNSIGNED) desc')
             ->first();
 
         if ($lastEntry) {
-            $lastNumber = intval(substr($lastEntry->entry_number, -4));
+            $lastNumber = intval(substr($lastEntry->entry_number, $prefixLength));
             $newNumber = $lastNumber + 1;
         } else {
             $newNumber = 1;
         }
 
-        return $prefix . $year . $month . str_pad($newNumber, 4, '0', STR_PAD_RIGHT);
+        return $prefix . $year . $month . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
     }
 }
