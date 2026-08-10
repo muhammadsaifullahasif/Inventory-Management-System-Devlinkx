@@ -115,8 +115,7 @@ class InventoryAccountingService
         // Use supplier's specific payable account if set
         $supplierPayableId = $purchase->supplier->payable_account_id ?? $payablesAccount->id;
 
-        $journalEntry = JournalEntry::create([
-            'entry_number' => JournalEntry::generateEntryNumber(),
+        $journalEntry = JournalEntry::createWithAutoNumber([
             'entry_date' => now(),
             'reference_type' => 'purchase_charges',
             'reference_id' => $purchase->id,
@@ -239,8 +238,7 @@ class InventoryAccountingService
         }
 
         // Create Journal Entry linked to the Bill
-        $journalEntry = JournalEntry::create([
-            'entry_number' => JournalEntry::generateEntryNumber(),
+        $journalEntry = JournalEntry::createWithAutoNumber([
             'entry_date' => $purchase->created_at ?? now(),
             'reference_type' => 'bill',
             'reference_id' => $bill->id,
@@ -389,8 +387,7 @@ class InventoryAccountingService
         // Use supplier's specific payable account if set
         $supplierPayableId = $purchase->supplier->payable_account_id ?? $payablesAccount->id;
 
-        $journalEntry = JournalEntry::create([
-            'entry_number' => JournalEntry::generateEntryNumber(),
+        $journalEntry = JournalEntry::createWithAutoNumber([
             'entry_date' => now(),
             'reference_type' => 'purchase_receipt',
             'reference_id' => $purchase->id,
@@ -451,8 +448,7 @@ class InventoryAccountingService
             return null; // Don't create journal entry for zero value
         }
 
-        $journalEntry = JournalEntry::create([
-            'entry_number' => JournalEntry::generateEntryNumber(),
+        $journalEntry = JournalEntry::createWithAutoNumber([
             'entry_date' => now(),
             'reference_type' => 'order_fulfillment',
             'reference_id' => $order->id,
@@ -519,8 +515,7 @@ class InventoryAccountingService
         // Get channel name for narration
         $channelName = $order->salesChannel ? $order->salesChannel->name : 'Direct';
 
-        $journalEntry = JournalEntry::create([
-            'entry_number' => JournalEntry::generateEntryNumber(),
+        $journalEntry = JournalEntry::createWithAutoNumber([
             'entry_date' => now(),
             'reference_type' => 'order_sale',
             'reference_id' => $order->id,
@@ -614,8 +609,7 @@ class InventoryAccountingService
         // Get channel name for narration
         $channelName = $order->salesChannel ? $order->salesChannel->name : 'Direct';
 
-        $journalEntry = JournalEntry::create([
-            'entry_number' => JournalEntry::generateEntryNumber(),
+        $journalEntry = JournalEntry::createWithAutoNumber([
             'entry_date' => now(),
             'reference_type' => 'order_cancellation',
             'reference_id' => $order->id,
@@ -678,8 +672,7 @@ class InventoryAccountingService
             return null;
         }
 
-        $journalEntry = JournalEntry::create([
-            'entry_number' => JournalEntry::generateEntryNumber(),
+        $journalEntry = JournalEntry::createWithAutoNumber([
             'entry_date' => now(),
             'reference_type' => 'order_cancellation',
             'reference_id' => $order->id,
@@ -739,8 +732,7 @@ class InventoryAccountingService
 
         $supplierPayableId = $purchase->supplier->payable_account_id ?? $payablesAccount->id;
 
-        $journalEntry = JournalEntry::create([
-            'entry_number' => JournalEntry::generateEntryNumber(),
+        $journalEntry = JournalEntry::createWithAutoNumber([
             'entry_date' => now(),
             'reference_type' => 'purchase_reversal',
             'reference_id' => $purchase->id,

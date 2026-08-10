@@ -105,4 +105,25 @@ class JournalEntry extends Model
 
         return $prefix . $year . $month . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
     }
+
+    /**
+     * Create a journal entry with an auto-generated entry_number, retrying on
+     * collision - concurrent writers (live order fulfillment vs. a batch sync
+     * command, for example) can both read the same "last number" before either
+     * commits, so a single generate-then-insert isn't safe under concurrency.
+     */
+    public static function createWithAutoNumber(array $attributes, int $maxAttempts = 10): self
+    {
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            try {
+                return static::create(array_merge($attributes, [
+                    'entry_number' => static::generateEntryNumber(),
+                ]));
+            } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+                if ($attempt >= $maxAttempts) {
+                    throw $e;
+                }
+            }
+        }
+    }
 }

@@ -99,8 +99,7 @@ class PaymentService
         // Get payable account
         $payableAccountId = $this->getPayableAccountId($bill->supplier);
 
-        $journalEntry = JournalEntry::create([
-            'entry_number' => JournalEntry::generateEntryNumber(),
+        $journalEntry = JournalEntry::createWithAutoNumber([
             'entry_date' => $payment->payment_date,
             'reference_type' => 'payment',
             'reference_id' => $payment->id,

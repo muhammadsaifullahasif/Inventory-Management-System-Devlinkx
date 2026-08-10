@@ -161,8 +161,7 @@ class BillService
         $payableAccountId = $this->getPayableAccountId($bill->supplier);
 
         // Crete journal entry
-        $journalEntry = JournalEntry::create([
-            'entry_number' => JournalEntry::generateEntryNumber(),
+        $journalEntry = JournalEntry::createWithAutoNumber([
             'entry_date' => $bill->bill_date,
             'reference_type' => 'bill',
             'reference_id' => $bill->id,
