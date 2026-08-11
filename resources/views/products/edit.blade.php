@@ -49,6 +49,26 @@
                 <form action="{{ route('products.update', $product->id) }}" method="post" enctype="multipart/form-data">
                     @csrf
                     @method('PUT')
+
+                    <!-- Tabs -->
+                    <ul class="nav nav-tabs mb-4" id="productTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="product-details-tab" data-bs-toggle="tab" data-bs-target="#product-details" type="button" role="tab">
+                                <i class="feather-info me-1"></i>Product Details
+                            </button>
+                        </li>
+                        @foreach($salesChannels ?? [] as $channel)
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="channel-{{ $channel->id }}-tab" data-bs-toggle="tab" data-bs-target="#channel-{{ $channel->id }}" type="button" role="tab">
+                                    <i class="feather-shopping-bag me-1"></i>{{ $channel->name }}
+                                </button>
+                            </li>
+                        @endforeach
+                    </ul>
+
+                    <div class="tab-content" id="productTabContent">
+                    <div class="tab-pane fade show active" id="product-details" role="tabpanel">
+
                     <div class="row">
                         <div class="col-md-6 mb-4">
                             <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
@@ -199,42 +219,47 @@
                         </div>
                     </div>
 
-                    <!-- Sales Channels Section -->
+                    </div>
+                    <!-- /Product Details tab-pane -->
+
+                    <!-- Sales Channel Tabs -->
                     @if(isset($salesChannels) && $salesChannels->count() > 0)
                     @php
                         $productChannelIds = $product->sales_channels->pluck('id')->toArray();
                         $productChannels = $product->sales_channels->keyBy('id');
                     @endphp
-                    <div class="card mb-4">
-                        <div class="card-header bg-soft-info">
-                            <h6 class="card-title mb-0"><i class="feather-shopping-bag me-2"></i>Sales Channels</h6>
-                        </div>
-                        <div class="card-body">
+                    @foreach($salesChannels as $channel)
+                        @php
+                            $isListed = in_array($channel->id, $productChannelIds);
+                            $channelData = $isListed ? $productChannels->get($channel->id) : null;
+                            $listingStatus = $channelData?->pivot?->listing_status ?? 'not_listed';
+                            $listingUrl = $channelData?->pivot?->listing_url ?? null;
+                            $externalId = $channelData?->pivot?->external_listing_id ?? null;
+                            $lastSynced = $channelData?->pivot?->last_synced_at ?? null;
+
+                            $statusBadge = match($listingStatus) {
+                                'active' => '<span class="badge bg-soft-success text-success">Active</span>',
+                                'draft' => '<span class="badge bg-soft-warning text-warning">Draft</span>',
+                                'ended' => '<span class="badge bg-soft-secondary text-secondary">Ended</span>',
+                                'pending' => '<span class="badge bg-soft-info text-info">Pending</span>',
+                                'error' => '<span class="badge bg-soft-danger text-danger">Error</span>',
+                                default => '<span class="badge bg-soft-secondary text-secondary">Not Listed</span>',
+                            };
+                        @endphp
+                        <div class="tab-pane fade" id="channel-{{ $channel->id }}" role="tabpanel">
                             <p class="text-muted mb-3">
                                 <strong>Check</strong> to list/activate | <strong>Uncheck</strong> to end/draft listing
                             </p>
-                            <div class="row">
-                                @foreach($salesChannels as $channel)
-                                    @php
-                                        $isListed = in_array($channel->id, $productChannelIds);
-                                        $channelData = $isListed ? $productChannels->get($channel->id) : null;
-                                        $listingStatus = $channelData?->pivot?->listing_status ?? 'not_listed';
-                                        $listingUrl = $channelData?->pivot?->listing_url ?? null;
-                                        $externalId = $channelData?->pivot?->external_listing_id ?? null;
-                                        $lastSynced = $channelData?->pivot?->last_synced_at ?? null;
-
-                                        $statusBadge = match($listingStatus) {
-                                            'active' => '<span class="badge bg-soft-success text-success">Active</span>',
-                                            'draft' => '<span class="badge bg-soft-warning text-warning">Draft</span>',
-                                            'ended' => '<span class="badge bg-soft-secondary text-secondary">Ended</span>',
-                                            'pending' => '<span class="badge bg-soft-info text-info">Pending</span>',
-                                            'error' => '<span class="badge bg-soft-danger text-danger">Error</span>',
-                                            default => '<span class="badge bg-soft-secondary text-secondary">Not Listed</span>',
-                                        };
-                                    @endphp
-                                    <div class="col-md-6 mb-3">
-                                        <div class="card {{ $isListed ? 'border-success' : '' }}">
-                                            <div class="card-body p-3">
+                            <div class="table-responsive">
+                                <table class="table table-bordered mb-0">
+                                    <tbody>
+                                        <tr>
+                                            <th style="width: 220px;">Channel Name</th>
+                                            <td>{{ $channel->name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>List / Activate</th>
+                                            <td>
                                                 <div class="form-check form-switch">
                                                     <input type="checkbox"
                                                            class="form-check-input"
@@ -242,50 +267,62 @@
                                                            name="sales_channels[]"
                                                            value="{{ $channel->id }}"
                                                            {{ in_array($channel->id, old('sales_channels', $productChannelIds)) ? 'checked' : '' }}>
-                                                    <label class="form-check-label fw-semibold" for="sales_channel_{{ $channel->id }}">
-                                                        {{ $channel->name }}
+                                                    <label class="form-check-label" for="sales_channel_{{ $channel->id }}">
+                                                        {{ $isListed ? 'Listed' : 'Not Listed' }}
                                                     </label>
                                                 </div>
-                                                <div class="mt-2">
-                                                    <span class="fs-12">
-                                                        Status: {!! $statusBadge !!}
-                                                        @if($channel->hasValidToken())
-                                                            <span class="badge bg-soft-success text-success ms-1">Connected</span>
-                                                        @else
-                                                            <span class="badge bg-soft-warning text-warning ms-1">Not Connected</span>
-                                                        @endif
-                                                    </span>
-                                                </div>
-                                                @if($externalId)
-                                                    <div class="mt-1">
-                                                        <span class="text-muted fs-11">Listing ID: {{ $externalId }}</span>
-                                                    </div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>Connection Status</th>
+                                            <td>
+                                                @if($channel->hasValidToken())
+                                                    <span class="badge bg-soft-success text-success">Connected</span>
+                                                @else
+                                                    <span class="badge bg-soft-warning text-warning">Not Connected</span>
                                                 @endif
-                                                @if($listingUrl)
-                                                    <div class="mt-2">
-                                                        <a href="{{ $listingUrl }}" target="_blank" class="btn btn-sm btn-light-brand">
-                                                            <i class="feather-external-link me-1"></i>View Listing
-                                                        </a>
-                                                    </div>
-                                                @endif
-                                                @if($lastSynced)
-                                                    <div class="mt-1">
-                                                        <span class="text-muted fs-11">Last synced: {{ \Carbon\Carbon::parse($lastSynced)->diffForHumans() }}</span>
-                                                    </div>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endforeach
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>Listing Status</th>
+                                            <td>{!! $statusBadge !!}</td>
+                                        </tr>
+                                        @if($externalId)
+                                        <tr>
+                                            <th>Listing ID</th>
+                                            <td>{{ $externalId }}</td>
+                                        </tr>
+                                        @endif
+                                        @if($listingUrl)
+                                        <tr>
+                                            <th>Listing URL</th>
+                                            <td>
+                                                <a href="{{ $listingUrl }}" target="_blank" class="btn btn-sm btn-light-brand">
+                                                    <i class="feather-external-link me-1"></i>View Listing
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        @endif
+                                        @if($lastSynced)
+                                        <tr>
+                                            <th>Last Synced</th>
+                                            <td>{{ \Carbon\Carbon::parse($lastSynced)->diffForHumans() }}</td>
+                                        </tr>
+                                        @endif
+                                    </tbody>
+                                </table>
                             </div>
                             @error('sales_channels')
                                 <span class="text-danger">{{ $message }}</span>
                             @enderror
                         </div>
-                    </div>
+                    @endforeach
                     @endif
 
-                    <div class="d-flex gap-2">
+                    </div>
+                    <!-- /tab-content -->
+
+                    <div class="d-flex gap-2 mt-4">
                         <button type="submit" class="btn btn-primary">
                             <i class="feather-save me-2"></i>Update Product
                         </button>

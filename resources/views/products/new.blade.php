@@ -42,6 +42,25 @@
                 <form action="{{ route('products.store') }}" method="post" enctype="multipart/form-data">
                     @csrf
 
+                    <!-- Tabs -->
+                    <ul class="nav nav-tabs mb-4" id="productTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="product-details-tab" data-bs-toggle="tab" data-bs-target="#product-details" type="button" role="tab">
+                                <i class="feather-info me-1"></i>Product Details
+                            </button>
+                        </li>
+                        @foreach($salesChannels ?? [] as $channel)
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="channel-{{ $channel->id }}-tab" data-bs-toggle="tab" data-bs-target="#channel-{{ $channel->id }}" type="button" role="tab">
+                                    <i class="feather-shopping-bag me-1"></i>{{ $channel->name }}
+                                </button>
+                            </li>
+                        @endforeach
+                    </ul>
+
+                    <div class="tab-content" id="productTabContent">
+                    <div class="tab-pane fade show active" id="product-details" role="tabpanel">
+
                     <div class="row">
                         <div class="col-md-6 mb-4">
                             <label for="name" class="form-label">Name <span class="text-danger">*</span></label>
@@ -192,7 +211,45 @@
                         </div>
                     </div>
 
-                    <div class="d-flex gap-2">
+                    </div>
+                    <!-- /Product Details tab-pane -->
+
+                    @foreach($salesChannels ?? [] as $channel)
+                        <div class="tab-pane fade" id="channel-{{ $channel->id }}" role="tabpanel">
+                            <div class="alert alert-light-info mb-3">
+                                <i class="feather-info me-2"></i>Save the product first to manage its listing on this sales channel.
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-bordered mb-0">
+                                    <tbody>
+                                        <tr>
+                                            <th style="width: 220px;">Channel Name</th>
+                                            <td>{{ $channel->name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Connection Status</th>
+                                            <td>
+                                                @if($channel->hasValidToken())
+                                                    <span class="badge bg-soft-success text-success">Connected</span>
+                                                @else
+                                                    <span class="badge bg-soft-warning text-warning">Not Connected</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>Listing Status</th>
+                                            <td><span class="badge bg-soft-secondary text-secondary">Not Listed</span></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    @endforeach
+
+                    </div>
+                    <!-- /tab-content -->
+
+                    <div class="d-flex gap-2 mt-4">
                         <button type="submit" class="btn btn-primary">
                             <i class="feather-save me-2"></i>Save Product
                         </button>

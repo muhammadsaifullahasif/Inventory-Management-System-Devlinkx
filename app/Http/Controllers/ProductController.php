@@ -311,9 +311,8 @@ class ProductController extends Controller
             ->where('delete_status', '0')
             ->orderBy('name')
             ->get();
-        // $salesChannels = SalesChannel::where('active_status', 1)->get();
-        // return view('products.new', compact('categories', 'brands', 'salesChannels', 'products', 'warehouses'));
-        return view('products.new', compact('categories', 'brands', 'products', 'warehouses'));
+        $salesChannels = SalesChannel::where('active_status', 1)->orderBy('name')->get();
+        return view('products.new', compact('categories', 'brands', 'salesChannels', 'products', 'warehouses'));
     }
 
     /**
@@ -518,7 +517,7 @@ class ProductController extends Controller
         $categories = Category::all();
         $brands = Brand::all();
         $warehouses = Warehouse::where('active_status', '1')->where('delete_status', '0')->get();
-        $salesChannels = SalesChannel::where('active_status', 1)->get();
+        $salesChannels = SalesChannel::where('active_status', 1)->orderBy('name')->get();
         // Get all non-bundle products for bundle components
         $products = Product::where('is_bundle', false)
             ->where('active_status', '1')
