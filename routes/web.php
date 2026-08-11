@@ -263,6 +263,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/orders-statistics', [OrderController::class, 'statistics'])->name('orders.statistics');
     Route::get('/orders-returns-refunds', [OrderController::class, 'returnsRefunds'])->name('orders.returns-refunds');
     Route::get('/orders-returns-refunds/export', [OrderController::class, 'exportReturnsRefunds'])->name('orders.returns-refunds.export');
+    Route::get('/orders-unmatched-skus', [OrderController::class, 'unmatchedSkus'])->name('orders.unmatched-skus');
 
     // Returns (manual + eBay, restock-tracked)
     Route::post('/orders/{orderId}/returns', [OrderReturnController::class, 'store'])->name('orders.returns.store');

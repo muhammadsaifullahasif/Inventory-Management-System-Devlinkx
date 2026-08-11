@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Exception;
 use Carbon\Carbon;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Shipping;
 use App\Models\SalesChannel;
 use Illuminate\Http\Request;
@@ -1003,6 +1004,58 @@ class OrderController extends Controller
         ];
 
         return view('orders.returns-refunds', compact('orders', 'salesChannels', 'stats'));
+    }
+
+    /**
+     * List order items whose SKU didn't match any product SKU in the system.
+     */
+    public function unmatchedSkus(Request $request)
+    {
+        $query = OrderItem::with(['order.salesChannel'])
+            ->whereNull('product_id')
+            ->whereNotNull('sku')
+            ->where('sku', '!=', '');
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('sku', 'like', "%{$search}%")
+                    ->orWhere('title', 'like', "%{$search}%")
+                    ->orWhereHas('order', function ($oq) use ($search) {
+                        $oq->where('order_number', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        if ($request->filled('sales_channel_id')) {
+            $query->whereHas('order', function ($oq) use ($request) {
+                $oq->where('sales_channel_id', $request->sales_channel_id);
+            });
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereHas('order', function ($oq) use ($request) {
+                $oq->whereDate('order_date', '>=', $request->date_from);
+            });
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereHas('order', function ($oq) use ($request) {
+                $oq->whereDate('order_date', '<=', $request->date_to);
+            });
+        }
+
+        $perPage = $request->input('per_page', 20);
+        $items = $query->orderBy('created_at', 'desc')->paginate($perPage)->withQueryString();
+
+        $salesChannels = SalesChannel::all();
+
+        $stats = [
+            'total_unmatched' => OrderItem::whereNull('product_id')->whereNotNull('sku')->where('sku', '!=', '')->count(),
+            'distinct_skus' => OrderItem::whereNull('product_id')->whereNotNull('sku')->where('sku', '!=', '')->distinct('sku')->count('sku'),
+        ];
+
+        return view('orders.unmatched-skus', compact('items', 'salesChannels', 'stats'));
     }
 
     /**

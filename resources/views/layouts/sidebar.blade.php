@@ -42,6 +42,9 @@
                             <li class="nxl-item {{ request()->routeIs('orders.returns-refunds') ? 'active' : '' }}">
                                 <a class="nxl-link" href="{{ route('orders.returns-refunds') }}">Returns &amp; Refunds</a>
                             </li>
+                            <li class="nxl-item {{ request()->routeIs('orders.unmatched-skus') ? 'active' : '' }}">
+                                <a class="nxl-link" href="{{ route('orders.unmatched-skus') }}">Unmatched SKUs</a>
+                            </li>
                             @endcan
                             {{-- <li class="nxl-item {{ request()->routeIs('reports.shipping-checklist') ? 'active' : '' }}">
                                 <a class="nxl-link" href="{{ route('reports.shipping-checklist') }}">Shipping Checklist</a>
