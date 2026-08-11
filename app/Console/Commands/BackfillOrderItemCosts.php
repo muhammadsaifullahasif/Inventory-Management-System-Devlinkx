@@ -44,7 +44,7 @@ class BackfillOrderItemCosts extends Command
                     ->orWhere('is_bundle_summary', true);
             })
             ->whereNotNull('product_id')
-            ->with(['order', 'product', 'bundleProduct'])
+            ->with(['order', 'product.bundleComponents', 'bundleProduct'])
             ->get();
 
         $this->info("Found {$items->count()} items with missing costs.");
@@ -65,7 +65,19 @@ class BackfillOrderItemCosts extends Command
         // Process regular products and bundle components first
         foreach ($regularItems as $item) {
             $itemType = $item->bundle_product_id ? '[Bundle Component]' : '';
-            $cost = $inventoryService->getLastPurchaseCost($item->product_id);
+
+            // A product can be flagged is_bundle *after* it was already sold as a plain
+            // line item (no bundle_product_id/is_bundle_summary split at sale time). Its
+            // own SKU never has purchase history - only the components do - so fall back
+            // to summing component costs, same as a bundle summary line would.
+            if (!$item->bundle_product_id && $item->product && $item->product->is_bundle) {
+                $itemType = '[Bundle - sold as single line]';
+                $cost = $item->product->bundleComponents->sum(function ($component) use ($inventoryService) {
+                    return $inventoryService->getLastPurchaseCost($component->component_product_id) * $component->quantity_required;
+                });
+            } else {
+                $cost = $inventoryService->getLastPurchaseCost($item->product_id);
+            }
 
             if ($cost > 0) {
                 if (!$dryRun) {
