@@ -1,5 +1,20 @@
 @extends('layouts.app')
 
+@push('styles')
+<style>
+    .sortable-header {
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .sortable-header:hover {
+        color: var(--bs-primary) !important;
+    }
+    .sortable-header.active {
+        color: var(--bs-primary) !important;
+    }
+</style>
+@endpush
+
 @section('header')
     <!-- [ page-header ] start -->
     <div class="page-header">
@@ -89,14 +104,40 @@
                 <table class="table table-hover align-middle">
                     <thead>
                         <tr>
-                            <th>SKU</th>
-                            <th>Title</th>
-                            <th>Order #</th>
-                            <th>Channel</th>
-                            <th>Order Date</th>
-                            <th class="text-end">Qty</th>
-                            <th class="text-end">Unit Price</th>
-                            <th class="text-end">Total</th>
+                            @php
+                                $currentSort = request('sort_by');
+                                $currentOrder = request('sort_order', 'asc');
+                                $sortableHeaders = [
+                                    'sku' => 'SKU',
+                                    'title' => 'Title',
+                                    'order_number' => 'Order #',
+                                    'channel' => 'Channel',
+                                    'order_date' => 'Order Date',
+                                    'quantity' => 'Qty',
+                                    'unit_price' => 'Unit Price',
+                                    'total_price' => 'Total',
+                                ];
+                                $endAligned = ['quantity', 'unit_price', 'total_price'];
+                            @endphp
+                            @foreach($sortableHeaders as $key => $label)
+                                <th class="{{ in_array($key, $endAligned) ? 'text-end' : '' }}">
+                                    @php
+                                        $isActive = $currentSort === $key;
+                                        $nextOrder = ($isActive && $currentOrder === 'asc') ? 'desc' : 'asc';
+                                        $sortUrl = request()->fullUrlWithQuery(['sort_by' => $key, 'sort_order' => $nextOrder]);
+                                    @endphp
+                                    <a href="{{ $sortUrl }}" class="d-flex align-items-center {{ in_array($key, $endAligned) ? 'justify-content-end' : '' }} text-dark text-decoration-none sortable-header {{ $isActive ? 'active fw-semibold' : '' }}">
+                                        {{ $label }}
+                                        <span class="ms-1">
+                                            @if($isActive)
+                                                <i class="feather-arrow-{{ $currentOrder === 'asc' ? 'up' : 'down' }} fs-12"></i>
+                                            @else
+                                                <i class="feather-chevrons-up fs-10 text-muted opacity-50"></i>
+                                            @endif
+                                        </span>
+                                    </a>
+                                </th>
+                            @endforeach
                             <th></th>
                         </tr>
                     </thead>

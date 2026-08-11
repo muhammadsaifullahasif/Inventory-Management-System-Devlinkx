@@ -1011,10 +1011,14 @@ class OrderController extends Controller
      */
     protected function buildUnmatchedSkusQuery(Request $request)
     {
-        $query = OrderItem::with(['order.salesChannel'])
-            ->whereNull('product_id')
-            ->whereNotNull('sku')
-            ->where('sku', '!=', '');
+        $query = OrderItem::query()
+            ->select('order_items.*')
+            ->leftJoin('orders', 'orders.id', '=', 'order_items.order_id')
+            ->leftJoin('sales_channels', 'sales_channels.id', '=', 'orders.sales_channel_id')
+            ->with(['order.salesChannel'])
+            ->whereNull('order_items.product_id')
+            ->whereNotNull('order_items.sku')
+            ->where('order_items.sku', '!=', '');
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -1045,7 +1049,25 @@ class OrderController extends Controller
             });
         }
 
-        return $query->orderBy('created_at', 'desc');
+        $sortableColumns = [
+            'sku' => 'order_items.sku',
+            'title' => 'order_items.title',
+            'order_number' => 'orders.order_number',
+            'channel' => 'sales_channels.name',
+            'order_date' => 'orders.order_date',
+            'quantity' => 'order_items.quantity',
+            'unit_price' => 'order_items.unit_price',
+            'total_price' => 'order_items.total_price',
+        ];
+
+        if ($request->filled('sort_by') && isset($sortableColumns[$request->sort_by])) {
+            $sortOrder = $request->input('sort_order', 'asc') === 'desc' ? 'desc' : 'asc';
+            $query->orderBy($sortableColumns[$request->sort_by], $sortOrder);
+        } else {
+            $query->orderBy('order_items.created_at', 'desc');
+        }
+
+        return $query;
     }
 
     /**
