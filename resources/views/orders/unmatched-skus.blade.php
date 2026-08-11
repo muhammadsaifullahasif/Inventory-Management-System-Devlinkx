@@ -101,7 +101,13 @@
                             <tr>
                                 <td><span class="fw-semibold text-danger">{{ $item->sku }}</span></td>
                                 <td>{{ $item->title }}</td>
-                                <td>{{ $item->order->order_number ?? '—' }}</td>
+                                <td>
+                                    @if($item->order)
+                                        <a href="{{ route('orders.show', $item->order_id) }}">{{ $item->order->order_number }}</a>
+                                    @else
+                                        —
+                                    @endif
+                                </td>
                                 <td>{{ $item->order->salesChannel->name ?? '—' }}</td>
                                 <td>{{ optional($item->order->order_date)->format('M d, Y') ?? '—' }}</td>
                                 <td class="text-end">{{ $item->quantity }}</td>
