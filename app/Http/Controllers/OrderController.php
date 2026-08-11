@@ -1007,9 +1007,9 @@ class OrderController extends Controller
     }
 
     /**
-     * List order items whose SKU didn't match any product SKU in the system.
+     * Build the base query for unmatched-SKU order items, shared by the page and export.
      */
-    public function unmatchedSkus(Request $request)
+    protected function buildUnmatchedSkusQuery(Request $request)
     {
         $query = OrderItem::with(['order.salesChannel'])
             ->whereNull('product_id')
@@ -1045,8 +1045,16 @@ class OrderController extends Controller
             });
         }
 
+        return $query->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * List order items whose SKU didn't match any product SKU in the system.
+     */
+    public function unmatchedSkus(Request $request)
+    {
         $perPage = $request->input('per_page', 20);
-        $items = $query->orderBy('created_at', 'desc')->paginate($perPage)->withQueryString();
+        $items = $this->buildUnmatchedSkusQuery($request)->paginate($perPage)->withQueryString();
 
         $salesChannels = SalesChannel::all();
 
@@ -1056,6 +1064,19 @@ class OrderController extends Controller
         ];
 
         return view('orders.unmatched-skus', compact('items', 'salesChannels', 'stats'));
+    }
+
+    /**
+     * Export the Unmatched SKUs list (same filters as the page) to Excel.
+     */
+    public function exportUnmatchedSkus(Request $request)
+    {
+        $items = $this->buildUnmatchedSkusQuery($request)->get();
+
+        return Excel::download(
+            new \App\Exports\UnmatchedSkusExport($items),
+            'unmatched-skus-' . now()->format('Y-m-d') . '.xlsx'
+        );
     }
 
     /**

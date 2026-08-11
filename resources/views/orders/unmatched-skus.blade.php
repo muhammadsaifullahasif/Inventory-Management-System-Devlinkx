@@ -73,6 +73,10 @@
                         <i class="feather-x me-2"></i>
                         Clear
                     </a>
+                    <a href="{{ route('orders.unmatched-skus.export', request()->query()) }}" class="btn btn-success btn-sm">
+                        <i class="feather-download me-2"></i>
+                        Export
+                    </a>
                 </div>
             </form>
         </div>
