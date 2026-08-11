@@ -33,10 +33,16 @@ class BackfillOrderItemCosts extends Command
 
         $this->info('Finding order items with zero or null cost_at_sale...');
 
-        // Find items with 0 or null cost that have inventory_updated = true
-        // Includes regular products, bundle components, and bundle summaries
+        // Find items with 0 or null cost. Regular items/components need inventory_updated
+        // = true (cost is only meaningful once stock was actually deducted). Bundle
+        // summaries are the exception - their cost is a rollup of already-updated
+        // components, so a summary stuck at inventory_updated = false (creation-time bug
+        // where the summary's own updateInventory() was never called) still qualifies.
         $items = OrderItem::whereRaw('(cost_at_sale = 0 OR cost_at_sale IS NULL)')
-            ->where('inventory_updated', true)
+            ->where(function ($q) {
+                $q->where('inventory_updated', true)
+                    ->orWhere('is_bundle_summary', true);
+            })
             ->whereNotNull('product_id')
             ->with(['order', 'product', 'bundleProduct'])
             ->get();
@@ -92,7 +98,7 @@ class BackfillOrderItemCosts extends Command
 
             if ($cost > 0) {
                 if (!$dryRun) {
-                    $item->update(['cost_at_sale' => $cost]);
+                    $item->update(['cost_at_sale' => $cost, 'inventory_updated' => true]);
                 }
 
                 $this->newLine();

@@ -2101,6 +2101,11 @@ class EbayOrderService
             }
         }
 
+        // Roll the component costs up into the summary line's cost_at_sale
+        if ($isPaid) {
+            $summaryItem->updateInventory();
+        }
+
         return $summaryItem;
     }
 
@@ -2248,7 +2253,7 @@ class EbayOrderService
         $bundleProduct->load('bundleComponents.product');
 
         // 1. Create bundle summary item (for display only, won't deduct inventory)
-        OrderItem::create([
+        $summaryItem = OrderItem::create([
             'order_id' => $order->id,
             'product_id' => $bundleProduct->id,
             'ebay_item_id' => $lineItem['item_id'],
@@ -2286,6 +2291,11 @@ class EbayOrderService
             if ($isPaid) {
                 $componentItem->updateInventory();
             }
+        }
+
+        // Roll the component costs up into the summary line's cost_at_sale
+        if ($isPaid) {
+            $summaryItem->updateInventory();
         }
     }
 }
