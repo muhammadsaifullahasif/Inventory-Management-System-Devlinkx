@@ -44,11 +44,38 @@ class PriceComparisonService
         return count($topSellers);
     }
 
+    private const MAX_TAG_TERMS = 5; // cap tags appended to query — too many terms over-narrows eBay's match
+
     protected function buildSearchKeyword(Product $product): string
     {
-        // Deliberately simple: use raw product name as the eBay query.
         // SKU/barcode are internal-only identifiers, not listed on eBay — searching them returns zero results.
-        return $product->name ?: '';
+        $name = trim($product->name ?? '');
+        if (empty($name)) {
+            return '';
+        }
+
+        $tags = $this->extractTags($product);
+        if (empty($tags)) {
+            return $name;
+        }
+
+        return trim($name . ' ' . implode(' ', $tags));
+    }
+
+    /**
+     * Product tags (stored as a comma-separated meta value) used to widen/sharpen
+     * the eBay search query alongside the product name.
+     */
+    protected function extractTags(Product $product): array
+    {
+        $raw = $product->product_meta['tags'] ?? null;
+        if (empty($raw)) {
+            return [];
+        }
+
+        $tags = array_values(array_filter(array_map('trim', explode(',', $raw))));
+
+        return array_slice($tags, 0, self::MAX_TAG_TERMS);
     }
 
     protected function fetchProductImageBase64(Product $product): ?string
