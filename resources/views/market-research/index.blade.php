@@ -134,6 +134,7 @@
                     <table class="table table-hover align-top mb-0">
                         <thead>
                             <tr>
+                                <th style="width: 70px;">Image</th>
                                 @php
                                     $currentSort = request('sort_by', 'price_last_compared_at');
                                     $currentOrder = request('sort_order', 'desc');
@@ -172,16 +173,14 @@
                         <tbody>
                             @forelse ($products as $product)
                                 <tr>
+                                    <td>
+                                        @if($product->getImageUrl())
+                                            <img src="{{ $product->getImageUrl() }}" alt="{{ $product->name }}" class="rounded" style="width:36px;height:36px;object-fit:cover;">
+                                        @endif
+                                    </td>
                                     <td style="max-width: 260px;">
-                                        <div class="d-flex align-items-center gap-2">
-                                            @if($product->getImageUrl())
-                                                <img src="{{ $product->getImageUrl() }}" alt="{{ $product->name }}" class="rounded" style="width:36px;height:36px;object-fit:cover;">
-                                            @endif
-                                            <div>
-                                                <div class="fw-medium">{{ $product->name }}</div>
-                                                <div class="text-muted fs-12">{{ $product->sku }}</div>
-                                            </div>
-                                        </div>
+                                        <div style="white-space: normal; width: 260px; display: block;" class="fw-medium">{{ $product->name }}</div>
+                                        <div class="text-muted fs-12">{{ $product->sku }}</div>
                                     </td>
                                     <td>${{ number_format($product->price, 2) }}</td>
                                     <td>
@@ -228,7 +227,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" class="text-center py-4 text-muted">No price comparisons captured yet.</td>
+                                    <td colspan="5" class="text-center py-4 text-muted">No price comparisons captured yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
