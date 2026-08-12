@@ -4,6 +4,7 @@ namespace App\Services\Ebay;
 
 use Exception;
 use App\Models\SalesChannel;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -74,6 +75,39 @@ class EbayApiClient
         }
 
         return $this->xmlToArray($xmlBody);
+    }
+
+    // =========================================
+    // APPLICATION (client_credentials) TOKEN
+    // =========================================
+
+    /**
+     * App-level OAuth token via client_credentials grant. No per-user authorization
+     * needed — used for public/browse-style eBay endpoints (e.g. price comparison search).
+     */
+    public function getApplicationToken(): string
+    {
+        return Cache::remember('ebay_application_token', now()->addMinutes(110), function () {
+            $clientId = config('services.ebay.client_id');
+            $clientSecret = config('services.ebay.client_secret');
+
+            $response = Http::timeout(60)->connectTimeout(30)
+                ->withHeaders([
+                    'Content-Type' => 'application/x-www-form-urlencoded',
+                    'Authorization' => 'Basic ' . base64_encode($clientId . ':' . $clientSecret),
+                ])
+                ->asForm()
+                ->post(self::EBAY_TOKEN_URL, [
+                    'grant_type' => 'client_credentials',
+                    'scope' => 'https://api.ebay.com/oauth/api_scope',
+                ]);
+
+            if ($response->failed()) {
+                throw new Exception('Failed to get eBay application token: ' . $response->body());
+            }
+
+            return $response->json('access_token');
+        });
     }
 
     // =========================================

@@ -64,7 +64,7 @@
 
                 <!-- Products -->
                 @canany(['view products', 'add products', 'edit products', 'delete products', 'view categories', 'add categories', 'edit categories', 'delete categories', 'view brands', 'add brands', 'edit brands', 'delete brands'])
-                    <li class="nxl-item nxl-hasmenu {{ request()->routeIs(['products.*', 'categories.*', 'brands.*']) ? 'active nxl-trigger' : '' }}">
+                    <li class="nxl-item nxl-hasmenu {{ request()->routeIs(['products.*', 'categories.*', 'brands.*', 'market-research.*']) ? 'active nxl-trigger' : '' }}">
                         <a href="javascript:void(0);" class="nxl-link">
                             <span class="nxl-micon"><i class="feather-package"></i></span>
                             <span class="nxl-mtext">Products</span>
@@ -74,6 +74,11 @@
                             @canany(['view products', 'edit products', 'delete products'])
                             <li class="nxl-item {{ request()->routeIs(['products.index', 'products.edit']) ? 'active' : '' }}">
                                 <a class="nxl-link" href="{{ route('products.index') }}">All Products</a>
+                            </li>
+                            @endcan
+                            @can('view products')
+                            <li class="nxl-item {{ request()->routeIs('market-research.*') ? 'active' : '' }}">
+                                <a class="nxl-link" href="{{ route('market-research.index') }}">Market Research</a>
                             </li>
                             @endcan
                             @can('add products')

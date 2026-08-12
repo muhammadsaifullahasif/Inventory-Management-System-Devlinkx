@@ -52,6 +52,12 @@ Schedule::command('ebay:sync-finances')
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/ebay-finance-sync.log'));
 
+// Market Research: refresh eBay competitor price comparisons hourly (rotates through catalog, oldest-compared first)
+Schedule::command('price-comparison:run --limit=50')
+    ->hourly()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/price-comparison.log'));
+
 Schedule::command('queue:release-stale')->everyFiveMinutes();
 
 // Automatically runs the queue worker every minute cleanly via internal code routing

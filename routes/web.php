@@ -15,6 +15,7 @@ use App\Http\Controllers\OrderReturnController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\MarketResearchController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\SupplierController;
@@ -193,6 +194,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/products/bulk-sync', [ProductController::class, 'bulkSync'])->name('products.bulk-sync');
     Route::get('/products/export', [ProductController::class, 'export'])->name('products.export');
     Route::resource('/products', ProductController::class);
+
+    // Market Research (eBay competitor price comparison)
+    Route::get('/market-research', [MarketResearchController::class, 'index'])->name('market-research.index');
+    Route::get('/market-research/export', [MarketResearchController::class, 'export'])->name('market-research.export');
 
     // Product Bundle Stock Calculation (AJAX)
     Route::post('/bundles/calculate-stock', [ProductController::class, 'calculateStock'])->name('bundles.calculate-stock');
