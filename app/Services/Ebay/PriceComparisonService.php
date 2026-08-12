@@ -4,6 +4,7 @@ namespace App\Services\Ebay;
 
 use App\Models\Product;
 use App\Models\ProductPriceComparison;
+use App\Models\SalesChannel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -84,13 +85,46 @@ class PriceComparisonService
         }
     }
 
+    /**
+     * Our own eBay seller usernames (from connected sales channels), lowercased.
+     * Excluded from competitor rankings — we're comparing against others, not ourselves.
+     */
+    protected function ourSellerUsernames(): array
+    {
+        static $usernames = null;
+
+        if ($usernames === null) {
+            $usernames = SalesChannel::query()
+                ->whereNotNull('ebay_user_ids')
+                ->orWhereNotNull('ebay_user_id')
+                ->get(['ebay_user_id', 'ebay_user_ids'])
+                ->flatMap(fn ($channel) => array_merge(
+                    $channel->ebay_user_id ? [$channel->ebay_user_id] : [],
+                    $channel->ebay_user_ids ?? []
+                ))
+                ->filter()
+                ->map(fn ($username) => strtolower($username))
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        return $usernames;
+    }
+
     protected function rankSellersBySales(array $itemSummaries): array
     {
         $bySeller = [];
+        $ourUsernames = $this->ourSellerUsernames();
 
         foreach ($itemSummaries as $item) {
             $seller = $item['seller']['username'] ?? null;
             if (!$seller) {
+                continue;
+            }
+
+            // Skip our own listings — this is a competitor comparison, not a self-listing
+            if (in_array(strtolower($seller), $ourUsernames, true)) {
                 continue;
             }
 

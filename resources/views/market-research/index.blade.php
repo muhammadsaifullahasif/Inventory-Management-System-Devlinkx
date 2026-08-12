@@ -166,9 +166,11 @@
                                             </span>
                                         </a>
                                     </th>
+                                    @if($key === 'product_name')
+                                        <th>Brand</th>
+                                        <th>Category</th>
+                                    @endif
                                 @endforeach
-                                <th>Brand</th>
-                                <th>Category</th>
                                 <th>Competitors (ranked by units sold)</th>
                             </tr>
                         </thead>
@@ -184,12 +186,12 @@
                                         <div style="white-space: normal; width: 260px; display: block;" class="fw-medium">{{ $product->name }}</div>
                                         <div class="text-muted fs-12">{{ $product->sku }}</div>
                                     </td>
+                                    <td>{{ $product->brand->name ?? '-' }}</td>
+                                    <td>{{ $product->category->name ?? '-' }}</td>
                                     <td>${{ number_format($product->price, 2) }}</td>
                                     <td>
                                         {{ $product->price_last_compared_at ? $product->price_last_compared_at->format('M d, Y H:i') : 'Never' }}
                                     </td>
-                                    <td>{{ $product->brand->name ?? '-' }}</td>
-                                    <td>{{ $product->category->name ?? '-' }}</td>
                                     <td>
                                         @forelse ($product->priceComparisons as $comparison)
                                             <div class="mb-1">
