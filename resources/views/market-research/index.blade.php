@@ -187,7 +187,19 @@
                                         {{ $product->price_last_compared_at ? $product->price_last_compared_at->format('M d, Y H:i') : 'Never' }}
                                     </td>
                                     <td>
-                                        <table class="table table-sm table-borderless mb-0">
+                                        @forelse ($product->priceComparisons as $comparison)
+                                            <div class="mb-1">
+                                                @if($comparison->listing_url)
+                                                    <a href="{{ $comparison->listing_url }}" target="_blank" class="fw-semibold text-decoration-none">${{ number_format($comparison->competitor_price, 2) }}</a>
+                                                @else
+                                                    <span class="fw-semibold">${{ number_format($comparison->competitor_price, 2) }}</span>
+                                                @endif
+                                                <span class="text-muted fs-11">{{ $comparison->competitor_seller }} ({{ $comparison->items_sold_last_month }} sold)</span>
+                                            </div>
+                                        @empty
+                                            <span class="text-muted fs-12">-</span>
+                                        @endforelse
+                                        {{-- <table class="table table-sm table-borderless mb-0">
                                             <thead>
                                                 <tr class="text-muted fs-12">
                                                     <th>#</th>
@@ -222,7 +234,7 @@
                                                     </tr>
                                                 @endforeach
                                             </tbody>
-                                        </table>
+                                        </table> --}}
                                     </td>
                                 </tr>
                             @empty
