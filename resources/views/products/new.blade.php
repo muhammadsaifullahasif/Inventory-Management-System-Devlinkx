@@ -181,6 +181,18 @@
                         @enderror
                     </div>
 
+                    <div class="mb-4">
+                        <label for="tagsInput" class="form-label">Tags</label>
+                        <div id="tagsContainer" class="form-control d-flex flex-wrap align-items-center gap-2" style="min-height: 44px; height: auto; cursor: text;">
+                            <input type="text" id="tagsInput" class="border-0 flex-grow-1 p-0" style="outline: none; min-width: 120px;" placeholder="Type a tag and press comma or Enter">
+                        </div>
+                        <input type="hidden" name="tags" id="tags">
+                        <small class="text-muted">Press comma or Enter after each keyword to create a tag.</small>
+                        @error('tags')
+                            <div class="text-danger fs-12">{{ $message }}</div>
+                        @enderror
+                    </div>
+
                     <!-- Bundle Components Section -->
                     <div id="bundleComponentsSection" style="display: none;">
                         <div class="card bg-light border mb-4">
@@ -267,6 +279,60 @@
 <script>
 $(document).ready(function() {
     let componentIndex = 0;
+
+    // Tags input (pill style)
+    (function() {
+        let tags = [];
+        const $container = $('#tagsContainer');
+        const $input = $('#tagsInput');
+        const $hidden = $('#tags');
+
+        function render() {
+            $container.find('.tag-pill').remove();
+            tags.forEach(function(tag, index) {
+                $('<span class="badge bg-soft-primary text-primary tag-pill d-flex align-items-center gap-1 py-2 px-2"></span>')
+                    .text(tag)
+                    .append($('<i class="feather-x tag-remove ms-1" style="cursor:pointer;"></i>').data('index', index))
+                    .insertBefore($input);
+            });
+            $hidden.val(tags.join(','));
+        }
+
+        function addTag(value) {
+            value = value.trim().replace(/,+$/, '');
+            if (value && !tags.includes(value)) {
+                tags.push(value);
+                render();
+            }
+        }
+
+        $container.on('click', function(e) {
+            if (e.target === this) $input.trigger('focus');
+        });
+
+        $input.on('keydown', function(e) {
+            if (e.key === ',' || e.key === 'Enter') {
+                e.preventDefault();
+                addTag($input.val());
+                $input.val('');
+            } else if (e.key === 'Backspace' && $input.val() === '' && tags.length) {
+                tags.pop();
+                render();
+            }
+        });
+
+        $input.on('blur', function() {
+            if ($input.val().trim()) {
+                addTag($input.val());
+                $input.val('');
+            }
+        });
+
+        $container.on('click', '.tag-remove', function() {
+            tags.splice($(this).data('index'), 1);
+            render();
+        });
+    })();
 
     // Toggle bundle sections
     $('#is_bundle').change(function() {

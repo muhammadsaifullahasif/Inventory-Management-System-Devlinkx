@@ -332,6 +332,7 @@ class ProductController extends Controller
             'product_image' => 'nullable|image|max:2048',
             'is_featured' => 'sometimes|boolean',
             'active_status' => 'sometimes|boolean',
+            'tags' => 'nullable|string',
             'sales_channels' => 'nullable|array',
             'sales_channels.*' => 'exists:sales_channels,id',
             'is_bundle' => 'sometimes|boolean',
@@ -397,6 +398,10 @@ class ProductController extends Controller
                 [
                     'meta_key' => 'alert_quantity',
                     'meta_value' => $request->alert_quantity ?? 0,
+                ],
+                [
+                    'meta_key' => 'tags',
+                    'meta_value' => $request->tags,
                 ]
             ]);
 
@@ -544,6 +549,7 @@ class ProductController extends Controller
             'product_image' => 'nullable|image|max:2048',
             'is_featured' => 'sometimes|boolean',
             'active_status' => 'sometimes|boolean',
+            'tags' => 'nullable|string',
             'sales_channels' => 'nullable|array',
             'sales_channels.*' => 'exists:sales_channels,id',
             'is_bundle' => 'sometimes|boolean',
@@ -584,7 +590,7 @@ class ProductController extends Controller
             $product->save();
 
             // Update product meta
-            foreach (['weight', 'length', 'width', 'height', 'regular_price', 'sale_price'] as $metaKey) {
+            foreach (['weight', 'length', 'width', 'height', 'regular_price', 'sale_price', 'tags'] as $metaKey) {
                 $metaValue = $request->$metaKey;
                 $product->product_meta()->updateOrCreate(
                     ['meta_key' => $metaKey],
