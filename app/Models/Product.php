@@ -31,6 +31,7 @@ class Product extends Model
     protected $casts = [
         'is_bundle' => 'boolean',
         'is_featured' => 'boolean',
+        'price_last_compared_at' => 'datetime',
     ];
 
     public function product_meta()
