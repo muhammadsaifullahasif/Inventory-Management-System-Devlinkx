@@ -42,7 +42,7 @@ class MarketResearchController extends Controller
 
         $products = Product::query()
             ->whereHas('priceComparisons')
-            ->with(['priceComparisons' => fn ($q) => $q->orderBy('rank')])
+            ->with(['priceComparisons' => fn ($q) => $q->orderBy('rank'), 'category', 'brand'])
             ->catalogFilter($request)
             ->orderBy($sortBy, $sortOrder)
             ->paginate($perPage)

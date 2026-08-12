@@ -167,6 +167,8 @@
                                         </a>
                                     </th>
                                 @endforeach
+                                <th>Brand</th>
+                                <th>Category</th>
                                 <th>Competitors (ranked by units sold)</th>
                             </tr>
                         </thead>
@@ -186,6 +188,8 @@
                                     <td>
                                         {{ $product->price_last_compared_at ? $product->price_last_compared_at->format('M d, Y H:i') : 'Never' }}
                                     </td>
+                                    <td>{{ $product->brand->name ?? '-' }}</td>
+                                    <td>{{ $product->category->name ?? '-' }}</td>
                                     <td>
                                         @forelse ($product->priceComparisons as $comparison)
                                             <div class="mb-1">
@@ -239,7 +243,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center py-4 text-muted">No price comparisons captured yet.</td>
+                                    <td colspan="7" class="text-center py-4 text-muted">No price comparisons captured yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
