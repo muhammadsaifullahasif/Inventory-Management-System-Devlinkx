@@ -227,6 +227,9 @@ Route::middleware(['auth'])->group(function () {
     // eBay Get Single Item Details (Trading API - GetItem)
     Route::get('/ebay/item/{id}/{itemId}', [EbayController::class, 'getItemDetails'])->name('ebay.item.details');
 
+    // eBay Get Item Details by SKU (GetSellerList lookup + GetItem) — used to prefill listing fields before a local link exists
+    Route::get('/ebay/item-by-sku/{id}', [EbayController::class, 'getItemDetailsBySku'])->name('ebay.item.details-by-sku');
+
     // eBay Update Listing (Trading API - ReviseItem)
     // Route::put('/ebay/listing/{id}/{itemId}', [EbayController::class, 'updateListing'])->name('ebay.listing.update');
     // Route::patch('/ebay/listing/{id}/{itemId}/quantity', [EbayController::class, 'updateListingQuantity'])->name('ebay.listing.update.quantity');

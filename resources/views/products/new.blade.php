@@ -237,10 +237,12 @@
                                 <div class="col-md-12 mb-3">
                                     <div class="form-check form-switch">
                                         <input type="checkbox"
-                                               class="form-check-input"
+                                               class="form-check-input sales-channel-checkbox"
                                                id="sales_channel_{{ $channel->id }}"
                                                name="sales_channels[]"
                                                value="{{ $channel->id }}"
+                                               data-channel-id="{{ $channel->id }}"
+                                               data-fetch-url="{{ route('ebay.item.details-by-sku', $channel->id) }}"
                                                {{ in_array($channel->id, old('sales_channels', [])) ? 'checked' : '' }}>
                                         <label class="form-check-label" for="sales_channel_{{ $channel->id }}">List on {{ $channel->name }}</label>
                                     </div>
@@ -364,6 +366,36 @@ $(document).ready(function() {
             editors.forEach(function(entry) {
                 var html = entry.quill.getText().trim() === '' ? '' : entry.quill.root.innerHTML;
                 entry.textarea.val(html);
+            });
+        });
+    })();
+
+    // When a sales channel is checked, auto-fill its regular/sale price from eBay
+    // (looked up by SKU) if those fields are still empty. Runs regardless of whether
+    // the product is linked yet — the eBay link itself happens on save.
+    (function() {
+        $('.sales-channel-checkbox').on('change', function() {
+            var $cb = $(this);
+            if (!$cb.is(':checked')) return;
+
+            var channelId = $cb.data('channel-id');
+            var fetchUrl = $cb.data('fetch-url');
+            var sku = $('#sku').val().trim();
+
+            var $regular = $('#channel_' + channelId + '_regular_price');
+            var $sale = $('#channel_' + channelId + '_sale_price');
+
+            if (!sku || !fetchUrl || $regular.val() || $sale.val()) return;
+
+            $.get(fetchUrl, { sku: sku }).done(function(resp) {
+                if (!resp || !resp.success || !resp.item) return;
+                var item = resp.item;
+                if (item.regular_price && item.regular_price.value) {
+                    $regular.val(item.regular_price.value);
+                }
+                if (item.sale_price && item.sale_price.value) {
+                    $sale.val(item.sale_price.value);
+                }
             });
         });
     })();

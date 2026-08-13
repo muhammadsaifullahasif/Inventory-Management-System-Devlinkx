@@ -262,6 +262,15 @@
                         <div class="tab-pane fade" id="channel-{{ $channel->id }}" role="tabpanel">
 
                             <div class="row mb-4">
+                                @if($externalId)
+                                <div class="col-md-12 mb-3">
+                                    <button type="button" class="btn btn-sm btn-outline-primary fetch-ebay-listing-btn"
+                                            data-channel-id="{{ $channel->id }}"
+                                            data-url="{{ route('ebay.item.details', [$channel->id, $externalId]) }}">
+                                        <i class="feather-download-cloud me-1"></i><span class="btn-text">Fetch Title/Description/Price from eBay</span>
+                                    </button>
+                                </div>
+                                @endif
                                 <div class="col-md-12 mb-3">
                                     <label for="channel_{{ $channel->id }}_title" class="form-label">Listing Title <small class="text-muted">(max 80 chars, defaults to product name)</small></label>
                                     <input type="text" maxlength="80"
@@ -276,7 +285,7 @@
                                 </div>
                                 <div class="col-md-12 mb-3">
                                     <label class="form-label">Listing Description <small class="text-muted">(defaults to product description)</small></label>
-                                    <div id="channel_{{ $channel->id }}_description_editor" class="channel-description-editor" style="height: 180px; background: #fff;"></div>
+                                    <div id="channel_{{ $channel->id }}_description_editor" class="channel-description-editor" data-channel-id="{{ $channel->id }}" style="height: 180px; background: #fff;"></div>
                                     <textarea name="channel_data[{{ $channel->id }}][description]"
                                               id="channel_{{ $channel->id }}_description"
                                               class="d-none">{{ old('channel_data.' . $channel->id . '.description', $channelData?->pivot?->description) }}</textarea>
@@ -326,10 +335,12 @@
                                             <td>
                                                 <div class="form-check form-switch">
                                                     <input type="checkbox"
-                                                           class="form-check-input"
+                                                           class="form-check-input sales-channel-checkbox"
                                                            id="sales_channel_{{ $channel->id }}"
                                                            name="sales_channels[]"
                                                            value="{{ $channel->id }}"
+                                                           data-channel-id="{{ $channel->id }}"
+                                                           @if($externalId) data-fetch-url="{{ route('ebay.item.details', [$channel->id, $externalId]) }}" @endif
                                                            {{ in_array($channel->id, old('sales_channels', $productChannelIds)) ? 'checked' : '' }}>
                                                     <label class="form-check-label" for="sales_channel_{{ $channel->id }}">
                                                         {{ $isListed ? 'Listed' : 'Not Listed' }}
@@ -554,33 +565,35 @@
             // Per sales-channel listing description editors (Quill), synced to hidden textarea on submit
             (function() {
                 var editors = [];
+                var editorsByChannel = {};
                 const toolbarOptions = [
-                    [{ 'header': [1, 2, 3, 4, 5, 6, false] }], 
-                    [{ 'size': ['small', false, 'large', 'huge'] }], 
-                    [{ 'font': [] }], 
+                    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                    [{ 'size': ['small', false, 'large', 'huge'] }],
+                    [{ 'font': [] }],
 
-                    ['bold', 'italic', 'underline', 'strike'], 
-                    ['blockquote', 'code-block'], 
+                    ['bold', 'italic', 'underline', 'strike'],
+                    ['blockquote', 'code-block'],
                     [{ 'color': [] }, { 'background': [] }],
 
-                    ['link', 'formula'], 
-                    [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'list': 'check' }], 
-                    [{ 'script': 'sub' }, { 'script': 'super' }], 
-                    [{ 'indent': '-1' }, { 'indent': '+1' }], 
-                    [{ 'direction': 'rtl' }], 
+                    ['link', 'formula'],
+                    [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'list': 'check' }],
+                    [{ 'script': 'sub' }, { 'script': 'super' }],
+                    [{ 'indent': '-1' }, { 'indent': '+1' }],
+                    [{ 'direction': 'rtl' }],
 
-                    [{ 'align': [] }]
+                    [{ 'align': [] }],
 
                     ['clean']
                 ];
                 $('.channel-description-editor').each(function() {
                     var $editorDiv = $(this);
+                    var channelId = $editorDiv.data('channel-id');
                     var $textarea = $editorDiv.next('textarea[id$="_description"]');
                     if (!$textarea.length) return;
 
                     var quill = new Quill($editorDiv[0], {
                         theme: 'snow',
-                        placeholder: 'Optional — overrides product description for this channel', 
+                        placeholder: 'Optional — overrides product description for this channel',
                         modules: {
                             toolbar: toolbarOptions
                         }
@@ -588,6 +601,7 @@
                     quill.root.innerHTML = $textarea.val() || '';
 
                     editors.push({ quill: quill, textarea: $textarea });
+                    editorsByChannel[channelId] = quill;
                 });
 
                 $('form').on('submit', function() {
@@ -595,6 +609,85 @@
                         var html = entry.quill.getText().trim() === '' ? '' : entry.quill.root.innerHTML;
                         entry.textarea.val(html);
                     });
+                });
+
+                // Pull title/description/price from the live eBay listing into this channel's fields
+                $('.fetch-ebay-listing-btn').on('click', function() {
+                    var $btn = $(this);
+                    var channelId = $btn.data('channel-id');
+                    var $btnText = $btn.find('.btn-text');
+                    var originalText = $btnText.text();
+
+                    $btn.prop('disabled', true);
+                    $btnText.text('Fetching...');
+
+                    $.get($btn.data('url'))
+                        .done(function(resp) {
+                            if (!resp || !resp.success || !resp.item) {
+                                alert('Could not fetch the eBay listing.');
+                                return;
+                            }
+
+                            var item = resp.item;
+
+                            if (item.title) {
+                                $('#channel_' + channelId + '_title').val(item.title);
+                            }
+
+                            if (editorsByChannel[channelId] && typeof item.description === 'string') {
+                                editorsByChannel[channelId].root.innerHTML = item.description;
+                            }
+
+                            if (item.regular_price && item.regular_price.value) {
+                                $('#channel_' + channelId + '_regular_price').val(item.regular_price.value);
+                            }
+
+                            $('#channel_' + channelId + '_sale_price').val(
+                                (item.sale_price && item.sale_price.value) ? item.sale_price.value : ''
+                            );
+                        })
+                        .fail(function() {
+                            alert('Failed to fetch listing from eBay.');
+                        })
+                        .always(function() {
+                            $btn.prop('disabled', false);
+                            $btnText.text(originalText);
+                        });
+                });
+
+                // Auto-fill regular/sale price from the live eBay listing when a channel is
+                // checked (or already checked on load) and the price fields are still empty.
+                // Only runs for channels already connected to an eBay listing (data-fetch-url set).
+                function autoFillChannelPrice(channelId, fetchUrl) {
+                    if (!fetchUrl) return;
+
+                    var $regular = $('#channel_' + channelId + '_regular_price');
+                    var $sale = $('#channel_' + channelId + '_sale_price');
+                    if ($regular.val() || $sale.val()) return; // already has a price, don't overwrite
+
+                    $.get(fetchUrl).done(function(resp) {
+                        if (!resp || !resp.success || !resp.item) return;
+                        var item = resp.item;
+                        if (item.regular_price && item.regular_price.value) {
+                            $regular.val(item.regular_price.value);
+                        }
+                        if (item.sale_price && item.sale_price.value) {
+                            $sale.val(item.sale_price.value);
+                        }
+                    });
+                }
+
+                $('.sales-channel-checkbox').on('change', function() {
+                    var $cb = $(this);
+                    if ($cb.is(':checked')) {
+                        autoFillChannelPrice($cb.data('channel-id'), $cb.data('fetch-url'));
+                    }
+                });
+
+                // Also run once for channels already checked/listed on page load
+                $('.sales-channel-checkbox:checked').each(function() {
+                    var $cb = $(this);
+                    autoFillChannelPrice($cb.data('channel-id'), $cb.data('fetch-url'));
                 });
             })();
 

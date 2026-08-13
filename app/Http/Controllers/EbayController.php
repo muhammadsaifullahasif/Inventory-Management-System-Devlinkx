@@ -472,6 +472,34 @@ class EbayController extends Controller
     }
 
     /**
+     * Find an eBay listing by SKU on a channel and return its full details
+     * (title, description, regular/sale price). Used to prefill the per-channel
+     * listing fields on the product create page before a local listing link exists.
+     */
+    public function getItemDetailsBySku(Request $request, string $id)
+    {
+        $sku = trim((string) $request->query('sku'));
+        if ($sku === '') {
+            return $this->errorResponse('SKU is required', 400);
+        }
+
+        try {
+            $salesChannel = $this->client->ensureValidToken(SalesChannel::findOrFail($id));
+
+            $listing = $this->ebayService->findListingBySku($salesChannel, $sku);
+            if (!$listing || empty($listing['ItemID'])) {
+                return response()->json(['success' => false, 'message' => 'No eBay listing found with this SKU.']);
+            }
+
+            $result = $this->ebayService->getItemDetails($salesChannel, $listing['ItemID']);
+
+            return response()->json($result);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage());
+        }
+    }
+
+    /**
      * Update an eBay listing using item_id (ReviseItem API)
      *
      * Supported fields: title, description, price, quantity, sku, condition_id
