@@ -1367,14 +1367,14 @@ class EbayController extends Controller
             // Per-channel title/description/price override the product's own values.
             // Falls back to the product's global fields when the channel hasn't set its own.
             $title = $listing?->title ?: $product->name;
-            if ($title) {
-                $fields['title'] = mb_substr($title, 0, 80); // eBay Title hard limit
-            }
+            // if ($title) {
+            //     $fields['title'] = mb_substr($title, 0, 80); // eBay Title hard limit
+            // }
 
             $description = $listing?->description ?: ($product->description ?: $product->short_description);
-            if ($description) {
-                $fields['description'] = $description;
-            }
+            // if ($description) {
+            //     $fields['description'] = $description;
+            // }
 
             $salePrice = $listing?->sale_price;
             $regularPrice = $listing?->regular_price ?: $product->price;
