@@ -335,6 +335,11 @@ class ProductController extends Controller
             'tags' => 'nullable|string',
             'sales_channels' => 'nullable|array',
             'sales_channels.*' => 'exists:sales_channels,id',
+            'channel_data' => 'nullable|array',
+            'channel_data.*.title' => 'nullable|string|max:80',
+            'channel_data.*.description' => 'nullable|string',
+            'channel_data.*.regular_price' => 'nullable|numeric|min:0',
+            'channel_data.*.sale_price' => 'nullable|numeric|min:0',
             'is_bundle' => 'sometimes|boolean',
             'bundle_type' => 'nullable|string|in:pair,kit,set,bundle',
             'components' => 'required_if:is_bundle,1|array|min:2',
@@ -416,11 +421,12 @@ class ProductController extends Controller
                 }
             }
 
-            // Handle Sales Channels - Create listings
-            // $selectedChannels = $request->input('sales_channels', []);
-            // if (!empty($selectedChannels)) {
-            //     $this->syncSalesChannels($product, $selectedChannels, []);
-            // }
+            // Handle Sales Channels - link to existing eBay listings found by SKU, save per-channel title/description/price
+            $selectedChannels = $request->input('sales_channels', []);
+            if (!empty($selectedChannels)) {
+                $channelData = $request->input('channel_data', []);
+                $this->syncSalesChannels($product, $selectedChannels, [], false, $channelData);
+            }
 
             DB::commit();
 
@@ -552,6 +558,11 @@ class ProductController extends Controller
             'tags' => 'nullable|string',
             'sales_channels' => 'nullable|array',
             'sales_channels.*' => 'exists:sales_channels,id',
+            'channel_data' => 'nullable|array',
+            'channel_data.*.title' => 'nullable|string|max:80',
+            'channel_data.*.description' => 'nullable|string',
+            'channel_data.*.regular_price' => 'nullable|numeric|min:0',
+            'channel_data.*.sale_price' => 'nullable|numeric|min:0',
             'is_bundle' => 'sometimes|boolean',
             'bundle_type' => 'nullable|string|in:pair,kit,set,bundle',
             'components' => 'required_if:is_bundle,1|array|min:2',
@@ -620,7 +631,8 @@ class ProductController extends Controller
 
             // Handle Sales Channels sync
             $selectedChannels = $request->input('sales_channels', []);
-            $this->syncSalesChannels($product, $selectedChannels, $currentChannelIds, $oldSku !== $request->sku);
+            $channelData = $request->input('channel_data', []);
+            $this->syncSalesChannels($product, $selectedChannels, $currentChannelIds, $oldSku !== $request->sku, $channelData);
 
             DB::commit();
 
@@ -898,8 +910,26 @@ class ProductController extends Controller
      * - Update inventory/quantity on eBay when product is updated
      * - Unlink products from channels when unchecked (don't end listings on eBay)
      */
-    protected function syncSalesChannels(Product $product, array $selectedChannelIds, array $currentChannelIds, bool $skuChanged = false): void
+    protected function syncSalesChannels(Product $product, array $selectedChannelIds, array $currentChannelIds, bool $skuChanged = false, array $channelData = []): void
     {
+        // Only keep the per-channel listing fields we actually store on the pivot
+        $pivotContentFor = function (int $channelId) use ($channelData): ?array {
+            if (!isset($channelData[$channelId])) {
+                return null;
+            }
+
+            $data = $channelData[$channelId];
+            $regularPrice = $data['regular_price'] ?? null;
+            $salePrice = $data['sale_price'] ?? null;
+
+            return [
+                'title' => $data['title'] ?? null,
+                'description' => $data['description'] ?? null,
+                'regular_price' => $regularPrice !== '' ? $regularPrice : null,
+                'sale_price' => $salePrice !== '' ? $salePrice : null,
+            ];
+        };
+
         $ebayController = app(EbayController::class);
 
         // Channels to add (newly selected - link to existing eBay listing)
@@ -926,14 +956,14 @@ class ProductController extends Controller
                     // Found listing - link it with default settings
                     $listingUrl = "https://www.ebay.com/itm/{$existingListing['ItemID']}";
 
-                    $product->sales_channels()->attach($channelId, [
+                    $product->sales_channels()->attach($channelId, array_filter([
                         'listing_url' => $listingUrl,
                         'external_listing_id' => $existingListing['ItemID'],
                         'listing_status' => SalesChannelProduct::STATUS_ACTIVE,
                         'listing_format' => $existingListing['ListingType'] ?? 'FixedPriceItem',
                         'visible_quantity' => 10, // Default threshold
                         'sync_enabled' => true,
-                    ]);
+                    ] + ($pivotContentFor($channelId) ?? [])));
 
                     // Sync inventory using InventorySyncService (applies threshold logic)
                     $inventorySyncService = app(\App\Services\Inventory\InventorySyncService::class);
@@ -1009,7 +1039,13 @@ class ProductController extends Controller
                     }
                 }
 
-                // Sync product data to eBay (quantity, weight, dimensions, and SKU if changed)
+                // Persist this channel's title/description/price before pushing to eBay,
+                // so syncProductToEbay's fresh pivot read picks up the values just submitted.
+                if ($pivotContent = $pivotContentFor($channelId)) {
+                    $product->sales_channels()->updateExistingPivot($channelId, $pivotContent);
+                }
+
+                // Sync product data to eBay (quantity, weight, dimensions, SKU, and per-channel title/description/price)
                 $result = $ebayController->syncProductToEbay($channel, $externalId, $product, $skuChanged);
 
                 $product->sales_channels()->updateExistingPivot($channelId, [

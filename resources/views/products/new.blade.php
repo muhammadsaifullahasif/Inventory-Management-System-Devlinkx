@@ -3,6 +3,7 @@
 @push('styles')
 <link rel="stylesheet" type="text/css" href="{{ asset('vendors/css/select2.min.css') }}" />
 <link rel="stylesheet" type="text/css" href="{{ asset('vendors/css/select2-theme.min.css') }}" />
+<link rel="stylesheet" type="text/css" href="{{ asset('vendors/css/quill.min.css') }}" />
 @endpush
 
 @section('header')
@@ -43,7 +44,7 @@
                     @csrf
 
                     <!-- Tabs -->
-                    <ul class="nav nav-tabs mb-4" id="productTab" role="tablist">
+                    <ul class="nav nav-tabs nav-pills mb-4" id="productTab" role="tablist">
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active" id="product-details-tab" data-bs-toggle="tab" data-bs-target="#product-details" type="button" role="tab">
                                 <i class="feather-info me-1"></i>Product Details
@@ -229,8 +230,69 @@
                     @foreach($salesChannels ?? [] as $channel)
                         <div class="tab-pane fade" id="channel-{{ $channel->id }}" role="tabpanel">
                             <div class="alert alert-light-info mb-3">
-                                <i class="feather-info me-2"></i>Save the product first to manage its listing on this sales channel.
+                                <i class="feather-info me-2"></i>Product must already have a matching listing on eBay (found by SKU) for the fields below to attach on save.
                             </div>
+
+                            <div class="row mb-4">
+                                <div class="col-md-12 mb-3">
+                                    <div class="form-check form-switch">
+                                        <input type="checkbox"
+                                               class="form-check-input"
+                                               id="sales_channel_{{ $channel->id }}"
+                                               name="sales_channels[]"
+                                               value="{{ $channel->id }}"
+                                               {{ in_array($channel->id, old('sales_channels', [])) ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="sales_channel_{{ $channel->id }}">List on {{ $channel->name }}</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-12 mb-3">
+                                    <label for="channel_{{ $channel->id }}_title" class="form-label">Listing Title <small class="text-muted">(max 80 chars, defaults to product name)</small></label>
+                                    <input type="text" maxlength="80"
+                                           id="channel_{{ $channel->id }}_title"
+                                           name="channel_data[{{ $channel->id }}][title]"
+                                           value="{{ old('channel_data.' . $channel->id . '.title') }}"
+                                           class="form-control @error('channel_data.' . $channel->id . '.title') is-invalid @enderror"
+                                           placeholder="{{ old('name') }}">
+                                    @error('channel_data.' . $channel->id . '.title')
+                                        <span class="text-danger fs-12">{{ $message }}</span>
+                                    @enderror
+                                </div>
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label">Listing Description <small class="text-muted">(defaults to product description)</small></label>
+                                    <div id="channel_{{ $channel->id }}_description_editor" class="channel-description-editor" style="height: 180px; background: #fff;"></div>
+                                    <textarea name="channel_data[{{ $channel->id }}][description]"
+                                              id="channel_{{ $channel->id }}_description"
+                                              class="d-none">{{ old('channel_data.' . $channel->id . '.description') }}</textarea>
+                                    @error('channel_data.' . $channel->id . '.description')
+                                        <span class="text-danger fs-12">{{ $message }}</span>
+                                    @enderror
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="channel_{{ $channel->id }}_regular_price" class="form-label">Regular Price <small class="text-muted">(defaults to product price)</small></label>
+                                    <input type="number" step="0.01" min="0"
+                                           id="channel_{{ $channel->id }}_regular_price"
+                                           name="channel_data[{{ $channel->id }}][regular_price]"
+                                           value="{{ old('channel_data.' . $channel->id . '.regular_price') }}"
+                                           class="form-control @error('channel_data.' . $channel->id . '.regular_price') is-invalid @enderror"
+                                           placeholder="Optional">
+                                    @error('channel_data.' . $channel->id . '.regular_price')
+                                        <span class="text-danger fs-12">{{ $message }}</span>
+                                    @enderror
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="channel_{{ $channel->id }}_sale_price" class="form-label">Sale Price</label>
+                                    <input type="number" step="0.01" min="0"
+                                           id="channel_{{ $channel->id }}_sale_price"
+                                           name="channel_data[{{ $channel->id }}][sale_price]"
+                                           value="{{ old('channel_data.' . $channel->id . '.sale_price') }}"
+                                           class="form-control @error('channel_data.' . $channel->id . '.sale_price') is-invalid @enderror"
+                                           placeholder="Optional">
+                                    @error('channel_data.' . $channel->id . '.sale_price')
+                                        <span class="text-danger fs-12">{{ $message }}</span>
+                                    @enderror
+                                </div>
+                            </div>
+
                             <div class="table-responsive">
                                 <table class="table table-bordered mb-0">
                                     <tbody>
@@ -276,9 +338,35 @@
 @push('scripts')
 <script src="{{ asset('vendors/js/select2.min.js') }}"></script>
 <script src="{{ asset('vendors/js/select2-active.min.js') }}"></script>
+<script src="{{ asset('vendors/js/quill.min.js') }}"></script>
 <script>
 $(document).ready(function() {
     let componentIndex = 0;
+
+    // Per sales-channel listing description editors (Quill), synced to hidden textarea on submit
+    (function() {
+        var editors = [];
+        $('.channel-description-editor').each(function() {
+            var $editorDiv = $(this);
+            var $textarea = $editorDiv.next('textarea[id$="_description"]');
+            if (!$textarea.length) return;
+
+            var quill = new Quill($editorDiv[0], {
+                theme: 'snow',
+                placeholder: 'Optional — overrides product description for this channel'
+            });
+            quill.root.innerHTML = $textarea.val() || '';
+
+            editors.push({ quill: quill, textarea: $textarea });
+        });
+
+        $('form').on('submit', function() {
+            editors.forEach(function(entry) {
+                var html = entry.quill.getText().trim() === '' ? '' : entry.quill.root.innerHTML;
+                entry.textarea.val(html);
+            });
+        });
+    })();
 
     // Tags input (pill style)
     (function() {

@@ -1364,6 +1364,26 @@ class EbayController extends Controller
                 $fields['sku'] = $product->sku;
             }
 
+            // Per-channel title/description/price override the product's own values.
+            // Falls back to the product's global fields when the channel hasn't set its own.
+            $title = $listing?->title ?: $product->name;
+            if ($title) {
+                $fields['title'] = mb_substr($title, 0, 80); // eBay Title hard limit
+            }
+
+            $description = $listing?->description ?: ($product->description ?: $product->short_description);
+            if ($description) {
+                $fields['description'] = $description;
+            }
+
+            $salePrice = $listing?->sale_price;
+            $regularPrice = $listing?->regular_price ?: $product->price;
+            $price = $salePrice ?: $regularPrice;
+            if ($price) {
+                $fields['price'] = (float) $price;
+                $fields['currency'] = 'USD';
+            }
+
             // Use reviseItem to update quantity, dimensions, and optionally SKU
             $result = $this->ebayService->reviseItem($channel, $itemId, $fields);
 

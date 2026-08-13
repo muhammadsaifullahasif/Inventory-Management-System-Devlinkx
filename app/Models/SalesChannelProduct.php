@@ -12,6 +12,10 @@ class SalesChannelProduct extends Pivot
     protected $fillable = [
         'product_id',
         'sales_channel_id',
+        'title',
+        'description',
+        'regular_price',
+        'sale_price',
         'listing_url',
         'external_listing_id',
         'listing_status',
@@ -27,6 +31,8 @@ class SalesChannelProduct extends Pivot
     ];
 
     protected $casts = [
+        'regular_price' => 'decimal:2',
+        'sale_price' => 'decimal:2',
         'last_synced_at' => 'datetime',
         'last_sync_attempted_at' => 'datetime',
         'last_synced_quantity' => 'integer',
