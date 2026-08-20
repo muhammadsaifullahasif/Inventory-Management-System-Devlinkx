@@ -230,12 +230,12 @@ $(document).ready(function() {
             { code: 'UPS_SUREPOST', name: 'UPS SurePost' }
         ],
         usps: [
-            { code: 'USPS_PRIORITY_MAIL', name: 'USPS Priority Mail' },
-            { code: 'USPS_PRIORITY_MAIL_EXPRESS', name: 'USPS Priority Mail Express' },
-            { code: 'USPS_FIRST_CLASS', name: 'USPS First Class' },
-            { code: 'USPS_PARCEL_SELECT', name: 'USPS Parcel Select' },
-            { code: 'USPS_MEDIA_MAIL', name: 'USPS Media Mail' },
-            { code: 'USPS_RETAIL_GROUND', name: 'USPS Retail Ground' }
+            { code: 'USPS_GROUND_ADVANTAGE', name: 'USPS Ground Advantage' },
+            { code: 'PRIORITY_MAIL', name: 'USPS Priority Mail' },
+            { code: 'PRIORITY_MAIL_EXPRESS', name: 'USPS Priority Mail Express' },
+            { code: 'MEDIA_MAIL', name: 'USPS Media Mail' },
+            { code: 'LIBRARY_MAIL', name: 'USPS Library Mail' },
+            { code: 'BOUND_PRINTED_MATTER', name: 'USPS Bound Printed Matter' }
         ],
         dhl: [
             { code: 'DHL_EXPRESS_WORLDWIDE', name: 'DHL Express Worldwide' },

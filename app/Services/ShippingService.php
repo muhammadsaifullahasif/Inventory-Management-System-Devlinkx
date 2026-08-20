@@ -44,6 +44,7 @@ class ShippingService
     {
         return match (strtolower($carrier->type)) {
             'fedex' => new FedexService($carrier),
+            'usps'  => new UspsService($carrier),
             default => null,
         };
     }
@@ -151,6 +152,16 @@ class ShippingService
         $service = $this->resolveCarrierService($carrier);
 
         if (!$service) {
+            throw new \RuntimeException("Carrier type '{$carrier->type}' is not supported for rate quotes.");
+        }
+
+        $carrierType = strtolower($carrier->type);
+
+        if ($carrierType === 'usps') {
+            return $this->getUspsRatesForOrder($order, $carrier, $service, $packageOverrides, $unitOverrides);
+        }
+
+        if ($carrierType !== 'fedex') {
             throw new \RuntimeException("Carrier type '{$carrier->type}' is not supported for rate quotes.");
         }
 
@@ -510,6 +521,26 @@ class ShippingService
             }
         }
 
+        if (strtolower($carrierType) === 'usps') {
+            foreach ($rawRates as $rateOption) {
+                $mailClass = $rateOption['mailClass'] ?? 'UNKNOWN';
+                $rates     = $rateOption['rates'] ?? [$rateOption];
+
+                foreach ($rates as $rate) {
+                    $amount = $rate['price'] ?? $rateOption['totalBasePrice'] ?? null;
+
+                    $normalized[] = [
+                        'service_code'   => $mailClass,
+                        'service_name'   => ucwords(strtolower(str_replace('_', ' ', $mailClass))),
+                        'amount'         => $amount !== null ? (float) $amount : null,
+                        'currency'       => 'USD',
+                        'transit_days'   => null,
+                        'rate_breakdown' => $rate,
+                    ];
+                }
+            }
+        }
+
         // Sort cheapest first
         usort($normalized, fn($a, $b) => ($a['amount'] ?? PHP_INT_MAX) <=> ($b['amount'] ?? PHP_INT_MAX));
 
@@ -537,6 +568,16 @@ class ShippingService
         $service = $this->resolveCarrierService($carrier);
 
         if (!$service) {
+            throw new \RuntimeException("Carrier type '{$carrier->type}' is not supported for label generation.");
+        }
+
+        $carrierType = strtolower($carrier->type);
+
+        if ($carrierType === 'usps') {
+            return $this->generateUspsLabelForOrder($order, $carrier, $service, $serviceCode, $itemOverrides, $unitOverrides);
+        }
+
+        if ($carrierType !== 'fedex') {
             throw new \RuntimeException("Carrier type '{$carrier->type}' is not supported for label generation.");
         }
 
@@ -823,6 +864,16 @@ class ShippingService
         $service = $this->resolveCarrierService($carrier);
 
         if (!$service) {
+            throw new \RuntimeException("Carrier type '{$carrier->type}' is not supported for label generation.");
+        }
+
+        $carrierType = strtolower($carrier->type);
+
+        if ($carrierType === 'usps') {
+            return $this->generateUspsMultipleLabelsForOrder($order, $carrier, $service, $serviceCode, $packageCount, $packageOverrides, $unitOverrides);
+        }
+
+        if ($carrierType !== 'fedex') {
             throw new \RuntimeException("Carrier type '{$carrier->type}' is not supported for label generation.");
         }
 
@@ -1235,5 +1286,316 @@ class ShippingService
         }
 
         return $result;
+    }
+
+    // -------------------------------------------------------------------------
+    // USPS-specific helpers
+    //
+    // USPS's Prices/Labels APIs quote and label one package per call (no
+    // multi-package-per-shipment concept like FedEx's requestedPackageLineItems),
+    // and only accept weight in pounds / dimensions in inches. These helpers
+    // aggregate an order's items into a single package in those units.
+    // -------------------------------------------------------------------------
+
+    /**
+     * Aggregate an order's package weight/dimensions into the given target units.
+     * Prefers explicit package overrides (summed/maxed across all provided packages),
+     * falling back to per-item overrides keyed by order_item_id, then product dimensions.
+     *
+     * @return array{0: float, 1: float, 2: float, 3: float} [weight, length, width, height]
+     */
+    protected function aggregateOrderPackageDimensions(
+        Order $order,
+        Shipping $carrier,
+        string $targetWeightUnit,
+        string $targetDimensionUnit,
+        array $unitOverrides = [],
+        array $packageOverrides = [],
+        array $itemOverrides = []
+    ): array {
+        $userWeightUnit    = $unitOverrides['weight_unit']    ?? $carrier->weight_unit    ?? 'lbs';
+        $userDimensionUnit = $unitOverrides['dimension_unit'] ?? $carrier->dimension_unit ?? 'in';
+
+        $totalWeight = 0.0;
+        $maxLength   = 0.0;
+        $maxWidth    = 0.0;
+        $maxHeight   = 0.0;
+
+        if (!empty($packageOverrides) && isset($packageOverrides[0]) &&
+            (isset($packageOverrides[0]['weight']) || isset($packageOverrides[0]['length']))) {
+            foreach ($packageOverrides as $pkg) {
+                $totalWeight += (float) ($pkg['weight'] ?? 0);
+                $maxLength    = max($maxLength, (float) ($pkg['length'] ?? 0));
+                $maxWidth     = max($maxWidth,  (float) ($pkg['width']  ?? 0));
+                $maxHeight    = max($maxHeight, (float) ($pkg['height'] ?? 0));
+            }
+        } else {
+            $overrideMap = [];
+            foreach ($itemOverrides as $override) {
+                if (!empty($override['order_item_id'])) {
+                    $overrideMap[(int) $override['order_item_id']] = $override;
+                }
+            }
+
+            $mainItems = $order->items->filter(function ($item) {
+                return !$item->bundle_product_id || $item->is_bundle_summary;
+            });
+
+            foreach ($mainItems as $item) {
+                $qty      = (int) ($item->quantity ?? 1);
+                $override = $overrideMap[$item->id] ?? null;
+
+                if ($override) {
+                    $weight = (float) ($override['weight'] ?? 0);
+                    $length = (float) ($override['length'] ?? 0);
+                    $width  = (float) ($override['width']  ?? 0);
+                    $height = (float) ($override['height'] ?? 0);
+                } else {
+                    $product = $item->product;
+                    $product?->refresh();
+                    $meta   = $product?->product_meta ?? [];
+                    $weight = (float) ($meta['weight'] ?? $product?->weight ?? 0);
+                    $length = (float) ($meta['length'] ?? $product?->length ?? 0);
+                    $width  = (float) ($meta['width']  ?? $product?->width  ?? 0);
+                    $height = (float) ($meta['height'] ?? $product?->height ?? 0);
+                }
+
+                $totalWeight += $weight * $qty;
+                $maxLength    = max($maxLength, $length);
+                $maxWidth     = max($maxWidth,  $width);
+                $maxHeight    = max($maxHeight, $height);
+            }
+        }
+
+        if ($totalWeight <= 0) { $totalWeight = 1.0; }
+        if ($maxLength   <= 0) { $maxLength   = 12.0; }
+        if ($maxWidth    <= 0) { $maxWidth    = 12.0; }
+        if ($maxHeight   <= 0) { $maxHeight   = 12.0; }
+
+        return [
+            $this->convertWeightToCarrierUnit($totalWeight, $userWeightUnit, $targetWeightUnit),
+            $this->convertDimensionToCarrierUnit($maxLength, $userDimensionUnit, $targetDimensionUnit),
+            $this->convertDimensionToCarrierUnit($maxWidth,  $userDimensionUnit, $targetDimensionUnit),
+            $this->convertDimensionToCarrierUnit($maxHeight, $userDimensionUnit, $targetDimensionUnit),
+        ];
+    }
+
+    /**
+     * Get USPS rate quotes for an order by querying the Prices API across a
+     * handful of common domestic mail classes and merging the results.
+     */
+    protected function getUspsRatesForOrder(Order $order, Shipping $carrier, UspsService $service, array $packageOverrides, array $unitOverrides): array
+    {
+        [$weight, $length, $width, $height] = $this->aggregateOrderPackageDimensions(
+            $order, $carrier, 'lbs', 'in', $unitOverrides, $packageOverrides
+        );
+
+        $mailClasses = ['USPS_GROUND_ADVANTAGE', 'PRIORITY_MAIL', 'PRIORITY_MAIL_EXPRESS'];
+        $rawRates    = [];
+
+        foreach ($mailClasses as $mailClass) {
+            $payload = [
+                'originZIPCode'                => substr($carrier->shipper_postal_code ?? '', 0, 5),
+                'destinationZIPCode'           => substr($order->shipping_postal_code ?? '', 0, 5),
+                'weight'                       => round($weight, 2),
+                'length'                       => (float) ceil($length),
+                'width'                        => (float) ceil($width),
+                'height'                       => (float) ceil($height),
+                'mailClass'                    => $mailClass,
+                'processingCategory'           => 'MACHINABLE',
+                'rateIndicator'                => 'SP',
+                'destinationEntryFacilityType' => 'NONE',
+                'priceType'                    => 'RETAIL',
+            ];
+
+            foreach ($service->getRates($payload) as $rateOption) {
+                $rateOption['mailClass'] = $mailClass;
+                $rawRates[] = $rateOption;
+            }
+        }
+
+        return $this->normalizeRates($rawRates, $carrier->type);
+    }
+
+    /**
+     * Generate a single USPS shipping label for an order.
+     */
+    protected function generateUspsLabelForOrder(
+        Order $order,
+        Shipping $carrier,
+        UspsService $service,
+        string $serviceCode,
+        array $itemOverrides,
+        array $unitOverrides
+    ): array {
+        [$weight, $length, $width, $height] = $this->aggregateOrderPackageDimensions(
+            $order, $carrier, 'lbs', 'in', $unitOverrides, [], $itemOverrides
+        );
+
+        $recipientStreetLines = array_values(array_filter([
+            $order->shipping_address_line1 ?? '',
+            $order->shipping_address_line2 ?? null,
+        ]));
+
+        $shipmentPayload = [
+            'imageInfo' => [
+                'imageType' => 'PDF',
+                'labelType' => '4X6LABEL',
+            ],
+            'fromAddress' => [
+                'firstName'     => $carrier->shipper_name ?? 'Shipper',
+                'streetAddress' => $carrier->shipper_address ?? '123 Shipper Street',
+                'city'          => $carrier->shipper_city        ?? 'New York',
+                'state'         => $carrier->shipper_state       ?? 'NY',
+                'ZIPCode'       => substr($carrier->shipper_postal_code ?? '10001', 0, 5),
+            ],
+            'toAddress' => [
+                'firstName'        => $order->shipping_name ?? $order->buyer_name ?? 'Recipient',
+                'streetAddress'    => $recipientStreetLines[0] ?? '',
+                'secondaryAddress' => $recipientStreetLines[1] ?? null,
+                'city'             => $order->shipping_city  ?? '',
+                'state'            => $order->shipping_state ?? '',
+                'ZIPCode'          => substr($order->shipping_postal_code ?? '', 0, 5),
+            ],
+            'packageDescription' => [
+                'weightUOM'          => 'lb',
+                'weight'             => round($weight, 2),
+                'dimensionsUOM'      => 'in',
+                'length'             => (float) ceil($length),
+                'width'              => (float) ceil($width),
+                'height'             => (float) ceil($height),
+                'mailClass'          => $serviceCode,
+                'rateIndicator'      => 'SP',
+                'processingCategory' => 'MACHINABLE',
+                'mailingDate'        => date('Y-m-d'),
+                'referenceNumber'    => substr(
+                    !empty($unitOverrides['customer_reference'])
+                        ? $unitOverrides['customer_reference']
+                        : $this->getCustomerReference($order),
+                    0,
+                    30
+                ),
+            ],
+            'senderAccountNumber' => $carrier->account_number ?? '',
+        ];
+
+        $result = $service->createShipment($shipmentPayload);
+
+        $trackingNumber = $result['tracking_number'];
+        $labelBase64    = $result['label_base64'];
+        $labelFormat    = strtolower($result['label_format'] ?? 'pdf');
+
+        $filename = "shipping-labels/order-{$order->id}-{$trackingNumber}.{$labelFormat}";
+        Storage::put($filename, base64_decode($labelBase64));
+
+        return [
+            'tracking_number'   => $trackingNumber,
+            'label_path'        => $filename,
+            'carrier_name'      => $carrier->name,
+            'shipping_cost'     => $result['shipping_cost'] ?? null,
+            'shipping_currency' => $result['shipping_currency'] ?? 'USD',
+        ];
+    }
+
+    /**
+     * Generate multiple USPS shipping labels for an order (one per package).
+     */
+    protected function generateUspsMultipleLabelsForOrder(
+        Order $order,
+        Shipping $carrier,
+        UspsService $service,
+        string $serviceCode,
+        int $packageCount,
+        array $packageOverrides,
+        array $unitOverrides
+    ): array {
+        $userWeightUnit    = $unitOverrides['weight_unit']    ?? $carrier->weight_unit    ?? 'lbs';
+        $userDimensionUnit = $unitOverrides['dimension_unit'] ?? $carrier->dimension_unit ?? 'in';
+
+        $recipientStreetLines = array_values(array_filter([
+            $order->shipping_address_line1 ?? '',
+            $order->shipping_address_line2 ?? null,
+        ]));
+
+        $packages = [];
+
+        for ($i = 0; $i < $packageCount; $i++) {
+            $override = $packageOverrides[$i] ?? [];
+
+            $weight = $this->convertWeightToCarrierUnit((float) ($override['weight'] ?? 1.0), $userWeightUnit, 'lbs');
+            $length = $this->convertDimensionToCarrierUnit((float) ($override['length'] ?? 12.0), $userDimensionUnit, 'in');
+            $width  = $this->convertDimensionToCarrierUnit((float) ($override['width']  ?? 12.0), $userDimensionUnit, 'in');
+            $height = $this->convertDimensionToCarrierUnit((float) ($override['height'] ?? 12.0), $userDimensionUnit, 'in');
+
+            $customerRef = substr(
+                $override['customer_reference']
+                    ?? $unitOverrides['customer_reference']
+                    ?? $this->getCustomerReference($order),
+                0,
+                30
+            );
+
+            $shipmentPayload = [
+                'imageInfo' => [
+                    'imageType' => 'PDF',
+                    'labelType' => '4X6LABEL',
+                ],
+                'fromAddress' => [
+                    'firstName'     => $carrier->shipper_name ?? 'Shipper',
+                    'streetAddress' => $carrier->shipper_address ?? '123 Shipper Street',
+                    'city'          => $carrier->shipper_city        ?? 'New York',
+                    'state'         => $carrier->shipper_state       ?? 'NY',
+                    'ZIPCode'       => substr($carrier->shipper_postal_code ?? '10001', 0, 5),
+                ],
+                'toAddress' => [
+                    'firstName'        => $order->shipping_name ?? $order->buyer_name ?? 'Recipient',
+                    'streetAddress'    => $recipientStreetLines[0] ?? '',
+                    'secondaryAddress' => $recipientStreetLines[1] ?? null,
+                    'city'             => $order->shipping_city  ?? '',
+                    'state'            => $order->shipping_state ?? '',
+                    'ZIPCode'          => substr($order->shipping_postal_code ?? '', 0, 5),
+                ],
+                'packageDescription' => [
+                    'weightUOM'          => 'lb',
+                    'weight'             => round($weight, 2),
+                    'dimensionsUOM'      => 'in',
+                    'length'             => (float) ceil($length),
+                    'width'              => (float) ceil($width),
+                    'height'             => (float) ceil($height),
+                    'mailClass'          => $serviceCode,
+                    'rateIndicator'      => 'SP',
+                    'processingCategory' => 'MACHINABLE',
+                    'mailingDate'        => date('Y-m-d'),
+                    'referenceNumber'    => $customerRef,
+                ],
+                'senderAccountNumber' => $carrier->account_number ?? '',
+            ];
+
+            $result = $service->createShipment($shipmentPayload);
+
+            $trackingNumber = $result['tracking_number'];
+            $labelBase64    = $result['label_base64'];
+            $labelFormat    = strtolower($result['label_format'] ?? 'pdf');
+
+            $filename = "shipping-labels/order-{$order->id}-pkg" . ($i + 1) . "-{$trackingNumber}.{$labelFormat}";
+            Storage::put($filename, base64_decode($labelBase64));
+
+            $packages[] = [
+                'tracking_number'   => $trackingNumber,
+                'label_path'        => $filename,
+                'package_number'    => $i + 1,
+                'shipping_cost'     => $result['shipping_cost'] ?? null,
+                'shipping_currency' => $result['shipping_currency'] ?? 'USD',
+            ];
+        }
+
+        $totalShippingCost = array_sum(array_column($packages, 'shipping_cost'));
+
+        return [
+            'packages'          => $packages,
+            'carrier_name'      => $carrier->name,
+            'shipping_cost'     => $totalShippingCost,
+            'shipping_currency' => $packages[0]['shipping_currency'] ?? 'USD',
+        ];
     }
 }

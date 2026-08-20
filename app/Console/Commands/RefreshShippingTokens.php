@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Shipping;
 use App\Services\FedexService;
+use App\Services\UspsService;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -128,9 +129,8 @@ class RefreshShippingTokens extends Command
                 return null;
 
             case 'usps':
-                // TODO: Implement USPS token refresh when USPS integration is added
-                $this->warn("  → USPS token refresh not yet implemented");
-                return null;
+                $service = new UspsService($carrier);
+                return $service->refreshAccessToken();
 
             default:
                 $this->warn("  → Unknown carrier type: {$type}");
