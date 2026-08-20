@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory Management System — Complete Documentation</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#1a1a1a; --muted:#5b5b5b; --border:#e2e2e2;
+    --code-bg:#f4f4f5; --accent:#0f62fe; --table-head:#f6f7f9; --warn-bg:#fff7ed; --warn-border:#f5c98a;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#14161a; --fg:#e8e8e8; --muted:#a0a0a0; --border:#2b2e34;
+      --code-bg:#1e2126; --accent:#5b9dff; --table-head:#1c1f24; --warn-bg:#2a2013; --warn-border:#6b4a17; }
+  }
+  :root[data-theme="light"]{ --bg:#ffffff; --fg:#1a1a1a; --muted:#5b5b5b; --border:#e2e2e2;
+    --code-bg:#f4f4f5; --accent:#0f62fe; --table-head:#f6f7f9; --warn-bg:#fff7ed; --warn-border:#f5c98a; }
+  :root[data-theme="dark"]{ --bg:#14161a; --fg:#e8e8e8; --muted:#a0a0a0; --border:#2b2e34;
+    --code-bg:#1e2126; --accent:#5b9dff; --table-head:#1c1f24; --warn-bg:#2a2013; --warn-border:#6b4a17; }
+
+  body{ background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6; max-width:920px; margin:0 auto; padding:2.5rem 1.25rem 5rem; }
+  h1{ font-size:1.9rem; border-bottom:3px solid var(--accent); padding-bottom:.5rem; margin-bottom:.25rem; }
+  h2{ font-size:1.35rem; margin-top:2.5rem; border-bottom:1px solid var(--border); padding-bottom:.35rem; }
+  h3{ font-size:1.1rem; margin-top:1.75rem; color:var(--accent); }
+  p{ color:var(--fg); }
+  ul{ padding-left:1.4rem; }
+  li{ margin:.35rem 0; }
+  code{ background:var(--code-bg); padding:.15em .4em; border-radius:4px; font-size:.9em;
+    font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace; }
+  pre{ background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:1rem;
+    overflow-x:auto; font-size:.88rem; }
+  pre code{ background:none; padding:0; }
+  table{ border-collapse:collapse; width:100%; margin:1rem 0; overflow-x:auto; display:block; }
+  thead{ display:table; width:100%; table-layout:fixed; }
+  tbody{ display:table; width:100%; table-layout:fixed; }
+  th,td{ border:1px solid var(--border); padding:.55rem .75rem; text-align:left; vertical-align:top; }
+  th{ background:var(--table-head); }
+  tr:nth-child(even) td{ background:color-mix(in srgb, var(--table-head) 45%, transparent); }
+  hr{ border:none; border-top:1px solid var(--border); margin:2.25rem 0; }
+  .subtitle{ color:var(--muted); margin-top:.25rem; margin-bottom:1.5rem; }
+  .callout{ background:var(--warn-bg); border:1px solid var(--warn-border); border-radius:8px; padding:1rem 1.25rem; }
+  .callout h2{ border:none; margin-top:0; padding-bottom:0; }
+  strong{ color:var(--fg); }
+  a{ color:var(--accent); }
+  .toc{ background:var(--code-bg); border:1px solid var(--border); border-radius:8px; padding:1rem 1.5rem; }
+  .toc ul{ margin:.25rem 0; }
+  .toc a{ text-decoration:none; }
+  .toc a:hover{ text-decoration:underline; }
+</style>
+</head>
+<body>
+
+<h1>Inventory Management System — Complete Documentation</h1>
+<p class="subtitle">Full codebase audit, 2026-08-20</p>
+
+<nav class="toc">
+<strong>Contents</strong>
+<ul>
+  <li><a href="#overview">Overview</a></li>
+  <li><a href="#modules">Key Features &amp; Modules</a></li>
+  <li><a href="#absent">What does NOT exist</a></li>
+  <li><a href="#stack">Technology Stack</a></li>
+  <li><a href="#entities">Database Entities</a></li>
+  <li><a href="#architecture">Architecture</a></li>
+  <li><a href="#workflows">Integration Workflows</a></li>
+  <li><a href="#commands">Console Commands</a></li>
+  <li><a href="#api">API Surface</a></li>
+  <li><a href="#summary">Summary</a></li>
+</ul>
+</nav>
+
+<h2 id="overview">Overview</h2>
+<p>Comprehensive <strong>Laravel-based Inventory Management System</strong> for e-commerce businesses. End-to-end management of products, orders, purchases, warehousing, and financial accounting, with deep <strong>eBay marketplace integration</strong>. Single-tenant application (no multi-company/org scoping).</p>
+
+<hr>
+
+<h2 id="modules">Key Features &amp; Modules</h2>
+
+<h3>1. Inventory Management</h3>
+<ul>
+  <li>Product catalog with SKU, barcode, pricing, descriptions (<code>ProductController</code>, <code>Product</code>, <code>ProductMeta</code>)</li>
+  <li>Product bundles — composite products with automatic stock calculations (<code>ProductBundleComponent</code>)</li>
+  <li>Multi-warehouse/rack storage tracking (<code>Warehouse</code>, <code>Rack</code>)</li>
+  <li>Barcode generation and bulk label printing (picqer/php-barcode-generator)</li>
+  <li>Bulk import/export via Excel (<code>ProductsImport</code>, <code>PurchaseImport</code>, Maatwebsite Excel)</li>
+</ul>
+
+<h3>2. Warehouse &amp; Storage</h3>
+<ul>
+  <li>Multiple warehouse locations</li>
+  <li>Granular rack/bin level tracking</li>
+  <li>Weighted average cost inventory valuation (<code>ProductStock</code>, <code>InventoryAccountingService</code>)</li>
+</ul>
+
+<h3>3. Purchase &amp; Supplier Management</h3>
+<ul>
+  <li>Purchase order creation and tracking (<code>Purchase</code>, <code>PurchaseItem</code>)</li>
+  <li>Supplier profiles with payables integration (<code>Supplier</code>)</li>
+  <li>Partial/full receiving workflows</li>
+  <li>Freight and customs duty tracking for imports</li>
+</ul>
+
+<h3>4. Sales Channel Integration</h3>
+<ul>
+  <li><strong>eBay only</strong> — architecture (<code>SalesChannel</code>, <code>SalesChannelProduct</code>) is named generically to allow future channels (Amazon, Shopify, etc.) but no other channel is implemented today. All OAuth, sync, and finance code is eBay-specific.</li>
+  <li>Full eBay integration with OAuth2 authentication</li>
+  <li>Product listing management, eBay Platform Notifications for webhooks</li>
+  <li><strong>Dedicated per-channel listings</strong> <em>(added 2026-08-13/14, missing from original draft)</em> — each product can now have a distinct listing <code>title</code>, <code>description</code>, <code>regular_price</code>, <code>sale_price</code> per connected sales channel (stored on the <code>sales_channel_product</code> pivot, model <code>SalesChannelProduct</code>), instead of one shared title/description across all channels. Fields can be prefilled from eBay via <code>GET /ebay/item-by-sku/{id}</code>.</li>
+  <li><strong>Buffered Inventory Sync engine</strong> <em>(missing from original draft)</em> — <code>app/Services/Inventory/</code> (<code>InventorySyncService</code>, <code>VisibleStockCalculator</code>, <code>SyncDecision</code>, <code>SyncResult</code>) + <code>InventorySyncController</code> + <code>InventorySyncLog</code> model. Calculates "visible" sellable stock per channel (buffer/overselling protection), supports manual force-sync, per-product/channel sync toggles, and logs every sync attempt. Control surface at <code>/api/inventory-sync/*</code> (status, preview, sync, queue, force, syncChannel, logs, stats, settings).</li>
+  <li><strong>eBay Finance sync</strong> <em>(missing from original draft)</em> — <code>EbayFinanceSyncService</code>, <code>EbayFinanceTransaction</code> model, <code>SyncEbayFinances</code> job/command (hourly). Reconciles eBay fees, shipping label charges, and ad charges against orders (<code>orders</code> table has <code>ebay_finance_summary</code> fields).</li>
+</ul>
+
+<h3>5. Order Management</h3>
+<ul>
+  <li>Complete order lifecycle (pending → paid → shipped → delivered)</li>
+  <li><strong>Order Returns module</strong> <em>(missing from original draft)</em> — separate from eBay's own Return API. <code>OrderReturn</code>/<code>OrderReturnItem</code> models, <code>OrderReturnController</code>, <code>order_returns</code>/<code>order_return_items</code> tables. Approve/decline/mark-received/close workflow. Rule: <strong>return = restock, refund alone ≠ restock</strong> (business rule captured in return-vs-refund logic).</li>
+  <li>FedEx shipping integration for labels and tracking (see §6 for full feature list — goes well beyond tracking)</li>
+  <li>Shipment deadline alerts</li>
+</ul>
+
+<h3>6. FedEx Shipping — full feature set <em>(original draft undersold this)</em></h3>
+<p><code>FedexService</code> + <code>ShippingService</code> (carrier-agnostic wrapper, only FedEx implemented today):</p>
+<ul>
+  <li>OAuth2 client-credentials token flow, sandbox/production switching, auto token refresh (<code>shipping:refresh-tokens</code>, every 30 min)</li>
+  <li><strong>Address validation</strong> — classifies BUSINESS/RESIDENTIAL/MIXED/UNKNOWN</li>
+  <li><strong>Rate shopping</strong> — <code>POST /orders/shipping-rates</code>, <code>GET /orders/{id}/rate-info</code></li>
+  <li><strong>Label generation</strong> — single and multi-package shipments (<code>POST /orders/{id}/generate-label</code>, <code>.../generate-multi-labels</code>), returns tracking number + base64 label</li>
+  <li><strong>Label cancellation/voiding</strong> — <code>POST /orders/{id}/cancel-label</code></li>
+  <li><strong>End-of-day shipment closing</strong> — <code>POST /orders/close-fedex-shipments</code></li>
+  <li><strong>Tracking status polling</strong> — used by scheduled delivery-status checks (every 2h)</li>
+</ul>
+
+<h3>7. Financial Accounting Module</h3>
+<ul>
+  <li>Double-entry bookkeeping, hierarchical Chart of Accounts</li>
+  <li>Vendor bills and payment tracking (<code>BillService</code>, <code>PaymentService</code>)</li>
+  <li>Automatic journal entries (<code>JournalService</code>, <code>InventoryAccountingService</code>) for COGS on shipment, sales revenue, purchase duties/freight</li>
+  <li><code>SalesChannelAccountService</code> auto-creates Chart-of-Accounts entries per sales channel</li>
+  <li>Reports: trial balance, ledger, inventory valuation, sales, purchases, plus <strong>23 distinct export classes</strong> (<code>app/Exports/</code>) including expense report, supplier ledger, bank summary, COGS (2-sheet), gross profit, comparison report, returns/refunds export, unmatched SKUs, and more.</li>
+</ul>
+
+<h3>8. Market Research Module <em>(entirely missing from original draft)</em></h3>
+<p>Automated <strong>eBay competitor price comparison</strong> for your catalog.</p>
+<ul>
+  <li>Pulls competitor listings/prices per SKU via eBay's Browse API (<code>EbayBrowseClient</code>, <code>PriceComparisonService</code>)</li>
+  <li><code>ProductPriceComparison</code> model, <code>CompareProductPriceJob</code>, console command <code>price-comparison:run</code> (scheduled hourly, rotates oldest-compared-first, <code>--limit=50</code>)</li>
+  <li>UI: <code>MarketResearchController</code> — filterable/sortable comparison table + Excel export, at <code>/market-research</code></li>
+</ul>
+
+<h3>9. User, Role &amp; Permission Management <em>(entirely missing from original draft)</em></h3>
+<p>Full RBAC built on <strong>Spatie Laravel Permission</strong>, not just data models:</p>
+<ul>
+  <li><code>UserController</code>, <code>RoleController</code>, <code>PermissionController</code> — full CRUD + bulk-delete UIs</li>
+  <li>Custom <code>Permission</code> model adds a <code>category</code> field; permission categories: Orders, Products, Purchases, Warehouses, Sales Channels, Suppliers, Shipping, Accounting, Users &amp; Access</li>
+  <li>Every controller in the app is permission-gated (<code>PermissionMiddleware::using('view users')</code>, etc.) — this is the authorization backbone for the whole system, not a bolt-on</li>
+  <li>No hardcoded "admin"/"superadmin" flag — "admin" is simply a role granted all permissions via the Roles UI</li>
+  <li>Seeders: <code>AccountingPermissionsSeeder</code>, <code>BasicSeeder</code></li>
+</ul>
+
+<h3>10. Dashboard &amp; Reporting</h3>
+<ul>
+  <li>Customizable <strong>per-user</strong> widget-based dashboard (<code>DashboardSetting</code> model — settings are per-user, not global company settings)</li>
+  <li>Widget toggle/reset endpoints (<code>/dashboard/widgets</code>, <code>/dashboard/widgets/toggle</code>, <code>/dashboard/widgets/reset</code>)</li>
+  <li>PDF export (DomPDF), multiple report types</li>
+</ul>
+
+<hr>
+
+<div class="callout" id="absent">
+<h2>What does NOT exist</h2>
+<p>Explicitly confirmed by codebase audit — don't assume otherwise:</p>
+<ul>
+  <li><strong>No Settings/Configuration module.</strong> No company settings, no email-template settings. Third-party credentials live per-record (<code>sales_channels</code>, <code>shippings</code> tables) or in <code>.env</code>.</li>
+  <li><strong>No notification system.</strong> No <code>app/Notifications/</code>, no <code>app/Mail/</code>, no <code>Notification::</code>/<code>Mail::</code>/<code>-&gt;notify()</code> calls anywhere. <code>.env</code> mail driver is <code>log</code> only — the app cannot currently send real emails. "Notifications" in this codebase means only eBay's inbound webhooks.</li>
+  <li><strong>No other sales channels.</strong> eBay only; Amazon/Shopify/Walmart/Etsy/WooCommerce — zero code.</li>
+  <li><strong>No 2FA/TOTP.</strong></li>
+  <li><strong>No multi-tenancy.</strong> No <code>company_id</code>/<code>tenant_id</code>/<code>organization_id</code> anywhere — single-tenant, global data.</li>
+  <li><strong>No low-stock or internal alerting system</strong> for staff (order alerts, stock alerts) — worth flagging as a gap/roadmap item.</li>
+</ul>
+</div>
+
+<hr>
+
+<h2 id="stack">Technology Stack</h2>
+<table>
+<thead><tr><th>Layer</th><th>Technology</th></tr></thead>
+<tbody>
+<tr><td>Backend</td><td>Laravel (PHP ^8.2)</td></tr>
+<tr><td>Database</td><td>MySQL/MariaDB</td></tr>
+<tr><td>Authentication</td><td><strong>Session-based</strong> (<code>laravel/ui</code>, guard <code>web</code>) — self-registration disabled (<code>Auth::routes(['register' =&gt; false])</code>); users created only via admin Users module</td></tr>
+<tr><td>API tokens</td><td>Laravel Sanctum ^4.0 — installed but only guards <code>GET /api/user</code>; not used to secure eBay/inventory-sync API routes</td></tr>
+<tr><td>Authorization</td><td>Spatie Laravel Permission ^6.24 (roles + categorized permissions)</td></tr>
+<tr><td>Frontend</td><td>Blade, Bootstrap 5, Tailwind CSS 4, SCSS (<code>sass</code>)</td></tr>
+<tr><td>Build Tool</td><td>Vite ^7</td></tr>
+<tr><td>PDF Generation</td><td>barryvdh/laravel-dompdf ^3.1</td></tr>
+<tr><td>Excel/CSV</td><td>Maatwebsite Excel ^3.1</td></tr>
+<tr><td>Barcode</td><td>picqer/php-barcode-generator ^3.2</td></tr>
+<tr><td>Queue</td><td>Database driver — self-driving worker (scheduled every 5 min: <code>queue:work --stop-when-empty --max-time=50</code>), not a persistent daemon</td></tr>
+<tr><td>Dev tooling</td><td>Laravel Pail (log viewer), Pint (formatting), Sail, PHPUnit ^11.5</td></tr>
+</tbody>
+</table>
+<p><strong>Auth detail worth noting:</strong> email verification scaffolding exists (<code>VerificationController</code>) but is inactive (<code>MustVerifyEmail</code> commented out on <code>User</code>). Password reset and password re-confirmation are fully wired.</p>
+
+<hr>
+
+<h2 id="entities">Database Entities</h2>
+<p><strong>Core Inventory:</strong> Product, ProductMeta, ProductStock, ProductBundleComponent, Category, Brand, Warehouse, Rack, ProductPriceComparison</p>
+<p><strong>Sales &amp; Orders:</strong> Order, OrderItem, OrderMeta, OrderReturn, OrderReturnItem, SalesChannel, SalesChannelProduct (pivot, holds per-channel listing content), Shipping, InventorySyncLog, EbayFinanceTransaction, EbayImportLog</p>
+<p><strong>Purchases:</strong> Purchase, PurchaseItem, Supplier</p>
+<p><strong>Accounting:</strong> ChartOfAccount, Bill, BillItem, Payment, JournalEntry, JournalEntryLine</p>
+<p><strong>Access Control:</strong> User, Role (Spatie), Permission (custom, with <code>category</code>), DashboardSetting</p>
+<p><em>(Note: actual model classes are singular — e.g. <code>Order</code> not <code>Orders</code>, <code>ChartOfAccount</code> not <code>ChartOfAccounts</code>.)</em></p>
+
+<hr>
+
+<h2 id="architecture">Architecture</h2>
+<p>Service Layer Architecture: <strong>Controllers → Services → Models → Database</strong></p>
+<p><strong>Key services:</strong></p>
+<ul>
+  <li><code>BillService</code>, <code>PaymentService</code>, <code>JournalService</code>, <code>InventoryAccountingService</code>, <code>SalesChannelAccountService</code> (accounting)</li>
+  <li><code>EbayService</code>, <code>EbayOrderService</code>, <code>EbayApiClient</code>, <code>EbayBrowseClient</code>, <code>EbayFinanceSyncService</code>, <code>EbayFinancesApiClient</code>, <code>EbayNotificationService</code>, <code>EbayPostOrderApiClient</code>, <code>EbayXmlBuilder</code>, <code>PriceComparisonService</code> (eBay, under <code>app/Services/Ebay/</code>)</li>
+  <li><code>InventorySyncService</code>, <code>VisibleStockCalculator</code>, <code>SyncDecision</code>, <code>SyncResult</code> (inventory sync, under <code>app/Services/Inventory/</code>)</li>
+  <li><code>FedexService</code>, <code>ShippingService</code> (shipping)</li>
+</ul>
+<p><strong>Controllers</strong> (30 total) grouped: Auth (6), Users/RBAC (3), Catalog (4, incl. Market Research), Warehousing (2), Purchasing (2), Sales Channels (3), Orders/Shipping (3), Accounting (6), Dashboard/Home (2), base Controller.</p>
+<p><strong>Jobs</strong> (<code>app/Jobs/</code>, 6): <code>SyncEbayOrdersJob</code>, <code>ImportEbayListingsJob</code>, <code>SyncEbayFinancesJob</code>, <code>SyncInventoryToEbayJob</code>, <code>UpdateEbayOrderStatusJob</code>, <code>CompareProductPriceJob</code></p>
+
+<hr>
+
+<h2 id="workflows">Integration Workflows</h2>
+
+<p><strong>eBay Flow:</strong></p>
+<pre><code>OAuth2 Auth → Subscribe Notifications → Import Listings → Sync Inventory (buffered, overselling-protected)
+     ↓
+Receive Order Webhooks → Create Local Orders → Ship → Handle Returns (local OrderReturn workflow + eBay Return API)
+     ↓
+Sync Finance Transactions (fees/labels/ads, hourly) → Reconcile against Orders</code></pre>
+
+<p><strong>Market Research Flow:</strong></p>
+<pre><code>price-comparison:run (hourly, oldest-first) → PriceComparisonService → eBay Browse API
+     ↓
+ProductPriceComparison records → /market-research review table → Excel export</code></pre>
+
+<p><strong>Accounting Flow:</strong></p>
+<pre><code>Purchase (with duties/freight) → Receive Stock → Update Valuation (weighted avg)
+     ↓
+Customer Order → Ship (COGS entry) → Record Revenue → Reconcile</code></pre>
+
+<hr>
+
+<h2 id="commands">Console Commands (15 total)</h2>
+<table>
+<thead><tr><th>Command</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>ebay:sync-orders</code></td><td>Poll eBay for orders (scheduled every 15 min)</td></tr>
+<tr><td><code>ebay:sync-listings</code></td><td>Import eBay listings as products</td></tr>
+<tr><td><code>ebay:refresh-tokens</code></td><td>Refresh eBay OAuth tokens (every 30 min)</td></tr>
+<tr><td><code>ebay:sync-finances</code></td><td>Sync eBay finance transactions (hourly)</td></tr>
+<tr><td><code>price-comparison:run</code></td><td>Market Research price comparison (hourly, <code>--limit=50</code>)</td></tr>
+<tr><td><code>check:delivery-status</code></td><td>Check shipment delivery status (every 2h)</td></tr>
+<tr><td><code>shipping:refresh-tokens</code></td><td>Refresh FedEx tokens (every 30 min)</td></tr>
+<tr><td><code>queue:release-stale</code></td><td>Release stuck queue jobs (every 5 min)</td></tr>
+<tr><td><code>SyncInventoryToEbay</code></td><td>Push inventory changes to eBay</td></tr>
+<tr><td><code>SyncInventoryAccounting</code></td><td>Reconcile inventory accounting entries</td></tr>
+<tr><td><code>SyncBankBalances</code></td><td>Sync bank/payment balances</td></tr>
+<tr><td><code>RecalculateOrderTotals</code></td><td>Data-repair: recompute order totals</td></tr>
+<tr><td><code>BackfillOrderItemCosts</code></td><td>Data-repair: backfill historical cost data</td></tr>
+<tr><td><code>BackfillOrderItemProducts</code></td><td>Data-repair: backfill order-item product links</td></tr>
+<tr><td><code>PopulateEbayUserIds</code></td><td>Data-repair: populate eBay user IDs</td></tr>
+<tr><td><code>ConvertEbayLogsToJson</code></td><td>Data-repair: migrate legacy eBay logs to JSON</td></tr>
+</tbody>
+</table>
+<p>Order-status reconciliation job (<code>UpdateEbayOrderStatusJob</code>) runs twice daily (6am/6pm) to catch cancel/refund/return changes.</p>
+
+<hr>
+
+<h2 id="api">API Surface (<code>routes/api.php</code>)</h2>
+<p>Not a general secured third-party REST API — almost entirely eBay webhooks + internal control endpoints:</p>
+<ul>
+  <li><code>GET /api/user</code> — only Sanctum-guarded route</li>
+  <li><code>GET|POST /api/ebay/webhook</code> — unified eBay notification receiver (routes by <code>RecipientUserID</code>); <code>GET</code> handles challenge verification</li>
+  <li><code>GET|POST /api/ebay/webhook/{id}</code> — legacy per-channel webhook</li>
+  <li><code>/api/ebay/*</code> — Returns, Cancellations, Refunds, INR/Inquiries, notification subscriptions, read-only order views</li>
+  <li><code>/api/orders/*</code> — local (non-eBay) order cancel/refund/partial-refund</li>
+  <li><code>/api/inventory-sync/*</code> — status/preview/sync/queue/force/syncChannel/logs/stats/settings</li>
+</ul>
+<p>All routes except <code>/api/user</code> are <strong>unauthenticated</strong> (webhook/internal endpoints, not public API keys).</p>
+
+<hr>
+
+<h2 id="summary">Summary</h2>
+<p>Production-grade, single-tenant inventory system for e-commerce sellers on eBay, combining inventory management, order fulfillment (with FedEx label generation/rate-shopping, not just tracking), returns handling, competitor price research, and full double-entry accounting in one platform. Backbone is a granular, permission-gated RBAC system covering every module. Notable gaps for future roadmap: no outbound notifications/email, no Settings module, no multi-channel support beyond eBay, no 2FA, no multi-tenancy.</p>
+
+</body>
+</html>
