@@ -3,12 +3,18 @@ namespace App\Http\Controllers;
 use App\Models\Shipping;
 use App\Services\ShippingService;
 use Illuminate\Http\Request;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 class ShippingController extends Controller
 {
     protected ShippingService $shippingService;
     public function __construct(ShippingService $shippingService)
     {
         $this->shippingService = $shippingService;
+
+        $this->middleware(PermissionMiddleware::using('view shipping'), ['only' => ['index', 'show']]);
+        $this->middleware(PermissionMiddleware::using('add shipping'), ['only' => ['create', 'store']]);
+        $this->middleware(PermissionMiddleware::using('edit shipping'), ['only' => ['edit', 'update', 'toggleStatus', 'validateAddress']]);
+        $this->middleware(PermissionMiddleware::using('delete shipping'), ['only' => ['destroy', 'bulkDelete']]);
     }
     public function index(Request $request)
     {

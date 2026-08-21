@@ -15,11 +15,21 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\View\View;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class SystemHealthController extends Controller
 {
     protected const FAILED_JOBS_SORTABLE = ['job', 'queue', 'failed_at'];
     protected const SCHEDULE_SORTABLE = ['command', 'expression', 'frequency', 'next_due'];
+
+    public function __construct()
+    {
+        $this->middleware(PermissionMiddleware::using('view system-health'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('manage system-health'), ['only' => [
+            'checkUptimeNow', 'runCrawlNow', 'retryFailedJob', 'deleteFailedJob',
+            'clearFailedJobs', 'bulkRetryFailedJobs', 'bulkDeleteFailedJobs',
+        ]]);
+    }
 
     public function index(Request $request): View
     {

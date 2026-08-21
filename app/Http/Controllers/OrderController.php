@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Services\ShippingService;
 use App\Services\Ebay\EbayFinanceSyncService;
 use Maatwebsite\Excel\Facades\Excel;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class OrderController extends Controller
 {
@@ -24,6 +25,18 @@ class OrderController extends Controller
     public function __construct(ShippingService $shippingService)
     {
         $this->shippingService = $shippingService;
+
+        $this->middleware(PermissionMiddleware::using('view orders'), ['only' => [
+            'index', 'show', 'getByEbayOrderId', 'rateInfo', 'getShippingRates', 'statistics',
+            'unmatchedSkus', 'exportUnmatchedSkus', 'returnsRefunds', 'exportReturnsRefunds',
+        ]]);
+        $this->middleware(PermissionMiddleware::using('add orders'), ['only' => ['create', 'store']]);
+        $this->middleware(PermissionMiddleware::using('edit orders'), ['only' => [
+            'edit', 'update', 'markAsShipped', 'cancel', 'syncEbayOrderStatus', 'refund',
+            'partialRefund', 'updateRefundAmount', 'generateShippingLabel', 'generateMultiPackageLabels',
+            'downloadLabel', 'cancelLabel', 'closeFedExShipments',
+        ]]);
+        $this->middleware(PermissionMiddleware::using('delete orders'), ['only' => ['destroy', 'bulkDelete']]);
     }
 
     /**

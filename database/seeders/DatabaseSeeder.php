@@ -6,6 +6,7 @@ use App\Models\User;
 use Database\Seeders\AccountingPermissionsSeeder;
 use Database\Seeders\BasicSeeder;
 use Database\Seeders\ChartOfAccountsSeeder;
+use Database\Seeders\ModulePermissionsSeeder;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -22,6 +23,7 @@ class DatabaseSeeder extends Seeder
             BasicSeeder::class,
             ChartOfAccountsSeeder::class,
             AccountingPermissionsSeeder::class,
+            ModulePermissionsSeeder::class,
         ]);
 
         // User::factory(10)->create();

@@ -6,9 +6,15 @@ use App\Models\BackupSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class BackupSettingController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(PermissionMiddleware::using('manage backup-settings'), ['only' => ['edit', 'update']]);
+    }
+
     public function edit(): View
     {
         $settings = BackupSetting::current();

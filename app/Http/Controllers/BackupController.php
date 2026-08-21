@@ -10,9 +10,17 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class BackupController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(PermissionMiddleware::using('view backups'), ['only' => ['index', 'monitor', 'download']]);
+        $this->middleware(PermissionMiddleware::using('create backups'), ['only' => ['run']]);
+        $this->middleware(PermissionMiddleware::using('delete backups'), ['only' => ['destroy']]);
+    }
+
     public function index(): View
     {
         $diskName = config('backup.backup.destination.disks.0', 'backups');

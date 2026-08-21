@@ -31,7 +31,8 @@ class MarketResearchController extends Controller
 
     public function __construct()
     {
-        $this->middleware(PermissionMiddleware::using('view products'), ['only' => ['index', 'export']]);
+        $this->middleware(PermissionMiddleware::using('view market-research'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('export market-research'), ['only' => ['export']]);
     }
 
     public function index(Request $request)

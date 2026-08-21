@@ -161,8 +161,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/permissions/bulk-delete', [PermissionController::class, 'bulkDelete'])->name('permissions.bulk-delete');
     Route::resource('/permissions', PermissionController::class);
 
-    // System Health & Monitoring (admin-only)
-    Route::middleware(['role:superadmin|Admin'])->prefix('system-health')->name('system-health.')->group(function () {
+    // System Health & Monitoring
+    Route::prefix('system-health')->name('system-health.')->group(function () {
         Route::get('/', [SystemHealthController::class, 'index'])->name('index');
         Route::post('/failed-jobs/{id}/retry', [SystemHealthController::class, 'retryFailedJob'])->name('failed-jobs.retry');
         Route::delete('/failed-jobs/{id}', [SystemHealthController::class, 'deleteFailedJob'])->name('failed-jobs.delete');
@@ -173,8 +173,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/crawl/run', [SystemHealthController::class, 'runCrawlNow'])->name('crawl.run');
     });
 
-    // Backups (admin-only)
-    Route::middleware(['role:superadmin|Admin'])->prefix('backups')->name('backups.')->group(function () {
+    // Backups
+    Route::prefix('backups')->name('backups.')->group(function () {
         Route::get('/', [BackupController::class, 'index'])->name('index');
         Route::post('/run', [BackupController::class, 'run'])->name('run');
         Route::post('/monitor', [BackupController::class, 'monitor'])->name('monitor');
