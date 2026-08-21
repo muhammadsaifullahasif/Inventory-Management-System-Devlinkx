@@ -181,7 +181,11 @@ class SystemHealthController extends Controller
         $latestMtime = 0;
 
         if (File::isDirectory($path)) {
-            foreach (File::allFiles($path) as $file) {
+            // Top-level only — do NOT recurse. Subdirs here (ebay/orders/{date}/*.json etc.)
+            // can hold tens of thousands of files; walking them on every page load
+            // is what killed this endpoint on the shared host (resource-limit SIGKILL,
+            // no exception, nothing logged).
+            foreach (File::files($path) as $file) {
                 $totalBytes += $file->getSize();
 
                 if ($file->getMTime() > $latestMtime) {
