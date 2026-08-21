@@ -13,6 +13,7 @@ class ProductStock extends Model
         'quantity',
         'previous_quantity',
         'avg_cost',
+        'reorder_threshold',
         'active_status',
         'delete_status',
     ];
@@ -21,6 +22,7 @@ class ProductStock extends Model
         'quantity' => 'decimal:4',
         'previous_quantity' => 'decimal:4',
         'avg_cost' => 'decimal:4',
+        'reorder_threshold' => 'integer',
     ];
 
     public function product()

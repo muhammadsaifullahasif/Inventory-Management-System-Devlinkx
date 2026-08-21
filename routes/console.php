@@ -36,6 +36,14 @@ Schedule::command('orders:check-delivery-status --limit=100')
     ->appendOutputTo(storage_path('logs/delivery-status.log'))
     ->onFailure($onScheduleFailure('orders:check-delivery-status'));
 
+// Check product stock against reorder thresholds daily (avoids notification
+// spam from checking on every unit sold)
+Schedule::command('stock:check-low-levels')
+    ->dailyAt('07:00')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/low-stock-check.log'))
+    ->onFailure($onScheduleFailure('stock:check-low-levels'));
+
 // Update eBay order statuses (cancel/refund/return) every 12 hours
 Schedule::job(new UpdateEbayOrderStatusJob(90))
     ->twiceDaily(6, 18) // Run at 6 AM and 6 PM

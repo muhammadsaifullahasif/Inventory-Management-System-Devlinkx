@@ -5,8 +5,11 @@ namespace App\Jobs;
 use Exception;
 use App\Models\SalesChannel;
 use App\Services\Ebay\EbayFinanceSyncService;
+use App\Notifications\OrderSyncFailedNotification;
+use App\Support\NotificationRecipients;
 use Illuminate\Bus\Queueable;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -58,5 +61,10 @@ class SyncEbayFinancesJob implements ShouldQueue
             'sales_channel_id' => $this->salesChannelId,
             'error' => $exception->getMessage(),
         ]);
+
+        Notification::send(
+            NotificationRecipients::admins(),
+            new OrderSyncFailedNotification('SyncEbayFinancesJob', $exception->getMessage(), $this->salesChannelId)
+        );
     }
 }

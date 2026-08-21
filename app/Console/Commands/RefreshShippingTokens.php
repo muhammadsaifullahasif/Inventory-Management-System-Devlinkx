@@ -3,11 +3,14 @@
 namespace App\Console\Commands;
 
 use App\Models\Shipping;
+use App\Notifications\ShippingTokenExpiredNotification;
 use App\Services\FedexService;
 use App\Services\UspsService;
+use App\Support\NotificationRecipients;
 use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 class RefreshShippingTokens extends Command
 {
@@ -87,6 +90,7 @@ class RefreshShippingTokens extends Command
                     $refreshed++;
                 } else {
                     $this->error("  → Failed to obtain new token");
+                    $this->notifyTokenFailure($carrier, 'Failed to obtain new token');
                     $failed++;
                 }
 
@@ -98,6 +102,7 @@ class RefreshShippingTokens extends Command
                     'type' => $carrier->type,
                     'error' => $e->getMessage(),
                 ]);
+                $this->notifyTokenFailure($carrier, $e->getMessage());
                 $failed++;
             }
         }
@@ -109,6 +114,17 @@ class RefreshShippingTokens extends Command
         $this->line("  Failed:    {$failed}");
 
         return $failed > 0 ? 1 : 0;
+    }
+
+    /**
+     * Notify admins that a carrier's token refresh failed.
+     */
+    protected function notifyTokenFailure(Shipping $carrier, string $errorMessage): void
+    {
+        Notification::send(
+            NotificationRecipients::admins(),
+            new ShippingTokenExpiredNotification($carrier->name, $carrier->type, $errorMessage)
+        );
     }
 
     /**

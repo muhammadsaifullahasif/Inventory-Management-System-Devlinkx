@@ -1472,69 +1472,99 @@
                         </div>
                     </div>
                 </div> --}}
-                {{-- <div class="dropdown nxl-h-item">
+                <div class="dropdown nxl-h-item" id="notification-bell-wrapper">
                     <a class="nxl-head-link me-3" data-bs-toggle="dropdown" href="#" role="button" data-bs-auto-close="outside">
                         <i class="feather-bell"></i>
-                        <span class="badge bg-danger nxl-h-badge">3</span>
+                        <span class="badge bg-danger nxl-h-badge d-none" id="notification-unread-badge">0</span>
                     </a>
                     <div class="dropdown-menu dropdown-menu-end nxl-h-dropdown nxl-notifications-menu">
                         <div class="d-flex justify-content-between align-items-center notifications-head">
                             <h6 class="fw-bold text-dark mb-0">Notifications</h6>
-                            <a href="javascript:void(0);" class="fs-11 text-success text-end ms-auto" data-bs-toggle="tooltip" title="Make as Read">
+                            <a href="javascript:void(0);" class="fs-11 text-success text-end ms-auto" id="notification-mark-all-read" data-bs-toggle="tooltip" title="Mark as Read">
                                 <i class="feather-check"></i>
-                                <span>Make as Read</span>
+                                <span>Mark as Read</span>
                             </a>
                         </div>
-                        <div class="notifications-item">
-                            <img src="assets/images/avatar/2.png" alt="" class="rounded me-3 border" />
-                            <div class="notifications-desc">
-                                <a href="javascript:void(0);" class="font-body text-truncate-2-line"> <span class="fw-semibold text-dark">Malanie Hanvey</span> We should talk about that at lunch!</a>
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div class="notifications-date text-muted border-bottom border-bottom-dashed">2 minutes ago</div>
-                                    <div class="d-flex align-items-center float-end gap-2">
-                                        <a href="javascript:void(0);" class="d-block wd-8 ht-8 rounded-circle bg-gray-300" data-bs-toggle="tooltip" title="Make as Read"></a>
-                                        <a href="javascript:void(0);" class="text-danger" data-bs-toggle="tooltip" title="Remove">
-                                            <i class="feather-x fs-12"></i>
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="notifications-item">
-                            <img src="assets/images/avatar/3.png" alt="" class="rounded me-3 border" />
-                            <div class="notifications-desc">
-                                <a href="javascript:void(0);" class="font-body text-truncate-2-line"> <span class="fw-semibold text-dark">Valentine Maton</span> You can download the latest invoices now.</a>
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div class="notifications-date text-muted border-bottom border-bottom-dashed">36 minutes ago</div>
-                                    <div class="d-flex align-items-center float-end gap-2">
-                                        <a href="javascript:void(0);" class="d-block wd-8 ht-8 rounded-circle bg-gray-300" data-bs-toggle="tooltip" title="Make as Read"></a>
-                                        <a href="javascript:void(0);" class="text-danger" data-bs-toggle="tooltip" title="Remove">
-                                            <i class="feather-x fs-12"></i>
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="notifications-item">
-                            <img src="assets/images/avatar/4.png" alt="" class="rounded me-3 border" />
-                            <div class="notifications-desc">
-                                <a href="javascript:void(0);" class="font-body text-truncate-2-line"> <span class="fw-semibold text-dark">Archie Cantones</span> Don't forget to pickup Jeremy after school!</a>
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div class="notifications-date text-muted border-bottom border-bottom-dashed">53 minutes ago</div>
-                                    <div class="d-flex align-items-center float-end gap-2">
-                                        <a href="javascript:void(0);" class="d-block wd-8 ht-8 rounded-circle bg-gray-300" data-bs-toggle="tooltip" title="Make as Read"></a>
-                                        <a href="javascript:void(0);" class="text-danger" data-bs-toggle="tooltip" title="Remove">
-                                            <i class="feather-x fs-12"></i>
-                                        </a>
-                                    </div>
-                                </div>
+                        <div id="notification-list">
+                            <div class="d-flex justify-content-between align-items-center flex-column p-4">
+                                <p class="text-muted mb-0">Loading...</p>
                             </div>
                         </div>
                         <div class="text-center notifications-footer">
-                            <a href="javascript:void(0);" class="fs-13 fw-semibold text-dark">Alls Notifications</a>
+                            <a href="{{ route('notifications.index') }}" class="fs-13 fw-semibold text-dark">All Notifications</a>
                         </div>
                     </div>
-                </div> --}}
+                </div>
+                <script>
+                    (function () {
+                        const badge = document.getElementById('notification-unread-badge');
+                        const list = document.getElementById('notification-list');
+                        const markAllBtn = document.getElementById('notification-mark-all-read');
+
+                        function escapeHtml(str) {
+                            const div = document.createElement('div');
+                            div.textContent = str ?? '';
+                            return div.innerHTML;
+                        }
+
+                        function render(data) {
+                            if (data.unread_count > 0) {
+                                badge.textContent = data.unread_count;
+                                badge.classList.remove('d-none');
+                            } else {
+                                badge.classList.add('d-none');
+                            }
+
+                            if (!data.notifications.length) {
+                                list.innerHTML = '<div class="d-flex justify-content-between align-items-center flex-column p-4"><p class="text-muted mb-0">No notifications found.</p></div>';
+                                return;
+                            }
+
+                            list.innerHTML = data.notifications.map(function (n) {
+                                return '<div class="notifications-item' + (n.read ? '' : ' bg-light') + '" data-id="' + n.id + '">' +
+                                    '<div class="notifications-desc w-100">' +
+                                        '<a href="javascript:void(0);" class="font-body text-truncate-2-line notification-mark-single">' + escapeHtml(n.message) + '</a>' +
+                                        '<div class="d-flex justify-content-between align-items-center">' +
+                                            '<div class="notifications-date text-muted border-bottom border-bottom-dashed">' + escapeHtml(n.created_at) + '</div>' +
+                                        '</div>' +
+                                    '</div>' +
+                                '</div>';
+                            }).join('');
+                        }
+
+                        function load() {
+                            fetch('{{ route('notifications.feed') }}', { headers: { 'Accept': 'application/json' } })
+                                .then(function (res) { return res.json(); })
+                                .then(render)
+                                .catch(function () {});
+                        }
+
+                        list.addEventListener('click', function (e) {
+                            const item = e.target.closest('.notifications-item');
+                            if (!item) return;
+                            fetch('/notifications/' + item.dataset.id + '/mark-as-read', {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                    'Accept': 'application/json',
+                                },
+                            }).then(load);
+                        });
+
+                        markAllBtn.addEventListener('click', function () {
+                            fetch('{{ route('notifications.mark-all-as-read') }}', {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                    'Accept': 'application/json',
+                                },
+                            }).then(load);
+                        });
+
+                        load();
+                        setInterval(load, 60000);
+                    })();
+                </script>
                 <div class="dropdown nxl-h-item">
                     <a href="javascript:void(0);" data-bs-toggle="dropdown" role="button" data-bs-auto-close="outside">
                         <img src="{{ asset('images/avatar/undefined.png') }}" alt="user-image" class="img-fluid user-avtar me-0" />

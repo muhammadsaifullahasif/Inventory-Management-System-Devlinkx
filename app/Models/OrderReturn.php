@@ -2,12 +2,25 @@
 
 namespace App\Models;
 
+use App\Notifications\OrderReturnRequestedNotification;
+use App\Support\NotificationRecipients;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Facades\Notification;
 
 class OrderReturn extends Model
 {
     use HasFactory;
+
+    protected static function booted(): void
+    {
+        static::created(function (OrderReturn $orderReturn) {
+            Notification::send(
+                NotificationRecipients::admins(),
+                new OrderReturnRequestedNotification($orderReturn)
+            );
+        });
+    }
 
     protected $fillable = [
         'order_id',
