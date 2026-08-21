@@ -169,6 +169,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/failed-jobs/clear', [SystemHealthController::class, 'clearFailedJobs'])->name('failed-jobs.clear');
         Route::post('/failed-jobs/bulk-retry', [SystemHealthController::class, 'bulkRetryFailedJobs'])->name('failed-jobs.bulk-retry');
         Route::post('/failed-jobs/bulk-delete', [SystemHealthController::class, 'bulkDeleteFailedJobs'])->name('failed-jobs.bulk-delete');
+        Route::post('/uptime/check-now', [SystemHealthController::class, 'checkUptimeNow'])->name('uptime.check-now');
+        Route::post('/crawl/run', [SystemHealthController::class, 'runCrawlNow'])->name('crawl.run');
     });
 
     // Backups (admin-only)

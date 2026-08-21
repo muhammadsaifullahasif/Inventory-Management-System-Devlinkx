@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\BrokenLinkCrawlJob;
+use App\Models\CrawlRun;
+use App\Models\Monitor;
+use App\Services\UptimeMonitorService;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -55,6 +59,17 @@ class SystemHealthController extends Controller
             'configured' => (bool) config('sentry.dsn'),
         ];
 
+        $disk = $this->diskSpace();
+        $securityChecks = $this->securityChecks();
+
+        $monitor = Monitor::first();
+        $monitorHistory = $monitor?->history()->limit(10)->get() ?? collect();
+        $avgResponseMs = $monitor
+            ? round((float) $monitor->history()->limit(20)->avg('response_time_ms'), 1)
+            : null;
+
+        $latestCrawlRun = CrawlRun::with('brokenLinks')->latest('id')->first();
+
         return view('system-health.index', compact(
             'db',
             'queue',
@@ -69,7 +84,33 @@ class SystemHealthController extends Controller
             'sortOrder',
             'scheduleSortBy',
             'scheduleSortOrder',
+            'disk',
+            'securityChecks',
+            'monitor',
+            'monitorHistory',
+            'avgResponseMs',
+            'latestCrawlRun',
         ));
+    }
+
+    public function checkUptimeNow(UptimeMonitorService $service): RedirectResponse
+    {
+        $monitor = Monitor::first();
+
+        if (!$monitor) {
+            return back()->with('error', 'No monitor configured yet.');
+        }
+
+        $service->check($monitor);
+
+        return back()->with('success', "Checked \"{$monitor->name}\" — status: {$monitor->fresh()->uptime_status}.");
+    }
+
+    public function runCrawlNow(): RedirectResponse
+    {
+        BrokenLinkCrawlJob::dispatch(150);
+
+        return back()->with('success', 'Broken link crawl queued — results will appear here once the queue worker picks it up (usually within a few minutes).');
     }
 
     public function retryFailedJob(string $id): RedirectResponse
@@ -172,6 +213,61 @@ class SystemHealthController extends Controller
         return $job;
     }
 
+    protected function diskSpace(): array
+    {
+        $free = @disk_free_space(base_path());
+        $total = @disk_total_space(base_path());
+
+        if (!$free || !$total) {
+            return ['available' => false];
+        }
+
+        $percentFree = round(($free / $total) * 100, 1);
+
+        return [
+            'available' => true,
+            'percent_free' => $percentFree,
+            'free_gb' => round($free / 1024 ** 3, 1),
+            'total_gb' => round($total / 1024 ** 3, 1),
+            'level' => $percentFree < 5 ? 'danger' : ($percentFree < 15 ? 'warning' : 'success'),
+        ];
+    }
+
+    protected function securityChecks(): array
+    {
+        $isProduction = app()->environment('production');
+
+        $checks = [
+            [
+                'label' => 'Debug mode',
+                'ok' => !$isProduction || !config('app.debug'),
+                'message' => 'APP_DEBUG is on in production — stack traces are exposed to visitors.',
+            ],
+            [
+                'label' => 'App key',
+                'ok' => (bool) config('app.key'),
+                'message' => 'APP_KEY is not set — sessions and encrypted data are not secure.',
+            ],
+            [
+                'label' => 'HTTPS',
+                'ok' => !$isProduction || str_starts_with((string) config('app.url'), 'https://'),
+                'message' => 'APP_URL is not https:// in production.',
+            ],
+            [
+                'label' => 'Secure session cookie',
+                'ok' => !$isProduction || config('session.secure'),
+                'message' => 'SESSION_SECURE_COOKIE is off in production — session cookie can be sent over plain HTTP.',
+            ],
+            [
+                'label' => 'Mail delivery',
+                'ok' => !$isProduction || !in_array(config('mail.default'), ['log', 'array']),
+                'message' => 'MAIL_MAILER is "' . config('mail.default') . '" in production — outgoing email is silently dropped.',
+            ],
+        ];
+
+        return $checks;
+    }
+
     protected function checkLogs(): array
     {
         $path = storage_path('logs');
@@ -217,19 +313,38 @@ class SystemHealthController extends Controller
 
         $schedule = app(Schedule::class);
 
+        $runs = DB::table('schedule_task_runs')->get()->keyBy('command');
+
         $tasks = collect($schedule->events())
-            ->map(function ($event) {
+            ->map(function ($event) use ($runs) {
                 try {
                     $nextDue = $event->nextRunDate()->format('Y-m-d H:i:s');
                 } catch (\Throwable $e) {
                     $nextDue = null;
                 }
 
+                $command = $event->getSummaryForDisplay();
+                $run = $runs->get($command);
+                $lastRanAt = $run?->last_ran_at ? \Carbon\Carbon::parse($run->last_ran_at) : null;
+
+                // Overdue: never ran, or last ran before the previous point this
+                // task was due to fire (5 min grace for scheduler-cycle drift).
+                $overdue = false;
+                try {
+                    $previousDue = (new \Cron\CronExpression($event->expression))->getPreviousRunDate(now());
+                    $overdue = !$lastRanAt || $lastRanAt->lt($previousDue->modify('-5 minutes'));
+                } catch (\Throwable $e) {
+                    // Unparseable expression — don't flag as overdue.
+                }
+
                 return [
-                    'command' => $event->getSummaryForDisplay(),
+                    'command' => $command,
                     'expression' => $event->expression,
                     'frequency' => $this->describeCronExpression($event->expression),
                     'next_due' => $nextDue,
+                    'last_ran_at' => $lastRanAt?->format('Y-m-d H:i:s'),
+                    'last_status' => $run?->status,
+                    'overdue' => $overdue,
                 ];
             });
 

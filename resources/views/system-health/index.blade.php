@@ -191,6 +191,140 @@
         </div>
     </div>
 
+    <!-- Uptime / SSL / Response Time / Disk Space -->
+    <div class="col-12">
+        <div class="row">
+            <div class="col-xxl-4 col-md-6">
+                <div class="card stretch stretch-full">
+                    <div class="card-body">
+                        @php
+                            $uptimeBadge = match($monitor?->uptime_status) {
+                                'up' => ['success', 'Up'],
+                                'down' => ['danger', 'Down'],
+                                default => ['secondary', 'Not yet checked'],
+                            };
+                        @endphp
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="avatar-text avatar-xl rounded bg-soft-{{ $uptimeBadge[0] }} text-{{ $uptimeBadge[0] }}">
+                                    <i class="feather-globe fs-4"></i>
+                                </div>
+                                <div>
+                                    <span class="text-muted fw-medium d-block">My System Uptime</span>
+                                    <span class="badge bg-soft-{{ $uptimeBadge[0] }} text-{{ $uptimeBadge[0] }}">{{ $uptimeBadge[1] }}</span>
+                                    <span class="fs-12 text-muted d-block mt-1">
+                                        @if($monitor?->uptime_last_checked_at)
+                                            {{ $monitor->uptime_check_response_time_ms }}ms &middot; avg {{ $avgResponseMs ?? 'n/a' }}ms &middot; checked {{ $monitor->uptime_last_checked_at->diffForHumans() }}
+                                        @else
+                                            not checked yet
+                                        @endif
+                                    </span>
+                                </div>
+                            </div>
+                            @if($monitor)
+                                <form action="{{ route('system-health.uptime.check-now') }}" method="POST">
+                                    @csrf
+                                    <button type="submit" class="avatar-text avatar-md text-primary border-0 bg-transparent" data-bs-toggle="tooltip" title="Check Now">
+                                        <i class="feather-refresh-cw"></i>
+                                    </button>
+                                </form>
+                            @endif
+                        </div>
+                        @if($monitor?->uptime_status === 'down' && $monitor->uptime_check_failure_reason)
+                            <div class="fs-12 text-danger mt-2">{{ $monitor->uptime_check_failure_reason }}</div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xxl-4 col-md-6">
+                <div class="card stretch stretch-full">
+                    <div class="card-body">
+                        @php
+                            $sslBadge = ['secondary', 'Not yet checked'];
+                            if ($monitor?->ssl_status === 'valid') {
+                                $sslBadge = ['success', 'Valid'];
+                            } elseif ($monitor?->ssl_status === 'invalid') {
+                                $sslBadge = ['danger', 'Invalid'];
+                            }
+                        @endphp
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="avatar-text avatar-xl rounded bg-soft-{{ $sslBadge[0] }} text-{{ $sslBadge[0] }}">
+                                <i class="feather-lock fs-4"></i>
+                            </div>
+                            <div>
+                                <span class="text-muted fw-medium d-block">SSL Certificate</span>
+                                <span class="badge bg-soft-{{ $sslBadge[0] }} text-{{ $sslBadge[0] }}">{{ $sslBadge[1] }}</span>
+                                <span class="fs-12 text-muted d-block mt-1">
+                                    @if($monitor?->ssl_expiration_date)
+                                        expires {{ $monitor->ssl_expiration_date->format('d M, Y') }}
+                                    @elseif($monitor?->ssl_check_failure_reason)
+                                        {{ $monitor->ssl_check_failure_reason }}
+                                    @else
+                                        n/a
+                                    @endif
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xxl-4 col-md-6">
+                <div class="card stretch stretch-full">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="avatar-text avatar-xl rounded bg-soft-{{ $disk['available'] ? $disk['level'] : 'secondary' }} text-{{ $disk['available'] ? $disk['level'] : 'secondary' }}">
+                                <i class="feather-hard-drive fs-4"></i>
+                            </div>
+                            <div>
+                                <span class="text-muted fw-medium d-block">Disk Space</span>
+                                @if($disk['available'])
+                                    <span class="fs-16 fw-bolder d-block">{{ $disk['percent_free'] }}% free</span>
+                                    <span class="fs-12 text-muted">{{ $disk['free_gb'] }} GB / {{ $disk['total_gb'] }} GB</span>
+                                @else
+                                    <span class="fs-12 text-muted">n/a on this host</span>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Warnings -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title"><i class="feather-shield me-2"></i>Security Checks</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <tbody>
+                            @foreach($securityChecks as $check)
+                                <tr>
+                                    <td class="ps-3" style="width: 40px;">
+                                        <i class="feather-{{ $check['ok'] ? 'check-circle text-success' : 'alert-triangle text-danger' }}"></i>
+                                    </td>
+                                    <td class="fw-medium" style="width: 220px;">{{ $check['label'] }}</td>
+                                    <td class="fs-12 text-muted pe-3">
+                                        @if(!$check['ok'])
+                                            {{ $check['message'] }}
+                                        @else
+                                            OK
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Failed Jobs Table -->
     <div class="col-12" id="failed-jobs">
         <div class="card">
@@ -346,11 +480,13 @@
                                         Runs <span class="ms-1">{!! $stArrow('frequency') !!}</span>
                                     </a>
                                 </th>
-                                <th class="pe-3">
+                                <th>
                                     <a href="{{ $stSort('next_due') }}" class="d-flex align-items-center text-dark text-decoration-none">
                                         Next Due <span class="ms-1">{!! $stArrow('next_due') !!}</span>
                                     </a>
                                 </th>
+                                <th>Last Ran</th>
+                                <th class="pe-3">Status</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -359,7 +495,7 @@
                                     <td class="ps-3 fs-13">{{ $task['command'] }}</td>
                                     <td class="fs-12 text-muted">{{ $task['expression'] }}</td>
                                     <td class="fs-12 text-muted">{{ $task['frequency'] }}</td>
-                                    <td class="pe-3 fs-12 text-muted">
+                                    <td class="fs-12 text-muted">
                                         @if($task['next_due'])
                                             <span class="next-due-countdown" data-next-due="{{ \Carbon\Carbon::parse($task['next_due'])->toIso8601String() }}" data-bs-toggle="tooltip" title="{{ $task['next_due'] }}">
                                                 {{ \Carbon\Carbon::parse($task['next_due'])->diffForHumans() }}
@@ -368,10 +504,80 @@
                                             n/a
                                         @endif
                                     </td>
+                                    <td class="fs-12 text-muted">
+                                        {{ $task['last_ran_at'] ? \Carbon\Carbon::parse($task['last_ran_at'])->diffForHumans() : 'never' }}
+                                    </td>
+                                    <td class="pe-3">
+                                        @if($task['overdue'])
+                                            <span class="badge bg-soft-danger text-danger">Overdue</span>
+                                        @elseif($task['last_status'] === 'failed')
+                                            <span class="badge bg-soft-danger text-danger">Last run failed</span>
+                                        @elseif($task['last_ran_at'])
+                                            <span class="badge bg-soft-success text-success">On time</span>
+                                        @else
+                                            <span class="badge bg-soft-secondary text-secondary">n/a</span>
+                                        @endif
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" class="text-center py-4 text-muted">No scheduled tasks registered.</td>
+                                    <td colspan="6" class="text-center py-4 text-muted">No scheduled tasks registered.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Broken Links -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h5 class="card-title"><i class="feather-link-2 me-2"></i>Broken Links</h5>
+                <form action="{{ route('system-health.crawl.run') }}" method="POST">
+                    @csrf
+                    <button type="submit" class="btn btn-sm btn-light-brand">
+                        <i class="feather-search me-2"></i>Run Crawl Now
+                    </button>
+                </form>
+            </div>
+            <div class="card-body pb-0">
+                @if($latestCrawlRun)
+                    <div class="fs-12 text-muted mb-3">
+                        Last crawl: <span class="badge bg-soft-{{ $latestCrawlRun->status === 'completed' ? 'success' : ($latestCrawlRun->status === 'failed' ? 'danger' : 'warning') }} text-{{ $latestCrawlRun->status === 'completed' ? 'success' : ($latestCrawlRun->status === 'failed' ? 'danger' : 'warning') }}">{{ ucfirst($latestCrawlRun->status) }}</span>
+                        {{ $latestCrawlRun->pages_crawled }} page(s) crawled, {{ $latestCrawlRun->links_checked }} link(s) checked, {{ $latestCrawlRun->broken_count }} broken
+                        &middot; {{ $latestCrawlRun->started_at?->diffForHumans() }}
+                    </div>
+                @else
+                    <div class="fs-12 text-muted mb-3">No crawl has run yet.</div>
+                @endif
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th class="ps-3">Page</th>
+                                <th>Broken Link</th>
+                                <th class="pe-3">Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse (($latestCrawlRun?->brokenLinks ?? collect()) as $broken)
+                                <tr>
+                                    <td class="ps-3 fs-12 text-muted" style="max-width: 320px;">
+                                        <span class="d-inline-block text-truncate" style="max-width: 320px;" data-bs-toggle="tooltip" title="{{ $broken->page_url }}">{{ $broken->page_url }}</span>
+                                    </td>
+                                    <td class="fs-12" style="max-width: 320px;">
+                                        <span class="d-inline-block text-truncate text-danger" style="max-width: 320px;" data-bs-toggle="tooltip" title="{{ $broken->link_url }}">{{ $broken->link_url }}</span>
+                                    </td>
+                                    <td class="pe-3 fs-12 text-muted">{{ $broken->status_code ?? $broken->error_message }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="3" class="text-center py-4 text-muted">No broken links found.</td>
                                 </tr>
                             @endforelse
                         </tbody>

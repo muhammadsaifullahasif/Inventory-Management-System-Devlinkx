@@ -118,6 +118,21 @@ Schedule::command('backup:monitor')
     ->appendOutputTo(storage_path('logs/backup-monitor.log'))
     ->onFailure($onScheduleFailure('backup:monitor'));
 
+// Check uptime/SSL for monitored URLs (each monitor has its own interval;
+// this ticks every minute and only checks the ones that are due)
+Schedule::command('monitor:check-uptime')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/uptime-monitor.log'))
+    ->onFailure($onScheduleFailure('monitor:check-uptime'));
+
+// Broken link crawl — heavy (up to ~450 HTTP requests), so weekly off-hours only
+Schedule::command('crawler:check-broken-links --limit=150')
+    ->weeklyOn(0, '04:00')
+    ->withoutOverlapping(1440)
+    ->appendOutputTo(storage_path('logs/broken-link-crawl.log'))
+    ->onFailure($onScheduleFailure('crawler:check-broken-links'));
+
 Schedule::command('queue:release-stale')->everyFiveMinutes();
 
 // Automatically runs the queue worker every minute cleanly via internal code routing

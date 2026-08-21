@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\BackupSetting;
 use App\Models\ProductStock;
+use App\Models\ScheduleTaskRun;
 use App\Observers\ProductStockObserver;
 use App\Services\Ebay\EbayApiClient;
 use App\Services\Ebay\EbayNotificationService;
@@ -11,6 +12,8 @@ use App\Services\Ebay\EbayOrderService;
 use App\Services\Ebay\EbayService;
 use App\Services\Ebay\EbayXmlBuilder;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Console\Events\ScheduledTaskFailed;
+use Illuminate\Console\Events\ScheduledTaskFinished;
 use Illuminate\Foundation\Events\DiagnosingHealth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -66,6 +69,22 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(DiagnosingHealth::class, function () {
             DB::connection()->getPdo();
             Queue::connection()->size();
+        });
+
+        // Record every scheduled task run (fires for all Schedule::command()/job()
+        // entries automatically) so System Health can flag overdue/missed tasks.
+        Event::listen(ScheduledTaskFinished::class, function (ScheduledTaskFinished $event) {
+            ScheduleTaskRun::updateOrCreate(
+                ['command' => $event->task->getSummaryForDisplay()],
+                ['status' => 'success', 'last_ran_at' => now(), 'runtime_ms' => (int) round($event->runtime * 1000)]
+            );
+        });
+
+        Event::listen(ScheduledTaskFailed::class, function (ScheduledTaskFailed $event) {
+            ScheduleTaskRun::updateOrCreate(
+                ['command' => $event->task->getSummaryForDisplay()],
+                ['status' => 'failed', 'last_ran_at' => now()]
+            );
         });
 
         // spatie/laravel-backup: never let a failed/stale backup pass silently.
