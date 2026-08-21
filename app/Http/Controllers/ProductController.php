@@ -36,8 +36,13 @@ class ProductController extends Controller
     public function __construct()
     {
         $this->middleware(PermissionMiddleware::using('view products'), ['only' => ['index']]);
-        $this->middleware(PermissionMiddleware::using('add products'), ['only' => ['create', 'store']]);
-        $this->middleware(PermissionMiddleware::using('edit products'), ['only' => ['edit', 'update']]);
+        $this->middleware(PermissionMiddleware::using('add products'), ['only' => [
+            'create', 'store', 'import_products', 'import_products_preview',
+            'import_products_preview_show', 'import_products_store', 'downloadImportTemplate',
+        ]]);
+        $this->middleware(PermissionMiddleware::using('edit products'), ['only' => [
+            'edit', 'update', 'bulkUpdateForm', 'bulkUpdate',
+        ]]);
         $this->middleware(PermissionMiddleware::using('delete products'), ['only' => ['destroy']]);
     }
     

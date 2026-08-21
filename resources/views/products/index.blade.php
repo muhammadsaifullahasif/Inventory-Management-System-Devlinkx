@@ -52,18 +52,22 @@
                         <i class="feather-download me-2"></i>
                         <span>Export Excel</span>
                     </a>
+                    @can('add products')
                     <a href="{{ route('products.import') }}" class="btn btn-light-brand">
                         <i class="feather-upload me-2"></i>
                         <span>Import</span>
                     </a>
+                    @endcan
                     <a href="{{ route('products.barcode.bulk-form') }}" class="btn btn-light-brand">
                         <i class="feather-printer me-2"></i>
                         <span>Print Barcodes</span>
                     </a>
+                    @can('edit products')
                     <a href="{{ route('products.bulk-update.form') }}" class="btn btn-light-brand">
                         <i class="feather-edit me-2"></i>
                         <span>Bulk Update</span>
                     </a>
+                    @endcan
                     @can('add products')
                     <a href="{{ route('products.create') }}" class="btn btn-primary">
                         <i class="feather-plus me-2"></i>
@@ -331,7 +335,7 @@
                                         </div>
                                     </td> --}}
                                     <td data-column="name">
-                                        <a href="{{ route('products.edit', $product->id) }}"><span style="white-space: normal; width: 300px; display: block;" class="fw-semibold">{{ $product->name }}</span></a>
+                                        <a href="{{ route(auth()->user()->can('edit products') ? 'products.edit' : 'products.show', $product->id) }}"><span style="white-space: normal; width: 300px; display: block;" class="fw-semibold">{{ $product->name }}</span></a>
                                         <span class="d-block fs-11 text-muted">SKU: {{ $product->sku }}</span>
                                     </td>
                                     <td data-column="price"><span class="fw-semibold">${{ number_format($product->price, 2) }}</span></td>
@@ -388,18 +392,21 @@
                                                     <i class="feather feather-more-horizontal"></i>
                                                 </a>
                                                 <ul class="dropdown-menu">
+                                                    @can('edit products')
                                                     <li>
                                                         <a href="{{ route('products.edit', $product->id) }}" class="dropdown-item">
                                                             <i class="feather feather-edit-3 me-2"></i>
                                                             <span>Edit</span>
                                                         </a>
                                                     </li>
+                                                    @endcan
                                                     <li>
                                                         <a href="{{ route('products.print-barcode', $product->id) }}" target="_blank" class="dropdown-item">
                                                             <i class="feather feather-printer me-2"></i>
                                                             <span>Print Barcode</span>
                                                         </a>
                                                     </li>
+                                                    @can('delete products')
                                                     <li class="dropdown-divider"></li>
                                                     <li>
                                                         <form action="{{ route('products.destroy', $product->id) }}" method="POST" id="product-{{ $product->id }}-delete-form">
@@ -411,6 +418,7 @@
                                                             <span>Delete</span>
                                                         </a>
                                                     </li>
+                                                    @endcan
                                                 </ul>
                                             </div>
                                             {{-- <a href="{{ route('products.edit', $product->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="Edit">

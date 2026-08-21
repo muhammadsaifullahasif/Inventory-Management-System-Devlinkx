@@ -63,7 +63,7 @@
                 @endcan
 
                 <!-- Products -->
-                @canany(['view products', 'add products', 'edit products', 'delete products', 'view categories', 'add categories', 'edit categories', 'delete categories', 'view brands', 'add brands', 'edit brands', 'delete brands'])
+                @canany(['view products', 'add products', 'edit products', 'delete products', 'view categories', 'add categories', 'edit categories', 'delete categories', 'view brands', 'add brands', 'edit brands', 'delete brands', 'view market-research', 'export market-research'])
                     <li class="nxl-item nxl-hasmenu {{ request()->routeIs(['products.*', 'categories.*', 'brands.*', 'market-research.*']) ? 'active nxl-trigger' : '' }}">
                         <a href="javascript:void(0);" class="nxl-link">
                             <span class="nxl-micon"><i class="feather-package"></i></span>
@@ -76,7 +76,7 @@
                                 <a class="nxl-link" href="{{ route('products.index') }}">All Products</a>
                             </li>
                             @endcan
-                            @can('view products')
+                            @can('view market-research')
                             <li class="nxl-item {{ request()->routeIs('market-research.*') ? 'active' : '' }}">
                                 <a class="nxl-link" href="{{ route('market-research.index') }}">Market Research</a>
                             </li>
@@ -326,12 +326,13 @@
                     @endcan
                 @endcan
 
-                @hasrole('superadmin|Admin')
+                @canany(['view system-health', 'manage system-health', 'view backups', 'create backups', 'delete backups', 'manage backup-settings'])
                     <!-- System Section Caption -->
                     <li class="nxl-item nxl-caption">
                         <label>System</label>
                     </li>
 
+                    @can('view system-health')
                     <!-- System Health -->
                     <li class="nxl-item {{ request()->routeIs('system-health.*') ? 'active' : '' }}">
                         <a class="nxl-link" href="{{ route('system-health.index') }}">
@@ -339,7 +340,9 @@
                             <span class="nxl-mtext">System Health</span>
                         </a>
                     </li>
+                    @endcan
 
+                    @canany(['view backups', 'manage backup-settings'])
                     <!-- Backups -->
                     <li class="nxl-item {{ request()->routeIs('backups.*') ? 'active' : '' }}">
                         <a class="nxl-link" href="{{ route('backups.index') }}">
@@ -347,7 +350,8 @@
                             <span class="nxl-mtext">Backups</span>
                         </a>
                     </li>
-                @endhasrole
+                    @endcan
+                @endcanany
             </ul>
 
             <!-- Sidebar Info Card -->

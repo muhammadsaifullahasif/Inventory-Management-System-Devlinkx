@@ -653,9 +653,11 @@
             <div class="card mt-4">
                 <div class="card-header d-flex align-items-center justify-content-between">
                     <h5 class="card-title"><i class="feather-corner-up-left me-2"></i>Returns ({{ $order->returns->count() }})</h5>
+                    @can('add returns')
                     <button type="button" class="btn btn-sm btn-light-brand" data-bs-toggle="modal" data-bs-target="#createReturnModal">
                         <i class="feather-plus me-1"></i> Create Return
                     </button>
+                    @endcan
                 </div>
                 <div class="card-body">
                     @forelse($order->returns as $return)
@@ -670,11 +672,13 @@
                                     </span>
                                     <span class="d-block fs-11 text-muted mt-1">{{ $return->reason }}</span>
                                 </div>
+                                @can('manage returns')
                                 @if($return->status !== 'item_received' && $return->status !== 'closed')
                                     <button type="button" class="btn btn-xs btn-light-success mark-received-btn" data-return-id="{{ $return->id }}">
                                         <i class="feather-package me-1"></i>Mark Received &amp; Restock
                                     </button>
                                 @endif
+                                @endcan
                             </div>
                             <table class="table table-sm mb-0 mt-2">
                                 <tbody>

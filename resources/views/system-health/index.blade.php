@@ -221,6 +221,7 @@
                                     </span>
                                 </div>
                             </div>
+                            @can('manage system-health')
                             @if($monitor)
                                 <form action="{{ route('system-health.uptime.check-now') }}" method="POST">
                                     @csrf
@@ -229,6 +230,7 @@
                                     </button>
                                 </form>
                             @endif
+                            @endcan
                         </div>
                         @if($monitor?->uptime_status === 'down' && $monitor->uptime_check_failure_reason)
                             <div class="fs-12 text-danger mt-2">{{ $monitor->uptime_check_failure_reason }}</div>
@@ -330,6 +332,7 @@
         <div class="card">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h5 class="card-title"><i class="feather-alert-triangle me-2"></i>Failed Jobs</h5>
+                @can('manage system-health')
                 @if($failedJobsCount > 0)
                     <form action="{{ route('system-health.failed-jobs.clear') }}" method="POST" onsubmit="return confirm('Clear ALL failed jobs? This cannot be undone.');">
                         @csrf
@@ -338,7 +341,9 @@
                         </button>
                     </form>
                 @endif
+                @endcan
             </div>
+            @can('manage system-health')
             <div class="card-body pb-0">
                 <!-- Bulk Actions Bar -->
                 <div id="failedJobsBulkBar" class="d-none align-items-center justify-content-between bg-light border rounded p-2 mb-3">
@@ -358,17 +363,20 @@
                     </div>
                 </div>
             </div>
+            @endcan
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0" id="failedJobsTable">
                         <thead>
                             <tr>
+                                @can('manage system-health')
                                 <th class="ps-3" style="width: 40px;">
                                     <div class="custom-control custom-checkbox ms-1">
                                         <input type="checkbox" class="custom-control-input" id="failedJobsSelectAll" title="Select all on this page">
                                         <label for="failedJobsSelectAll" class="custom-control-label"></label>
                                     </div>
                                 </th>
+                                @endcan
                                 @php
                                     $fjSort = fn ($col) => request()->fullUrlWithQuery(['sort_by' => $col, 'sort_order' => ($sortBy === $col && $sortOrder === 'asc') ? 'desc' : 'asc']);
                                     $fjArrow = function ($col) use ($sortBy, $sortOrder) {
@@ -398,12 +406,14 @@
                         <tbody>
                             @forelse ($failedJobs as $job)
                                 <tr>
+                                    @can('manage system-health')
                                     <td class="ps-3">
                                         <div class="custom-control custom-checkbox ms-1">
                                             <input type="checkbox" class="custom-control-input failed-job-checkbox" id="fj-{{ $job->uuid }}" value="{{ $job->uuid }}">
                                             <label for="fj-{{ $job->uuid }}" class="custom-control-label"></label>
                                         </div>
                                     </td>
+                                    @endcan
                                     <td><span class="fw-semibold">{{ $job->job_class }}</span></td>
                                     <td>{{ $job->queue }}</td>
                                     <td class="fs-12 text-muted">{{ \Carbon\Carbon::parse($job->failed_at)->format('d M, Y H:i') }}</td>
@@ -413,6 +423,7 @@
                                         </span>
                                     </td>
                                     <td class="text-end pe-3">
+                                        @can('manage system-health')
                                         <div class="hstack gap-2 justify-content-end">
                                             <form action="{{ route('system-health.failed-jobs.retry', $job->uuid) }}" method="POST">
                                                 @csrf
@@ -428,6 +439,7 @@
                                                 </button>
                                             </form>
                                         </div>
+                                        @endcan
                                     </td>
                                 </tr>
                             @empty
@@ -536,12 +548,14 @@
         <div class="card">
             <div class="card-header d-flex align-items-center justify-content-between">
                 <h5 class="card-title"><i class="feather-link-2 me-2"></i>Broken Links</h5>
+                @can('manage system-health')
                 <form action="{{ route('system-health.crawl.run') }}" method="POST">
                     @csrf
                     <button type="submit" class="btn btn-sm btn-light-brand">
                         <i class="feather-search me-2"></i>Run Crawl Now
                     </button>
                 </form>
+                @endcan
             </div>
             <div class="card-body pb-0">
                 @if($latestCrawlRun)

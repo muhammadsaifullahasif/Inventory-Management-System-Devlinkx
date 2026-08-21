@@ -15,10 +15,12 @@
         <div class="page-header-right ms-auto">
             <div class="page-header-right-items">
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    @can('manage backup-settings')
                     <a href="{{ route('backups.settings.edit') }}" class="btn btn-light-brand">
                         <i class="feather-settings me-2"></i>
                         <span>Settings</span>
                     </a>
+                    @endcan
                     <form action="{{ route('backups.monitor') }}" method="POST">
                         @csrf
                         <button type="submit" class="btn btn-light-brand">
@@ -26,6 +28,7 @@
                             <span>Run Health Check</span>
                         </button>
                     </form>
+                    @can('create backups')
                     <form action="{{ route('backups.run') }}" method="POST" onsubmit="return confirm('Queue a full DB + storage/app backup now?');">
                         @csrf
                         <button type="submit" class="btn btn-primary">
@@ -33,6 +36,7 @@
                             <span>Run Backup Now</span>
                         </button>
                     </form>
+                    @endcan
                 </div>
             </div>
         </div>
@@ -195,6 +199,7 @@
                                             <a href="{{ route('backups.download', $file['filename']) }}" class="avatar-text avatar-md text-primary" data-bs-toggle="tooltip" title="Download">
                                                 <i class="feather-download"></i>
                                             </a>
+                                            @can('delete backups')
                                             <form action="{{ route('backups.destroy', $file['filename']) }}" method="POST" onsubmit="return confirm('Delete {{ $file['filename'] }}? This cannot be undone.');">
                                                 @csrf
                                                 @method('DELETE')
@@ -202,6 +207,7 @@
                                                     <i class="feather-trash-2"></i>
                                                 </button>
                                             </form>
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>
