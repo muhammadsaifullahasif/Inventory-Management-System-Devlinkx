@@ -27,6 +27,7 @@ use App\Http\Controllers\SalesChannelController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\ChartOfAccountController;
 use App\Http\Controllers\ShippingController;
+use App\Http\Controllers\SystemHealthController;
 
 Route::get('/run-migrations', function() {
     if (!app()->environment('local')) {
@@ -150,6 +151,16 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('/roles', RoleController::class);
     Route::post('/permissions/bulk-delete', [PermissionController::class, 'bulkDelete'])->name('permissions.bulk-delete');
     Route::resource('/permissions', PermissionController::class);
+
+    // System Health & Monitoring (admin-only)
+    Route::middleware(['role:superadmin|Admin'])->prefix('system-health')->name('system-health.')->group(function () {
+        Route::get('/', [SystemHealthController::class, 'index'])->name('index');
+        Route::post('/failed-jobs/{id}/retry', [SystemHealthController::class, 'retryFailedJob'])->name('failed-jobs.retry');
+        Route::delete('/failed-jobs/{id}', [SystemHealthController::class, 'deleteFailedJob'])->name('failed-jobs.delete');
+        Route::post('/failed-jobs/clear', [SystemHealthController::class, 'clearFailedJobs'])->name('failed-jobs.clear');
+        Route::post('/failed-jobs/bulk-retry', [SystemHealthController::class, 'bulkRetryFailedJobs'])->name('failed-jobs.bulk-retry');
+        Route::post('/failed-jobs/bulk-delete', [SystemHealthController::class, 'bulkDeleteFailedJobs'])->name('failed-jobs.bulk-delete');
+    });
 
     // Categories
     Route::post('/categories/bulk-delete', [CategoryController::class, 'bulkDelete'])->name('categories.bulk-delete');

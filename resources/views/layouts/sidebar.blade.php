@@ -325,6 +325,21 @@
                         </li>
                     @endcan
                 @endcan
+
+                @hasrole('superadmin|Admin')
+                    <!-- System Section Caption -->
+                    <li class="nxl-item nxl-caption">
+                        <label>System</label>
+                    </li>
+
+                    <!-- System Health -->
+                    <li class="nxl-item {{ request()->routeIs('system-health.*') ? 'active' : '' }}">
+                        <a class="nxl-link" href="{{ route('system-health.index') }}">
+                            <span class="nxl-micon"><i class="feather-activity"></i></span>
+                            <span class="nxl-mtext">System Health</span>
+                        </a>
+                    </li>
+                @endhasrole
             </ul>
 
             <!-- Sidebar Info Card -->

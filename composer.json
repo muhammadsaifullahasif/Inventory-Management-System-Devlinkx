@@ -11,10 +11,12 @@
         "doctrine/dbal": "^4.4",
         "laravel/framework": "*",
         "laravel/sanctum": "^4.0",
+        "laravel/telescope": "^5.22",
         "laravel/tinker": "^2.10.1",
         "laravel/ui": "^4.6",
         "maatwebsite/excel": "^3.1",
         "picqer/php-barcode-generator": "^3.2",
+        "sentry/sentry-laravel": "^4.27",
         "spatie/laravel-permission": "^6.24"
     },
     "require-dev": {

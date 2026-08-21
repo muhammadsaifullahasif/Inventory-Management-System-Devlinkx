@@ -8,7 +8,7 @@ use App\Http\Controllers\InventorySyncController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
-})->middleware('auth:sanctum');
+})->middleware(['auth:sanctum', 'throttle:api']);
 
 /*
 |--------------------------------------------------------------------------
@@ -25,13 +25,16 @@ Route::get('/user', function (Request $request) {
 // eBay Platform Notifications only supports ONE webhook URL per application.
 // The handler routes to the correct channel based on RecipientUserID in the notification.
 Route::match(['get', 'post'], '/ebay/webhook', [EbayController::class, 'handleEbayWebhook'])
+    ->middleware('throttle:ebay-webhook')
     ->name('ebay.webhook');
 
 // Legacy routes (for backwards compatibility with existing subscriptions)
 Route::match(['get', 'post'], '/ebay/webhook/{id}', [EbayController::class, 'handleEbayOrderWebhook'])
+    ->middleware('throttle:ebay-webhook')
     ->name('ebay.webhook.legacy');
 
 Route::post('/ebay/orders/webhook/{id}', [EbayController::class, 'handleEbayOrderWebhook'])
+    ->middleware('throttle:ebay-webhook')
     ->name('ebay.orders.webhook');
 
 // Test endpoint to verify webhook is reachable
@@ -43,14 +46,14 @@ Route::get('/ebay/webhook-test', function (Request $request) {
         'timestamp' => now()->toIso8601String(),
         'webhook_url' => url("/api/ebay/webhook"),
     ]);
-})->name('ebay.webhook.test');
+})->middleware('throttle:ebay-webhook')->name('ebay.webhook.test');
 
 /*
 |--------------------------------------------------------------------------
 | eBay Returns Management Routes
 |--------------------------------------------------------------------------
 */
-Route::prefix('ebay')->group(function () {
+Route::prefix('ebay')->middleware('throttle:api')->group(function () {
     // Returns
     Route::get('/returns/{id}', [EbayController::class, 'getReturns'])->name('ebay.returns.index');
     Route::get('/returns/{id}/{returnId}', [EbayController::class, 'getReturnDetails'])->name('ebay.returns.show');
@@ -91,7 +94,7 @@ Route::prefix('ebay')->group(function () {
 | Local Order Management Routes (Non-eBay Orders)
 |--------------------------------------------------------------------------
 */
-Route::prefix('orders')->group(function () {
+Route::prefix('orders')->middleware('throttle:api')->group(function () {
     Route::post('/{orderId}/cancel', [EbayController::class, 'cancelLocalOrder'])->name('orders.cancel');
     Route::post('/{orderId}/refund', [EbayController::class, 'refundLocalOrder'])->name('orders.refund');
     Route::post('/{orderId}/refund/partial', [EbayController::class, 'partialRefundLocalOrder'])->name('orders.refund.partial');
@@ -106,7 +109,7 @@ Route::prefix('orders')->group(function () {
 | Manages visible quantities with overselling protection.
 |
 */
-Route::prefix('inventory-sync')->group(function () {
+Route::prefix('inventory-sync')->middleware('throttle:api')->group(function () {
     // Status and preview
     Route::get('/status/{product}', [InventorySyncController::class, 'status'])->name('inventory-sync.status');
     Route::get('/preview/{product}', [InventorySyncController::class, 'preview'])->name('inventory-sync.preview');

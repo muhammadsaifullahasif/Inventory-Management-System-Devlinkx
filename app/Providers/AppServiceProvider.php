@@ -9,7 +9,13 @@ use App\Services\Ebay\EbayNotificationService;
 use App\Services\Ebay\EbayOrderService;
 use App\Services\Ebay\EbayService;
 use App\Services\Ebay\EbayXmlBuilder;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Foundation\Events\DiagnosingHealth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -37,5 +43,23 @@ class AppServiceProvider extends ServiceProvider
 
         // Register ProductStock observer for auto-syncing bundle stock
         ProductStock::observe(ProductStockObserver::class);
+
+        // eBay can burst notifications; keep this generous and IP-keyed
+        // so retried deliveries from eBay's servers don't get starved.
+        RateLimiter::for('ebay-webhook', function ($request) {
+            return Limit::perMinute(300)->by($request->ip());
+        });
+
+        // Standard limiter for internal/admin-facing API endpoints
+        // (returns, cancellations, refunds, inventory-sync, etc).
+        RateLimiter::for('api', function ($request) {
+            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
+        });
+
+        // /up health check: fail (500) if DB or queue connection is unreachable
+        Event::listen(DiagnosingHealth::class, function () {
+            DB::connection()->getPdo();
+            Queue::connection()->size();
+        });
     }
 }
