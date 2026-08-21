@@ -209,6 +209,12 @@ class SystemHealthController extends Controller
 
     protected function scheduledTasks(?string $sortBy, string $sortOrder): array
     {
+        // routes/console.php (where Schedule::command() calls live) is only
+        // required inside Kernel::bootstrap(), which artisan calls but a web
+        // request never does — so Schedule::events() would be empty here
+        // without forcing it explicitly.
+        app(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+
         $schedule = app(Schedule::class);
 
         $tasks = collect($schedule->events())
