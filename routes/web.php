@@ -28,6 +28,8 @@ use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\ChartOfAccountController;
 use App\Http\Controllers\ShippingController;
 use App\Http\Controllers\SystemHealthController;
+use App\Http\Controllers\BackupController;
+use App\Http\Controllers\BackupSettingController;
 
 Route::get('/run-migrations', function() {
     if (!app()->environment('local')) {
@@ -160,6 +162,18 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/failed-jobs/clear', [SystemHealthController::class, 'clearFailedJobs'])->name('failed-jobs.clear');
         Route::post('/failed-jobs/bulk-retry', [SystemHealthController::class, 'bulkRetryFailedJobs'])->name('failed-jobs.bulk-retry');
         Route::post('/failed-jobs/bulk-delete', [SystemHealthController::class, 'bulkDeleteFailedJobs'])->name('failed-jobs.bulk-delete');
+    });
+
+    // Backups (admin-only)
+    Route::middleware(['role:superadmin|Admin'])->prefix('backups')->name('backups.')->group(function () {
+        Route::get('/', [BackupController::class, 'index'])->name('index');
+        Route::post('/run', [BackupController::class, 'run'])->name('run');
+        Route::post('/monitor', [BackupController::class, 'monitor'])->name('monitor');
+        Route::get('/{filename}/download', [BackupController::class, 'download'])->name('download')->where('filename', '[A-Za-z0-9._-]+\.zip');
+        Route::delete('/{filename}', [BackupController::class, 'destroy'])->name('destroy')->where('filename', '[A-Za-z0-9._-]+\.zip');
+
+        Route::get('/settings', [BackupSettingController::class, 'edit'])->name('settings.edit');
+        Route::put('/settings', [BackupSettingController::class, 'update'])->name('settings.update');
     });
 
     // Categories

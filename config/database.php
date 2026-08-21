@@ -61,6 +61,11 @@ return [
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 (PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
+            // spatie/laravel-backup: mysqldump isn't on PATH on Windows/XAMPP
+            // installs — point it at the directory containing mysqldump.exe.
+            'dump' => array_filter([
+                'dump_binary_path' => env('DB_DUMP_BINARY_PATH'),
+            ]),
         ],
 
         'mariadb' => [

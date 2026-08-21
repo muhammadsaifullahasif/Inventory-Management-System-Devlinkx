@@ -17,6 +17,7 @@
         "maatwebsite/excel": "^3.1",
         "picqer/php-barcode-generator": "^3.2",
         "sentry/sentry-laravel": "^4.27",
+        "spatie/laravel-backup": "^9.3",
         "spatie/laravel-permission": "^6.24"
     },
     "require-dev": {

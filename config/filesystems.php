@@ -60,6 +60,31 @@ return [
             'report' => false,
         ],
 
+        // Local disk used by spatie/laravel-backup (config/backup.php
+        // destination.disks). Zips land in storage/app/backups/{app-name}/.
+        'backups' => [
+            'driver' => 'local',
+            'root' => storage_path('app/backups'),
+            'throw' => false,
+            'report' => false,
+        ],
+
+        // Reference only — secondary off-site backup destination. Uncomment
+        // and add BACKUP_AWS_* env vars, then add 's3' => 'backups-s3' (or
+        // just 'backups-s3') to config/backup.php destination.disks, once
+        // off-site backups are actually wanted. Kept separate from the
+        // app's main 's3' disk above so a backup bucket can use its own
+        // credentials/bucket without touching general file storage.
+        // 'backups-s3' => [
+        //     'driver' => 's3',
+        //     'key' => env('BACKUP_AWS_ACCESS_KEY_ID'),
+        //     'secret' => env('BACKUP_AWS_SECRET_ACCESS_KEY'),
+        //     'region' => env('BACKUP_AWS_DEFAULT_REGION'),
+        //     'bucket' => env('BACKUP_AWS_BUCKET'),
+        //     'throw' => false,
+        //     'report' => false,
+        // ],
+
     ],
 
     /*

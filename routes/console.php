@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\UpdateEbayOrderStatusJob;
+use App\Models\BackupSetting;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -77,6 +78,37 @@ Schedule::command('price-comparison:run --limit=50')
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/price-comparison.log'))
     ->onFailure($onScheduleFailure('price-comparison:run'));
+
+// Backup Settings page (backup_settings table) toggles all three below.
+$backupScheduleEnabled = fn () => BackupSetting::current()->schedule_enabled;
+
+// Full DB + storage/app + storage/logs backup, daily at 2 AM (low-traffic hour)
+Schedule::command('backup:run')
+    ->dailyAt('02:00')
+    ->when($backupScheduleEnabled)
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/backup-run.log'))
+    ->onFailure($onScheduleFailure('backup:run'))
+    // Only prune once the zip actually has yesterday's logs safely in it.
+    ->onSuccess(fn () => Artisan::call('logs:prune-backed-up'));
+
+// Enforce retention (default 7 daily / 4 weekly / 3 monthly — configurable
+// on the Backup Settings page, config/backup.php cleanup.default_strategy)
+Schedule::command('backup:clean')
+    ->weeklyOn(1, '03:00') // Monday 3 AM, after the backup:run cycle
+    ->when($backupScheduleEnabled)
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/backup-clean.log'))
+    ->onFailure($onScheduleFailure('backup:clean'));
+
+// Health check: fires BackupHasFailed / UnhealthyBackupWasFound events on
+// stale or missing backups, handled at critical level in AppServiceProvider.
+Schedule::command('backup:monitor')
+    ->dailyAt('02:30')
+    ->when($backupScheduleEnabled)
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/backup-monitor.log'))
+    ->onFailure($onScheduleFailure('backup:monitor'));
 
 Schedule::command('queue:release-stale')->everyFiveMinutes();
 

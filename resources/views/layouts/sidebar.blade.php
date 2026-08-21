@@ -339,6 +339,14 @@
                             <span class="nxl-mtext">System Health</span>
                         </a>
                     </li>
+
+                    <!-- Backups -->
+                    <li class="nxl-item {{ request()->routeIs('backups.*') ? 'active' : '' }}">
+                        <a class="nxl-link" href="{{ route('backups.index') }}">
+                            <span class="nxl-micon"><i class="feather-archive"></i></span>
+                            <span class="nxl-mtext">Backups</span>
+                        </a>
+                    </li>
                 @endhasrole
             </ul>
 
