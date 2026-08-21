@@ -25,7 +25,7 @@ class RefreshShippingTokens extends Command
      *
      * @var string
      */
-    protected $description = 'Refresh shipping carrier API tokens (FedEx, UPS, etc.) before they expire';
+    protected $description = 'Refresh shipping carrier API tokens (FedEx, USPS, etc.) before they expire';
 
     /**
      * Execute the console command.
@@ -122,11 +122,6 @@ class RefreshShippingTokens extends Command
             case 'fedex':
                 $service = new FedexService($carrier);
                 return $service->refreshAccessToken();
-
-            case 'ups':
-                // TODO: Implement UPS token refresh when UPS integration is added
-                $this->warn("  → UPS token refresh not yet implemented");
-                return null;
 
             case 'usps':
                 $service = new UspsService($carrier);

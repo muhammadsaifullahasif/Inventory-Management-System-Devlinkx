@@ -51,7 +51,7 @@
                         <label class="form-label">Carrier Type <span class="text-danger">*</span></label>
                         <select name="type" class="form-select @error('type') is-invalid @enderror" required>
                             <option value="">Select type</option>
-                            @foreach (['fedex' => 'FedEx', 'ups' => 'UPS', 'usps' => 'USPS', 'dhl' => 'DHL', 'other' => 'Other'] as $val => $label)
+                            @foreach (['fedex' => 'FedEx', 'usps' => 'USPS'] as $val => $label)
                                 <option value="{{ $val }}" {{ old('type', $shipping->type) === $val ? 'selected' : '' }}>{{ $label }}</option>
                             @endforeach
                         </select>
@@ -236,16 +236,6 @@ $(document).ready(function() {
             { code: 'INTERNATIONAL_FIRST', name: 'FedEx International First' },
             { code: 'INTERNATIONAL_GROUND', name: 'FedEx International Ground' }
         ],
-        ups: [
-            { code: 'UPS_GROUND', name: 'UPS Ground' },
-            { code: 'UPS_3_DAY_SELECT', name: 'UPS 3 Day Select' },
-            { code: 'UPS_2ND_DAY_AIR', name: 'UPS 2nd Day Air' },
-            { code: 'UPS_2ND_DAY_AIR_AM', name: 'UPS 2nd Day Air AM' },
-            { code: 'UPS_NEXT_DAY_AIR_SAVER', name: 'UPS Next Day Air Saver' },
-            { code: 'UPS_NEXT_DAY_AIR', name: 'UPS Next Day Air' },
-            { code: 'UPS_NEXT_DAY_AIR_EARLY', name: 'UPS Next Day Air Early' },
-            { code: 'UPS_SUREPOST', name: 'UPS SurePost' }
-        ],
         usps: [
             { code: 'USPS_GROUND_ADVANTAGE', name: 'USPS Ground Advantage' },
             { code: 'PRIORITY_MAIL', name: 'USPS Priority Mail' },
@@ -253,12 +243,6 @@ $(document).ready(function() {
             { code: 'MEDIA_MAIL', name: 'USPS Media Mail' },
             { code: 'LIBRARY_MAIL', name: 'USPS Library Mail' },
             { code: 'BOUND_PRINTED_MATTER', name: 'USPS Bound Printed Matter' }
-        ],
-        dhl: [
-            { code: 'DHL_EXPRESS_WORLDWIDE', name: 'DHL Express Worldwide' },
-            { code: 'DHL_EXPRESS_12', name: 'DHL Express 12:00' },
-            { code: 'DHL_EXPRESS_9', name: 'DHL Express 9:00' },
-            { code: 'DHL_ECONOMY_SELECT', name: 'DHL Economy Select' }
         ]
     };
 
