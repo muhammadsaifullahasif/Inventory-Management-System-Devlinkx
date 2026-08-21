@@ -341,6 +341,11 @@
                                         Cron Expression <span class="ms-1">{!! $stArrow('expression') !!}</span>
                                     </a>
                                 </th>
+                                <th>
+                                    <a href="{{ $stSort('frequency') }}" class="d-flex align-items-center text-dark text-decoration-none">
+                                        Runs <span class="ms-1">{!! $stArrow('frequency') !!}</span>
+                                    </a>
+                                </th>
                                 <th class="pe-3">
                                     <a href="{{ $stSort('next_due') }}" class="d-flex align-items-center text-dark text-decoration-none">
                                         Next Due <span class="ms-1">{!! $stArrow('next_due') !!}</span>
@@ -353,11 +358,20 @@
                                 <tr>
                                     <td class="ps-3 fs-13">{{ $task['command'] }}</td>
                                     <td class="fs-12 text-muted">{{ $task['expression'] }}</td>
-                                    <td class="pe-3 fs-12 text-muted">{{ $task['next_due'] ?? 'n/a' }}</td>
+                                    <td class="fs-12 text-muted">{{ $task['frequency'] }}</td>
+                                    <td class="pe-3 fs-12 text-muted">
+                                        @if($task['next_due'])
+                                            <span class="next-due-countdown" data-next-due="{{ \Carbon\Carbon::parse($task['next_due'])->toIso8601String() }}" data-bs-toggle="tooltip" title="{{ $task['next_due'] }}">
+                                                {{ \Carbon\Carbon::parse($task['next_due'])->diffForHumans() }}
+                                            </span>
+                                        @else
+                                            n/a
+                                        @endif
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="3" class="text-center py-4 text-muted">No scheduled tasks registered.</td>
+                                    <td colspan="4" class="text-center py-4 text-muted">No scheduled tasks registered.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -458,6 +472,37 @@
         $(document).on('click', '#failedJobsBulkDeleteBtn', function () {
             submitBulkAction(bulkDeleteUrl, 'Delete %d selected job(s)? This cannot be undone.', 'delete');
         });
+
+        function formatCountdown(ms) {
+            if (ms <= 0) {
+                return 'due now';
+            }
+
+            var totalSeconds = Math.floor(ms / 1000);
+            var h = Math.floor(totalSeconds / 3600);
+            var m = Math.floor((totalSeconds % 3600) / 60);
+            var s = totalSeconds % 60;
+
+            var parts = [];
+            if (h > 0) parts.push(h + 'h');
+            if (h > 0 || m > 0) parts.push(m + 'm');
+            parts.push(s + 's');
+
+            return 'in ' + parts.join(' ');
+        }
+
+        function tickCountdowns() {
+            var now = Date.now();
+            $('.next-due-countdown').each(function () {
+                var target = new Date($(this).data('next-due')).getTime();
+                $(this).text(formatCountdown(target - now));
+            });
+        }
+
+        if ($('.next-due-countdown').length) {
+            tickCountdowns();
+            setInterval(tickCountdowns, 1000);
+        }
     });
 </script>
 @endpush

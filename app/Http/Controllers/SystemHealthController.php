@@ -15,7 +15,7 @@ use Illuminate\View\View;
 class SystemHealthController extends Controller
 {
     protected const FAILED_JOBS_SORTABLE = ['job', 'queue', 'failed_at'];
-    protected const SCHEDULE_SORTABLE = ['command', 'expression', 'next_due'];
+    protected const SCHEDULE_SORTABLE = ['command', 'expression', 'frequency', 'next_due'];
 
     public function index(Request $request): View
     {
@@ -228,6 +228,7 @@ class SystemHealthController extends Controller
                 return [
                     'command' => $event->getSummaryForDisplay(),
                     'expression' => $event->expression,
+                    'frequency' => $this->describeCronExpression($event->expression),
                     'next_due' => $nextDue,
                 ];
             });
@@ -239,5 +240,70 @@ class SystemHealthController extends Controller
         }
 
         return $tasks->values()->all();
+    }
+
+    /**
+     * Turn a 5-field cron expression into a plain-English frequency
+     * (e.g. "Every 15 minutes", "Daily at 07:00", "Weekly on Monday at 03:00").
+     * Falls back to the raw expression for anything not recognised.
+     */
+    protected function describeCronExpression(string $expression): string
+    {
+        $parts = preg_split('/\s+/', trim($expression));
+
+        if (count($parts) !== 5) {
+            return $expression;
+        }
+
+        [$minute, $hour, $day, $month, $weekday] = $parts;
+
+        $days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        $time = fn ($h, $m) => sprintf('%02d:%02d', $h, $m);
+
+        // Every minute
+        if ($minute === '*' && $hour === '*' && $day === '*' && $month === '*' && $weekday === '*') {
+            return 'Every minute';
+        }
+
+        // Every N minutes
+        if (preg_match('/^\*\/(\d+)$/', $minute, $m) && $hour === '*' && $day === '*' && $month === '*' && $weekday === '*') {
+            return "Every {$m[1]} minutes";
+        }
+
+        // Every N hours (on the hour)
+        if (is_numeric($minute) && preg_match('/^\*\/(\d+)$/', $hour, $m) && $day === '*' && $month === '*' && $weekday === '*') {
+            return "Every {$m[1]} hours";
+        }
+
+        // Hourly
+        if (is_numeric($minute) && $hour === '*' && $day === '*' && $month === '*' && $weekday === '*') {
+            return 'Every hour, at minute ' . (int) $minute;
+        }
+
+        // Twice/multiple times daily at specific hours (comma list), any day
+        if (is_numeric($minute) && str_contains($hour, ',') && $day === '*' && $month === '*' && $weekday === '*') {
+            $times = collect(explode(',', $hour))->map(fn ($h) => $time((int) $h, (int) $minute))->implode(', ');
+
+            return "Daily at {$times}";
+        }
+
+        // Daily at a specific time
+        if (is_numeric($minute) && is_numeric($hour) && $day === '*' && $month === '*' && $weekday === '*') {
+            return 'Daily at ' . $time((int) $hour, (int) $minute);
+        }
+
+        // Weekly on a specific day/time
+        if (is_numeric($minute) && is_numeric($hour) && $day === '*' && $month === '*' && is_numeric($weekday)) {
+            $dayName = $days[(int) $weekday % 7] ?? $weekday;
+
+            return "Weekly on {$dayName} at " . $time((int) $hour, (int) $minute);
+        }
+
+        // Monthly on a specific day/time
+        if (is_numeric($minute) && is_numeric($hour) && is_numeric($day) && $month === '*' && $weekday === '*') {
+            return "Monthly on day {$day} at " . $time((int) $hour, (int) $minute);
+        }
+
+        return $expression;
     }
 }
