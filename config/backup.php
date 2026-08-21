@@ -21,6 +21,12 @@ return [
                 'exclude' => [
                     storage_path('framework/cache'),
                     storage_path('app/backups'), // never back up the backups themselves
+                    // Per-order eBay API dumps (UpdateEbayOrderStatusJob::saveOrderLog),
+                    // one JSON file per order fetch, unbounded growth (267k+ files /
+                    // ~5GB seen in prod). Diagnostic only — real order data is in the
+                    // DB dump already. Too many tiny files here blows past shared-host
+                    // inode/fd limits and breaks ZipArchive::close() mid-zip.
+                    storage_path('logs/ebay/orders'),
                 ],
 
                 'follow_links' => false,
