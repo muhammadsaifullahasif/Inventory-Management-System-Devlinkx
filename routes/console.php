@@ -133,6 +133,13 @@ Schedule::command('crawler:check-broken-links --limit=150')
     ->appendOutputTo(storage_path('logs/broken-link-crawl.log'))
     ->onFailure($onScheduleFailure('crawler:check-broken-links'));
 
+// Prune Telescope entries older than 24h daily (unbounded growth otherwise)
+Schedule::command('telescope:prune --hours=24')
+    ->dailyAt('01:00')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/telescope-prune.log'))
+    ->onFailure($onScheduleFailure('telescope:prune'));
+
 Schedule::command('queue:release-stale')->everyFiveMinutes();
 
 // Automatically runs the queue worker every minute cleanly via internal code routing
