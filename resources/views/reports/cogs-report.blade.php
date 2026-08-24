@@ -80,6 +80,7 @@
                                     <option value="channel" {{ $groupBy == 'channel' ? 'selected' : '' }}>Sales Channel</option>
                                     <option value="date" {{ $groupBy == 'date' ? 'selected' : '' }}>Date</option>
                                     <option value="order" {{ $groupBy == 'order' ? 'selected' : '' }}>Order</option>
+                                    <option value="category" {{ $groupBy == 'category' ? 'selected' : '' }}>Category</option>
                                 </select>
                             </div>
                         </div>
@@ -212,6 +213,13 @@
                                     @include('partials.sortable-th', ['column' => 'total_revenue', 'label' => 'Revenue', 'class' => 'text-end'] + $gp)
                                     @include('partials.sortable-th', ['column' => 'gross_profit', 'label' => 'Gross Profit', 'class' => 'text-end'] + $gp)
                                     @include('partials.sortable-th', ['column' => 'gross_margin', 'label' => 'Margin %', 'class' => 'text-end'] + $gp)
+                                @elseif ($groupBy === 'category')
+                                    @include('partials.sortable-th', ['column' => 'name', 'label' => 'Category'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'items_sold', 'label' => 'Items Sold', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'total_cogs', 'label' => 'Total COGS', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'total_revenue', 'label' => 'Revenue', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'gross_profit', 'label' => 'Gross Profit', 'class' => 'text-end'] + $gp)
+                                    @include('partials.sortable-th', ['column' => 'gross_margin', 'label' => 'Margin %', 'class' => 'text-end'] + $gp)
                                 @elseif ($groupBy === 'date')
                                     @include('partials.sortable-th', ['column' => 'date', 'label' => 'Date'] + $gp)
                                     @include('partials.sortable-th', ['column' => 'items_sold', 'label' => 'Items Sold', 'class' => 'text-end'] + $gp)
@@ -263,6 +271,19 @@
                                             </span>
                                         </td>
                                     @elseif ($groupBy === 'channel')
+                                        <td class="fw-semibold">{{ $item['name'] }}</td>
+                                        <td class="text-end">{{ number_format($item['items_sold'], 0) }}</td>
+                                        <td class="text-end text-danger fw-semibold">{{ number_format($item['total_cogs'], 2) }}</td>
+                                        <td class="text-end text-success">{{ number_format($item['total_revenue'], 2) }}</td>
+                                        <td class="text-end fw-semibold {{ $item['gross_profit'] >= 0 ? 'text-success' : 'text-danger' }}">
+                                            {{ number_format($item['gross_profit'], 2) }}
+                                        </td>
+                                        <td class="text-end">
+                                            <span class="badge {{ $item['gross_margin'] >= 0 ? 'bg-soft-success text-success' : 'bg-soft-danger text-danger' }}">
+                                                {{ number_format($item['gross_margin'], 1) }}%
+                                            </span>
+                                        </td>
+                                    @elseif ($groupBy === 'category')
                                         <td class="fw-semibold">{{ $item['name'] }}</td>
                                         <td class="text-end">{{ number_format($item['items_sold'], 0) }}</td>
                                         <td class="text-end text-danger fw-semibold">{{ number_format($item['total_cogs'], 2) }}</td>

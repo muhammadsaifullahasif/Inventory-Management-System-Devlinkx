@@ -86,6 +86,7 @@
                                     <option value="supplier" {{ $groupBy == 'supplier' ? 'selected' : '' }}>Supplier</option>
                                     <option value="warehouse" {{ $groupBy == 'warehouse' ? 'selected' : '' }}>Warehouse</option>
                                     <option value="product" {{ $groupBy == 'product' ? 'selected' : '' }}>Product</option>
+                                    <option value="category" {{ $groupBy == 'category' ? 'selected' : '' }}>Category</option>
                                 </select>
                             </div>
                         </div>

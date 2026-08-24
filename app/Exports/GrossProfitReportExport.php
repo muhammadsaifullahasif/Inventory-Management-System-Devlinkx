@@ -60,6 +60,15 @@ class GrossProfitReportExport implements FromArray, WithHeadings, WithStyles, Wi
                     number_format($item['gross_profit'], 2),
                     number_format($item['gross_margin'], 2) . '%',
                 ];
+            } elseif ($this->groupBy === 'category') {
+                $row = [
+                    $item['name'],
+                    number_format($item['items_sold'], 0),
+                    number_format($item['total_cogs'], 2),
+                    number_format($item['total_revenue'], 2),
+                    number_format($item['gross_profit'], 2),
+                    number_format($item['gross_margin'], 2) . '%',
+                ];
             } elseif ($this->groupBy === 'date') {
                 $row = [
                     $item['formatted_date'],
@@ -94,6 +103,8 @@ class GrossProfitReportExport implements FromArray, WithHeadings, WithStyles, Wi
             return ['Product', 'SKU', 'Qty Sold', 'Avg Cost', 'Avg Price', 'Total COGS', 'Total Revenue', 'Gross Profit', 'Margin %'];
         } elseif ($this->groupBy === 'channel') {
             return ['Sales Channel', 'Items Sold', 'Total COGS', 'Total Revenue', 'Gross Profit', 'Margin %'];
+        } elseif ($this->groupBy === 'category') {
+            return ['Category', 'Items Sold', 'Total COGS', 'Total Revenue', 'Gross Profit', 'Margin %'];
         } elseif ($this->groupBy === 'date') {
             return ['Date', 'Items Sold', 'Total COGS', 'Total Revenue', 'Gross Profit', 'Margin %'];
         } else { // order

@@ -766,6 +766,8 @@ class ReportController extends Controller
             $reportData = $this->groupPurchasesByWarehouse($purchases);
         } elseif ($groupBy === 'product') {
             $reportData = $this->groupPurchasesByProduct($purchases);
+        } elseif ($groupBy === 'category') {
+            $reportData = $this->groupPurchasesByCategory($purchases);
         }
 
         $reportData = $this->applyCollectionSort($reportData, $request, [
@@ -937,6 +939,40 @@ class ReportController extends Controller
     }
 
     /**
+     * Group purchases by product category
+     */
+    protected function groupPurchasesByCategory($purchases)
+    {
+        $grouped = [];
+
+        foreach ($purchases as $purchase) {
+            foreach ($purchase->purchase_items as $item) {
+                $categoryName = $item->product->category->name ?? 'Uncategorized';
+                $categoryId = $item->product->category_id ?? 0;
+
+                if (!isset($grouped[$categoryId])) {
+                    $grouped[$categoryId] = [
+                        'name' => $categoryName,
+                        'purchase_count' => 0,
+                        'ordered_qty' => 0,
+                        'received_qty' => 0,
+                        'ordered_value' => 0,
+                        'received_value' => 0,
+                    ];
+                }
+
+                $grouped[$categoryId]['purchase_count']++;
+                $grouped[$categoryId]['ordered_qty'] += (float) $item->quantity;
+                $grouped[$categoryId]['received_qty'] += (float) $item->received_quantity;
+                $grouped[$categoryId]['ordered_value'] += (float) $item->quantity * (float) $item->price;
+                $grouped[$categoryId]['received_value'] += (float) $item->received_quantity * (float) $item->price;
+            }
+        }
+
+        return collect($grouped)->sortByDesc('ordered_value')->values();
+    }
+
+    /**
      * Export Purchase Report to Excel
      */
     public function exportPurchaseReport(Request $request)
@@ -998,6 +1034,8 @@ class ReportController extends Controller
             $groupedData = $this->groupPurchasesByWarehouse($purchases);
         } elseif ($groupBy === 'product') {
             $groupedData = $this->groupPurchasesByProduct($purchases);
+        } elseif ($groupBy === 'category') {
+            $groupedData = $this->groupPurchasesByCategory($purchases);
         } else {
             $groupedData = $this->groupPurchasesBySupplier($purchases);
         }
@@ -1097,6 +1135,8 @@ class ReportController extends Controller
             $reportData = $this->groupOrdersByProduct($allOrders);
         } elseif ($groupBy === 'date') {
             $reportData = $this->groupOrdersByDate($allOrders);
+        } elseif ($groupBy === 'category') {
+            $reportData = $this->groupOrdersByCategory($allOrders);
         }
 
         $reportData = $this->applyCollectionSort($reportData, $request, [
@@ -1269,6 +1309,40 @@ class ReportController extends Controller
             $product['avg_price'] = $product['price_count'] > 0
                 ? $product['total_price'] / $product['price_count']
                 : 0;
+        }
+
+        return collect($grouped)->sortByDesc('total_revenue')->values();
+    }
+
+    /**
+     * Group orders by product category
+     */
+    protected function groupOrdersByCategory($orders)
+    {
+        $grouped = [];
+
+        foreach ($orders as $order) {
+            if ($order->payment_status !== 'paid') {
+                continue;
+            }
+
+            foreach ($order->items as $item) {
+                $categoryName = $item->product->category->name ?? 'Uncategorized';
+                $categoryId = $item->product->category_id ?? 0;
+
+                if (!isset($grouped[$categoryId])) {
+                    $grouped[$categoryId] = [
+                        'name' => $categoryName,
+                        'order_count' => 0,
+                        'quantity_sold' => 0,
+                        'total_revenue' => 0,
+                    ];
+                }
+
+                $grouped[$categoryId]['order_count']++;
+                $grouped[$categoryId]['quantity_sold'] += (int) $item->quantity;
+                $grouped[$categoryId]['total_revenue'] += (float) $item->total_price;
+            }
         }
 
         return collect($grouped)->sortByDesc('total_revenue')->values();
@@ -3245,6 +3319,8 @@ class ReportController extends Controller
             $reportDataCollection = $this->groupCogsByDate($orderItems);
         } elseif ($groupBy === 'order') {
             $reportDataCollection = $this->groupCogsByOrder($orderItems);
+        } elseif ($groupBy === 'category') {
+            $reportDataCollection = $this->groupCogsByCategory($orderItems);
         }
 
         $reportDataCollection = $this->applyCollectionSort($reportDataCollection, $request, [
@@ -3483,6 +3559,51 @@ class ReportController extends Controller
     }
 
     /**
+     * Group COGS by product category
+     */
+    protected function groupCogsByCategory($orderItems)
+    {
+        $grouped = [];
+
+        foreach ($orderItems as $item) {
+            $categoryName = $item->product->category->name ?? 'Uncategorized';
+            $categoryId = $item->product->category_id ?? 0;
+
+            if (!isset($grouped[$categoryId])) {
+                $grouped[$categoryId] = [
+                    'name' => $categoryName,
+                    'items_sold' => 0,
+                    'total_cogs' => 0,
+                    'total_revenue' => 0,
+                ];
+            }
+
+            if ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) {
+                continue; // Cancelled (inventory restored), or a bundle component whose cost is already rolled into the summary line - $0 contribution
+            }
+
+            $itemCogs = ($item->cost_at_sale ?? 0) * $item->quantity;
+
+            $grouped[$categoryId]['items_sold'] += (int) $item->quantity;
+            $grouped[$categoryId]['total_cogs'] += $itemCogs;
+            // Refunded orders still incur COGS (product not returned) but contribute $0 revenue.
+            if (!$this->isOrderItemRefunded($item)) {
+                $grouped[$categoryId]['total_revenue'] += (float) $item->total_price;
+            }
+        }
+
+        // Calculate margins
+        foreach ($grouped as &$category) {
+            $category['gross_profit'] = $category['total_revenue'] - $category['total_cogs'];
+            $category['gross_margin'] = $category['total_revenue'] > 0
+                ? ($category['gross_profit'] / $category['total_revenue']) * 100
+                : 0;
+        }
+
+        return collect($grouped)->sortByDesc('total_cogs')->values();
+    }
+
+    /**
      * Group COGS by date
      */
     protected function groupCogsByDate($orderItems)
@@ -3671,6 +3792,8 @@ class ReportController extends Controller
             $reportData = $this->groupCogsByChannel($orderItems);
         } elseif ($groupBy === 'date') {
             $reportData = $this->groupCogsByDate($orderItems);
+        } elseif ($groupBy === 'category') {
+            $reportData = $this->groupCogsByCategory($orderItems);
         } else {
             $reportData = $this->groupCogsByOrder($orderItems);
         }
@@ -3764,6 +3887,8 @@ class ReportController extends Controller
             $reportDataCollection = $this->groupCogsByChannel($orderItems);
         } elseif ($groupBy === 'date') {
             $reportDataCollection = $this->groupCogsByDate($orderItems);
+        } elseif ($groupBy === 'category') {
+            $reportDataCollection = $this->groupCogsByCategory($orderItems);
         } elseif ($groupBy === 'order') {
             $reportDataCollection = $this->groupCogsByOrder($orderItems);
         }
@@ -3946,6 +4071,8 @@ class ReportController extends Controller
             $reportData = $this->groupCogsByChannel($orderItems);
         } elseif ($groupBy === 'date') {
             $reportData = $this->groupCogsByDate($orderItems);
+        } elseif ($groupBy === 'category') {
+            $reportData = $this->groupCogsByCategory($orderItems);
         } else {
             $reportData = $this->groupCogsByOrder($orderItems);
         }
@@ -4060,6 +4187,8 @@ class ReportController extends Controller
             $reportDataCollection = $this->groupCogsByChannel($orderItems);
         } elseif ($groupBy === 'date') {
             $reportDataCollection = $this->groupCogsByDate($orderItems);
+        } elseif ($groupBy === 'category') {
+            $reportDataCollection = $this->groupCogsByCategory($orderItems);
         } elseif ($groupBy === 'order') {
             $reportDataCollection = $this->groupCogsByOrder($orderItems);
         }
@@ -4184,6 +4313,8 @@ class ReportController extends Controller
             $reportData = $this->groupCogsByChannel($orderItems);
         } elseif ($groupBy === 'date') {
             $reportData = $this->groupCogsByDate($orderItems);
+        } elseif ($groupBy === 'category') {
+            $reportData = $this->groupCogsByCategory($orderItems);
         } else {
             $reportData = $this->groupCogsByOrder($orderItems);
         }

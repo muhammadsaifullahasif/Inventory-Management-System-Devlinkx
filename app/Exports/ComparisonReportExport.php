@@ -82,6 +82,15 @@ class ComparisonReportExport implements FromArray, WithHeadings, WithStyles, Wit
                     number_format($item['gross_profit'], 2),
                     number_format($item['gross_margin'], 2) . '%',
                 ];
+            } elseif ($this->groupBy === 'category') {
+                $row = [
+                    $item['name'],
+                    number_format($item['items_sold'], 0),
+                    number_format($item['total_revenue'], 2),
+                    number_format($item['total_cogs'], 2),
+                    number_format($item['gross_profit'], 2),
+                    number_format($item['gross_margin'], 2) . '%',
+                ];
             }
 
             $rows[] = $row;
@@ -98,6 +107,8 @@ class ComparisonReportExport implements FromArray, WithHeadings, WithStyles, Wit
             return ['Sales Channel', 'Items', 'Revenue', 'COGS', 'Gross Profit', 'Margin %'];
         } elseif ($this->groupBy === 'date') {
             return ['Date', 'Items', 'Revenue', 'COGS', 'Gross Profit', 'Margin %'];
+        } elseif ($this->groupBy === 'category') {
+            return ['Category', 'Items', 'Revenue', 'COGS', 'Gross Profit', 'Margin %'];
         } else { // order
             return ['Order #', 'Date', 'Channel', 'Items', 'Revenue', 'COGS', 'Gross Profit', 'Margin %'];
         }

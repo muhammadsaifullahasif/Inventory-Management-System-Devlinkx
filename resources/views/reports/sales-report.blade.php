@@ -86,6 +86,7 @@
                                     <option value="channel" {{ $groupBy == 'channel' ? 'selected' : '' }}>Sales Channel</option>
                                     <option value="product" {{ $groupBy == 'product' ? 'selected' : '' }}>Product</option>
                                     <option value="date" {{ $groupBy == 'date' ? 'selected' : '' }}>Date</option>
+                                    <option value="category" {{ $groupBy == 'category' ? 'selected' : '' }}>Category</option>
                                 </select>
                             </div>
                         </div>
@@ -275,20 +276,23 @@
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
+                                @php $isItemGrouping = in_array($groupBy, ['product', 'category']); @endphp
                                 @if ($groupBy === 'date')
                                     @include('partials.sortable-th', ['column' => 'name', 'label' => 'Date'])
                                 @elseif ($groupBy === 'product')
                                     @include('partials.sortable-th', ['column' => 'name', 'label' => 'Product'])
                                     @include('partials.sortable-th', ['column' => 'sku', 'label' => 'SKU'])
                                     @include('partials.sortable-th', ['column' => 'avg_price', 'label' => 'Avg Price', 'class' => 'text-end'])
+                                @elseif ($groupBy === 'category')
+                                    @include('partials.sortable-th', ['column' => 'name', 'label' => 'Category'])
                                 @else
                                     @include('partials.sortable-th', ['column' => 'name', 'label' => 'Sales Channel'])
                                 @endif
                                 @include('partials.sortable-th', ['column' => 'order_count', 'label' => 'Orders', 'class' => 'text-center'])
-                                @if ($groupBy !== 'product')
+                                @if (!$isItemGrouping)
                                     @include('partials.sortable-th', ['column' => 'paid_count', 'label' => 'Paid', 'class' => 'text-center'])
                                 @endif
-                                @include('partials.sortable-th', ['column' => $groupBy === 'product' ? 'quantity_sold' : 'items_sold', 'label' => $groupBy === 'product' ? 'Qty Sold' : 'Items Sold', 'class' => 'text-end'])
+                                @include('partials.sortable-th', ['column' => $isItemGrouping ? 'quantity_sold' : 'items_sold', 'label' => $isItemGrouping ? 'Qty Sold' : 'Items Sold', 'class' => 'text-end'])
                                 @include('partials.sortable-th', ['column' => 'total_revenue', 'label' => 'Revenue', 'class' => 'text-end'])
                                 @if ($groupBy === 'channel')
                                     @include('partials.sortable-th', ['column' => 'total_shipping', 'label' => 'Shipping', 'class' => 'text-end'])
@@ -311,13 +315,13 @@
                                     <td class="text-center">
                                         <span class="badge bg-soft-primary text-primary">{{ $group['order_count'] }}</span>
                                     </td>
-                                    @if ($groupBy !== 'product')
+                                    @if (!$isItemGrouping)
                                         <td class="text-center">
                                             <span class="badge bg-soft-success text-success">{{ $group['paid_count'] }}</span>
                                         </td>
                                     @endif
-                                    <td class="text-end">{{ number_format($groupBy === 'product' ? $group['quantity_sold'] : $group['items_sold'], 0) }}</td>
-                                    <td class="text-end text-success fw-semibold">{{ number_format($groupBy === 'product' ? $group['total_revenue'] : $group['total_revenue'], 2) }}</td>
+                                    <td class="text-end">{{ number_format($isItemGrouping ? $group['quantity_sold'] : $group['items_sold'], 0) }}</td>
+                                    <td class="text-end text-success fw-semibold">{{ number_format($group['total_revenue'], 2) }}</td>
                                     @if ($groupBy === 'channel')
                                         <td class="text-end">{{ number_format($group['total_shipping'], 2) }}</td>
                                         <td class="text-end">{{ number_format($group['total_tax'], 2) }}</td>
@@ -325,7 +329,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $groupBy === 'product' ? 6 : ($groupBy === 'channel' ? 8 : 5) }}" class="text-center py-5 text-muted">
+                                    <td colspan="{{ $groupBy === 'product' ? 6 : ($groupBy === 'channel' ? 8 : ($groupBy === 'category' ? 4 : 5)) }}" class="text-center py-5 text-muted">
                                         <i class="feather-shopping-cart" style="font-size: 3rem;"></i>
                                         <p class="mt-3">No orders found for the selected period.</p>
                                     </td>
@@ -341,7 +345,7 @@
                                         <th></th>
                                     @endif
                                     <th class="text-center">{{ $summary['total_orders'] }}</th>
-                                    @if ($groupBy !== 'product')
+                                    @if (!$isItemGrouping)
                                         <th class="text-center">{{ $summary['paid_count'] }}</th>
                                     @endif
                                     <th class="text-end">{{ number_format($summary['total_items_sold'], 0) }}</th>
