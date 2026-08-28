@@ -182,9 +182,11 @@
                 <div class="col-md-3">
                     <div class="card">
                         <div class="card-body py-3">
-                            <h6 class="text-muted mb-1 small">Total Revenue @include('partials.info-tooltip', ['text' => 'Sum of orders.total for paid orders only in range. Items sold = sum of item quantity for paid orders, bundle-component lines excluded (already counted in the bundle summary line).'])</h6>
+                            <h6 class="text-muted mb-1 small">Total Revenue @include('partials.info-tooltip', ['text' => 'Sum of orders.total for paid orders only in range.'])</h6>
                             <h4 class="mb-0 fw-bold text-success">{{ number_format($summary['total_revenue'], 2) }}</h4>
-                            <small class="text-muted">{{ $summary['total_items_sold'] }} items sold</small>
+                            <small class="text-muted" data-bs-toggle="tooltip" title="Sale Lines: 1 per sold unit, a bundle counts once (its summary line). Total Items Sold: physical piece count, a bundle's components count individually instead.">
+                                {{ $summary['sale_lines'] }} sale lines &middot; {{ $summary['total_items_sold'] }} items sold
+                            </small>
                         </div>
                     </div>
                 </div>

@@ -114,8 +114,9 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Total Items Sold @include('partials.info-tooltip', ['text' => 'Sum of item quantity for order_items with inventory_updated=true in range - ALL orders regardless of payment status (compare against Paid Orders Only in the table below). Bundle-component lines excluded.'])</h6>
-                                    <h4 class="mb-0 fw-bold">{{ number_format($summary['total_items_sold'], 0) }}</h4>
+                                    <h6 class="text-muted mb-1 small">Sale Lines @include('partials.info-tooltip', ['text' => 'Sum of item quantity for order_items with inventory_updated=true in range - ALL orders regardless of payment status (compare against Paid Orders Only in the table below). A bundle counts once (its summary line).'])</h6>
+                                    <h4 class="mb-0 fw-bold">{{ number_format($summary['sale_lines'], 0) }}</h4>
+                                    <small class="text-muted" data-bs-toggle="tooltip" title="Physical piece count - a bundle's components count individually instead of the summary line.">{{ number_format($summary['total_items_sold'], 0) }} total items sold</small>
                                 </div>
                                 <div class="avatar-text avatar-md bg-primary text-white rounded">
                                     <i class="feather-package"></i>
@@ -347,6 +348,10 @@
                         <h6 class="text-uppercase text-muted mb-3">All Orders (Including Unpaid)</h6>
                         <table class="table table-sm">
                             <tr>
+                                <td>Sale Lines:</td>
+                                <td class="text-end fw-semibold">{{ number_format($summary['sale_lines'], 0) }}</td>
+                            </tr>
+                            <tr>
                                 <td>Total Items Sold:</td>
                                 <td class="text-end fw-semibold">{{ number_format($summary['total_items_sold'], 0) }}</td>
                             </tr>
@@ -373,6 +378,10 @@
                     <div class="col-md-6">
                         <h6 class="text-uppercase text-muted mb-3">Paid Orders Only</h6>
                         <table class="table table-sm">
+                            <tr>
+                                <td>Sale Lines:</td>
+                                <td class="text-end fw-semibold">{{ number_format($paidSummary['sale_lines'], 0) }}</td>
+                            </tr>
                             <tr>
                                 <td>Total Items Sold:</td>
                                 <td class="text-end fw-semibold">{{ number_format($paidSummary['total_items_sold'], 0) }}</td>

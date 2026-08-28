@@ -114,8 +114,9 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Total Items Sold @include('partials.info-tooltip', ['text' => 'Sum of item quantity for order_items with cost recorded (inventory_updated=true), OR belonging to a cancelled/refunded order, OR with no matched product - across ANY payment/order status (no paid-only filter). Cancelled-order items and bundle-component lines are zeroed out.'])</h6>
-                                    <h4 class="mb-0 fw-bold">{{ number_format($summary['total_items_sold'], 0) }}</h4>
+                                    <h6 class="text-muted mb-1 small">Sale Lines @include('partials.info-tooltip', ['text' => 'Sum of item quantity for order_items with cost recorded (inventory_updated=true), OR belonging to a cancelled/refunded order, OR with no matched product - across ANY payment/order status (no paid-only filter). Cancelled-order items zeroed; a bundle counts once (its summary line).'])</h6>
+                                    <h4 class="mb-0 fw-bold">{{ number_format($summary['sale_lines'], 0) }}</h4>
+                                    <small class="text-muted" data-bs-toggle="tooltip" title="Physical piece count - a bundle's components count individually instead of the summary line.">{{ number_format($summary['total_items_sold'], 0) }} total items sold</small>
                                 </div>
                                 <div class="avatar-text avatar-md bg-primary text-white rounded">
                                     <i class="feather-package"></i>
@@ -159,7 +160,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Gross Profit @include('partials.info-tooltip', ['text' => 'Total Revenue minus Total COGS (this report's own revenue/COGS definitions - no payment_status=paid requirement, unlike the Gross Profit Report).'])</h6>
+                                    <h6 class="text-muted mb-1 small">Gross Profit @include('partials.info-tooltip', ['text' => 'Total Revenue minus Total COGS (this report\'s own revenue/COGS definitions - no payment_status=paid requirement, unlike the Gross Profit Report).'])</h6>
                                     <h4 class="mb-0 fw-bold {{ $summary['gross_profit'] >= 0 ? 'text-success' : 'text-danger' }}">
                                         {{ number_format($summary['gross_profit'], 2) }}
                                     </h4>

@@ -27,6 +27,7 @@ class CogsReportSummarySheet implements FromArray, WithHeadings, WithStyles, Wit
 
         // Add summary section
         $rows[] = ['COGS Report Summary'];
+        $rows[] = ['Sale Lines', number_format($this->summary['sale_lines'], 0)];
         $rows[] = ['Total Items Sold', number_format($this->summary['total_items_sold'], 0)];
         $rows[] = ['Total Revenue', number_format($this->summary['total_revenue'], 2)];
         $rows[] = ['Total COGS', number_format($this->summary['total_cogs'], 2)];

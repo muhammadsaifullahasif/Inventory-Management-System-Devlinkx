@@ -202,8 +202,9 @@
         <div class="col-md-3 mt-3">
             <div class="card">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Items Sold @include('partials.info-tooltip', ['text' => 'Sum of item quantity across paid+refunded orders, bundle-component lines excluded.'])</h6>
-                    <h4 class="mb-0 fw-bold">{{ number_format($summary['total_items_sold'], 0) }}</h4>
+                    <h6 class="text-muted mb-1 small">Sale Lines @include('partials.info-tooltip', ['text' => 'Sum of item quantity across paid+refunded orders, counting a bundle as 1 unit (its summary line) - bundle component lines excluded here.'])</h6>
+                    <h4 class="mb-0 fw-bold">{{ number_format($summary['sale_lines'], 0) }}</h4>
+                    <small class="text-muted" data-bs-toggle="tooltip" title="Physical piece count - a bundle's components count individually instead of the summary line.">{{ number_format($summary['total_items_sold'], 0) }} total items sold</small>
                 </div>
             </div>
         </div>

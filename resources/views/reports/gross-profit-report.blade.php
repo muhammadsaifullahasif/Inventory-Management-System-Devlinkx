@@ -114,8 +114,9 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Total Items Sold @include('partials.info-tooltip', ['text' => 'Sum of item quantity strictly for orders.payment_status=paid AND order_items.inventory_updated=true. Refunded, cancelled, and unmatched-SKU items are excluded entirely (stricter than COGS Report, which keeps those visible).'])</h6>
-                                    <h4 class="mb-0 fw-bold">{{ number_format($summary['total_items_sold'], 0) }}</h4>
+                                    <h6 class="text-muted mb-1 small">Sale Lines @include('partials.info-tooltip', ['text' => 'Sum of item quantity strictly for orders.payment_status=paid AND order_items.inventory_updated=true. Refunded, cancelled, and unmatched-SKU items are excluded entirely (stricter than COGS Report, which keeps those visible). A bundle counts once (its summary line).'])</h6>
+                                    <h4 class="mb-0 fw-bold">{{ number_format($summary['sale_lines'], 0) }}</h4>
+                                    <small class="text-muted" data-bs-toggle="tooltip" title="Physical piece count - a bundle's components count individually instead of the summary line.">{{ number_format($summary['total_items_sold'], 0) }} total items sold</small>
                                 </div>
                                 <div class="avatar-text avatar-md bg-primary text-white rounded">
                                     <i class="feather-package"></i>

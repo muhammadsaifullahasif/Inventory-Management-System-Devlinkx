@@ -1111,16 +1111,26 @@ class ReportController extends Controller
             'total_shipping' => $allOrders->where('payment_status', 'paid')->sum('shipping_cost'),
             'total_tax' => $allOrders->where('payment_status', 'paid')->sum('tax'),
             'total_discount' => $allOrders->where('payment_status', 'paid')->sum('discount'),
+            'sale_lines' => 0,
             'total_items_sold' => 0,
             'average_order_value' => 0,
         ];
 
-        // Calculate items sold - bundle component lines are excluded, their quantity
-        // is already represented by the bundle summary line (avoids double-counting).
+        // Sale Lines: 1 sold unit per line - a bundle counts once (its summary
+        // line). Total Items Sold: physical piece count - a bundle's components
+        // count individually instead of the summary line, since that's what
+        // actually ships. Regular (non-bundle) items count toward both.
         foreach ($allOrders->where('payment_status', 'paid') as $order) {
-            $summary['total_items_sold'] += $order->items->sum(function ($item) {
-                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
-            });
+            foreach ($order->items as $item) {
+                if ($this->isBundleComponentItem($item)) {
+                    $summary['total_items_sold'] += $item->quantity;
+                } elseif ($item->is_bundle_summary) {
+                    $summary['sale_lines'] += $item->quantity;
+                } else {
+                    $summary['sale_lines'] += $item->quantity;
+                    $summary['total_items_sold'] += $item->quantity;
+                }
+            }
         }
 
         $summary['average_order_value'] = $summary['paid_count'] > 0
@@ -1431,16 +1441,25 @@ class ReportController extends Controller
             'total_shipping' => $allOrders->where('payment_status', 'paid')->sum('shipping_cost'),
             'total_tax' => $allOrders->where('payment_status', 'paid')->sum('tax'),
             'total_discount' => $allOrders->where('payment_status', 'paid')->sum('discount'),
+            'sale_lines' => 0,
             'total_items_sold' => 0,
             'average_order_value' => 0,
         ];
 
-        // Calculate items sold - bundle component lines are excluded, their quantity
-        // is already represented by the bundle summary line (avoids double-counting).
+        // Sale Lines: 1 sold unit per line (bundle counts once, its summary line).
+        // Total Items Sold: physical piece count (bundle components counted
+        // individually instead). Regular items count toward both.
         foreach ($allOrders->where('payment_status', 'paid') as $order) {
-            $summary['total_items_sold'] += $order->items->sum(function ($item) {
-                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
-            });
+            foreach ($order->items as $item) {
+                if ($this->isBundleComponentItem($item)) {
+                    $summary['total_items_sold'] += $item->quantity;
+                } elseif ($item->is_bundle_summary) {
+                    $summary['sale_lines'] += $item->quantity;
+                } else {
+                    $summary['sale_lines'] += $item->quantity;
+                    $summary['total_items_sold'] += $item->quantity;
+                }
+            }
         }
 
         $summary['average_order_value'] = $summary['paid_count'] > 0
@@ -1589,6 +1608,7 @@ class ReportController extends Controller
             'total_discount' => (float) $revenueOrders->sum('discount'),
             'total_shipping' => (float) $revenueOrders->sum('shipping_cost'),
             'total_tax' => (float) $revenueOrders->sum('tax'),
+            'sale_lines' => 0,
             'total_items_sold' => 0,
             'average_order_value' => 0,
             'refund_rate' => 0,
@@ -1596,10 +1616,22 @@ class ReportController extends Controller
 
         $summary['net_revenue'] = $summary['gross_revenue'] - $summary['total_refunds'];
 
+        // Sale Lines: 1 sold unit per line - a bundle counts once (its summary
+        // line), regardless of how many components it contains.
+        // Total Items Sold: physical piece count - a bundle's components count
+        // individually instead of the summary line, since that's what actually
+        // ships. Regular (non-bundle) items count the same toward both.
         foreach ($revenueOrders as $order) {
-            $summary['total_items_sold'] += $order->items->sum(function ($item) {
-                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
-            });
+            foreach ($order->items as $item) {
+                if ($this->isBundleComponentItem($item)) {
+                    $summary['total_items_sold'] += $item->quantity;
+                } elseif ($item->is_bundle_summary) {
+                    $summary['sale_lines'] += $item->quantity;
+                } else {
+                    $summary['sale_lines'] += $item->quantity;
+                    $summary['total_items_sold'] += $item->quantity;
+                }
+            }
         }
 
         $summary['average_order_value'] = $revenueOrderCount > 0
@@ -4308,13 +4340,41 @@ class ReportController extends Controller
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
+        // Bundle component quantities, fetched separately since the main query
+        // excludes them (their cost is already rolled into the bundle summary
+        // line). Needed only for the physical Total Items Sold count below.
+        $componentQuery = OrderItem::select('order_items.*', 'orders.order_status')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->whereNotNull('order_items.bundle_product_id')
+            ->where('order_items.is_bundle_summary', false);
+
+        if ($channelId) {
+            $componentQuery->where('orders.sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $componentQuery->where('orders.order_status', $orderStatus);
+        }
+
+        $componentItems = $componentQuery->get();
+
         // Calculate summary - cancelled orders (inventory restored) and bundle component
         // lines (already rolled into the bundle summary line's cost) contribute $0 COGS.
         // Refunded orders still contribute COGS (product not returned), but $0 revenue.
+        // Sale Lines: 1 per sold unit, a bundle counts once (its summary line).
+        // Total Items Sold: physical piece count - the bundle summary line is
+        // swapped out for its components' quantities (what actually ships).
         $summary = [
-            'total_items_sold' => $orderItems->sum(function ($item) {
+            'sale_lines' => $orderItems->sum(function ($item) {
                 return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : $item->quantity;
             }),
+            'total_items_sold' => $orderItems->sum(function ($item) {
+                    return ($this->isOrderItemCancelled($item) || $item->is_bundle_summary) ? 0 : $item->quantity;
+                }) + $componentItems->sum(function ($item) {
+                    return $this->isOrderItemCancelled($item) ? 0 : $item->quantity;
+                }),
             'total_cogs' => $orderItems->sum(function ($item) {
                 return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
@@ -4797,13 +4857,37 @@ class ReportController extends Controller
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
+        // Bundle component quantities, fetched separately since the main query
+        // excludes them. Needed only for the physical Total Items Sold count.
+        $componentQuery = OrderItem::select('order_items.*', 'orders.order_status')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->whereNotNull('order_items.bundle_product_id')
+            ->where('order_items.is_bundle_summary', false);
+
+        if ($channelId) {
+            $componentQuery->where('orders.sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $componentQuery->where('orders.order_status', $orderStatus);
+        }
+
+        $componentItems = $componentQuery->get();
+
         // Calculate summary - cancelled orders (inventory restored) and bundle component
         // lines (already rolled into the bundle summary line's cost) contribute $0 COGS.
         // Refunded orders still contribute COGS (product not returned), but $0 revenue.
         $summary = [
-            'total_items_sold' => $orderItems->sum(function ($item) {
+            'sale_lines' => $orderItems->sum(function ($item) {
                 return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : $item->quantity;
             }),
+            'total_items_sold' => $orderItems->sum(function ($item) {
+                    return ($this->isOrderItemCancelled($item) || $item->is_bundle_summary) ? 0 : $item->quantity;
+                }) + $componentItems->sum(function ($item) {
+                    return $this->isOrderItemCancelled($item) ? 0 : $item->quantity;
+                }),
             'total_cogs' => $orderItems->sum(function ($item) {
                 return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
@@ -4891,11 +4975,30 @@ class ReportController extends Controller
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
+        // Bundle component quantities, fetched separately since the main query
+        // excludes them. Needed only for the physical Total Items Sold count.
+        $componentItems = OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->select('order_items.*')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->where('orders.payment_status', 'paid')
+            ->whereNotNull('order_items.bundle_product_id')
+            ->where('order_items.is_bundle_summary', false)
+            ->when($channelId, fn($q) => $q->where('orders.sales_channel_id', $channelId))
+            ->when($orderStatus, fn($q) => $q->where('orders.order_status', $orderStatus))
+            ->get();
+
         // Calculate summary
+        // Sale Lines: 1 per sold unit, a bundle counts once (its summary line).
+        // Total Items Sold: physical piece count - the bundle summary line is
+        // swapped out for its components' quantities (what actually ships).
         $summary = [
-            'total_items_sold' => $orderItems->sum(function ($item) {
+            'sale_lines' => $orderItems->sum(function ($item) {
                 return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
             }),
+            'total_items_sold' => $orderItems->sum(function ($item) {
+                    return $item->is_bundle_summary ? 0 : $item->quantity;
+                }) + $componentItems->sum('quantity'),
             'total_revenue' => $orderItems->sum('total_price'),
             'total_cogs' => $orderItems->sum(function ($item) {
                 return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
@@ -4906,8 +5009,8 @@ class ReportController extends Controller
         $summary['gross_margin'] = $summary['total_revenue'] > 0
             ? ($summary['gross_profit'] / $summary['total_revenue']) * 100
             : 0;
-        $summary['avg_profit_per_item'] = $summary['total_items_sold'] > 0
-            ? $summary['gross_profit'] / $summary['total_items_sold']
+        $summary['avg_profit_per_item'] = $summary['sale_lines'] > 0
+            ? $summary['gross_profit'] / $summary['sale_lines']
             : 0;
 
         // Build grouped report data
@@ -5080,11 +5183,27 @@ class ReportController extends Controller
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
+        // Bundle component quantities, fetched separately since the main query
+        // excludes them. Needed only for the physical Total Items Sold count.
+        $componentItems = OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->select('order_items.*')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->where('orders.payment_status', 'paid')
+            ->whereNotNull('order_items.bundle_product_id')
+            ->where('order_items.is_bundle_summary', false)
+            ->when($channelId, fn($q) => $q->where('orders.sales_channel_id', $channelId))
+            ->when($orderStatus, fn($q) => $q->where('orders.order_status', $orderStatus))
+            ->get();
+
         // Calculate summary
         $summary = [
-            'total_items_sold' => $orderItems->sum(function ($item) {
+            'sale_lines' => $orderItems->sum(function ($item) {
                 return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
             }),
+            'total_items_sold' => $orderItems->sum(function ($item) {
+                    return $item->is_bundle_summary ? 0 : $item->quantity;
+                }) + $componentItems->sum('quantity'),
             'total_revenue' => $orderItems->sum('total_price'),
             'total_cogs' => $orderItems->sum(function ($item) {
                 return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
@@ -5174,11 +5293,31 @@ class ReportController extends Controller
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
+        // Bundle component quantities, fetched separately since the main query
+        // excludes them. Needed only for the physical Total Items Sold count.
+        $componentItems = OrderItem::select('order_items.*', 'orders.payment_status')
+            ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->whereNotNull('order_items.bundle_product_id')
+            ->where('order_items.is_bundle_summary', false)
+            ->when($channelId, fn($q) => $q->where('orders.sales_channel_id', $channelId))
+            ->when($orderStatus, fn($q) => $q->where('orders.order_status', $orderStatus))
+            ->when($productId, fn($q) => $q->where('order_items.product_id', $productId))
+            ->when($sku, fn($q) => $q->where('order_items.sku', 'like', '%' . $sku . '%'))
+            ->get();
+
         // Calculate summary (all orders)
+        // Sale Lines: 1 per sold unit, a bundle counts once (its summary line).
+        // Total Items Sold: physical piece count - the bundle summary line is
+        // swapped out for its components' quantities (what actually ships).
         $summary = [
-            'total_items_sold' => $orderItems->sum(function ($item) {
+            'sale_lines' => $orderItems->sum(function ($item) {
                 return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
             }),
+            'total_items_sold' => $orderItems->sum(function ($item) {
+                    return $item->is_bundle_summary ? 0 : $item->quantity;
+                }) + $componentItems->sum('quantity'),
             'total_revenue' => $orderItems->sum('total_price'),
             'total_cogs' => $orderItems->sum(function ($item) {
                 return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
@@ -5195,10 +5334,15 @@ class ReportController extends Controller
             return $item->order->payment_status === 'paid';
         });
 
+        $paidComponentItems = $componentItems->where('payment_status', 'paid');
+
         $paidSummary = [
-            'total_items_sold' => $paidItems->sum(function ($item) {
+            'sale_lines' => $paidItems->sum(function ($item) {
                 return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
             }),
+            'total_items_sold' => $paidItems->sum(function ($item) {
+                    return $item->is_bundle_summary ? 0 : $item->quantity;
+                }) + $paidComponentItems->sum('quantity'),
             'total_revenue' => $paidItems->sum('total_price'),
             'total_cogs' => $paidItems->sum(function ($item) {
                 return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
@@ -5322,11 +5466,28 @@ class ReportController extends Controller
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
+        // Bundle component quantities, fetched separately since the main query
+        // excludes them. Needed only for the physical Total Items Sold count.
+        $componentItems = OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->select('order_items.*')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->whereNotNull('order_items.bundle_product_id')
+            ->where('order_items.is_bundle_summary', false)
+            ->when($channelId, fn($q) => $q->where('orders.sales_channel_id', $channelId))
+            ->when($orderStatus, fn($q) => $q->where('orders.order_status', $orderStatus))
+            ->when($productId, fn($q) => $q->where('order_items.product_id', $productId))
+            ->when($sku, fn($q) => $q->where('order_items.sku', 'like', '%' . $sku . '%'))
+            ->get();
+
         // Calculate summary
         $summary = [
-            'total_items_sold' => $orderItems->sum(function ($item) {
+            'sale_lines' => $orderItems->sum(function ($item) {
                 return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
             }),
+            'total_items_sold' => $orderItems->sum(function ($item) {
+                    return $item->is_bundle_summary ? 0 : $item->quantity;
+                }) + $componentItems->sum('quantity'),
             'total_revenue' => $orderItems->sum('total_price'),
             'total_cogs' => $orderItems->sum(function ($item) {
                 return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;

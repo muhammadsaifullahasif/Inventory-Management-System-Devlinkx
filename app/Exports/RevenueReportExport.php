@@ -30,7 +30,8 @@ class RevenueReportExport implements FromArray, WithHeadings, WithStyles, WithTi
         $rows[] = ['Total Refunds', number_format($this->summary['total_refunds'], 2)];
         $rows[] = ['Net Revenue', number_format($this->summary['net_revenue'], 2)];
         $rows[] = ['Refund Rate', number_format($this->summary['refund_rate'], 2) . '%'];
-        $rows[] = ['Items Sold', number_format($this->summary['total_items_sold'], 0)];
+        $rows[] = ['Sale Lines', number_format($this->summary['sale_lines'], 0)];
+        $rows[] = ['Total Items Sold', number_format($this->summary['total_items_sold'], 0)];
         $rows[] = ['Avg Order Value (Net)', number_format($this->summary['average_order_value'], 2)];
         $rows[] = []; // Empty row
 
