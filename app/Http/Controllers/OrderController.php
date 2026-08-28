@@ -1031,7 +1031,15 @@ class OrderController extends Controller
             ->with(['order.salesChannel'])
             ->whereNull('order_items.product_id')
             ->whereNotNull('order_items.sku')
-            ->where('order_items.sku', '!=', '');
+            ->where('order_items.sku', '!=', '')
+            ->whereIn('order_items.id', function ($sub) {
+                $sub->selectRaw('MIN(id)')
+                    ->from('order_items')
+                    ->whereNull('product_id')
+                    ->whereNotNull('sku')
+                    ->where('sku', '!=', '')
+                    ->groupBy('sku');
+            });
 
         if ($request->filled('search')) {
             $search = $request->search;
