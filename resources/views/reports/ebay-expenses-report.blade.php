@@ -265,6 +265,9 @@
                                     <td>
                                         @if ($transaction->order)
                                             <a href="{{ route('orders.show', $transaction->order->id) }}">{{ $transaction->order->order_number }}</a>
+                                            @if ($transaction->ebay_order_id)
+                                                <br><small class="text-muted fw-normal">eBay: {{ $transaction->ebay_order_id }}</small>
+                                            @endif
                                         @else
                                             <span class="text-muted" title="No matching local order">{{ $transaction->ebay_order_id ?? '-' }}</span>
                                         @endif

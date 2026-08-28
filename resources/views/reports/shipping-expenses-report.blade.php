@@ -279,6 +279,9 @@
                                     <td><span class="fs-12 text-muted">{{ $order->order_date ? $order->order_date->format('M d, Y') : '-' }}</span></td>
                                     <td class="fw-semibold">
                                         <a href="{{ route('orders.show', $order->id) }}">{{ $order->order_number }}</a>
+                                        @if ($order->ebay_order_id)
+                                            <br><small class="text-muted fw-normal">eBay: {{ $order->ebay_order_id }}</small>
+                                        @endif
                                     </td>
                                     <td>{{ $order->salesChannel->name ?? 'Direct' }}</td>
                                     @if ($source === 'system')

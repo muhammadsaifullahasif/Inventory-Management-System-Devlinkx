@@ -230,7 +230,6 @@
                                     @include('partials.sortable-th', ['column' => 'gross_margin', 'label' => 'Margin %', 'class' => 'text-end'] + $gp)
                                 @else
                                     @include('partials.sortable-th', ['column' => 'order_number', 'label' => 'Order #'] + $gp)
-                                    <th>eBay Order ID</th>
                                     @include('partials.sortable-th', ['column' => 'order_date', 'label' => 'Date'] + $gp)
                                     @include('partials.sortable-th', ['column' => 'channel', 'label' => 'Channel'] + $gp)
                                     @include('partials.sortable-th', ['column' => 'items_count', 'label' => 'Items', 'class' => 'text-end'] + $gp)
@@ -320,8 +319,10 @@
                                             @if($item['is_refunded'] ?? false)
                                                 <span class="badge bg-soft-warning text-warning ms-1">Refunded</span>
                                             @endif
+                                            @if(!empty($item['ebay_order_id']))
+                                                <br><small class="text-muted fw-normal">eBay: {{ $item['ebay_order_id'] }}</small>
+                                            @endif
                                         </td>
-                                        <td>{{ $item['ebay_order_id'] ?? '-' }}</td>
                                         <td>{{ $item['formatted_date'] }}</td>
                                         <td>{{ $item['channel'] }}</td>
                                         <td class="text-end">{{ number_format($item['items_count'], 0) }}</td>
@@ -339,7 +340,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="{{ $groupBy === 'product' ? 8 : ($groupBy === 'order' ? 9 : 6) }}" class="text-center py-5 text-muted">
+                                    <td colspan="{{ $groupBy === 'product' ? 8 : ($groupBy === 'order' ? 8 : 6) }}" class="text-center py-5 text-muted">
                                         <i class="feather-inbox" style="font-size: 3rem;"></i>
                                         <p class="mt-3">No COGS data found for the selected period.</p>
                                     </td>
@@ -379,7 +380,6 @@
                                 @php $ip = ['sortParam' => 'item_sort', 'dirParam' => 'item_direction', 'pageParam' => 'items_page']; @endphp
                                 @include('partials.sortable-th', ['column' => 'date', 'label' => 'Date'] + $ip)
                                 @include('partials.sortable-th', ['column' => 'order_number', 'label' => 'Order #'] + $ip)
-                                <th>eBay Order ID</th>
                                 @include('partials.sortable-th', ['column' => 'channel', 'label' => 'Channel'] + $ip)
                                 @include('partials.sortable-th', ['column' => 'product', 'label' => 'Product'] + $ip)
                                 @include('partials.sortable-th', ['column' => 'sku', 'label' => 'SKU'] + $ip)
@@ -405,8 +405,10 @@
                                         @if($isRefunded)
                                             <span class="badge bg-soft-warning text-warning ms-1">Refunded</span>
                                         @endif
+                                        @if($item->order->ebay_order_id)
+                                            <br><small class="text-muted fw-normal">eBay: {{ $item->order->ebay_order_id }}</small>
+                                        @endif
                                     </td>
-                                    <td>{{ $item->order->ebay_order_id ?? '-' }}</td>
                                     <td><span class="fs-12">{{ $item->order->salesChannel->name ?? '-' }}</span></td>
                                     <td><span style="white-space: normal; width: 300px; display: block;">{{ $item->product->name ?? $item->title }}</span></td>
                                     <td>
@@ -426,7 +428,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="11" class="text-center py-4 text-muted">No items found.</td>
+                                    <td colspan="10" class="text-center py-4 text-muted">No items found.</td>
                                 </tr>
                             @endforelse
                         </tbody>

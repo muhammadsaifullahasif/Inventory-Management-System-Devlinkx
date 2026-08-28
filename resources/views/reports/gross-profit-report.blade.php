@@ -293,7 +293,16 @@
                                             </span>
                                         </td>
                                     @else
-                                        <td class="fw-semibold">{{ $item['order_number'] }}</td>
+                                        <td class="fw-semibold">
+                                            @if(!empty($item['order_id']))
+                                                <a href="{{ route('orders.show', $item['order_id']) }}">{{ $item['order_number'] }}</a>
+                                            @else
+                                                {{ $item['order_number'] }}
+                                            @endif
+                                            @if(!empty($item['ebay_order_id']))
+                                                <br><small class="text-muted fw-normal">eBay: {{ $item['ebay_order_id'] }}</small>
+                                            @endif
+                                        </td>
                                         <td>{{ $item['formatted_date'] }}</td>
                                         <td>{{ $item['channel'] }}</td>
                                         <td class="text-end">{{ number_format($item['items_count'], 0) }}</td>
@@ -364,7 +373,12 @@
                             @forelse ($paginatedItems as $item)
                                 <tr>
                                     <td><span class="fs-12 text-muted">{{ $item->order->order_date ? $item->order->order_date->format('M d, Y') : '-' }}</span></td>
-                                    <td class="fw-semibold">{{ $item->order->order_number }}</td>
+                                    <td class="fw-semibold">
+                                        <a href="{{ route('orders.show', $item->order->id) }}">{{ $item->order->order_number }}</a>
+                                        @if ($item->order->ebay_order_id)
+                                            <br><small class="text-muted fw-normal">eBay: {{ $item->order->ebay_order_id }}</small>
+                                        @endif
+                                    </td>
                                     <td>{{ $item->product->name ?? $item->title }}</td>
                                     <td><code>{{ $item->sku }}</code></td>
                                     <td class="text-center">{{ $item->quantity }}</td>

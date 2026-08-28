@@ -293,7 +293,16 @@
                                             </span>
                                         </td>
                                     @else
-                                        <td class="fw-semibold">{{ $item['order_number'] }}</td>
+                                        <td class="fw-semibold">
+                                            @if(!empty($item['order_id']))
+                                                <a href="{{ route('orders.show', $item['order_id']) }}">{{ $item['order_number'] }}</a>
+                                            @else
+                                                {{ $item['order_number'] }}
+                                            @endif
+                                            @if(!empty($item['ebay_order_id']))
+                                                <br><small class="text-muted fw-normal">eBay: {{ $item['ebay_order_id'] }}</small>
+                                            @endif
+                                        </td>
                                         <td>{{ $item['formatted_date'] }}</td>
                                         <td>{{ $item['channel'] }}</td>
                                         <td class="text-end">{{ number_format($item['items_count'], 0) }}</td>
