@@ -71,7 +71,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Opening Balance</h6>
+                            <h6 class="text-muted mb-1">Opening Balance @include('partials.info-tooltip', ['text' => 'Sum across all bank/cash accounts of: account.opening_balance + (debits - credits) on posted journal lines dated before the From Date.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($totalOpening, 2) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-info text-white rounded">
@@ -86,7 +86,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Total Inflow</h6>
+                            <h6 class="text-muted mb-1">Total Inflow @include('partials.info-tooltip', ['text' => 'Sum of debit amounts on posted journal lines against bank/cash accounts in range (debit increases an asset account).'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($totalInflow, 2) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-success text-white rounded">
@@ -101,7 +101,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Total Outflow</h6>
+                            <h6 class="text-muted mb-1">Total Outflow @include('partials.info-tooltip', ['text' => 'Sum of credit amounts on posted journal lines against bank/cash accounts in range.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($totalOutflow, 2) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-danger text-white rounded">
@@ -116,7 +116,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Closing Balance</h6>
+                            <h6 class="text-muted mb-1">Closing Balance @include('partials.info-tooltip', ['text' => 'Opening Balance + (Total Inflow - Total Outflow), summed across all bank/cash accounts.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($totalClosing, 2) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-primary text-white rounded">

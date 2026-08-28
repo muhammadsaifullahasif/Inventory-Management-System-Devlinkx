@@ -40,7 +40,7 @@
                     <div class="card-body py-3">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <h6 class="text-muted mb-1 small">Combined Shipping Expenses</h6>
+                                <h6 class="text-muted mb-1 small">Combined Shipping Expenses @include('partials.info-tooltip', ['text' => 'eBay total_cost + System total_cost, filtered by date/channel only (ignores which tab is active and any carrier filter).'])</h6>
                                 <h4 class="mb-0 fw-bold">{{ number_format($overview['combined_total_cost'], 2) }}</h4>
                                 <small class="text-muted">{{ $overview['combined_label_count'] }} labels total</small>
                             </div>
@@ -56,7 +56,7 @@
                     <div class="card-body py-3">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <h6 class="text-muted mb-1 small">eBay-Generated Labels</h6>
+                                <h6 class="text-muted mb-1 small">eBay-Generated Labels @include('partials.info-tooltip', ['text' => 'Sum of orders.ebay_shipping_label_cost (rolled up from the eBay Finance API sync) for orders with that field > 0 in range. Cost % of revenue = this total / sum of orders.total for those orders x 100.'])</h6>
                                 <h4 class="mb-0 fw-bold">{{ number_format($overview['ebay']['total_cost'], 2) }}</h4>
                                 <small class="text-muted">{{ $overview['ebay']['label_count'] }} labels &middot; avg {{ number_format($overview['ebay']['avg_cost'], 2) }} &middot; {{ number_format($overview['ebay']['cost_pct_of_revenue'], 1) }}% of revenue</small>
                             </div>
@@ -72,7 +72,7 @@
                     <div class="card-body py-3">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <h6 class="text-muted mb-1 small">System-Generated Labels</h6>
+                                <h6 class="text-muted mb-1 small">System-Generated Labels @include('partials.info-tooltip', ['text' => 'Sum of orders.shipping_cost for orders with label_generated_at and shipping_id both set (our own FedEx/USPS integration). shipping_cost is overwritten with the actual carrier charge at label generation - only the latest value is available if a label was regenerated.'])</h6>
                                 <h4 class="mb-0 fw-bold">{{ number_format($overview['system']['total_cost'], 2) }}</h4>
                                 <small class="text-muted">{{ $overview['system']['label_count'] }} labels &middot; avg {{ number_format($overview['system']['avg_cost'], 2) }} &middot; {{ number_format($overview['system']['cost_pct_of_revenue'], 1) }}% of revenue</small>
                             </div>

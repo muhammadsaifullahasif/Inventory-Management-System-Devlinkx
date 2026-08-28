@@ -118,7 +118,7 @@
                 <div class="card-body py-3">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1 small">Gross Revenue</h6>
+                            <h6 class="text-muted mb-1 small">Gross Revenue @include('partials.info-tooltip', ['text' => 'Sum of orders.total for orders with payment_status paid OR refunded (a refund deducts from revenue already recognized, it doesnt erase the sale) in the date range.'])</h6>
                             <h4 class="mb-0 fw-bold">{{ number_format($summary['gross_revenue'], 2) }}</h4>
                         </div>
                         <div class="avatar-text avatar-md bg-success text-white rounded">
@@ -133,7 +133,7 @@
                 <div class="card-body py-3">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1 small">Total Refunds</h6>
+                            <h6 class="text-muted mb-1 small">Total Refunds @include('partials.info-tooltip', ['text' => 'Sum of orders.total_refunded for the same paid+refunded order set.'])</h6>
                             <h4 class="mb-0 fw-bold">{{ number_format($summary['total_refunds'], 2) }}</h4>
                         </div>
                         <div class="avatar-text avatar-md bg-danger text-white rounded">
@@ -148,7 +148,7 @@
                 <div class="card-body py-3">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1 small">Net Revenue</h6>
+                            <h6 class="text-muted mb-1 small">Net Revenue @include('partials.info-tooltip', ['text' => 'Gross Revenue minus Total Refunds.'])</h6>
                             <h4 class="mb-0 fw-bold">{{ number_format($summary['net_revenue'], 2) }}</h4>
                         </div>
                         <div class="avatar-text avatar-md bg-primary text-white rounded">
@@ -163,7 +163,7 @@
                 <div class="card-body py-3">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1 small">Refund Rate</h6>
+                            <h6 class="text-muted mb-1 small">Refund Rate @include('partials.info-tooltip', ['text' => 'Total Refunds / Gross Revenue x 100.'])</h6>
                             <h4 class="mb-0 fw-bold">{{ number_format($summary['refund_rate'], 1) }}%</h4>
                         </div>
                         <div class="avatar-text avatar-md bg-info text-white rounded">
@@ -177,7 +177,7 @@
         <div class="col-md-3 mt-3">
             <div class="card">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Total Orders</h6>
+                    <h6 class="text-muted mb-1 small">Total Orders @include('partials.info-tooltip', ['text' => 'Count of all orders in range, any payment/order status.'])</h6>
                     <h4 class="mb-0 fw-bold">{{ $summary['total_orders'] }}</h4>
                 </div>
             </div>
@@ -185,7 +185,7 @@
         <div class="col-md-3 mt-3">
             <div class="card">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Paid / Refunded</h6>
+                    <h6 class="text-muted mb-1 small">Paid / Refunded @include('partials.info-tooltip', ['text' => 'Count of orders with payment_status=paid, and separately payment_status=refunded, within Total Orders. Partially refunded = isPartiallyRefunded() true (total_refunded > 0 but < total).'])</h6>
                     <h4 class="mb-0 fw-bold">{{ $summary['paid_count'] }} / {{ $summary['refunded_count'] }}</h4>
                     <small class="text-muted">{{ $summary['partially_refunded_count'] }} partially refunded</small>
                 </div>
@@ -194,7 +194,7 @@
         <div class="col-md-3 mt-3">
             <div class="card">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Avg Order Value (Net)</h6>
+                    <h6 class="text-muted mb-1 small">Avg Order Value (Net) @include('partials.info-tooltip', ['text' => 'Net Revenue / count of paid+refunded orders.'])</h6>
                     <h4 class="mb-0 fw-bold">{{ number_format($summary['average_order_value'], 2) }}</h4>
                 </div>
             </div>
@@ -202,7 +202,7 @@
         <div class="col-md-3 mt-3">
             <div class="card">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Items Sold</h6>
+                    <h6 class="text-muted mb-1 small">Items Sold @include('partials.info-tooltip', ['text' => 'Sum of item quantity across paid+refunded orders, bundle-component lines excluded.'])</h6>
                     <h4 class="mb-0 fw-bold">{{ number_format($summary['total_items_sold'], 0) }}</h4>
                 </div>
             </div>

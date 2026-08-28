@@ -114,7 +114,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Total Items Sold</h6>
+                                    <h6 class="text-muted mb-1 small">Total Items Sold @include('partials.info-tooltip', ['text' => 'Sum of item quantity for order_items with inventory_updated=true in range - ALL orders regardless of payment status (compare against Paid Orders Only in the table below). Bundle-component lines excluded.'])</h6>
                                     <h4 class="mb-0 fw-bold">{{ number_format($summary['total_items_sold'], 0) }}</h4>
                                 </div>
                                 <div class="avatar-text avatar-md bg-primary text-white rounded">
@@ -129,7 +129,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Total Revenue</h6>
+                                    <h6 class="text-muted mb-1 small">Total Revenue @include('partials.info-tooltip', ['text' => 'Sum of order_items.total_price for the same all-orders item set (no paid-only filter, unlike Gross Profit Report).'])</h6>
                                     <h4 class="mb-0 fw-bold">{{ number_format($summary['total_revenue'], 2) }}</h4>
                                 </div>
                                 <div class="avatar-text avatar-md bg-success text-white rounded">
@@ -144,7 +144,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Total COGS</h6>
+                                    <h6 class="text-muted mb-1 small">Total COGS @include('partials.info-tooltip', ['text' => 'Sum of cost_at_sale x quantity for the same all-orders item set.'])</h6>
                                     <h4 class="mb-0 fw-bold">{{ number_format($summary['total_cogs'], 2) }}</h4>
                                 </div>
                                 <div class="avatar-text avatar-md bg-danger text-white rounded">
@@ -159,7 +159,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Gross Profit</h6>
+                                    <h6 class="text-muted mb-1 small">Gross Profit @include('partials.info-tooltip', ['text' => 'All-orders Total Revenue minus Total COGS. See the table below for the same breakdown restricted to Paid Orders Only.'])</h6>
                                     <h4 class="mb-0 fw-bold {{ $summary['gross_profit'] >= 0 ? 'text-success' : 'text-danger' }}">
                                         {{ number_format($summary['gross_profit'], 2) }}
                                     </h4>

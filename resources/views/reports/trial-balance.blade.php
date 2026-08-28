@@ -119,7 +119,7 @@
                             </tbody>
                             <tfoot>
                                 <tr class="table-light fw-bold">
-                                    <td colspan="4" class="text-end">Totals:</td>
+                                    <td colspan="4" class="text-end">Totals: @include('partials.info-tooltip', ['text' => 'Per account: asset/expense accounts = opening_balance + (debit - credit); liability/equity/revenue accounts = opening_balance + (credit - debit), as of the selected date. Only one of debit/credit is non-zero per row.'])</td>
                                     <td class="text-end">{{ number_format($totalDebit, 2) }}</td>
                                     <td class="text-end">{{ number_format($totalCredit, 2) }}</td>
                                 </tr>

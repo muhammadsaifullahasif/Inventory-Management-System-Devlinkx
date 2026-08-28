@@ -92,7 +92,7 @@
         <div class="col-md-4">
             <div class="card">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Net Revenue</h6>
+                    <h6 class="text-muted mb-1 small">Net Revenue @include('partials.info-tooltip', ['text' => 'Same definition as the Revenue Report: sum of orders.total for paid+refunded orders, minus sum of orders.total_refunded, in range.'])</h6>
                     <h4 class="mb-0 fw-bold">{{ number_format($summary['net_revenue'], 2) }}</h4>
                     <small class="text-muted">gross {{ number_format($summary['gross_revenue'], 2) }} &middot; refunds {{ number_format($summary['total_refunds'], 2) }}</small>
                 </div>
@@ -101,7 +101,7 @@
         <div class="col-md-4">
             <div class="card">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Gross Profit</h6>
+                    <h6 class="text-muted mb-1 small">Gross Profit @include('partials.info-tooltip', ['text' => 'Net Revenue minus COGS (order_items.cost_at_sale x quantity, for the same paid+refunded order set, requiring inventory_updated=true).'])</h6>
                     <h4 class="mb-0 fw-bold">{{ number_format($summary['gross_profit'], 2) }}</h4>
                     <small class="text-muted">COGS {{ number_format($summary['cogs'], 2) }} &middot; {{ number_format($summary['gross_margin'], 1) }}% margin</small>
                 </div>
@@ -110,7 +110,7 @@
         <div class="col-md-4">
             <div class="card {{ $summary['net_profit'] >= 0 ? 'bg-soft-success' : 'bg-soft-danger' }}">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Net Profit</h6>
+                    <h6 class="text-muted mb-1 small">Net Profit @include('partials.info-tooltip', ['text' => 'Gross Profit minus eBay Fees minus Shipping Costs minus Operating Expenses. See the P&L table below for the full breakdown.'])</h6>
                     <h4 class="mb-0 fw-bold {{ $summary['net_profit'] >= 0 ? 'text-success' : 'text-danger' }}">{{ number_format($summary['net_profit'], 2) }}</h4>
                     <small class="text-muted">{{ number_format($summary['net_margin'], 1) }}% net margin</small>
                 </div>

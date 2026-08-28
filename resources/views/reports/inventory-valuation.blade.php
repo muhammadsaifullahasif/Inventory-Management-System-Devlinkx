@@ -86,7 +86,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Total Products</h6>
+                            <h6 class="text-muted mb-1">Total Products @include('partials.info-tooltip', ['text' => 'Count of distinct products with stock > 0, matching category/warehouse filters.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($summary['total_products']) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-primary text-white rounded">
@@ -101,7 +101,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Total Quantity</h6>
+                            <h6 class="text-muted mb-1">Total Quantity @include('partials.info-tooltip', ['text' => 'Sum of product_stocks.quantity across matching stock rows.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($summary['total_quantity'], 2) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-info text-white rounded">
@@ -116,7 +116,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Total Inventory Value</h6>
+                            <h6 class="text-muted mb-1">Total Inventory Value @include('partials.info-tooltip', ['text' => 'Sum of quantity x product_stocks.avg_cost across matching stock rows. Filtered by category/warehouse if set - differs from the unfiltered Physical Inventory Value below.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($summary['total_value'], 2) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-success text-white rounded">
@@ -131,7 +131,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Average Cost/Unit</h6>
+                            <h6 class="text-muted mb-1">Average Cost/Unit @include('partials.info-tooltip', ['text' => 'Total Inventory Value / Total Quantity.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($summary['avg_cost_per_unit'], 4) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-warning text-white rounded">
@@ -152,17 +152,17 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-4 text-center border-end">
-                        <h6 class="text-muted mb-2">Physical Inventory Value</h6>
+                        <h6 class="text-muted mb-2">Physical Inventory Value @include('partials.info-tooltip', ['text' => 'Independently recomputed across ALL ProductStock (no category/warehouse filter), using each products live weighted-average cost - can differ from Total Inventory Value above when filters are applied.'])</h6>
                         <h4 class="fw-bold text-primary">{{ number_format($reconciliation['physical_inventory_value'], 2) }}</h4>
                         <small class="text-muted">Based on ProductStock table</small>
                     </div>
                     <div class="col-md-4 text-center border-end">
-                        <h6 class="text-muted mb-2">Accounting Balance</h6>
+                        <h6 class="text-muted mb-2">Accounting Balance @include('partials.info-tooltip', ['text' => 'Sum(debit) - Sum(credit) on posted journal lines for the Inventory Asset account (code 1201, Stock in Hand) - what the books say inventory is worth.'])</h6>
                         <h4 class="fw-bold text-info">{{ number_format($reconciliation['accounting_balance'], 2) }}</h4>
                         <small class="text-muted">Inventory Asset Account (1201)</small>
                     </div>
                     <div class="col-md-4 text-center">
-                        <h6 class="text-muted mb-2">Variance</h6>
+                        <h6 class="text-muted mb-2">Variance @include('partials.info-tooltip', ['text' => 'Physical Inventory Value minus Accounting Balance. Reconciled if abs(variance) < 0.01.'])</h6>
                         <h4 class="fw-bold {{ $reconciliation['is_reconciled'] ? 'text-success' : 'text-danger' }}">
                             {{ number_format($reconciliation['variance'], 2) }}
                         </h4>

@@ -89,7 +89,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Out of Stock</h6>
+                            <h6 class="text-muted mb-1">Out of Stock @include('partials.info-tooltip', ['text' => 'Count of active products where summed product_stocks.quantity (optionally per-warehouse) = 0, matching category filter.'])</h6>
                             <h3 class="mb-0 fw-bold text-danger">{{ number_format($summary['total_out_of_stock']) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-danger text-white rounded">
@@ -104,7 +104,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Low Stock</h6>
+                            <h6 class="text-muted mb-1">Low Stock @include('partials.info-tooltip', ['text' => 'Count of active products with stock > 0 but still at or below the selected threshold (0 by default, so this is usually 0 unless you set a threshold).'])</h6>
                             <h3 class="mb-0 fw-bold text-warning">{{ number_format($summary['total_low_stock']) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-warning text-white rounded">
@@ -119,7 +119,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Total Items</h6>
+                            <h6 class="text-muted mb-1">Total Items @include('partials.info-tooltip', ['text' => 'Out of Stock + Low Stock combined.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($summary['total_items']) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-info text-white rounded">
@@ -134,7 +134,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Categories Affected</h6>
+                            <h6 class="text-muted mb-1">Categories Affected @include('partials.info-tooltip', ['text' => 'Count of distinct product categories represented among the Total Items above.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($summary['categories_affected']) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-secondary text-white rounded">

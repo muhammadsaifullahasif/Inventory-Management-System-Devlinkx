@@ -121,7 +121,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Total Purchases</h6>
+                                    <h6 class="text-muted mb-1 small">Total Purchases @include('partials.info-tooltip', ['text' => 'Count of Purchase records with created_at in range, matching supplier/warehouse/status filters.'])</h6>
                                     <h4 class="mb-0 fw-bold">{{ $summary['total_purchases'] }}</h4>
                                 </div>
                                 <div class="avatar-text avatar-md bg-primary text-white rounded">
@@ -136,7 +136,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Pending</h6>
+                                    <h6 class="text-muted mb-1 small">Pending @include('partials.info-tooltip', ['text' => 'Count within Total Purchases with purchase_status=pending.'])</h6>
                                     <h4 class="mb-0 fw-bold">{{ $summary['pending_count'] }}</h4>
                                 </div>
                                 <div class="avatar-text avatar-md bg-warning text-white rounded">
@@ -151,7 +151,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Partial</h6>
+                                    <h6 class="text-muted mb-1 small">Partial @include('partials.info-tooltip', ['text' => 'Count within Total Purchases with purchase_status=partial (some items received, not all).'])</h6>
                                     <h4 class="mb-0 fw-bold">{{ $summary['partial_count'] }}</h4>
                                 </div>
                                 <div class="avatar-text avatar-md bg-info text-white rounded">
@@ -166,7 +166,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Received</h6>
+                                    <h6 class="text-muted mb-1 small">Received @include('partials.info-tooltip', ['text' => 'Count within Total Purchases with purchase_status=received (fully received).'])</h6>
                                     <h4 class="mb-0 fw-bold">{{ $summary['received_count'] }}</h4>
                                 </div>
                                 <div class="avatar-text avatar-md bg-success text-white rounded">
@@ -182,7 +182,7 @@
                 <div class="col-md-4">
                     <div class="card">
                         <div class="card-body py-3">
-                            <h6 class="text-muted mb-1 small">Total Ordered Value</h6>
+                            <h6 class="text-muted mb-1 small">Total Ordered Value @include('partials.info-tooltip', ['text' => 'Sum of purchase_item.quantity x price across all matching purchases items. Units subtext = sum of quantity ordered.'])</h6>
                             <h4 class="mb-0 fw-bold text-primary">{{ number_format($summary['total_ordered_value'], 2) }}</h4>
                             <small class="text-muted">{{ number_format($summary['total_ordered_qty'], 0) }} units</small>
                         </div>
@@ -191,7 +191,7 @@
                 <div class="col-md-4">
                     <div class="card">
                         <div class="card-body py-3">
-                            <h6 class="text-muted mb-1 small">Total Received Value</h6>
+                            <h6 class="text-muted mb-1 small">Total Received Value @include('partials.info-tooltip', ['text' => 'Sum of received_quantity x price. Units subtext = sum of quantity actually received (may be less than ordered).'])</h6>
                             <h4 class="mb-0 fw-bold text-success">{{ number_format($summary['total_received_value'], 2) }}</h4>
                             <small class="text-muted">{{ number_format($summary['total_received_qty'], 0) }} units</small>
                         </div>
@@ -200,7 +200,7 @@
                 <div class="col-md-4">
                     <div class="card">
                         <div class="card-body py-3">
-                            <h6 class="text-muted mb-1 small">Pending Value</h6>
+                            <h6 class="text-muted mb-1 small">Pending Value @include('partials.info-tooltip', ['text' => 'Total Ordered Value minus Total Received Value (value of goods ordered but not yet received).'])</h6>
                             <h4 class="mb-0 fw-bold text-warning">{{ number_format($summary['pending_value'], 2) }}</h4>
                             <small class="text-muted">{{ number_format($summary['total_ordered_qty'] - $summary['total_received_qty'], 0) }} units</small>
                         </div>
@@ -218,25 +218,25 @@
                 <div class="card-body">
                     <table class="table table-sm mb-0">
                         <tr>
-                            <td class="text-muted">Related Bills:</td>
+                            <td class="text-muted">Related Bills: @include('partials.info-tooltip', ['text' => 'Count of Bill records for suppliers appearing in this purchase list, status unpaid/partially_paid/paid, bill_date in range.'])</td>
                             <td class="text-end fw-semibold">{{ $accountingSummary['total_bills'] }}</td>
                         </tr>
                         <tr>
-                            <td class="text-muted">Total Billed:</td>
+                            <td class="text-muted">Total Billed: @include('partials.info-tooltip', ['text' => 'Sum of bills.total_amount for those Related Bills.'])</td>
                             <td class="text-end fw-semibold">{{ number_format($accountingSummary['total_billed_amount'], 2) }}</td>
                         </tr>
                         <tr>
-                            <td class="text-muted">Total Paid:</td>
+                            <td class="text-muted">Total Paid: @include('partials.info-tooltip', ['text' => 'Sum of bills.paid_amount for those Related Bills.'])</td>
                             <td class="text-end fw-semibold text-success">{{ number_format($accountingSummary['total_paid_amount'], 2) }}</td>
                         </tr>
                         <tr class="table-light">
-                            <td class="fw-bold">Outstanding:</td>
+                            <td class="fw-bold">Outstanding: @include('partials.info-tooltip', ['text' => 'Total Billed minus Total Paid.'])</td>
                             <td class="text-end fw-bold text-danger">{{ number_format($accountingSummary['outstanding_amount'], 2) }}</td>
                         </tr>
                     </table>
                     <hr>
                     <div class="d-flex justify-content-between small">
-                        <span class="text-muted">Purchases vs Bills Diff:</span>
+                        <span class="text-muted">Purchases vs Bills Diff: @include('partials.info-tooltip', ['text' => 'Total Received Value minus Total Billed. Positive = stock received but not yet billed by supplier; negative = billed for more than has been received.'])</span>
                         @php
                             $diff = $summary['total_received_value'] - $accountingSummary['total_billed_amount'];
                         @endphp

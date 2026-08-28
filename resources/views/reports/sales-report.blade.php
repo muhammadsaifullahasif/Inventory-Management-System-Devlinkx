@@ -121,7 +121,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Total Orders</h6>
+                                    <h6 class="text-muted mb-1 small">Total Orders @include('partials.info-tooltip', ['text' => 'Count of all orders with order_date in the selected range, matching channel/status filters - any payment or order status.'])</h6>
                                     <h4 class="mb-0 fw-bold">{{ $summary['total_orders'] }}</h4>
                                 </div>
                                 <div class="avatar-text avatar-md bg-primary text-white rounded">
@@ -136,7 +136,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Paid Orders</h6>
+                                    <h6 class="text-muted mb-1 small">Paid Orders @include('partials.info-tooltip', ['text' => 'Count of orders in range with payment_status = paid.'])</h6>
                                     <h4 class="mb-0 fw-bold">{{ $summary['paid_count'] }}</h4>
                                 </div>
                                 <div class="avatar-text avatar-md bg-success text-white rounded">
@@ -151,7 +151,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Shipped</h6>
+                                    <h6 class="text-muted mb-1 small">Shipped @include('partials.info-tooltip', ['text' => 'Count of orders in range with order_status = shipped.'])</h6>
                                     <h4 class="mb-0 fw-bold">{{ $summary['shipped_count'] }}</h4>
                                 </div>
                                 <div class="avatar-text avatar-md bg-info text-white rounded">
@@ -166,7 +166,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Cancelled</h6>
+                                    <h6 class="text-muted mb-1 small">Cancelled @include('partials.info-tooltip', ['text' => 'Count of orders in range with order_status = cancelled.'])</h6>
                                     <h4 class="mb-0 fw-bold">{{ $summary['cancelled_count'] }}</h4>
                                 </div>
                                 <div class="avatar-text avatar-md bg-danger text-white rounded">
@@ -182,7 +182,7 @@
                 <div class="col-md-3">
                     <div class="card">
                         <div class="card-body py-3">
-                            <h6 class="text-muted mb-1 small">Total Revenue</h6>
+                            <h6 class="text-muted mb-1 small">Total Revenue @include('partials.info-tooltip', ['text' => 'Sum of orders.total for paid orders only in range. Items sold = sum of item quantity for paid orders, bundle-component lines excluded (already counted in the bundle summary line).'])</h6>
                             <h4 class="mb-0 fw-bold text-success">{{ number_format($summary['total_revenue'], 2) }}</h4>
                             <small class="text-muted">{{ $summary['total_items_sold'] }} items sold</small>
                         </div>
@@ -191,7 +191,7 @@
                 <div class="col-md-3">
                     <div class="card">
                         <div class="card-body py-3">
-                            <h6 class="text-muted mb-1 small">Avg Order Value</h6>
+                            <h6 class="text-muted mb-1 small">Avg Order Value @include('partials.info-tooltip', ['text' => 'Total Revenue / Paid Orders count.'])</h6>
                             <h4 class="mb-0 fw-bold text-primary">{{ number_format($summary['average_order_value'], 2) }}</h4>
                             <small class="text-muted">per order</small>
                         </div>
@@ -200,7 +200,7 @@
                 <div class="col-md-3">
                     <div class="card">
                         <div class="card-body py-3">
-                            <h6 class="text-muted mb-1 small">Shipping Collected</h6>
+                            <h6 class="text-muted mb-1 small">Shipping Collected @include('partials.info-tooltip', ['text' => 'Sum of orders.shipping_cost for paid orders (buyer-charged shipping fee at order time - note this field gets overwritten with the actual carrier label cost once a label is generated, see Shipping Expenses Report).'])</h6>
                             <h4 class="mb-0 fw-bold">{{ number_format($summary['total_shipping'], 2) }}</h4>
                             <small class="text-muted">from paid orders</small>
                         </div>
@@ -209,7 +209,7 @@
                 <div class="col-md-3">
                     <div class="card">
                         <div class="card-body py-3">
-                            <h6 class="text-muted mb-1 small">Tax Collected</h6>
+                            <h6 class="text-muted mb-1 small">Tax Collected @include('partials.info-tooltip', ['text' => 'Sum of orders.tax for paid orders in range.'])</h6>
                             <h4 class="mb-0 fw-bold">{{ number_format($summary['total_tax'], 2) }}</h4>
                             <small class="text-muted">from paid orders</small>
                         </div>
@@ -227,19 +227,19 @@
                 <div class="card-body">
                     <table class="table table-sm mb-0">
                         <tr>
-                            <td class="text-muted">Sales Revenue:</td>
+                            <td class="text-muted">Sales Revenue: @include('partials.info-tooltip', ['text' => 'Same as Total Revenue above - sum of orders.total for paid orders in range.'])</td>
                             <td class="text-end fw-semibold text-success">{{ number_format($summary['total_revenue'], 2) }}</td>
                         </tr>
                         <tr>
-                            <td class="text-muted">Expenses (Bills):</td>
+                            <td class="text-muted">Expenses (Bills): @include('partials.info-tooltip', ['text' => 'Sum of ALL bills.total_amount with status unpaid/partially_paid/paid and bill_date in range - every posted bill regardless of chart-of-account nature, including Purchase Order/inventory-asset bills. Not restricted to true operating-expense accounts (unlike Net Profit Report).'])</td>
                             <td class="text-end fw-semibold text-danger">{{ number_format($accountingSummary['total_bills'], 2) }}</td>
                         </tr>
                         <tr>
-                            <td class="text-muted">Payments Made:</td>
+                            <td class="text-muted">Payments Made: @include('partials.info-tooltip', ['text' => 'Sum of posted Payment records (status=posted) with payment_date in range - money paid out to suppliers.'])</td>
                             <td class="text-end fw-semibold">{{ number_format($accountingSummary['total_payments_out'], 2) }}</td>
                         </tr>
                         <tr class="table-light">
-                            <td class="fw-bold">Net Income:</td>
+                            <td class="fw-bold">Net Income: @include('partials.info-tooltip', ['text' => 'Sales Revenue minus Expenses (Bills). Does not subtract COGS, eBay fees, or shipping costs separately - see Net Profit Report for the full P&L.'])</td>
                             <td class="text-end fw-bold {{ $accountingSummary['net_income'] >= 0 ? 'text-success' : 'text-danger' }}">
                                 {{ number_format($accountingSummary['net_income'], 2) }}
                             </td>
@@ -247,7 +247,7 @@
                     </table>
                     <hr>
                     <div class="d-flex justify-content-between align-items-center">
-                        <span class="text-muted small">Gross Margin:</span>
+                        <span class="text-muted small">Gross Margin: @include('partials.info-tooltip', ['text' => 'Net Income / Sales Revenue x 100.'])</span>
                         <span class="fw-bold {{ $accountingSummary['gross_margin'] >= 0 ? 'text-success' : 'text-danger' }}">
                             {{ number_format($accountingSummary['gross_margin'], 1) }}%
                         </span>

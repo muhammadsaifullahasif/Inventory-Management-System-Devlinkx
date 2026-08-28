@@ -107,7 +107,7 @@
         <div class="col-md-3">
             <div class="card bg-soft-danger">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Total Expenses</h6>
+                    <h6 class="text-muted mb-1 small">Total Expenses @include('partials.info-tooltip', ['text' => 'Transaction Fees + Shipping Label + Ad Fees + Other Fees. Refunds are excluded (shown separately below).'])</h6>
                     <h4 class="mb-0 fw-bold">{{ number_format($summary['total_expenses'], 2) }}</h4>
                     <small class="text-muted">{{ $summary['transaction_count'] }} transactions</small>
                 </div>
@@ -116,7 +116,7 @@
         <div class="col-md-3">
             <div class="card">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Final Value / Transaction Fees</h6>
+                    <h6 class="text-muted mb-1 small">Final Value / Transaction Fees @include('partials.info-tooltip', ['text' => 'sale rows: total_fee_amount (the FVF eBay charged). marketplace_fee_adjustment rows: signed amount (DEBIT=+cost, CREDIT=-reversal).'])</h6>
                     <h4 class="mb-0 fw-bold">{{ number_format($summary['transaction_fee'], 2) }}</h4>
                 </div>
             </div>
@@ -124,7 +124,7 @@
         <div class="col-md-3">
             <div class="card">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Shipping Label Cost</h6>
+                    <h6 class="text-muted mb-1 small">Shipping Label Cost @include('partials.info-tooltip', ['text' => 'fee_category=shipping_label rows, signed by booking_entry (DEBIT=label purchase cost, CREDIT=label void/refund).'])</h6>
                     <h4 class="mb-0 fw-bold">{{ number_format($summary['shipping_label'], 2) }}</h4>
                 </div>
             </div>
@@ -132,7 +132,7 @@
         <div class="col-md-3">
             <div class="card">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Ad Fees (Promoted Listings)</h6>
+                    <h6 class="text-muted mb-1 small">Ad Fees (Promoted Listings) @include('partials.info-tooltip', ['text' => 'fee_category=ad_fee rows (NON_SALE_CHARGE with feeType=AD_FEE), signed by booking_entry.'])</h6>
                     <h4 class="mb-0 fw-bold">{{ number_format($summary['ad_fee'], 2) }}</h4>
                 </div>
             </div>
@@ -141,7 +141,7 @@
         <div class="col-md-3 mt-3">
             <div class="card">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Other Fees</h6>
+                    <h6 class="text-muted mb-1 small">Other Fees @include('partials.info-tooltip', ['text' => 'fee_category=other rows (anything not sale/shipping_label/ad_fee/marketplace_fee_adjustment/refund), signed by booking_entry.'])</h6>
                     <h4 class="mb-0 fw-bold">{{ number_format($summary['other_fees'], 2) }}</h4>
                 </div>
             </div>
@@ -149,7 +149,7 @@
         <div class="col-md-3 mt-3">
             <div class="card bg-soft-warning">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Refunds Issued</h6>
+                    <h6 class="text-muted mb-1 small">Refunds Issued @include('partials.info-tooltip', ['text' => 'fee_category=refund rows: amount + total_fee_amount. Informational only - not subtracted from Total Expenses since refunded revenue is already netted out on the Revenue Report.'])</h6>
                     <h4 class="mb-0 fw-bold">{{ number_format($summary['refund'], 2) }}</h4>
                     <small class="text-muted">informational, not counted in Total Expenses</small>
                 </div>
@@ -158,7 +158,7 @@
         <div class="col-md-3 mt-3">
             <div class="card">
                 <div class="card-body py-3">
-                    <h6 class="text-muted mb-1 small">Unmatched Transactions</h6>
+                    <h6 class="text-muted mb-1 small">Unmatched Transactions @include('partials.info-tooltip', ['text' => 'Count of transactions with order_id null - eBay reported a fee but it couldnt be matched to a local order (order not yet synced, or a genuinely account-level charge).'])</h6>
                     <h4 class="mb-0 fw-bold">{{ $summary['unmatched_count'] }}</h4>
                     <small class="text-muted">no local order match</small>
                 </div>

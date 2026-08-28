@@ -100,7 +100,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Top Products</h6>
+                            <h6 class="text-muted mb-1">Top Products @include('partials.info-tooltip', ['text' => 'Count of products in the current top-N result set (capped by the Limit filter, default 50), ranked by quantity sold. Standalone products only - bundle components/summaries excluded.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($summary['total_items']) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-primary text-white rounded">
@@ -115,7 +115,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Total Qty Sold</h6>
+                            <h6 class="text-muted mb-1">Total Qty Sold @include('partials.info-tooltip', ['text' => 'Sum of quantity sold, but only across the Top Products result set above (not all products) - increase the Limit filter to widen it.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($summary['total_quantity_sold']) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-success text-white rounded">
@@ -130,7 +130,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Total Revenue</h6>
+                            <h6 class="text-muted mb-1">Total Revenue @include('partials.info-tooltip', ['text' => 'Sum of revenue, same top-N-limited product set as Total Qty Sold above.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($summary['total_revenue'], 2) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-info text-white rounded">
@@ -145,7 +145,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Total Orders</h6>
+                            <h6 class="text-muted mb-1">Total Orders @include('partials.info-tooltip', ['text' => 'Independent, unlimited count of paid orders in period matching the channel filter - NOT derived from the top-N product list, unlike the 3 cards to the left.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($summary['total_orders']) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-warning text-white rounded">
@@ -175,7 +175,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Avg Daily Items</h6>
+                            <h6 class="text-muted mb-1">Avg Daily Items @include('partials.info-tooltip', ['text' => 'Total Qty Sold (top-N-limited) / period_days.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($summary['avg_daily_items'], 2) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-dark text-white rounded">

@@ -82,7 +82,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Total Expenses</h6>
+                            <h6 class="text-muted mb-1">Total Expenses @include('partials.info-tooltip', ['text' => 'Sum of bill_items.amount joined to bills with status unpaid/partially_paid/paid and bill_date in range, optionally filtered to one expense group.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($grandTotal, 2) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-danger text-white rounded">
@@ -97,7 +97,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Expense Groups</h6>
+                            <h6 class="text-muted mb-1">Expense Groups @include('partials.info-tooltip', ['text' => 'Count of distinct parent chart-of-account groups (e.g. Administrative Expenses, Selling Expenses) with at least one bill item in range.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ $reportData->count() }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-info text-white rounded">

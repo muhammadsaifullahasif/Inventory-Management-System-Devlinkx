@@ -100,7 +100,7 @@
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <h6 class="text-muted mb-1">Total Bills</h6>
+                                <h6 class="text-muted mb-1">Total Bills @include('partials.info-tooltip', ['text' => 'Sum of bills.total_amount for this supplier, status unpaid/partially_paid/paid, bill_date in range (if set).'])</h6>
                                 <h3 class="mb-0 fw-bold">{{ number_format($totalBills, 2) }}</h3>
                             </div>
                             <div class="avatar-text avatar-lg bg-danger text-white rounded">
@@ -115,7 +115,7 @@
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <h6 class="text-muted mb-1">Total Payments</h6>
+                                <h6 class="text-muted mb-1">Total Payments @include('partials.info-tooltip', ['text' => 'Sum of posted Payment.amount (status=posted) against this suppliers bills, payment_date in range (if set).'])</h6>
                                 <h3 class="mb-0 fw-bold">{{ number_format($totalPayments, 2) }}</h3>
                             </div>
                             <div class="avatar-text avatar-lg bg-success text-white rounded">
@@ -130,7 +130,7 @@
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <h6 class="text-muted mb-1">Closing Balance</h6>
+                                <h6 class="text-muted mb-1">Closing Balance @include('partials.info-tooltip', ['text' => 'Opening Balance + Total Bills - Total Payments. Opening Balance = this suppliers unpaid bills minus posted payments before the From Date (0 if no From Date set).'])</h6>
                                 <h3 class="mb-0 fw-bold">{{ number_format($openingBalance + $totalBills - $totalPayments, 2) }}</h3>
                             </div>
                             <div class="avatar-text avatar-lg bg-warning text-white rounded">

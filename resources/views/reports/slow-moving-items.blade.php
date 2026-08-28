@@ -93,7 +93,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Slow Moving Items</h6>
+                            <h6 class="text-muted mb-1">Slow Moving Items @include('partials.info-tooltip', ['text' => 'Count of active products with total_stock >= min-stock threshold (default 1) AND total_sold (paid orders in period) <= max-sales threshold (default 5).'])</h6>
                             <h3 class="mb-0 fw-bold text-warning">{{ number_format($summary['total_items']) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-warning text-white rounded">
@@ -108,7 +108,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Zero Sales Items</h6>
+                            <h6 class="text-muted mb-1">Zero Sales Items @include('partials.info-tooltip', ['text' => 'Count within Slow Moving Items where total_sold = 0 in the period.'])</h6>
                             <h3 class="mb-0 fw-bold text-danger">{{ number_format($summary['zero_sales_items']) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-danger text-white rounded">
@@ -123,7 +123,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <h6 class="text-muted mb-1">Total Stock Value</h6>
+                            <h6 class="text-muted mb-1">Total Stock Value @include('partials.info-tooltip', ['text' => 'Sum of (total_stock x avg_cost) across the Slow Moving Items above.'])</h6>
                             <h3 class="mb-0 fw-bold">{{ number_format($summary['total_stock_value'], 2) }}</h3>
                         </div>
                         <div class="avatar-text avatar-lg bg-info text-white rounded">

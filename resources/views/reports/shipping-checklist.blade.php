@@ -295,7 +295,7 @@
         <div class="col-md-4">
             <div class="card bg-primary text-white">
                 <div class="card-body">
-                    <h6 class="card-title text-white-50">Total Orders</h6>
+                    <h6 class="card-title text-white-50">Total Orders @include('partials.info-tooltip', ['text' => 'Count of paid orders in range, not cancelled/refunded, matching fulfillment-status and channel filters.', 'light' => true])</h6>
                     <h3 class="mb-0">{{ $summary['total_orders'] }}</h3>
                 </div>
             </div>
@@ -303,7 +303,7 @@
         <div class="col-md-4">
             <div class="card bg-info text-white">
                 <div class="card-body">
-                    <h6 class="card-title text-white-50">Total Line Items</h6>
+                    <h6 class="card-title text-white-50">Total Line Items @include('partials.info-tooltip', ['text' => 'Count of shippable checklist rows after bundle consolidation - one row per non-bundle item, or one row per bundle summary line (its components list underneath, not counted separately).', 'light' => true])</h6>
                     <h3 class="mb-0">{{ $summary['total_items'] }}</h3>
                 </div>
             </div>
@@ -311,7 +311,7 @@
         <div class="col-md-4">
             <div class="card bg-success text-white">
                 <div class="card-body">
-                    <h6 class="card-title text-white-50">Total Quantity</h6>
+                    <h6 class="card-title text-white-50">Total Quantity @include('partials.info-tooltip', ['text' => 'Sum of quantity_ordered across the checklist rows above.', 'light' => true])</h6>
                     <h3 class="mb-0">{{ $summary['total_quantity'] }}</h3>
                 </div>
             </div>
