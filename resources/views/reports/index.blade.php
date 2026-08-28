@@ -198,6 +198,66 @@
             </a>
         </div>
 
+        <!-- Revenue Report -->
+        <div class="col-lg-3 col-md-6">
+            <a href="{{ route('reports.revenue') }}" class="text-decoration-none">
+                <div class="card mb-4">
+                    <div class="card-body text-center py-4">
+                        <div class="avatar-text avatar-xl bg-soft-primary text-primary rounded-circle mx-auto mb-3">
+                            <i class="feather-dollar-sign" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <h5 class="card-title mb-1 fw-semibold">Revenue Report</h5>
+                        <p class="text-muted small mb-0">Gross, refunded & net revenue by channel/product/date</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Shipping Expenses Report -->
+        <div class="col-lg-3 col-md-6">
+            <a href="{{ route('reports.shipping-expenses') }}" class="text-decoration-none">
+                <div class="card mb-4">
+                    <div class="card-body text-center py-4">
+                        <div class="avatar-text avatar-xl bg-soft-warning text-warning rounded-circle mx-auto mb-3">
+                            <i class="feather-truck" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <h5 class="card-title mb-1 fw-semibold">Shipping Expenses Report</h5>
+                        <p class="text-muted small mb-0">eBay-generated vs system-generated label costs</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- eBay Expenses Report -->
+        <div class="col-lg-3 col-md-6">
+            <a href="{{ route('reports.ebay-expenses') }}" class="text-decoration-none">
+                <div class="card mb-4">
+                    <div class="card-body text-center py-4">
+                        <div class="avatar-text avatar-xl bg-soft-danger text-danger rounded-circle mx-auto mb-3">
+                            <i class="feather-tag" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <h5 class="card-title mb-1 fw-semibold">eBay Expenses Report</h5>
+                        <p class="text-muted small mb-0">Fees, ad costs & refunds from eBay's Finance API</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Net Profit Report -->
+        <div class="col-lg-3 col-md-6">
+            <a href="{{ route('reports.net-profit') }}" class="text-decoration-none">
+                <div class="card mb-4">
+                    <div class="card-body text-center py-4">
+                        <div class="avatar-text avatar-xl bg-soft-success text-success rounded-circle mx-auto mb-3">
+                            <i class="feather-trending-up" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <h5 class="card-title mb-1 fw-semibold">Net Profit Report</h5>
+                        <p class="text-muted small mb-0">Full P&L: revenue, COGS, eBay fees, shipping & expenses</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
         {{-- <!-- Out of Stock Items -->
         <div class="col-lg-3 col-md-6">
             <a href="{{ route('reports.out-of-stock') }}" class="text-decoration-none">

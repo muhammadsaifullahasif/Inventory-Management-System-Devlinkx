@@ -18,6 +18,7 @@ use App\Models\JournalEntryLine;
 use App\Models\Product;
 use App\Models\ProductStock;
 use App\Models\Category;
+use App\Models\EbayFinanceTransaction;
 use App\Services\JournalService;
 use App\Services\InventoryAccountingService;
 use Illuminate\Support\Facades\DB;
@@ -1452,6 +1453,1037 @@ class ReportController extends Controller
         $export = new \App\Exports\SalesReportExport($groupedData, $summary);
 
         $filename = 'sales-report-' . $dateFrom . '-to-' . $dateTo . '.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download($export, $filename);
+    }
+
+    /**
+     * Revenue Report
+     * Shows gross revenue, refunds, and net revenue (revenue recognized on
+     * paid + refunded orders, since a refund deducts from revenue already
+     * recognized rather than erasing that the sale happened).
+     */
+    public function revenueReport(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $orderStatus = $request->get('order_status');
+        $paymentStatus = $request->get('payment_status');
+        $groupBy = $request->get('group_by', 'channel'); // channel, product, date, category
+
+        $salesChannels = SalesChannel::where('delete_status', '0')
+            ->orderBy('name')
+            ->get();
+
+        $allOrdersQuery = Order::whereDate('order_date', '>=', $dateFrom)
+            ->whereDate('order_date', '<=', $dateTo);
+
+        if ($channelId) {
+            $allOrdersQuery->where('sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $allOrdersQuery->where('order_status', $orderStatus);
+        }
+
+        if ($paymentStatus) {
+            $allOrdersQuery->where('payment_status', $paymentStatus);
+        }
+
+        $allOrders = $allOrdersQuery->get();
+
+        $summary = $this->buildRevenueSummary($allOrders);
+
+        $reportData = collect();
+
+        if ($groupBy === 'channel') {
+            $reportData = $this->groupRevenueByChannel($allOrders);
+        } elseif ($groupBy === 'product') {
+            $reportData = $this->groupRevenueByProduct($allOrders);
+        } elseif ($groupBy === 'date') {
+            $reportData = $this->groupRevenueByDate($allOrders);
+        } elseif ($groupBy === 'category') {
+            $reportData = $this->groupRevenueByCategory($allOrders);
+        }
+
+        $reportData = $this->applyCollectionSort($reportData, $request, [
+            'name' => 'name',
+            'sku' => 'sku',
+            'order_count' => 'order_count',
+            'revenue_order_count' => 'revenue_order_count',
+            'items_sold' => 'items_sold',
+            'quantity_sold' => 'quantity_sold',
+            'gross_revenue' => 'gross_revenue',
+            'total_refunds' => 'total_refunds',
+            'net_revenue' => 'net_revenue',
+            'total_revenue' => 'total_revenue',
+        ]);
+
+        $ordersQuery = Order::with(['salesChannel'])
+            ->whereDate('order_date', '>=', $dateFrom)
+            ->whereDate('order_date', '<=', $dateTo);
+
+        if ($channelId) {
+            $ordersQuery->where('sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $ordersQuery->where('order_status', $orderStatus);
+        }
+
+        if ($paymentStatus) {
+            $ordersQuery->where('payment_status', $paymentStatus);
+        }
+
+        if ($request->get('item_sort') === 'channel') {
+            $ordersQuery->select('orders.*')->leftJoin('sales_channels', 'sales_channels.id', '=', 'orders.sales_channel_id');
+        }
+
+        $ordersQuery = $this->applyQuerySort($ordersQuery, $request, [
+            'date' => 'orders.order_date',
+            'order_number' => 'orders.order_number',
+            'channel' => 'sales_channels.name',
+            'buyer' => 'orders.buyer_name',
+            'total' => 'orders.total',
+            'refunded' => 'orders.total_refunded',
+            'net' => DB::raw('orders.total - orders.total_refunded'),
+            'payment' => 'orders.payment_status',
+            'status' => 'orders.order_status',
+        ], 'orders.order_date', 'desc', 'item_sort', 'item_direction');
+
+        $orders = $ordersQuery->paginate(50);
+
+        return view('reports.revenue-report', compact(
+            'orders',
+            'reportData',
+            'summary',
+            'salesChannels',
+            'dateFrom',
+            'dateTo',
+            'channelId',
+            'orderStatus',
+            'paymentStatus',
+            'groupBy'
+        ));
+    }
+
+    /**
+     * Build gross/refund/net revenue summary. "Revenue orders" are paid or
+     * refunded orders - a refund deducts from revenue already recognized,
+     * it doesn't erase that the sale happened.
+     */
+    protected function buildRevenueSummary($allOrders)
+    {
+        $revenueOrders = $allOrders->whereIn('payment_status', ['paid', 'refunded']);
+        $revenueOrderCount = $revenueOrders->count();
+
+        $summary = [
+            'total_orders' => $allOrders->count(),
+            'paid_count' => $allOrders->where('payment_status', 'paid')->count(),
+            'refunded_count' => $allOrders->where('payment_status', 'refunded')->count(),
+            'partially_refunded_count' => $allOrders->filter(fn($o) => $o->isPartiallyRefunded())->count(),
+            'cancelled_count' => $allOrders->where('order_status', 'cancelled')->count(),
+            'gross_revenue' => (float) $revenueOrders->sum('total'),
+            'total_refunds' => (float) $revenueOrders->sum('total_refunded'),
+            'total_discount' => (float) $revenueOrders->sum('discount'),
+            'total_shipping' => (float) $revenueOrders->sum('shipping_cost'),
+            'total_tax' => (float) $revenueOrders->sum('tax'),
+            'total_items_sold' => 0,
+            'average_order_value' => 0,
+            'refund_rate' => 0,
+        ];
+
+        $summary['net_revenue'] = $summary['gross_revenue'] - $summary['total_refunds'];
+
+        foreach ($revenueOrders as $order) {
+            $summary['total_items_sold'] += $order->items->sum(function ($item) {
+                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+            });
+        }
+
+        $summary['average_order_value'] = $revenueOrderCount > 0
+            ? $summary['net_revenue'] / $revenueOrderCount
+            : 0;
+
+        $summary['refund_rate'] = $summary['gross_revenue'] > 0
+            ? ($summary['total_refunds'] / $summary['gross_revenue']) * 100
+            : 0;
+
+        return $summary;
+    }
+
+    /**
+     * Group revenue by sales channel
+     */
+    protected function groupRevenueByChannel($orders)
+    {
+        $grouped = [];
+
+        foreach ($orders as $order) {
+            $channelName = $order->salesChannel->name ?? 'Direct Sales';
+            $channelId = $order->sales_channel_id ?? 0;
+
+            if (!isset($grouped[$channelId])) {
+                $grouped[$channelId] = [
+                    'name' => $channelName,
+                    'order_count' => 0,
+                    'revenue_order_count' => 0,
+                    'items_sold' => 0,
+                    'gross_revenue' => 0,
+                    'total_refunds' => 0,
+                    'net_revenue' => 0,
+                ];
+            }
+
+            $grouped[$channelId]['order_count']++;
+
+            if (in_array($order->payment_status, ['paid', 'refunded'])) {
+                $grouped[$channelId]['revenue_order_count']++;
+                $grouped[$channelId]['gross_revenue'] += (float) $order->total;
+                $grouped[$channelId]['total_refunds'] += (float) $order->total_refunded;
+                $grouped[$channelId]['items_sold'] += $order->items->sum(function ($item) {
+                    return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+                });
+            }
+        }
+
+        foreach ($grouped as &$group) {
+            $group['net_revenue'] = $group['gross_revenue'] - $group['total_refunds'];
+        }
+
+        return collect($grouped)->sortByDesc('net_revenue')->values();
+    }
+
+    /**
+     * Group revenue by product (gross revenue only - refunds are tracked at
+     * order level, not per line item, so they can't be allocated per product)
+     */
+    protected function groupRevenueByProduct($orders)
+    {
+        $grouped = [];
+
+        foreach ($orders as $order) {
+            if (!in_array($order->payment_status, ['paid', 'refunded'])) {
+                continue;
+            }
+
+            foreach ($order->items as $item) {
+                if ($this->isBundleComponentItem($item)) {
+                    continue;
+                }
+
+                $productId = $item->product_id ?? $item->sku;
+                $productName = $item->product->name ?? $item->title;
+                $productSku = $item->sku;
+
+                if (!isset($grouped[$productId])) {
+                    $grouped[$productId] = [
+                        'name' => $productName,
+                        'sku' => $productSku,
+                        'order_count' => 0,
+                        'quantity_sold' => 0,
+                        'total_revenue' => 0,
+                    ];
+                }
+
+                $grouped[$productId]['order_count']++;
+                $grouped[$productId]['quantity_sold'] += (int) $item->quantity;
+                $grouped[$productId]['total_revenue'] += (float) $item->total_price;
+            }
+        }
+
+        return collect($grouped)->sortByDesc('total_revenue')->values();
+    }
+
+    /**
+     * Group revenue by product category (gross revenue only - see groupRevenueByProduct)
+     */
+    protected function groupRevenueByCategory($orders)
+    {
+        $grouped = [];
+
+        foreach ($orders as $order) {
+            if (!in_array($order->payment_status, ['paid', 'refunded'])) {
+                continue;
+            }
+
+            foreach ($order->items as $item) {
+                if ($this->isBundleComponentItem($item)) {
+                    continue;
+                }
+
+                $categoryName = $item->product->category->name ?? 'Uncategorized';
+                $categoryId = $item->product->category_id ?? 0;
+
+                if (!isset($grouped[$categoryId])) {
+                    $grouped[$categoryId] = [
+                        'name' => $categoryName,
+                        'order_count' => 0,
+                        'quantity_sold' => 0,
+                        'total_revenue' => 0,
+                    ];
+                }
+
+                $grouped[$categoryId]['order_count']++;
+                $grouped[$categoryId]['quantity_sold'] += (int) $item->quantity;
+                $grouped[$categoryId]['total_revenue'] += (float) $item->total_price;
+            }
+        }
+
+        return collect($grouped)->sortByDesc('total_revenue')->values();
+    }
+
+    /**
+     * Group revenue by date
+     */
+    protected function groupRevenueByDate($orders)
+    {
+        $grouped = [];
+
+        foreach ($orders as $order) {
+            $date = $order->order_date ? $order->order_date->format('Y-m-d') : 'Unknown';
+
+            if (!isset($grouped[$date])) {
+                $grouped[$date] = [
+                    'name' => $date,
+                    'formatted_date' => $order->order_date ? $order->order_date->format('M d, Y') : 'Unknown',
+                    'order_count' => 0,
+                    'revenue_order_count' => 0,
+                    'items_sold' => 0,
+                    'gross_revenue' => 0,
+                    'total_refunds' => 0,
+                    'net_revenue' => 0,
+                ];
+            }
+
+            $grouped[$date]['order_count']++;
+
+            if (in_array($order->payment_status, ['paid', 'refunded'])) {
+                $grouped[$date]['revenue_order_count']++;
+                $grouped[$date]['gross_revenue'] += (float) $order->total;
+                $grouped[$date]['total_refunds'] += (float) $order->total_refunded;
+                $grouped[$date]['items_sold'] += $order->items->sum(function ($item) {
+                    return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+                });
+            }
+        }
+
+        foreach ($grouped as &$group) {
+            $group['net_revenue'] = $group['gross_revenue'] - $group['total_refunds'];
+        }
+
+        return collect($grouped)->sortByDesc('name')->values();
+    }
+
+    /**
+     * Export Revenue Report to Excel (honors the currently selected group_by)
+     */
+    public function exportRevenueReport(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $orderStatus = $request->get('order_status');
+        $paymentStatus = $request->get('payment_status');
+        $groupBy = $request->get('group_by', 'channel');
+
+        $allOrdersQuery = Order::with(['salesChannel', 'items.product.category'])
+            ->whereDate('order_date', '>=', $dateFrom)
+            ->whereDate('order_date', '<=', $dateTo);
+
+        if ($channelId) {
+            $allOrdersQuery->where('sales_channel_id', $channelId);
+        }
+
+        if ($orderStatus) {
+            $allOrdersQuery->where('order_status', $orderStatus);
+        }
+
+        if ($paymentStatus) {
+            $allOrdersQuery->where('payment_status', $paymentStatus);
+        }
+
+        $allOrders = $allOrdersQuery->get();
+
+        $summary = $this->buildRevenueSummary($allOrders);
+
+        if ($groupBy === 'product') {
+            $groupedData = $this->groupRevenueByProduct($allOrders);
+        } elseif ($groupBy === 'date') {
+            $groupedData = $this->groupRevenueByDate($allOrders);
+        } elseif ($groupBy === 'category') {
+            $groupedData = $this->groupRevenueByCategory($allOrders);
+        } else {
+            $groupBy = 'channel';
+            $groupedData = $this->groupRevenueByChannel($allOrders);
+        }
+
+        $export = new \App\Exports\RevenueReportExport($groupedData->toArray(), $summary, $groupBy);
+
+        $filename = 'revenue-report-' . $dateFrom . '-to-' . $dateTo . '.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download($export, $filename);
+    }
+
+    /**
+     * Shipping Expenses Report
+     * Two views on the same row shape, toggled by "source": labels eBay
+     * generated (orders.ebay_shipping_label_cost) vs labels our own
+     * FedEx/USPS integration generated (orders.shipping_cost, which
+     * ShippingService overwrites with the real carrier charge once
+     * label_generated_at + shipping_id are set - see canBeRefunded-style
+     * gating in ShippingService::generateLabelForOrder).
+     */
+    public function shippingExpensesReport(Request $request)
+    {
+        $source = $request->get('source') === 'system' ? 'system' : 'ebay';
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $carrierId = $request->get('carrier_id');
+        $groupBy = $request->get('group_by', 'channel');
+
+        if ($source === 'ebay' && $groupBy === 'carrier') {
+            $groupBy = 'channel';
+        }
+
+        $costField = $source === 'ebay' ? 'ebay_shipping_label_cost' : 'shipping_cost';
+
+        $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
+        $carriers = \App\Models\Shipping::where('delete_status', '0')->orderBy('name')->get();
+
+        $allOrdersQuery = $this->buildShippingExpensesQuery($source, $dateFrom, $dateTo, $channelId, $carrierId)
+            ->with(['salesChannel', 'shippingCarrier']);
+
+        $allOrders = $allOrdersQuery->get();
+
+        $summary = $this->buildShippingExpensesSummary($allOrders, $costField);
+
+        $reportData = $this->groupShippingExpenses($allOrders, $costField, $groupBy);
+
+        $reportData = $this->applyCollectionSort($reportData, $request, [
+            'name' => 'name',
+            'label_count' => 'label_count',
+            'total_cost' => 'total_cost',
+            'avg_cost' => 'avg_cost',
+        ]);
+
+        $ordersQuery = $this->buildShippingExpensesQuery($source, $dateFrom, $dateTo, $channelId, $carrierId)
+            ->with(['salesChannel', 'shippingCarrier']);
+
+        if ($request->get('item_sort') === 'channel') {
+            $ordersQuery->select('orders.*')->leftJoin('sales_channels', 'sales_channels.id', '=', 'orders.sales_channel_id');
+        } elseif ($request->get('item_sort') === 'carrier') {
+            $ordersQuery->select('orders.*')->leftJoin('shippings', 'shippings.id', '=', 'orders.shipping_id');
+        }
+
+        $ordersQuery = $this->applyQuerySort($ordersQuery, $request, [
+            'date' => 'orders.order_date',
+            'order_number' => 'orders.order_number',
+            'channel' => 'sales_channels.name',
+            'carrier' => 'shippings.name',
+            'tracking' => 'orders.tracking_number',
+            'label_date' => 'orders.label_generated_at',
+            'label_cost' => 'orders.' . $costField,
+            'total' => 'orders.total',
+        ], 'orders.order_date', 'desc', 'item_sort', 'item_direction');
+
+        $orders = $ordersQuery->paginate(50);
+
+        // Cross-tab overview - both sources' totals for the same date/channel
+        // filters, so the user sees the full shipping expense picture without
+        // switching tabs. Ignores carrier_id since that only applies to the
+        // system tab's own breakdown.
+        $overview = [
+            'ebay' => $this->buildShippingExpensesSummary(
+                $this->buildShippingExpensesQuery('ebay', $dateFrom, $dateTo, $channelId, null)->get(),
+                'ebay_shipping_label_cost'
+            ),
+            'system' => $this->buildShippingExpensesSummary(
+                $this->buildShippingExpensesQuery('system', $dateFrom, $dateTo, $channelId, null)->get(),
+                'shipping_cost'
+            ),
+        ];
+        $overview['combined_total_cost'] = $overview['ebay']['total_cost'] + $overview['system']['total_cost'];
+        $overview['combined_label_count'] = $overview['ebay']['label_count'] + $overview['system']['label_count'];
+
+        return view('reports.shipping-expenses-report', compact(
+            'orders',
+            'reportData',
+            'summary',
+            'overview',
+            'salesChannels',
+            'carriers',
+            'dateFrom',
+            'dateTo',
+            'channelId',
+            'carrierId',
+            'groupBy',
+            'source',
+            'costField'
+        ));
+    }
+
+    /**
+     * Shared filtered query for both the report view and export - the "source"
+     * tab is what tells eBay-generated labels apart from our own carrier labels,
+     * there's no dedicated shipments table (see class docblock above).
+     */
+    protected function buildShippingExpensesQuery(string $source, string $dateFrom, string $dateTo, $channelId, $carrierId)
+    {
+        $query = Order::whereDate('order_date', '>=', $dateFrom)
+            ->whereDate('order_date', '<=', $dateTo);
+
+        if ($source === 'ebay') {
+            $query->whereNotNull('ebay_shipping_label_cost')->where('ebay_shipping_label_cost', '>', 0);
+        } else {
+            $query->whereNotNull('label_generated_at')->whereNotNull('shipping_id');
+
+            if ($carrierId) {
+                $query->where('shipping_id', $carrierId);
+            }
+        }
+
+        if ($channelId) {
+            $query->where('sales_channel_id', $channelId);
+        }
+
+        return $query;
+    }
+
+    protected function buildShippingExpensesSummary($allOrders, string $costField)
+    {
+        $labelCount = $allOrders->count();
+        $totalCost = (float) $allOrders->sum($costField);
+        $totalOrderValue = (float) $allOrders->sum('total');
+
+        return [
+            'label_count' => $labelCount,
+            'total_cost' => $totalCost,
+            'avg_cost' => $labelCount > 0 ? $totalCost / $labelCount : 0,
+            'total_order_value' => $totalOrderValue,
+            'cost_pct_of_revenue' => $totalOrderValue > 0 ? ($totalCost / $totalOrderValue) * 100 : 0,
+        ];
+    }
+
+    /**
+     * Group shipping-expense orders by channel, carrier, or date - one helper
+     * since all three groupings share the exact same row shape.
+     */
+    protected function groupShippingExpenses($orders, string $costField, string $groupBy)
+    {
+        $grouped = [];
+
+        foreach ($orders as $order) {
+            if ($groupBy === 'carrier') {
+                $key = $order->shipping_id ?? 0;
+                $name = $order->shippingCarrier->name ?? 'Unknown Carrier';
+            } elseif ($groupBy === 'date') {
+                $key = $order->order_date ? $order->order_date->format('Y-m-d') : 'Unknown';
+                $name = $order->order_date ? $order->order_date->format('M d, Y') : 'Unknown';
+            } else {
+                $key = $order->sales_channel_id ?? 0;
+                $name = $order->salesChannel->name ?? 'Direct Sales';
+            }
+
+            if (!isset($grouped[$key])) {
+                $grouped[$key] = [
+                    'name' => $name,
+                    'label_count' => 0,
+                    'total_cost' => 0,
+                ];
+            }
+
+            $grouped[$key]['label_count']++;
+            $grouped[$key]['total_cost'] += (float) $order->{$costField};
+        }
+
+        foreach ($grouped as &$group) {
+            $group['avg_cost'] = $group['label_count'] > 0 ? $group['total_cost'] / $group['label_count'] : 0;
+        }
+
+        return collect($grouped)->sortByDesc('total_cost')->values();
+    }
+
+    /**
+     * Export Shipping Expenses Report to Excel (honors the current source tab and group_by)
+     */
+    public function exportShippingExpensesReport(Request $request)
+    {
+        $source = $request->get('source') === 'system' ? 'system' : 'ebay';
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $carrierId = $request->get('carrier_id');
+        $groupBy = $request->get('group_by', 'channel');
+
+        if ($source === 'ebay' && $groupBy === 'carrier') {
+            $groupBy = 'channel';
+        }
+
+        $costField = $source === 'ebay' ? 'ebay_shipping_label_cost' : 'shipping_cost';
+
+        $allOrders = $this->buildShippingExpensesQuery($source, $dateFrom, $dateTo, $channelId, $carrierId)
+            ->with(['salesChannel', 'shippingCarrier'])
+            ->get();
+
+        $summary = $this->buildShippingExpensesSummary($allOrders, $costField);
+        $groupedData = $this->groupShippingExpenses($allOrders, $costField, $groupBy);
+
+        $export = new \App\Exports\ShippingExpensesReportExport($groupedData->toArray(), $summary, $source, $groupBy);
+
+        $filename = 'shipping-expenses-' . $source . '-' . $dateFrom . '-to-' . $dateTo . '.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download($export, $filename);
+    }
+
+    /**
+     * eBay Expenses Report
+     * Sourced directly from ebay_finance_transactions (the eBay Finance API sync,
+     * see EbayFinanceSyncService), not the orders.ebay_* rollup columns - those
+     * are a current-state snapshot per order and can't be filtered by period if
+     * an order's transactions span multiple sync dates. Bucket math mirrors
+     * EbayFinanceSyncService::recomputeOrderSummary() exactly so totals agree
+     * with the per-order breakdown shown on the order detail page.
+     */
+    public function ebayExpensesReport(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $feeCategory = $request->get('fee_category');
+        $groupBy = $request->get('group_by', 'category'); // category, date, channel
+
+        $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
+
+        $allTransactions = $this->buildEbayExpensesQuery($dateFrom, $dateTo, $channelId, $feeCategory)
+            ->with(['salesChannel', 'order'])
+            ->get();
+
+        $summary = $this->buildEbayExpensesSummary($allTransactions);
+
+        $reportData = $this->groupEbayExpenses($allTransactions, $groupBy);
+
+        $reportData = $this->applyCollectionSort($reportData, $request, [
+            'name' => 'name',
+            'transaction_count' => 'transaction_count',
+            'amount' => 'amount',
+        ]);
+
+        $transactionsQuery = $this->buildEbayExpensesQuery($dateFrom, $dateTo, $channelId, $feeCategory)
+            ->with(['salesChannel', 'order']);
+
+        if ($request->get('item_sort') === 'channel') {
+            $transactionsQuery->select('ebay_finance_transactions.*')
+                ->leftJoin('sales_channels', 'sales_channels.id', '=', 'ebay_finance_transactions.sales_channel_id');
+        } elseif ($request->get('item_sort') === 'order_number') {
+            $transactionsQuery->select('ebay_finance_transactions.*')
+                ->leftJoin('orders', 'orders.id', '=', 'ebay_finance_transactions.order_id');
+        }
+
+        $transactionsQuery = $this->applyQuerySort($transactionsQuery, $request, [
+            'date' => 'ebay_finance_transactions.transaction_date',
+            'order_number' => 'orders.order_number',
+            'channel' => 'sales_channels.name',
+            'category' => 'ebay_finance_transactions.fee_category',
+            'booking' => 'ebay_finance_transactions.booking_entry',
+            'amount' => 'ebay_finance_transactions.amount',
+        ], 'ebay_finance_transactions.transaction_date', 'desc', 'item_sort', 'item_direction');
+
+        $transactions = $transactionsQuery->paginate(50);
+
+        return view('reports.ebay-expenses-report', compact(
+            'transactions',
+            'reportData',
+            'summary',
+            'salesChannels',
+            'dateFrom',
+            'dateTo',
+            'channelId',
+            'feeCategory',
+            'groupBy'
+        ));
+    }
+
+    /**
+     * Shared filtered query for both the report view and export
+     */
+    protected function buildEbayExpensesQuery(string $dateFrom, string $dateTo, $channelId, $feeCategory)
+    {
+        $query = EbayFinanceTransaction::whereDate('transaction_date', '>=', $dateFrom)
+            ->whereDate('transaction_date', '<=', $dateTo);
+
+        if ($channelId) {
+            $query->where('sales_channel_id', $channelId);
+        }
+
+        if ($feeCategory) {
+            $query->where('fee_category', $feeCategory);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Bucket a transaction the same way EbayFinanceSyncService::recomputeOrderSummary() does
+     */
+    protected function ebayFinanceBucket($feeCategory): string
+    {
+        return match ($feeCategory) {
+            'sale', 'marketplace_fee_adjustment' => 'transaction_fee',
+            'shipping_label' => 'shipping_label',
+            'ad_fee' => 'ad_fee',
+            'refund' => 'refund',
+            default => 'other_fees',
+        };
+    }
+
+    protected function ebayFinanceCategoryLabel($feeCategory): string
+    {
+        return match ($feeCategory) {
+            'sale' => 'Final Value Fee (Sale)',
+            'marketplace_fee_adjustment' => 'Marketplace Fee Adjustment',
+            'shipping_label' => 'Shipping Label',
+            'ad_fee' => 'Promoted Listings (Ad Fee)',
+            'refund' => 'Refund',
+            default => 'Other',
+        };
+    }
+
+    /**
+     * Dollar value of a transaction, sign-aware per its booking_entry, matching
+     * EbayFinanceSyncService's own convention (DEBIT = positive cost, CREDIT =
+     * negative/reversal). Sale rows use total_fee_amount (the FVF charged on
+     * the sale) rather than the sale proceeds themselves - the proceeds are
+     * revenue, not an expense.
+     */
+    protected function ebayFinanceTransactionValue(EbayFinanceTransaction $transaction): float
+    {
+        $signedAmount = $transaction->booking_entry === 'CREDIT' ? (float) $transaction->amount : -(float) $transaction->amount;
+        $cost = -$signedAmount;
+
+        return match ($transaction->fee_category) {
+            'sale' => (float) ($transaction->total_fee_amount ?? 0),
+            'refund' => (float) $transaction->amount + (float) ($transaction->total_fee_amount ?? 0),
+            default => $cost,
+        };
+    }
+
+    protected function buildEbayExpensesSummary($transactions)
+    {
+        $summary = [
+            'transaction_count' => $transactions->count(),
+            'unmatched_count' => $transactions->whereNull('order_id')->count(),
+            'transaction_fee' => 0,
+            'shipping_label' => 0,
+            'ad_fee' => 0,
+            'other_fees' => 0,
+            'refund' => 0,
+        ];
+
+        foreach ($transactions as $transaction) {
+            $bucket = $this->ebayFinanceBucket($transaction->fee_category);
+            $summary[$bucket] += $this->ebayFinanceTransactionValue($transaction);
+        }
+
+        $summary['total_expenses'] = $summary['transaction_fee'] + $summary['shipping_label']
+            + $summary['ad_fee'] + $summary['other_fees'];
+
+        return $summary;
+    }
+
+    /**
+     * Group eBay finance transactions by fee category, date, or channel - one
+     * helper since all three groupings share the exact same row shape.
+     */
+    protected function groupEbayExpenses($transactions, string $groupBy)
+    {
+        $grouped = [];
+
+        foreach ($transactions as $transaction) {
+            if ($groupBy === 'date') {
+                $key = $transaction->transaction_date ? $transaction->transaction_date->format('Y-m-d') : 'Unknown';
+                $name = $transaction->transaction_date ? $transaction->transaction_date->format('M d, Y') : 'Unknown';
+            } elseif ($groupBy === 'channel') {
+                $key = $transaction->sales_channel_id ?? 0;
+                $name = $transaction->salesChannel->name ?? 'Unknown Channel';
+            } else {
+                $key = $transaction->fee_category ?? 'other';
+                $name = $this->ebayFinanceCategoryLabel($transaction->fee_category);
+            }
+
+            if (!isset($grouped[$key])) {
+                $grouped[$key] = [
+                    'name' => $name,
+                    'transaction_count' => 0,
+                    'amount' => 0,
+                ];
+            }
+
+            $grouped[$key]['transaction_count']++;
+            $grouped[$key]['amount'] += $this->ebayFinanceTransactionValue($transaction);
+        }
+
+        return collect($grouped)->sortByDesc('amount')->values();
+    }
+
+    /**
+     * Export eBay Expenses Report to Excel (honors the current filters and group_by)
+     */
+    public function exportEbayExpensesReport(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $feeCategory = $request->get('fee_category');
+        $groupBy = $request->get('group_by', 'category');
+
+        $allTransactions = $this->buildEbayExpensesQuery($dateFrom, $dateTo, $channelId, $feeCategory)
+            ->with(['salesChannel', 'order'])
+            ->get();
+
+        $summary = $this->buildEbayExpensesSummary($allTransactions);
+        $groupedData = $this->groupEbayExpenses($allTransactions, $groupBy);
+
+        $export = new \App\Exports\EbayExpensesReportExport($groupedData->toArray(), $summary, $groupBy);
+
+        $filename = 'ebay-expenses-' . $dateFrom . '-to-' . $dateTo . '.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download($export, $filename);
+    }
+
+    /**
+     * Net Profit Report
+     * Company-wide bottom line: Net Revenue (paid+refunded orders, refunds
+     * netted) minus COGS (same order population, inventory-confirmed) minus
+     * eBay fees (transaction/ad/other - shipping label counted separately)
+     * minus shipping label costs (both eBay- and system-generated) minus
+     * operating expenses (posted bills). Ties together Revenue, COGS, eBay
+     * Expenses and Shipping Expenses reports into one P&L.
+     */
+    public function netProfitReport(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $groupBy = $request->get('group_by', 'channel'); // channel, date
+
+        $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
+
+        $summary = $this->buildNetProfitSummary($dateFrom, $dateTo, $channelId);
+
+        $reportData = $this->buildNetProfitGroupedData($dateFrom, $dateTo, $channelId, $groupBy);
+
+        $reportData = $this->applyCollectionSort($reportData, $request, [
+            'name' => 'name',
+            'net_revenue' => 'net_revenue',
+            'cogs' => 'cogs',
+            'ebay_fees' => 'ebay_fees',
+            'shipping_costs' => 'shipping_costs',
+            'contribution_profit' => 'contribution_profit',
+        ]);
+
+        return view('reports.net-profit-report', compact(
+            'summary',
+            'reportData',
+            'salesChannels',
+            'dateFrom',
+            'dateTo',
+            'channelId',
+            'groupBy'
+        ));
+    }
+
+    protected function buildNetProfitSummary(string $dateFrom, string $dateTo, $channelId)
+    {
+        $orderQuery = Order::whereDate('order_date', '>=', $dateFrom)->whereDate('order_date', '<=', $dateTo);
+
+        if ($channelId) {
+            $orderQuery->where('sales_channel_id', $channelId);
+        }
+
+        $revenueSummary = $this->buildRevenueSummary($orderQuery->get());
+
+        $cogsQuery = OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->whereIn('orders.payment_status', ['paid', 'refunded'])
+            ->where('order_items.inventory_updated', true)
+            ->where(function ($q) {
+                $q->whereNull('order_items.bundle_product_id')
+                    ->orWhere('order_items.is_bundle_summary', true);
+            });
+
+        if ($channelId) {
+            $cogsQuery->where('orders.sales_channel_id', $channelId);
+        }
+
+        $cogs = (float) ($cogsQuery->selectRaw('SUM(order_items.cost_at_sale * order_items.quantity) as total')->value('total') ?? 0);
+
+        $ebayTransactions = $this->buildEbayExpensesQuery($dateFrom, $dateTo, $channelId, null)->get();
+        $ebaySummary = $this->buildEbayExpensesSummary($ebayTransactions);
+        $ebayFees = $ebaySummary['transaction_fee'] + $ebaySummary['ad_fee'] + $ebaySummary['other_fees'];
+
+        $ebayLabelCost = (float) $this->buildShippingExpensesQuery('ebay', $dateFrom, $dateTo, $channelId, null)->sum('ebay_shipping_label_cost');
+        $systemLabelCost = (float) $this->buildShippingExpensesQuery('system', $dateFrom, $dateTo, $channelId, null)->sum('shipping_cost');
+        $shippingCosts = $ebayLabelCost + $systemLabelCost;
+
+        // Only count bill items posted to a nature='expense' account. Purchase Order
+        // costs in this system post to "Stock in Hand" (nature='asset') - that's the
+        // inventory asset being capitalized, not an operating expense, and it's
+        // already reflected in COGS (order_items.cost_at_sale) at time of sale.
+        // Counting the asset-side bill too would double the expense.
+        $operatingExpenses = (float) BillItem::join('bills', 'bills.id', '=', 'bill_items.bill_id')
+            ->join('chart_of_accounts', 'chart_of_accounts.id', '=', 'bill_items.expense_account_id')
+            ->whereIn('bills.status', ['unpaid', 'partially_paid', 'paid'])
+            ->whereDate('bills.bill_date', '>=', $dateFrom)
+            ->whereDate('bills.bill_date', '<=', $dateTo)
+            ->where('chart_of_accounts.nature', 'expense')
+            ->sum('bill_items.amount');
+
+        $netRevenue = $revenueSummary['net_revenue'];
+        $grossProfit = $netRevenue - $cogs;
+        $netProfit = $grossProfit - $ebayFees - $shippingCosts - $operatingExpenses;
+
+        return [
+            'total_orders' => $revenueSummary['total_orders'],
+            'paid_count' => $revenueSummary['paid_count'],
+            'refunded_count' => $revenueSummary['refunded_count'],
+            'gross_revenue' => $revenueSummary['gross_revenue'],
+            'total_refunds' => $revenueSummary['total_refunds'],
+            'net_revenue' => $netRevenue,
+            'cogs' => $cogs,
+            'gross_profit' => $grossProfit,
+            'gross_margin' => $netRevenue > 0 ? ($grossProfit / $netRevenue) * 100 : 0,
+            'ebay_transaction_fee' => $ebaySummary['transaction_fee'],
+            'ebay_ad_fee' => $ebaySummary['ad_fee'],
+            'ebay_other_fees' => $ebaySummary['other_fees'],
+            'ebay_fees' => $ebayFees,
+            'shipping_costs_ebay' => $ebayLabelCost,
+            'shipping_costs_system' => $systemLabelCost,
+            'shipping_costs' => $shippingCosts,
+            'operating_expenses' => $operatingExpenses,
+            'net_profit' => $netProfit,
+            'net_margin' => $netRevenue > 0 ? ($netProfit / $netRevenue) * 100 : 0,
+        ];
+    }
+
+    /**
+     * Contribution-profit breakdown by channel or date (excludes operating
+     * expenses - bills aren't attributable to a single channel/order date).
+     * Note: eBay fee rows are keyed by transaction_date (when eBay posted the
+     * fee), not order_date, so a 'date' grouping can show a fee on a
+     * different day than the order that earned it - fine for 'channel'
+     * grouping, a known skew for 'date'.
+     */
+    protected function buildNetProfitGroupedData(string $dateFrom, string $dateTo, $channelId, string $groupBy)
+    {
+        $groups = [];
+
+        $ensureGroup = function (&$groups, $key, $name) {
+            if (!isset($groups[$key])) {
+                $groups[$key] = [
+                    'name' => $name,
+                    'net_revenue' => 0,
+                    'cogs' => 0,
+                    'ebay_fees' => 0,
+                    'shipping_costs' => 0,
+                ];
+            }
+        };
+
+        // Net revenue
+        $orderQuery = Order::whereDate('order_date', '>=', $dateFrom)
+            ->whereDate('order_date', '<=', $dateTo)
+            ->whereIn('payment_status', ['paid', 'refunded'])
+            ->with('salesChannel');
+
+        if ($channelId) {
+            $orderQuery->where('sales_channel_id', $channelId);
+        }
+
+        foreach ($orderQuery->get() as $order) {
+            $key = $groupBy === 'date' ? ($order->order_date ? $order->order_date->format('Y-m-d') : 'Unknown') : ($order->sales_channel_id ?? 0);
+            $name = $groupBy === 'date' ? ($order->order_date ? $order->order_date->format('M d, Y') : 'Unknown') : ($order->salesChannel->name ?? 'Direct Sales');
+
+            $ensureGroup($groups, $key, $name);
+            $groups[$key]['net_revenue'] += (float) $order->total - (float) ($order->total_refunded ?? 0);
+        }
+
+        // COGS
+        $cogsQuery = OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->select('order_items.*', 'orders.order_date', 'orders.sales_channel_id')
+            ->whereDate('orders.order_date', '>=', $dateFrom)
+            ->whereDate('orders.order_date', '<=', $dateTo)
+            ->whereIn('orders.payment_status', ['paid', 'refunded'])
+            ->where('order_items.inventory_updated', true)
+            ->where(function ($q) {
+                $q->whereNull('order_items.bundle_product_id')
+                    ->orWhere('order_items.is_bundle_summary', true);
+            })
+            ->with('order.salesChannel');
+
+        if ($channelId) {
+            $cogsQuery->where('orders.sales_channel_id', $channelId);
+        }
+
+        foreach ($cogsQuery->get() as $item) {
+            $order = $item->order;
+            $key = $groupBy === 'date' ? ($order->order_date ? $order->order_date->format('Y-m-d') : 'Unknown') : ($order->sales_channel_id ?? 0);
+            $name = $groupBy === 'date' ? ($order->order_date ? $order->order_date->format('M d, Y') : 'Unknown') : ($order->salesChannel->name ?? 'Direct Sales');
+
+            $ensureGroup($groups, $key, $name);
+            $groups[$key]['cogs'] += (float) ($item->cost_at_sale ?? 0) * $item->quantity;
+        }
+
+        // eBay fees (excludes shipping_label - reported below - and refund, already netted into revenue)
+        foreach ($this->buildEbayExpensesQuery($dateFrom, $dateTo, $channelId, null)->with('salesChannel')->get() as $transaction) {
+            if (!in_array($transaction->fee_category, ['sale', 'marketplace_fee_adjustment', 'ad_fee', 'other'])) {
+                continue;
+            }
+
+            $key = $groupBy === 'date' ? ($transaction->transaction_date ? $transaction->transaction_date->format('Y-m-d') : 'Unknown') : ($transaction->sales_channel_id ?? 0);
+            $name = $groupBy === 'date' ? ($transaction->transaction_date ? $transaction->transaction_date->format('M d, Y') : 'Unknown') : ($transaction->salesChannel->name ?? 'Unknown Channel');
+
+            $ensureGroup($groups, $key, $name);
+            $groups[$key]['ebay_fees'] += $this->ebayFinanceTransactionValue($transaction);
+        }
+
+        // Shipping label costs (both sources)
+        foreach (['ebay' => 'ebay_shipping_label_cost', 'system' => 'shipping_cost'] as $source => $costField) {
+            foreach ($this->buildShippingExpensesQuery($source, $dateFrom, $dateTo, $channelId, null)->with('salesChannel')->get() as $order) {
+                $key = $groupBy === 'date' ? ($order->order_date ? $order->order_date->format('Y-m-d') : 'Unknown') : ($order->sales_channel_id ?? 0);
+                $name = $groupBy === 'date' ? ($order->order_date ? $order->order_date->format('M d, Y') : 'Unknown') : ($order->salesChannel->name ?? 'Direct Sales');
+
+                $ensureGroup($groups, $key, $name);
+                $groups[$key]['shipping_costs'] += (float) $order->{$costField};
+            }
+        }
+
+        foreach ($groups as &$group) {
+            $group['contribution_profit'] = $group['net_revenue'] - $group['cogs'] - $group['ebay_fees'] - $group['shipping_costs'];
+        }
+
+        return collect($groups)->sortByDesc('net_revenue')->values();
+    }
+
+    /**
+     * Export Net Profit Report to Excel
+     */
+    public function exportNetProfitReport(Request $request)
+    {
+        $dateFrom = $request->get('date_from', date('Y-m-01'));
+        $dateTo = $request->get('date_to', date('Y-m-d'));
+        $channelId = $request->get('channel_id');
+        $groupBy = $request->get('group_by', 'channel');
+
+        $summary = $this->buildNetProfitSummary($dateFrom, $dateTo, $channelId);
+        $groupedData = $this->buildNetProfitGroupedData($dateFrom, $dateTo, $channelId, $groupBy);
+
+        $export = new \App\Exports\NetProfitReportExport($groupedData->toArray(), $summary, $groupBy);
+
+        $filename = 'net-profit-' . $dateFrom . '-to-' . $dateTo . '.xlsx';
 
         return \Maatwebsite\Excel\Facades\Excel::download($export, $filename);
     }

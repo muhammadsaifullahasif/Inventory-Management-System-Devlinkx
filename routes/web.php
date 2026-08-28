@@ -382,5 +382,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('reports/gross-profit/export', [ReportController::class, 'exportGrossProfitReport'])->name('reports.gross-profit.export');
     Route::get('reports/comparison', [ReportController::class, 'comparisonReport'])->name('reports.comparison');
     Route::get('reports/comparison/export', [ReportController::class, 'exportComparisonReport'])->name('reports.comparison.export');
+    Route::get('reports/revenue', [ReportController::class, 'revenueReport'])->name('reports.revenue');
+    Route::get('reports/revenue/export', [ReportController::class, 'exportRevenueReport'])->name('reports.revenue.export');
+    Route::get('reports/shipping-expenses', [ReportController::class, 'shippingExpensesReport'])->name('reports.shipping-expenses');
+    Route::get('reports/shipping-expenses/export', [ReportController::class, 'exportShippingExpensesReport'])->name('reports.shipping-expenses.export');
+    Route::get('reports/ebay-expenses', [ReportController::class, 'ebayExpensesReport'])->name('reports.ebay-expenses');
+    Route::get('reports/ebay-expenses/export', [ReportController::class, 'exportEbayExpensesReport'])->name('reports.ebay-expenses.export');
+    Route::get('reports/net-profit', [ReportController::class, 'netProfitReport'])->name('reports.net-profit');
+    Route::get('reports/net-profit/export', [ReportController::class, 'exportNetProfitReport'])->name('reports.net-profit.export');
 });
 
