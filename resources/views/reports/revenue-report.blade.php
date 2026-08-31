@@ -330,6 +330,7 @@
                         </thead>
                         <tbody>
                             @forelse ($orders as $order)
+                                @php $isRevenueOrder = in_array($order->payment_status, ['paid', 'refunded']); @endphp
                                 <tr>
                                     <td><span class="fs-12 text-muted">{{ $order->order_date ? $order->order_date->format('M d, Y') : '-' }}</span></td>
                                     <td class="fw-semibold">
@@ -340,9 +341,15 @@
                                     </td>
                                     <td>{{ $order->salesChannel->name ?? 'Direct' }}</td>
                                     <td>{{ $order->buyer_name ?? $order->buyer_username ?? '-' }}</td>
-                                    <td class="text-end">{{ number_format($order->total, 2) }}</td>
-                                    <td class="text-end text-danger">{{ number_format($order->total_refunded ?? 0, 2) }}</td>
-                                    <td class="text-end fw-semibold text-success">{{ number_format($order->total - ($order->total_refunded ?? 0), 2) }}</td>
+                                    @if ($isRevenueOrder)
+                                        <td class="text-end">{{ number_format($order->total, 2) }}</td>
+                                        <td class="text-end text-danger">{{ number_format($order->total_refunded ?? 0, 2) }}</td>
+                                        <td class="text-end fw-semibold text-success">{{ number_format($order->total - ($order->total_refunded ?? 0), 2) }}</td>
+                                    @else
+                                        <td class="text-end text-muted" title="Not counted as revenue - payment_status is {{ $order->payment_status }}">&mdash;</td>
+                                        <td class="text-end text-muted">&mdash;</td>
+                                        <td class="text-end text-muted" title="Not counted as revenue - payment_status is {{ $order->payment_status }}">&mdash;</td>
+                                    @endif
                                     <td class="text-center">
                                         @if ($order->isPartiallyRefunded() && !$order->isRefunded())
                                             <span class="badge bg-soft-info text-info">Partially Refunded</span>
