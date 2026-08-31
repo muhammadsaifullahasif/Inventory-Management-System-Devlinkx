@@ -37,7 +37,7 @@ class RefreshShippingTokens extends Command
     {
         $this->info('Starting shipping carrier token refresh...');
 
-        $query = Shipping::where('status', 1)
+        $query = Shipping::where('status', 'active')
             ->where('active_status', 1)
             ->where(function ($q) {
                 $q->where('delete_status', 0)
