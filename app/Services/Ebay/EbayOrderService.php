@@ -375,7 +375,7 @@ class EbayOrderService
                 'ebay_order_status' => $ebayOrder['order_status'],
                 'ebay_payment_status' => $ebayOrder['payment_status'],
                 'ebay_raw_data' => $ebayOrder['raw_data'],
-                'order_date' => !empty($ebayOrder['created_time']) ? new \DateTime($ebayOrder['created_time']) : now(),
+                'order_date' => !empty($ebayOrder['created_time']) ? new \DateTime($ebayOrder['created_time']) : (!empty($ebayOrder['paid_time']) ? new \DateTime($ebayOrder['paid_time']) : now()),
                 'paid_at' => !empty($ebayOrder['paid_time']) ? new \DateTime($ebayOrder['paid_time']) : null,
                 'shipped_at' => !empty($ebayOrder['shipped_time']) ? new \DateTime($ebayOrder['shipped_time']) : null,
                 'tracking_number' => $ebayOrder['tracking_number'] ?? null,
@@ -728,7 +728,9 @@ class EbayOrderService
             'notification_type' => $notificationType,
             'notification_received_at' => $timestamp,
 
-            'order_date' => $this->parseEbayDate($transaction['CreatedDate'] ?? ''),
+            'order_date' => $this->parseEbayDate($transaction['CreatedDate'] ?? '')
+                ?? $this->parseEbayDate($transaction['PaidTime'] ?? '')
+                ?? now(),
             'paid_at' => $this->parseEbayDate($transaction['PaidTime'] ?? ''),
             'shipped_at' => $this->parseEbayDate($transaction['ShippedTime'] ?? ''),
 
