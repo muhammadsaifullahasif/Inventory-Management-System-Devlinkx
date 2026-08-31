@@ -216,6 +216,11 @@
                                 <a class="nxl-link" href="{{ route('shipping.create') }}">Add Shipping</a>
                             </li>
                             @endcan
+                            @can('edit shipping')
+                            <li class="nxl-item {{ request()->routeIs('shipping.settings.*') ? 'active' : '' }}">
+                                <a class="nxl-link" href="{{ route('shipping.settings.edit') }}">Settings</a>
+                            </li>
+                            @endcan
                         </ul>
                     </li>
                 @endcan

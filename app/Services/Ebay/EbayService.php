@@ -3,6 +3,7 @@
 namespace App\Services\Ebay;
 
 use App\Models\SalesChannel;
+use App\Models\ShippingSetting;
 use Exception;
 use Illuminate\Support\Facades\Log;
 
@@ -879,8 +880,14 @@ class EbayService
             $baseTime = !empty($order['PaidTime']) ? $order['PaidTime'] : ($order['CreatedTime'] ?? '');
             if (!empty($baseTime)) {
                 try {
-                    // eBay times are in UTC, convert to Central Time after calculation
-                    $deadline = \Carbon\Carbon::parse($baseTime)->addWeekdays($handlingTimeDays)->setTimezone('America/Chicago');
+                    // eBay times are in UTC, convert to Central Time before applying cutoff
+                    $base = \Carbon\Carbon::parse($baseTime)->setTimezone('America/Chicago');
+                    $daysToAdd = $handlingTimeDays;
+                    // Order landed at/after the cutoff hour -> handling starts next business day
+                    if ($base->hour >= ShippingSetting::current()->cutoff_hour) {
+                        $daysToAdd++;
+                    }
+                    $deadline = $base->addWeekdays($daysToAdd);
                     $shipmentDeadline = $deadline->toIso8601String();
                 } catch (\Exception $e) {
                     // Ignore parse errors

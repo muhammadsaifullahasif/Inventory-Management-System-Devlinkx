@@ -28,6 +28,7 @@ use App\Http\Controllers\SalesChannelController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\ChartOfAccountController;
 use App\Http\Controllers\ShippingController;
+use App\Http\Controllers\ShippingSettingController;
 use App\Http\Controllers\SystemHealthController;
 use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BackupSettingController;
@@ -317,6 +318,8 @@ Route::middleware(['auth'])->group(function () {
 
 
     // Shipping
+    Route::get('/shipping/settings', [ShippingSettingController::class, 'edit'])->name('shipping.settings.edit');
+    Route::put('/shipping/settings', [ShippingSettingController::class, 'update'])->name('shipping.settings.update');
     Route::post('/shipping/bulk-delete', [ShippingController::class, 'bulkDelete'])->name('shipping.bulk-delete');
     Route::resource('/shipping', ShippingController::class);
     Route::post('/shipping/{id}/toggle-status', [ShippingController::class, 'toggleStatus'])->name('shipping.toggle-status');
