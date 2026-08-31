@@ -52,6 +52,7 @@ class RefreshShippingTokens extends Command
         $carriers = $query->get();
 
         if ($carriers->isEmpty()) {
+            $this->info($carriers);
             $this->warn('No active shipping carriers found.');
             return 0;
         }
