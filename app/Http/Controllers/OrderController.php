@@ -1322,6 +1322,7 @@ class OrderController extends Controller
             'packages.*.width'              => 'nullable|numeric|min:0',
             'packages.*.height'             => 'nullable|numeric|min:0',
             'packages.*.customer_reference' => 'nullable|string|max:30',
+            'packages.*.declared_value'     => 'nullable|numeric|min:0',
             'weight_unit'                   => 'nullable|string|in:lbs,kg,oz',
             'dimension_unit'                => 'nullable|string|in:in,cm',
         ]);
@@ -1371,7 +1372,8 @@ class OrderController extends Controller
                 $order->addTrackingNumber(
                     $package['tracking_number'],
                     $carrierName,
-                    $package['label_path']
+                    $package['label_path'],
+                    $package['declared_value'] ?? null
                 );
             }
 

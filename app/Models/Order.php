@@ -334,7 +334,7 @@ class Order extends Model
     /**
      * Add a tracking number to this order (for multi-package shipments).
      */
-    public function addTrackingNumber(string $trackingNumber, string $carrier, ?string $labelPath = null): void
+    public function addTrackingNumber(string $trackingNumber, string $carrier, ?string $labelPath = null, ?float $declaredValue = null): void
     {
         $packages = $this->getMetaArray('shipping_packages', []);
 
@@ -342,6 +342,7 @@ class Order extends Model
             'tracking_number' => $trackingNumber,
             'carrier' => $carrier,
             'label_path' => $labelPath,
+            'declared_value' => $declaredValue, // reference only — FedEx already factors this into shipping_cost, not recalculated here
             'created_at' => now()->toIso8601String(),
         ];
 

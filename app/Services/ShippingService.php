@@ -887,6 +887,7 @@ class ShippingService
             $length = (float) ($packageOverride['length'] ?? 12.0);
             $width  = (float) ($packageOverride['width']  ?? 12.0);
             $height = (float) ($packageOverride['height'] ?? 12.0);
+            $declaredValue = (float) ($packageOverride['declared_value'] ?? 0);
 
             // Use unit overrides if provided, otherwise fall back to carrier settings
             $userWeightUnit    = $unitOverrides['weight_unit']    ?? $carrier->weight_unit    ?? 'lbs';
@@ -1016,7 +1017,7 @@ class ShippingService
                         'labelPrintingOrientation' => 'TOP_EDGE_OF_TEXT_FIRST',
                         'labelOrder' => 'SHIPPING_LABEL_FIRST',
                     ],
-                    'requestedPackageLineItems' => [[
+                    'requestedPackageLineItems' => [array_filter([
                         'sequenceNumber' => 1,
                         'weight' => [
                             'units' => $fedexWeightUnit,
@@ -1032,7 +1033,11 @@ class ShippingService
                             'customerReferenceType' => 'CUSTOMER_REFERENCE',
                             'value' => $customerRef,
                         ]],
-                    ]],
+                        'declaredValue' => $declaredValue > 0 ? [
+                            'amount'   => round($declaredValue, 2),
+                            'currency' => 'USD',
+                        ] : null,
+                    ])],
                     'totalPackageCount' => 1,
                     'shipmentConfirmationType' => 'CONFIRM_AND_CARRIER_PACKAGE_LABEL'
                 ],
@@ -1057,6 +1062,7 @@ class ShippingService
                 'package_number'    => $i + 1,
                 'shipping_cost'     => $result['shipping_cost'] ?? null,
                 'shipping_currency' => $result['shipping_currency'] ?? 'USD',
+                'declared_value'    => $declaredValue > 0 ? round($declaredValue, 2) : null,
             ];
         }
 
