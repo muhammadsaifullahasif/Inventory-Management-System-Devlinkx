@@ -3192,11 +3192,6 @@ class ReportController extends Controller
         ];
         $savedColumns = json_decode($request->cookie('shipping_checklist_columns', ''), true) ?: [];
         $visibleColumns = array_merge($columnDefaults, array_intersect_key($savedColumns, $columnDefaults));
-        \Illuminate\Support\Facades\Log::info('shippingChecklistPdf columns debug', [
-            'raw_cookie' => $request->cookie('shipping_checklist_columns'),
-            'savedColumns' => $savedColumns,
-            'visibleColumns' => $visibleColumns,
-        ]);
 
         $pdf = Pdf::loadView('reports.shipping-checklist-pdf', compact(
             'checklistItems',
