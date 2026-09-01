@@ -246,6 +246,33 @@
                         @endforeach
                     </select>
                 </div>
+                <div class="col-md-2">
+                    <label class="form-label d-block">Category</label>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="categoryDropdown" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                            @if(empty($categoryIds))
+                                All Categories
+                            @else
+                                {{ count($categoryIds) }} Selected
+                            @endif
+                        </button>
+                        <ul class="dropdown-menu p-2" style="max-height: 250px; overflow-y: auto; min-width: 220px;" aria-labelledby="categoryDropdown">
+                            @forelse($categories as $category)
+                                <li>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="category_id[]" value="{{ $category->id }}" id="checklist_category_{{ $category->id }}"
+                                            {{ in_array($category->id, $categoryIds) ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="checklist_category_{{ $category->id }}">
+                                            {{ $category->name }}
+                                        </label>
+                                    </div>
+                                </li>
+                            @empty
+                                <li class="px-2 text-muted">No categories found</li>
+                            @endforelse
+                        </ul>
+                    </div>
+                </div>
                 {{-- <div class="col-md-2 d-flex justify-content-end flex-column">
                     <label for="fulfilled" class="form-label">Order Status</label>
                     <div class="form-check form-switch">
@@ -282,7 +309,7 @@
                     </a>
                 </div>
                 <div class="col-md-2 d-flex align-items-end justify-content-end">
-                    <a href="{{ route('reports.shipping-checklist.pdf', ['date_from' => $dateFrom, 'date_to' => $dateTo, 'channel_id' => $channelId, 'order_status' => $order_status]) }}" class="btn btn-success">
+                    <a href="{{ route('reports.shipping-checklist.pdf', ['date_from' => $dateFrom, 'date_to' => $dateTo, 'channel_id' => $channelId, 'order_status' => $order_status, 'category_id' => $categoryIds]) }}" class="btn btn-success">
                         <i class="feather-download me-1"></i> Download PDF
                     </a>
                 </div>

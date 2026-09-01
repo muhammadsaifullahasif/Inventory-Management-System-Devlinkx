@@ -2789,9 +2789,13 @@ class ReportController extends Controller
         $channelId = $request->get('channel_id');
         $fulfillmentStatus = $request->get('fulfillment_status', 'unfulfilled');
         $order_status = $request->get('order_status', 'processing');
+        $categoryIds = array_filter((array) $request->get('category_id', []));
 
         // Get filter options
         $salesChannels = SalesChannel::where('delete_status', '0')
+            ->orderBy('name')
+            ->get();
+        $categories = Category::where('delete_status', '0')
             ->orderBy('name')
             ->get();
 
@@ -2837,6 +2841,10 @@ class ReportController extends Controller
                 // For bundle summary items, include the bundle and its components
                 if ($item->is_bundle_summary) {
                     $product = $item->product;
+
+                    if (!empty($categoryIds) && (!$product || !in_array($product->category_id, $categoryIds))) {
+                        continue;
+                    }
 
                     // Get bundle product details
                     $productMeta = $product ? $product->product_meta : [];
@@ -2915,6 +2923,10 @@ class ReportController extends Controller
                     // Regular product (not a bundle component)
                     $product = $item->product;
 
+                    if (!empty($categoryIds) && (!$product || !in_array($product->category_id, $categoryIds))) {
+                        continue;
+                    }
+
                     // Get product details
                     $productMeta = $product ? $product->product_meta : [];
                     $weight = $productMeta['weight'] ?? null;
@@ -2979,7 +2991,7 @@ class ReportController extends Controller
 
         // Summary statistics
         $summary = [
-            'total_orders' => $orders->count(),
+            'total_orders' => empty($categoryIds) ? $orders->count() : $checklistCollection->pluck('order.id')->unique()->count(),
             'total_items' => $checklistCollection->count(),
             'total_quantity' => $checklistCollection->sum('quantity_ordered'),
         ];
@@ -3004,6 +3016,8 @@ class ReportController extends Controller
             'checklistItems',
             'summary',
             'salesChannels',
+            'categories',
+            'categoryIds',
             'dateFrom',
             'dateTo',
             'channelId',
@@ -3022,6 +3036,7 @@ class ReportController extends Controller
         $dateTo = $request->get('date_to', date('Y-m-d'));
         $channelId = $request->get('channel_id');
         $order_status = $request->get('order_status', 'processing');
+        $categoryIds = array_filter((array) $request->get('category_id', []));
 
         // Build orders query - get orders that need to be shipped
         $orderQuery = Order::with([
@@ -3055,6 +3070,11 @@ class ReportController extends Controller
             foreach ($order->items as $item) {
                 if ($item->is_bundle_summary) {
                     $product = $item->product;
+
+                    if (!empty($categoryIds) && (!$product || !in_array($product->category_id, $categoryIds))) {
+                        continue;
+                    }
+
                     $productMeta = $product ? $product->product_meta : [];
                     $weight = $productMeta['weight'] ?? null;
                     $weightUnit = $productMeta['weight_unit'] ?? 'lbs';
@@ -3124,6 +3144,11 @@ class ReportController extends Controller
 
                 } elseif (!$item->bundle_product_id) {
                     $product = $item->product;
+
+                    if (!empty($categoryIds) && (!$product || !in_array($product->category_id, $categoryIds))) {
+                        continue;
+                    }
+
                     $productMeta = $product ? $product->product_meta : [];
                     $weight = $productMeta['weight'] ?? null;
                     $weightUnit = $productMeta['weight_unit'] ?? 'lbs';
@@ -3173,7 +3198,7 @@ class ReportController extends Controller
 
         // Summary statistics
         $summary = [
-            'total_orders' => $orders->count(),
+            'total_orders' => empty($categoryIds) ? $orders->count() : collect($checklistItems)->pluck('order.id')->unique()->count(),
             'total_items' => count($checklistItems),
             'total_quantity' => collect($checklistItems)->sum('quantity_ordered'),
         ];
