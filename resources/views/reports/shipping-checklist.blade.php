@@ -249,16 +249,18 @@
                 <div class="col-md-2">
                     <label class="form-label d-block">Category</label>
                     <div class="dropdown">
-                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="categoryDropdown" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
-                            @if(empty($categoryIds))
-                                All Categories
-                            @else
-                                {{ count($categoryIds) }} Selected
-                            @endif
+                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="categoryDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <span id="categoryDropdownLabel">
+                                @if(empty($categoryIds))
+                                    All Categories
+                                @else
+                                    {{ count($categoryIds) }} Selected
+                                @endif
+                            </span>
                         </button>
-                        <ul class="dropdown-menu p-2" style="max-height: 250px; overflow-y: auto; min-width: 220px;" aria-labelledby="categoryDropdown">
+                        <ul class="dropdown-menu p-2" style="max-height: 250px; overflow-y: auto; min-width: 220px;" aria-labelledby="categoryDropdown" onclick="event.stopPropagation()">
                             @forelse($categories as $category)
-                                <li>
+                                <li class="list-unstyled">
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" name="category_id[]" value="{{ $category->id }}" id="checklist_category_{{ $category->id }}"
                                             {{ in_array($category->id, $categoryIds) ? 'checked' : '' }}>
