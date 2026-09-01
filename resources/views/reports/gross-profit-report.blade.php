@@ -83,6 +83,33 @@
                                     <option value="category" {{ $groupBy == 'category' ? 'selected' : '' }}>Category</option>
                                 </select>
                             </div>
+                            <div class="col-md-2">
+                                <label class="form-label d-block">Category</label>
+                                <div class="dropdown" id="categoryFilterDropdown" style="position: relative;">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle w-100 text-start" id="categoryDropdownBtn">
+                                        <span id="categoryDropdownLabel">
+                                            @if(empty($categoryIds))
+                                                All Categories
+                                            @else
+                                                {{ count($categoryIds) }} Selected
+                                            @endif
+                                        </span>
+                                    </button>
+                                    <div class="dropdown-menu p-2" id="categoryDropdownMenu" style="max-height: 250px; overflow-y: auto; min-width: 220px;">
+                                        @forelse($categories as $category)
+                                            <div class="form-check">
+                                                <input class="form-check-input category-filter-checkbox" type="checkbox" name="category_id[]" value="{{ $category->id }}" id="gross_profit_report_category_{{ $category->id }}"
+                                                    {{ in_array($category->id, $categoryIds) ? 'checked' : '' }}>
+                                                <label class="form-check-label" for="gross_profit_report_category_{{ $category->id }}">
+                                                    {{ $category->name }}
+                                                </label>
+                                            </div>
+                                        @empty
+                                            <div class="text-muted px-1">No categories found</div>
+                                        @endforelse
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="row mt-3">
                             <div class="col-12 d-flex align-items-end gap-2">
@@ -413,3 +440,40 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    (function () {
+        var btn = document.getElementById('categoryDropdownBtn');
+        var menu = document.getElementById('categoryDropdownMenu');
+        var label = document.getElementById('categoryDropdownLabel');
+        var checkboxes = document.querySelectorAll('.category-filter-checkbox');
+
+        if (!btn || !menu) {
+            return;
+        }
+
+        function updateLabel() {
+            var checkedCount = document.querySelectorAll('.category-filter-checkbox:checked').length;
+            label.textContent = checkedCount > 0 ? checkedCount + ' Selected' : 'All Categories';
+        }
+
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            menu.classList.toggle('show');
+        });
+
+        menu.addEventListener('click', function (e) {
+            e.stopPropagation();
+        });
+
+        checkboxes.forEach(function (cb) {
+            cb.addEventListener('change', updateLabel);
+        });
+
+        document.addEventListener('click', function () {
+            menu.classList.remove('show');
+        });
+    })();
+</script>
+@endpush

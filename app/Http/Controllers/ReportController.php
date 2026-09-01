@@ -1073,11 +1073,13 @@ class ReportController extends Controller
         $orderStatus = $request->get('order_status');
         $paymentStatus = $request->get('payment_status');
         $groupBy = $request->get('group_by', 'channel'); // channel, product, date
+        $categoryIds = array_filter((array) $request->get('category_id', []));
 
         // Get filter options
         $salesChannels = SalesChannel::where('delete_status', '0')
             ->orderBy('name')
             ->get();
+        $categories = Category::orderBy('name')->get();
 
         // Build orders query - get all for summary stats
         $allOrdersQuery = Order::whereDate('order_date', '>=', $dateFrom)
@@ -1093,6 +1095,12 @@ class ReportController extends Controller
 
         if ($paymentStatus) {
             $allOrdersQuery->where('payment_status', $paymentStatus);
+        }
+
+        if (!empty($categoryIds)) {
+            $allOrdersQuery->whereHas('items.product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
         }
 
         $allOrders = $allOrdersQuery->get();
@@ -1181,6 +1189,12 @@ class ReportController extends Controller
             $ordersQuery->where('payment_status', $paymentStatus);
         }
 
+        if (!empty($categoryIds)) {
+            $ordersQuery->whereHas('items.product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
         if ($request->get('item_sort') === 'channel') {
             $ordersQuery->select('orders.*')->leftJoin('sales_channels', 'sales_channels.id', '=', 'orders.sales_channel_id');
         }
@@ -1226,6 +1240,8 @@ class ReportController extends Controller
             'summary',
             'accountingSummary',
             'salesChannels',
+            'categories',
+            'categoryIds',
             'dateFrom',
             'dateTo',
             'channelId',
@@ -1407,6 +1423,7 @@ class ReportController extends Controller
         $channelId = $request->get('channel_id');
         $orderStatus = $request->get('order_status');
         $paymentStatus = $request->get('payment_status');
+        $categoryIds = array_filter((array) $request->get('category_id', []));
 
         // Build orders query
         $allOrdersQuery = Order::with(['salesChannel', 'items.product'])
@@ -1423,6 +1440,12 @@ class ReportController extends Controller
 
         if ($paymentStatus) {
             $allOrdersQuery->where('payment_status', $paymentStatus);
+        }
+
+        if (!empty($categoryIds)) {
+            $allOrdersQuery->whereHas('items.product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
         }
 
         $allOrders = $allOrdersQuery->get();
@@ -1490,10 +1513,12 @@ class ReportController extends Controller
         $orderStatus = $request->get('order_status');
         $paymentStatus = $request->get('payment_status');
         $groupBy = $request->get('group_by', 'channel'); // channel, product, date, category
+        $categoryIds = array_filter((array) $request->get('category_id', []));
 
         $salesChannels = SalesChannel::where('delete_status', '0')
             ->orderBy('name')
             ->get();
+        $categories = Category::orderBy('name')->get();
 
         $allOrdersQuery = Order::whereDate('order_date', '>=', $dateFrom)
             ->whereDate('order_date', '<=', $dateTo);
@@ -1508,6 +1533,12 @@ class ReportController extends Controller
 
         if ($paymentStatus) {
             $allOrdersQuery->where('payment_status', $paymentStatus);
+        }
+
+        if (!empty($categoryIds)) {
+            $allOrdersQuery->whereHas('items.product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
         }
 
         $allOrders = $allOrdersQuery->get();
@@ -1555,6 +1586,12 @@ class ReportController extends Controller
             $ordersQuery->where('payment_status', $paymentStatus);
         }
 
+        if (!empty($categoryIds)) {
+            $ordersQuery->whereHas('items.product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
         if ($request->get('item_sort') === 'channel') {
             $ordersQuery->select('orders.*')->leftJoin('sales_channels', 'sales_channels.id', '=', 'orders.sales_channel_id');
         }
@@ -1578,6 +1615,8 @@ class ReportController extends Controller
             'reportData',
             'summary',
             'salesChannels',
+            'categories',
+            'categoryIds',
             'dateFrom',
             'dateTo',
             'channelId',
@@ -1819,6 +1858,7 @@ class ReportController extends Controller
         $orderStatus = $request->get('order_status');
         $paymentStatus = $request->get('payment_status');
         $groupBy = $request->get('group_by', 'channel');
+        $categoryIds = array_filter((array) $request->get('category_id', []));
 
         $allOrdersQuery = Order::with(['salesChannel', 'items.product.category'])
             ->whereDate('order_date', '>=', $dateFrom)
@@ -1834,6 +1874,12 @@ class ReportController extends Controller
 
         if ($paymentStatus) {
             $allOrdersQuery->where('payment_status', $paymentStatus);
+        }
+
+        if (!empty($categoryIds)) {
+            $allOrdersQuery->whereHas('items.product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
         }
 
         $allOrders = $allOrdersQuery->get();
@@ -2299,13 +2345,15 @@ class ReportController extends Controller
         $dateFrom = $request->get('date_from', date('Y-m-01'));
         $dateTo = $request->get('date_to', date('Y-m-d'));
         $channelId = $request->get('channel_id');
-        $groupBy = $request->get('group_by', 'channel'); // channel, date
+        $groupBy = $request->get('group_by', 'channel'); // channel, date, category
+        $categoryIds = array_filter((array) $request->get('category_id', []));
 
         $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
+        $categories = Category::orderBy('name')->get();
 
-        $summary = $this->buildNetProfitSummary($dateFrom, $dateTo, $channelId);
+        $summary = $this->buildNetProfitSummary($dateFrom, $dateTo, $channelId, $categoryIds);
 
-        $reportData = $this->buildNetProfitGroupedData($dateFrom, $dateTo, $channelId, $groupBy);
+        $reportData = $this->buildNetProfitGroupedData($dateFrom, $dateTo, $channelId, $groupBy, $categoryIds);
 
         $reportData = $this->applyCollectionSort($reportData, $request, [
             'name' => 'name',
@@ -2320,6 +2368,8 @@ class ReportController extends Controller
             'summary',
             'reportData',
             'salesChannels',
+            'categories',
+            'categoryIds',
             'dateFrom',
             'dateTo',
             'channelId',
@@ -2327,12 +2377,18 @@ class ReportController extends Controller
         ));
     }
 
-    protected function buildNetProfitSummary(string $dateFrom, string $dateTo, $channelId)
+    protected function buildNetProfitSummary(string $dateFrom, string $dateTo, $channelId, $categoryIds = [])
     {
         $orderQuery = Order::whereDate('order_date', '>=', $dateFrom)->whereDate('order_date', '<=', $dateTo);
 
         if ($channelId) {
             $orderQuery->where('sales_channel_id', $channelId);
+        }
+
+        if (!empty($categoryIds)) {
+            $orderQuery->whereHas('items.product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
         }
 
         $revenueSummary = $this->buildRevenueSummary($orderQuery->get());
@@ -2351,14 +2407,40 @@ class ReportController extends Controller
             $cogsQuery->where('orders.sales_channel_id', $channelId);
         }
 
+        if (!empty($categoryIds)) {
+            $cogsQuery->whereHas('product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
         $cogs = (float) ($cogsQuery->selectRaw('SUM(order_items.cost_at_sale * order_items.quantity) as total')->value('total') ?? 0);
 
-        $ebayTransactions = $this->buildEbayExpensesQuery($dateFrom, $dateTo, $channelId, null)->get();
+        $ebayTransactionsQuery = $this->buildEbayExpensesQuery($dateFrom, $dateTo, $channelId, null);
+
+        if (!empty($categoryIds)) {
+            $ebayTransactionsQuery->whereHas('order.items.product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
+        $ebayTransactions = $ebayTransactionsQuery->get();
         $ebaySummary = $this->buildEbayExpensesSummary($ebayTransactions);
         $ebayFees = $ebaySummary['transaction_fee'] + $ebaySummary['ad_fee'] + $ebaySummary['other_fees'];
 
-        $ebayLabelCost = (float) $this->buildShippingExpensesQuery('ebay', $dateFrom, $dateTo, $channelId, null)->sum('ebay_shipping_label_cost');
-        $systemLabelCost = (float) $this->buildShippingExpensesQuery('system', $dateFrom, $dateTo, $channelId, null)->sum('shipping_cost');
+        $ebayShippingQuery = $this->buildShippingExpensesQuery('ebay', $dateFrom, $dateTo, $channelId, null);
+        $systemShippingQuery = $this->buildShippingExpensesQuery('system', $dateFrom, $dateTo, $channelId, null);
+
+        if (!empty($categoryIds)) {
+            $ebayShippingQuery->whereHas('items.product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+            $systemShippingQuery->whereHas('items.product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
+        $ebayLabelCost = (float) $ebayShippingQuery->sum('ebay_shipping_label_cost');
+        $systemLabelCost = (float) $systemShippingQuery->sum('shipping_cost');
         $shippingCosts = $ebayLabelCost + $systemLabelCost;
 
         // Only count bill items posted to a nature='expense' account. Purchase Order
@@ -2402,14 +2484,21 @@ class ReportController extends Controller
     }
 
     /**
-     * Contribution-profit breakdown by channel or date (excludes operating
-     * expenses - bills aren't attributable to a single channel/order date).
+     * Contribution-profit breakdown by channel, date, or category (excludes
+     * operating expenses - bills aren't attributable to a single
+     * channel/order date/category).
      * Note: eBay fee rows are keyed by transaction_date (when eBay posted the
      * fee), not order_date, so a 'date' grouping can show a fee on a
      * different day than the order that earned it - fine for 'channel'
      * grouping, a known skew for 'date'.
+     * For 'category': COGS is exact (already recorded per order_item), but
+     * net_revenue/ebay_fees/shipping_costs are order-level amounts, not
+     * recorded per line item - each is split across the categories present in
+     * the order, weighted by that category's share of the order's item
+     * revenue, so a multi-category order's amounts are proportionally
+     * distributed rather than duplicated.
      */
-    protected function buildNetProfitGroupedData(string $dateFrom, string $dateTo, $channelId, string $groupBy)
+    protected function buildNetProfitGroupedData(string $dateFrom, string $dateTo, $channelId, string $groupBy, $categoryIds = [])
     {
         $groups = [];
 
@@ -2425,25 +2514,82 @@ class ReportController extends Controller
             }
         };
 
+        // [key, name, weight] for each category present in the order's items,
+        // weighted by that category's share of the order's item revenue.
+        $categoryWeights = function ($order) {
+            $items = $order->items->reject(fn($item) => $this->isBundleComponentItem($item));
+            $totalRevenue = (float) $items->sum('total_price');
+
+            if ($totalRevenue <= 0) {
+                $categories = $items->map(fn($item) => $item->product->category ?? null)->filter()->unique('id');
+
+                if ($categories->isEmpty()) {
+                    return [['uncategorized', 'Uncategorized', 1.0]];
+                }
+
+                $share = 1 / $categories->count();
+
+                return $categories->map(fn($cat) => [$cat->id, $cat->name, $share])->all();
+            }
+
+            $byCategory = [];
+
+            foreach ($items as $item) {
+                $category = $item->product->category ?? null;
+                $key = $category->id ?? 'uncategorized';
+                $name = $category->name ?? 'Uncategorized';
+
+                if (!isset($byCategory[$key])) {
+                    $byCategory[$key] = ['name' => $name, 'revenue' => 0];
+                }
+
+                $byCategory[$key]['revenue'] += (float) $item->total_price;
+            }
+
+            return collect($byCategory)->map(function ($data, $key) use ($totalRevenue) {
+                return [$key, $data['name'], $data['revenue'] / $totalRevenue];
+            })->values()->all();
+        };
+
         // Net revenue
         $orderQuery = Order::whereDate('order_date', '>=', $dateFrom)
             ->whereDate('order_date', '<=', $dateTo)
             ->whereIn('payment_status', ['paid', 'refunded'])
             ->with('salesChannel');
 
+        if ($groupBy === 'category') {
+            $orderQuery->with('items.product.category');
+        }
+
         if ($channelId) {
             $orderQuery->where('sales_channel_id', $channelId);
         }
 
+        if (!empty($categoryIds)) {
+            $orderQuery->whereHas('items.product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
         foreach ($orderQuery->get() as $order) {
+            $netRevenue = (float) $order->total - (float) ($order->total_refunded ?? 0);
+
+            if ($groupBy === 'category') {
+                foreach ($categoryWeights($order) as [$key, $name, $weight]) {
+                    $ensureGroup($groups, $key, $name);
+                    $groups[$key]['net_revenue'] += $netRevenue * $weight;
+                }
+                continue;
+            }
+
             $key = $groupBy === 'date' ? ($order->order_date ? $order->order_date->format('Y-m-d') : 'Unknown') : ($order->sales_channel_id ?? 0);
             $name = $groupBy === 'date' ? ($order->order_date ? $order->order_date->format('M d, Y') : 'Unknown') : ($order->salesChannel->name ?? 'Direct Sales');
 
             $ensureGroup($groups, $key, $name);
-            $groups[$key]['net_revenue'] += (float) $order->total - (float) ($order->total_refunded ?? 0);
+            $groups[$key]['net_revenue'] += $netRevenue;
         }
 
-        // COGS
+        // COGS - exact per category since it's already recorded per order_item
         $cogsQuery = OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
             ->select('order_items.*', 'orders.order_date', 'orders.sales_channel_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
@@ -2456,22 +2602,72 @@ class ReportController extends Controller
             })
             ->with('order.salesChannel');
 
+        if ($groupBy === 'category') {
+            $cogsQuery->with('product.category');
+        }
+
         if ($channelId) {
             $cogsQuery->where('orders.sales_channel_id', $channelId);
         }
 
+        if (!empty($categoryIds)) {
+            $cogsQuery->whereHas('product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
         foreach ($cogsQuery->get() as $item) {
+            $cogsAmount = (float) ($item->cost_at_sale ?? 0) * $item->quantity;
+
+            if ($groupBy === 'category') {
+                $category = $item->product->category ?? null;
+                $key = $category->id ?? 'uncategorized';
+                $name = $category->name ?? 'Uncategorized';
+
+                $ensureGroup($groups, $key, $name);
+                $groups[$key]['cogs'] += $cogsAmount;
+                continue;
+            }
+
             $order = $item->order;
             $key = $groupBy === 'date' ? ($order->order_date ? $order->order_date->format('Y-m-d') : 'Unknown') : ($order->sales_channel_id ?? 0);
             $name = $groupBy === 'date' ? ($order->order_date ? $order->order_date->format('M d, Y') : 'Unknown') : ($order->salesChannel->name ?? 'Direct Sales');
 
             $ensureGroup($groups, $key, $name);
-            $groups[$key]['cogs'] += (float) ($item->cost_at_sale ?? 0) * $item->quantity;
+            $groups[$key]['cogs'] += $cogsAmount;
         }
 
         // eBay fees (excludes shipping_label - reported below - and refund, already netted into revenue)
-        foreach ($this->buildEbayExpensesQuery($dateFrom, $dateTo, $channelId, null)->with('salesChannel')->get() as $transaction) {
+        $ebayQuery = $this->buildEbayExpensesQuery($dateFrom, $dateTo, $channelId, null)->with('salesChannel');
+
+        if ($groupBy === 'category') {
+            $ebayQuery->with('order.items.product.category');
+        }
+
+        if (!empty($categoryIds)) {
+            $ebayQuery->whereHas('order.items.product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
+        foreach ($ebayQuery->get() as $transaction) {
             if (!in_array($transaction->fee_category, ['sale', 'marketplace_fee_adjustment', 'ad_fee', 'other'])) {
+                continue;
+            }
+
+            $feeAmount = $this->ebayFinanceTransactionValue($transaction);
+
+            if ($groupBy === 'category') {
+                if (!$transaction->order) {
+                    $ensureGroup($groups, 'uncategorized', 'Uncategorized');
+                    $groups['uncategorized']['ebay_fees'] += $feeAmount;
+                    continue;
+                }
+
+                foreach ($categoryWeights($transaction->order) as [$key, $name, $weight]) {
+                    $ensureGroup($groups, $key, $name);
+                    $groups[$key]['ebay_fees'] += $feeAmount * $weight;
+                }
                 continue;
             }
 
@@ -2479,17 +2675,39 @@ class ReportController extends Controller
             $name = $groupBy === 'date' ? ($transaction->transaction_date ? $transaction->transaction_date->format('M d, Y') : 'Unknown') : ($transaction->salesChannel->name ?? 'Unknown Channel');
 
             $ensureGroup($groups, $key, $name);
-            $groups[$key]['ebay_fees'] += $this->ebayFinanceTransactionValue($transaction);
+            $groups[$key]['ebay_fees'] += $feeAmount;
         }
 
         // Shipping label costs (both sources)
         foreach (['ebay' => 'ebay_shipping_label_cost', 'system' => 'shipping_cost'] as $source => $costField) {
-            foreach ($this->buildShippingExpensesQuery($source, $dateFrom, $dateTo, $channelId, null)->with('salesChannel')->get() as $order) {
+            $shippingQuery = $this->buildShippingExpensesQuery($source, $dateFrom, $dateTo, $channelId, null)->with('salesChannel');
+
+            if ($groupBy === 'category') {
+                $shippingQuery->with('items.product.category');
+            }
+
+            if (!empty($categoryIds)) {
+                $shippingQuery->whereHas('items.product', function ($q) use ($categoryIds) {
+                    $q->whereIn('category_id', $categoryIds);
+                });
+            }
+
+            foreach ($shippingQuery->get() as $order) {
+                $costAmount = (float) $order->{$costField};
+
+                if ($groupBy === 'category') {
+                    foreach ($categoryWeights($order) as [$key, $name, $weight]) {
+                        $ensureGroup($groups, $key, $name);
+                        $groups[$key]['shipping_costs'] += $costAmount * $weight;
+                    }
+                    continue;
+                }
+
                 $key = $groupBy === 'date' ? ($order->order_date ? $order->order_date->format('Y-m-d') : 'Unknown') : ($order->sales_channel_id ?? 0);
                 $name = $groupBy === 'date' ? ($order->order_date ? $order->order_date->format('M d, Y') : 'Unknown') : ($order->salesChannel->name ?? 'Direct Sales');
 
                 $ensureGroup($groups, $key, $name);
-                $groups[$key]['shipping_costs'] += (float) $order->{$costField};
+                $groups[$key]['shipping_costs'] += $costAmount;
             }
         }
 
@@ -2509,9 +2727,10 @@ class ReportController extends Controller
         $dateTo = $request->get('date_to', date('Y-m-d'));
         $channelId = $request->get('channel_id');
         $groupBy = $request->get('group_by', 'channel');
+        $categoryIds = array_filter((array) $request->get('category_id', []));
 
-        $summary = $this->buildNetProfitSummary($dateFrom, $dateTo, $channelId);
-        $groupedData = $this->buildNetProfitGroupedData($dateFrom, $dateTo, $channelId, $groupBy);
+        $summary = $this->buildNetProfitSummary($dateFrom, $dateTo, $channelId, $categoryIds);
+        $groupedData = $this->buildNetProfitGroupedData($dateFrom, $dateTo, $channelId, $groupBy, $categoryIds);
 
         $export = new \App\Exports\NetProfitReportExport($groupedData->toArray(), $summary, $groupBy);
 
@@ -2526,7 +2745,7 @@ class ReportController extends Controller
      */
     public function inventoryValuation(Request $request)
     {
-        $categoryId = $request->get('category_id');
+        $categoryIds = array_filter((array) $request->get('category_id', []));
         $warehouseId = $request->get('warehouse_id');
         $groupBy = $request->get('group_by', 'product'); // product, category, warehouse
 
@@ -2542,9 +2761,9 @@ class ReportController extends Controller
             $query->where('warehouse_id', $warehouseId);
         }
 
-        if ($categoryId) {
-            $query->whereHas('product', function ($q) use ($categoryId) {
-                $q->where('category_id', $categoryId);
+        if (!empty($categoryIds)) {
+            $query->whereHas('product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
             });
         }
 
@@ -2647,7 +2866,7 @@ class ReportController extends Controller
             'reconciliation',
             'categories',
             'warehouses',
-            'categoryId',
+            'categoryIds',
             'warehouseId',
             'groupBy'
         ));
@@ -2655,7 +2874,7 @@ class ReportController extends Controller
 
     public function exportInventoryValuation(Request $request)
     {
-        $categoryId = $request->get('category_id');
+        $categoryIds = array_filter((array) $request->get('category_id', []));
         $warehouseId = $request->get('warehouse_id');
         $groupBy = $request->get('group_by', 'product');
 
@@ -2667,9 +2886,9 @@ class ReportController extends Controller
             $query->where('warehouse_id', $warehouseId);
         }
 
-        if ($categoryId) {
-            $query->whereHas('product', function ($q) use ($categoryId) {
-                $q->where('category_id', $categoryId);
+        if (!empty($categoryIds)) {
+            $query->whereHas('product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
             });
         }
 
@@ -4328,10 +4547,12 @@ class ReportController extends Controller
         $productId = $request->get('product_id');
         $sku = $request->get('sku');
         $groupBy = $request->get('group_by', 'product'); // product, channel, date, order
+        $categoryIds = array_filter((array) $request->get('category_id', []));
 
         // Get filter options
         $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
         $products = Product::where('delete_status', '0')->orderBy('name')->get();
+        $categories = Category::orderBy('name')->get();
 
         // Build order items query
         $query = OrderItem::select(
@@ -4379,6 +4600,12 @@ class ReportController extends Controller
             $query->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
+        if (!empty($categoryIds)) {
+            $query->whereHas('product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
         // Bundle component quantities, fetched separately since the main query
@@ -4397,6 +4624,12 @@ class ReportController extends Controller
 
         if ($orderStatus) {
             $componentQuery->where('orders.order_status', $orderStatus);
+        }
+
+        if (!empty($categoryIds)) {
+            $componentQuery->whereHas('bundleProduct', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
         }
 
         $componentItems = $componentQuery->get();
@@ -4527,6 +4760,12 @@ class ReportController extends Controller
             $paginatedQuery->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
+        if (!empty($categoryIds)) {
+            $paginatedQuery->whereHas('product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
         $paginatedQuery = $this->applyQuerySort($paginatedQuery, $request, [
             'date' => 'orders.order_date',
             'order_number' => 'orders.order_number',
@@ -4549,6 +4788,8 @@ class ReportController extends Controller
             'summary',
             'salesChannels',
             'products',
+            'categories',
+            'categoryIds',
             'dateFrom',
             'dateTo',
             'channelId',
@@ -4854,6 +5095,7 @@ class ReportController extends Controller
         $productId = $request->get('product_id');
         $sku = $request->get('sku');
         $groupBy = $request->get('group_by', 'product');
+        $categoryIds = array_filter((array) $request->get('category_id', []));
 
         // Build query
         $query = OrderItem::select(
@@ -4896,6 +5138,12 @@ class ReportController extends Controller
             $query->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
+        if (!empty($categoryIds)) {
+            $query->whereHas('product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
         // Bundle component quantities, fetched separately since the main query
@@ -4913,6 +5161,12 @@ class ReportController extends Controller
 
         if ($orderStatus) {
             $componentQuery->where('orders.order_status', $orderStatus);
+        }
+
+        if (!empty($categoryIds)) {
+            $componentQuery->whereHas('bundleProduct', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
         }
 
         $componentItems = $componentQuery->get();
@@ -4972,10 +5226,12 @@ class ReportController extends Controller
         $productId = $request->get('product_id');
         $sku = $request->get('sku');
         $groupBy = $request->get('group_by', 'product'); // product, channel, date, order
+        $categoryIds = array_filter((array) $request->get('category_id', []));
 
         // Get filter options
         $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
         $products = Product::where('delete_status', '0')->orderBy('name')->get();
+        $categories = Category::orderBy('name')->get();
 
         // Build order items query - only paid orders for profit calculation
         $query = OrderItem::select(
@@ -5014,6 +5270,12 @@ class ReportController extends Controller
             $query->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
+        if (!empty($categoryIds)) {
+            $query->whereHas('product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
         // Bundle component quantities, fetched separately since the main query
@@ -5027,6 +5289,7 @@ class ReportController extends Controller
             ->where('order_items.is_bundle_summary', false)
             ->when($channelId, fn($q) => $q->where('orders.sales_channel_id', $channelId))
             ->when($orderStatus, fn($q) => $q->where('orders.order_status', $orderStatus))
+            ->when(!empty($categoryIds), fn($q) => $q->whereHas('bundleProduct', fn($q2) => $q2->whereIn('category_id', $categoryIds)))
             ->get();
 
         // Calculate summary
@@ -5140,6 +5403,12 @@ class ReportController extends Controller
             $paginatedQuery->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
+        if (!empty($categoryIds)) {
+            $paginatedQuery->whereHas('product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
         $paginatedQuery = $this->applyQuerySort($paginatedQuery, $request, [
             'date' => 'orders.order_date',
             'order_number' => 'orders.order_number',
@@ -5161,6 +5430,8 @@ class ReportController extends Controller
             'summary',
             'salesChannels',
             'products',
+            'categories',
+            'categoryIds',
             'dateFrom',
             'dateTo',
             'channelId',
@@ -5184,6 +5455,7 @@ class ReportController extends Controller
         $productId = $request->get('product_id');
         $sku = $request->get('sku');
         $groupBy = $request->get('group_by', 'product');
+        $categoryIds = array_filter((array) $request->get('category_id', []));
 
         // Build query
         $query = OrderItem::select(
@@ -5222,6 +5494,12 @@ class ReportController extends Controller
             $query->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
+        if (!empty($categoryIds)) {
+            $query->whereHas('product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
         // Bundle component quantities, fetched separately since the main query
@@ -5235,6 +5513,7 @@ class ReportController extends Controller
             ->where('order_items.is_bundle_summary', false)
             ->when($channelId, fn($q) => $q->where('orders.sales_channel_id', $channelId))
             ->when($orderStatus, fn($q) => $q->where('orders.order_status', $orderStatus))
+            ->when(!empty($categoryIds), fn($q) => $q->whereHas('bundleProduct', fn($q2) => $q2->whereIn('category_id', $categoryIds)))
             ->get();
 
         // Calculate summary
@@ -5291,10 +5570,12 @@ class ReportController extends Controller
         $productId = $request->get('product_id');
         $sku = $request->get('sku');
         $groupBy = $request->get('group_by', 'product');
+        $categoryIds = array_filter((array) $request->get('category_id', []));
 
         // Get filter options
         $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
         $products = Product::where('delete_status', '0')->orderBy('name')->get();
+        $categories = Category::orderBy('name')->get();
 
         // Build order items query
         $query = OrderItem::select(
@@ -5332,6 +5613,12 @@ class ReportController extends Controller
             $query->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
+        if (!empty($categoryIds)) {
+            $query->whereHas('product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
         // Bundle component quantities, fetched separately since the main query
@@ -5346,6 +5633,7 @@ class ReportController extends Controller
             ->when($orderStatus, fn($q) => $q->where('orders.order_status', $orderStatus))
             ->when($productId, fn($q) => $q->where('order_items.product_id', $productId))
             ->when($sku, fn($q) => $q->where('order_items.sku', 'like', '%' . $sku . '%'))
+            ->when(!empty($categoryIds), fn($q) => $q->whereHas('bundleProduct', fn($q2) => $q2->whereIn('category_id', $categoryIds)))
             ->get();
 
         // Calculate summary (all orders)
@@ -5445,6 +5733,8 @@ class ReportController extends Controller
             'paidSummary',
             'salesChannels',
             'products',
+            'categories',
+            'categoryIds',
             'dateFrom',
             'dateTo',
             'channelId',
@@ -5468,6 +5758,7 @@ class ReportController extends Controller
         $productId = $request->get('product_id');
         $sku = $request->get('sku');
         $groupBy = $request->get('group_by', 'product');
+        $categoryIds = array_filter((array) $request->get('category_id', []));
 
         // Build query
         $query = OrderItem::select(
@@ -5505,6 +5796,12 @@ class ReportController extends Controller
             $query->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
+        if (!empty($categoryIds)) {
+            $query->whereHas('product', function ($q) use ($categoryIds) {
+                $q->whereIn('category_id', $categoryIds);
+            });
+        }
+
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
         // Bundle component quantities, fetched separately since the main query
@@ -5519,6 +5816,7 @@ class ReportController extends Controller
             ->when($orderStatus, fn($q) => $q->where('orders.order_status', $orderStatus))
             ->when($productId, fn($q) => $q->where('order_items.product_id', $productId))
             ->when($sku, fn($q) => $q->where('order_items.sku', 'like', '%' . $sku . '%'))
+            ->when(!empty($categoryIds), fn($q) => $q->whereHas('bundleProduct', fn($q2) => $q2->whereIn('category_id', $categoryIds)))
             ->get();
 
         // Calculate summary
