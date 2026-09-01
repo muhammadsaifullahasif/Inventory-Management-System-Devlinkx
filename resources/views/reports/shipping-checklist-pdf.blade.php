@@ -326,36 +326,82 @@
 
     <!-- Table -->
     @if(count($checklistItems) > 0)
+        @php
+            $colWidths = [
+                'id' => 4,
+                'order_id' => 12,
+                'image' => 6,
+                'product' => 32,
+                'sales_channel' => 10,
+                'quantity' => 5,
+                'quantity_in_warehouse' => 16,
+                'tracking' => 15,
+            ];
+            $visibleColumns = $visibleColumns ?? array_fill_keys(array_keys($colWidths), true);
+            $visibleWidthSum = 0;
+            foreach ($colWidths as $key => $w) {
+                if ($visibleColumns[$key] ?? true) {
+                    $visibleWidthSum += $w;
+                }
+            }
+            $visibleWidthSum = $visibleWidthSum ?: 1;
+            $colStyle = function ($key) use ($colWidths, $visibleWidthSum) {
+                return 'width: ' . round($colWidths[$key] / $visibleWidthSum * 100, 2) . '%;';
+            };
+        @endphp
         <div class="table-container">
             <table>
                 <thead>
                     <tr>
-                        <th class="col-num center">#</th>
-                        <th class="col-order">Order ID</th>
-                        <th class="col-image center">Image</th>
-                        <th class="col-product">Product (SKU, Weight, Dimensions)</th>
-                        <th class="col-channel">Sales Channel</th>
-                        <th class="col-qty center">Qty</th>
-                        <th class="col-stock">Qty in Warehouse</th>
-                        <th class="col-tracking">Tracking / Deadline</th>
+                        @if($visibleColumns['id'] ?? true)
+                            <th class="col-num center" style="{{ $colStyle('id') }}">#</th>
+                        @endif
+                        @if($visibleColumns['image'] ?? true)
+                            <th class="col-image center" style="{{ $colStyle('image') }}">Image</th>
+                        @endif
+                        @if($visibleColumns['sales_channel'] ?? true)
+                            <th class="col-channel" style="{{ $colStyle('sales_channel') }}">Sales Channel</th>
+                        @endif
+                        @if($visibleColumns['order_id'] ?? true)
+                            <th class="col-order" style="{{ $colStyle('order_id') }}">Order ID</th>
+                        @endif
+                        @if($visibleColumns['product'] ?? true)
+                            <th class="col-product" style="{{ $colStyle('product') }}">Product (SKU, Weight, Dimensions)</th>
+                        @endif
+                        @if($visibleColumns['quantity'] ?? true)
+                            <th class="col-qty center" style="{{ $colStyle('quantity') }}">Qty</th>
+                        @endif
+                        @if($visibleColumns['quantity_in_warehouse'] ?? true)
+                            <th class="col-stock" style="{{ $colStyle('quantity_in_warehouse') }}">Qty in Warehouse</th>
+                        @endif
+                        @if($visibleColumns['tracking'] ?? true)
+                            <th class="col-tracking" style="{{ $colStyle('tracking') }}">Tracking / Deadline</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
                     @php $i = 1; @endphp
                     @foreach($checklistItems as $item)
                         <tr>
-                            <td class="col-num">{{ $i++ }}</td>
-                            <td class="col-order">
-                                <strong>{{ $item['ebay_order_id'] }}</strong>
-                            </td>
-                            <td class="col-image">
-                                @if($item['image_url'])
-                                    <img src="{{ $item['image_url'] }}" alt="{{ $item['product_name'] }}" class="product-img">
-                                @else
-                                    <div class="no-image">No Img</div>
-                                @endif
-                            </td>
-                            <td class="col-product">
+                            @if($visibleColumns['id'] ?? true)
+                                <td class="col-num" style="{{ $colStyle('id') }}">{{ $i++ }}</td>
+                            @endif
+                            @if($visibleColumns['order_id'] ?? true)
+                                <td class="col-order" style="{{ $colStyle('order_id') }}">
+                                    <strong>{{ $item['ebay_order_id'] }}</strong>
+                                </td>
+                            @endif
+                            @if($visibleColumns['image'] ?? true)
+                                <td class="col-image" style="{{ $colStyle('image') }}">
+                                    @if($item['image_url'])
+                                        <img src="{{ $item['image_url'] }}" alt="{{ $item['product_name'] }}" class="product-img">
+                                    @else
+                                        <div class="no-image">No Img</div>
+                                    @endif
+                                </td>
+                            @endif
+                            @if($visibleColumns['product'] ?? true)
+                            <td class="col-product" style="{{ $colStyle('product') }}">
                                 <div class="product-name">
                                     {{ $item['product_name'] }}
                                     @if($item['is_bundle'])
@@ -415,9 +461,15 @@
                                     </div>
                                 @endif
                             </td>
-                            <td class="col-channel">{{ $item['sales_channel'] }}</td>
-                            <td class="col-qty"><strong>{{ $item['quantity_ordered'] }}</strong></td>
-                            <td class="col-stock">
+                            @endif
+                            @if($visibleColumns['sales_channel'] ?? true)
+                                <td class="col-channel" style="{{ $colStyle('sales_channel') }}">{{ $item['sales_channel'] }}</td>
+                            @endif
+                            @if($visibleColumns['quantity'] ?? true)
+                                <td class="col-qty" style="{{ $colStyle('quantity') }}"><strong>{{ $item['quantity_ordered'] }}</strong></td>
+                            @endif
+                            @if($visibleColumns['quantity_in_warehouse'] ?? true)
+                            <td class="col-stock" style="{{ $colStyle('quantity_in_warehouse') }}">
                                 @if($item['is_bundle'])
                                     <span style="color: #666; font-size: 8px;">See components</span>
                                 @elseif(!empty($item['warehouse_stocks']))
@@ -435,7 +487,9 @@
                                     <span class="stock-warning">No stock</span>
                                 @endif
                             </td>
-                            <td class="col-tracking">
+                            @endif
+                            @if($visibleColumns['tracking'] ?? true)
+                            <td class="col-tracking" style="{{ $colStyle('tracking') }}">
                                 @php
                                     $allTrackingNumbers = $item['order']->getAllTrackingNumbers();
                                 @endphp
@@ -480,6 +534,7 @@
                                     @endif
                                 @endif
                             </td>
+                            @endif
                         </tr>
                     @endforeach
                 </tbody>

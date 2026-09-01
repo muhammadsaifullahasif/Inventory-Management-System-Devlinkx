@@ -3178,11 +3178,27 @@ class ReportController extends Controller
             'total_quantity' => collect($checklistItems)->sum('quantity_ordered'),
         ];
 
+        // Column visibility - defaults mirror the toggles on the HTML checklist page,
+        // overridden by the 'shipping_checklist_columns' cookie set by that page's JS.
+        $columnDefaults = [
+            'id' => true,
+            'order_id' => true,
+            'image' => false,
+            'product' => true,
+            'sales_channel' => false,
+            'quantity' => true,
+            'quantity_in_warehouse' => true,
+            'tracking' => true,
+        ];
+        $savedColumns = json_decode($request->cookie('shipping_checklist_columns', ''), true) ?: [];
+        $visibleColumns = array_merge($columnDefaults, array_intersect_key($savedColumns, $columnDefaults));
+
         $pdf = Pdf::loadView('reports.shipping-checklist-pdf', compact(
             'checklistItems',
             'summary',
             'dateFrom',
-            'dateTo'
+            'dateTo',
+            'visibleColumns'
         ))
         ->setPaper('a4', 'landscape')
         ->setOption('isRemoteEnabled', true);
