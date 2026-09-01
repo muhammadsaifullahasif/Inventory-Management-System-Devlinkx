@@ -356,23 +356,23 @@
                         @if($visibleColumns['id'] ?? true)
                             <th class="col-num center" style="{{ $colStyle('id') }}">#</th>
                         @endif
+                        @if($visibleColumns['order_id'] ?? true)
+                            <th class="col-order" style="{{ $colStyle('order_id') }}">Order ID</th>
+                        @endif
                         @if($visibleColumns['image'] ?? true)
                             <th class="col-image center" style="{{ $colStyle('image') }}">Image</th>
+                        @endif
+                        @if($visibleColumns['product'] ?? true)
+                            <th class="col-product" style="{{ $colStyle('product') }}">Product (SKU, Weight, Dimensions)</th>
                         @endif
                         @if($visibleColumns['sales_channel'] ?? true)
                             <th class="col-channel" style="{{ $colStyle('sales_channel') }}">Sales Channel</th>
                         @endif
-                        @if($visibleColumns['order_id'] ?? true)
-                            <th class="col-order" style="{{ $colStyle('order_id') }}">Order ID</th>
+                        @if($visibleColumns['quantity'] ?? true)
+                            <th class="col-qty center" style="{{ $colStyle('quantity') }}">Qty</th>
                         @endif
-                        @if($visibleColumns['product_name'] ?? true)
-                            <th class="col-product" style="{{ $colStyle('product_name') }}">Product (SKU, Weight, Dimensions)</th>
-                        @endif
-                        @if($visibleColumns['quantity_ordered'] ?? true)
-                            <th class="col-qty center" style="{{ $colStyle('quantity_ordered') }}">Qty</th>
-                        @endif
-                        @if($visibleColumns['total_stock'] ?? true)
-                            <th class="col-stock" style="{{ $colStyle('total_stock') }}">Qty in Warehouse</th>
+                        @if($visibleColumns['quantity_in_warehouse'] ?? true)
+                            <th class="col-stock" style="{{ $colStyle('quantity_in_warehouse') }}">Qty in Warehouse</th>
                         @endif
                         @if($visibleColumns['tracking'] ?? true)
                             <th class="col-tracking" style="{{ $colStyle('tracking') }}">Tracking / Deadline</th>
