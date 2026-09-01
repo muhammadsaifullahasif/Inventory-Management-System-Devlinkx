@@ -332,7 +332,7 @@
                         ['key' => 'sales_channel', 'label' => 'Sales Channel', 'default' => false],
                         ['key' => 'quantity', 'label' => 'Qty', 'default' => true],
                         ['key' => 'quantity_in_warehouse', 'label' => 'Qty in Warehouse', 'default' => true],
-                        ['key' => 'tracking', 'label' => '', 'default' => true],
+                        ['key' => 'tracking', 'label' => 'Handling/Tracking', 'default' => true],
                     ];
                 @endphp
                 @include('partials.column-toggle', ['tableId' => 'shippingChecklistTable', 'cookieName' => 'shipping_checklist_columns', 'columns' => $shippingChecklistColumns])
@@ -362,7 +362,7 @@
                                 @include('partials.sortable-th', ['column' => 'product_name', 'label' => 'Product (SKU, Weight, Dimensions)', 'dataColumn' => 'product'])
                                 @include('partials.sortable-th', ['column' => 'quantity_ordered', 'label' => 'Qty', 'dataColumn' => 'quantity', 'style' => 'width: 60px; text-align: center;'])
                                 @include('partials.sortable-th', ['column' => 'total_stock', 'label' => 'Qty in Warehouse', 'dataColumn' => 'quantity_in_warehouse', 'style' => 'width: 180px;'])
-                                <th data-column="tracking"></th>
+                                <th data-column="tracking">Handling/Tracking</th>
                             </tr>
                         </thead>
                         <tbody>
