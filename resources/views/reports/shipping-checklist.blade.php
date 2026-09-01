@@ -356,10 +356,10 @@
                                     <span class="d-none d-print-inline">&#9744;</span>
                                 </th> --}}
                                 <th data-column="id">#</th>
-                                @include('partials.sortable-th', ['column' => 'order_id', 'label' => 'Order ID', 'dataColumn' => 'order_id', 'style' => 'width: 130px;'])
                                 <th data-column="image" style="width: 55px;">Image</th>
-                                @include('partials.sortable-th', ['column' => 'product_name', 'label' => 'Product (SKU, Weight, Dimensions)', 'dataColumn' => 'product'])
                                 @include('partials.sortable-th', ['column' => 'sales_channel', 'label' => 'Sales Channel', 'dataColumn' => 'sales_channel', 'style' => 'width: 100px;'])
+                                @include('partials.sortable-th', ['column' => 'order_id', 'label' => 'Order ID', 'dataColumn' => 'order_id', 'style' => 'width: 130px;'])
+                                @include('partials.sortable-th', ['column' => 'product_name', 'label' => 'Product (SKU, Weight, Dimensions)', 'dataColumn' => 'product'])
                                 @include('partials.sortable-th', ['column' => 'quantity_ordered', 'label' => 'Qty', 'dataColumn' => 'quantity', 'style' => 'width: 60px; text-align: center;'])
                                 @include('partials.sortable-th', ['column' => 'total_stock', 'label' => 'Qty in Warehouse', 'dataColumn' => 'quantity_in_warehouse', 'style' => 'width: 180px;'])
                                 <th data-column="tracking"></th>
@@ -376,9 +376,6 @@
                                         <span class="print-checkbox d-none d-print-inline-block"></span>
                                         <input type="checkbox" class="form-check-input d-print-none" style="margin: 0;">
                                     </td> --}}
-                                    <td data-column="order_id" class="text-center">
-                                        <strong>{{ $item['ebay_order_id'] }}</strong>
-                                    </td>
                                     <td data-column="image" class="text-center">
                                         @if($item['image_url'])
                                             <img src="{{ $item['image_url'] }}" alt="{{ $item['product_name'] }}"
@@ -388,6 +385,10 @@
                                                 <i class="feather-image text-muted"></i>
                                             </div>
                                         @endif
+                                    </td>
+                                    <td data-column="sales_channel">{{ $item['sales_channel'] }}</td>
+                                    <td data-column="order_id" class="text-center">
+                                        <strong>{{ $item['ebay_order_id'] }}</strong>
                                     </td>
                                     <td data-column="product">
                                         <div class="product-details">
@@ -451,7 +452,6 @@
                                             @endif
                                         </div>
                                     </td>
-                                    <td data-column="sales_channel">{{ $item['sales_channel'] }}</td>
                                     <td data-column="quantity" class="text-center">
                                         <strong>{{ $item['quantity_ordered'] }}</strong>
                                     </td>
