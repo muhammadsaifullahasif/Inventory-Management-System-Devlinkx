@@ -1485,7 +1485,7 @@
                                 <span>Mark as Read</span>
                             </a>
                         </div>
-                        <div id="notification-list">
+                        <div id="notification-list" style="max-height: 320px; overflow-y: auto;">
                             <div class="d-flex justify-content-between align-items-center flex-column p-4">
                                 <p class="text-muted mb-0">Loading...</p>
                             </div>
