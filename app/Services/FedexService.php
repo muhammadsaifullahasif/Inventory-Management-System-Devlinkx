@@ -472,9 +472,19 @@ class FedexService
                     'status'      => 'Unknown',
                     'delivered'   => false,
                     'delivered_at' => null,
+                    'weight'         => null,
+                    'weight_unit'    => null,
+                    'length'         => null,
+                    'width'          => null,
+                    'height'         => null,
+                    'dimension_unit' => null,
                     'raw'         => $data,
                 ];
             }
+
+            // FedEx-recorded weight/dimensions, when available (not always present — depends on scan data)
+            $weightEntry = $trackResult['packageDetails']['weightAndDimensions']['weight'][0] ?? null;
+            $dimEntry    = $trackResult['packageDetails']['weightAndDimensions']['dimensions'][0] ?? null;
 
             $latestStatus = $trackResult['latestStatusDetail'] ?? [];
             $statusCode   = $latestStatus['code'] ?? 'UNKNOWN';
@@ -496,11 +506,17 @@ class FedexService
             }
 
             return [
-                'status_code'  => $statusCode,
-                'status'       => $statusText,
-                'delivered'    => $delivered,
-                'delivered_at' => $deliveredAt,
-                'raw'          => $trackResult,
+                'status_code'    => $statusCode,
+                'status'         => $statusText,
+                'delivered'      => $delivered,
+                'delivered_at'   => $deliveredAt,
+                'weight'         => isset($weightEntry['value']) ? (float) $weightEntry['value'] : null,
+                'weight_unit'    => $weightEntry['unit'] ?? null,
+                'length'         => isset($dimEntry['length']) ? (float) $dimEntry['length'] : null,
+                'width'          => isset($dimEntry['width'])  ? (float) $dimEntry['width']  : null,
+                'height'         => isset($dimEntry['height']) ? (float) $dimEntry['height'] : null,
+                'dimension_unit' => $dimEntry['units'] ?? null,
+                'raw'            => $trackResult,
             ];
         } catch (\RuntimeException $e) {
             throw $e;

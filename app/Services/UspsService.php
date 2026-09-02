@@ -276,12 +276,21 @@ class UspsService
                 }
             }
 
+            // USPS-recorded weight/dimensions, when available (field names per USPS Tracking v3 docs — unverified, no live creds tested yet)
+            $packageDesc = $data['packageDescription'] ?? $data;
+
             return [
-                'status_code'  => $statusCategory,
-                'status'       => $data['statusSummary'] ?? $data['status'] ?? 'Unknown',
-                'delivered'    => $delivered,
-                'delivered_at' => $deliveredAt,
-                'raw'          => $data,
+                'status_code'    => $statusCategory,
+                'status'         => $data['statusSummary'] ?? $data['status'] ?? 'Unknown',
+                'delivered'      => $delivered,
+                'delivered_at'   => $deliveredAt,
+                'weight'         => isset($packageDesc['weight']) ? (float) $packageDesc['weight'] : null,
+                'weight_unit'    => $packageDesc['weightUOM'] ?? ($packageDesc['weight'] ? 'lb' : null),
+                'length'         => isset($packageDesc['length']) ? (float) $packageDesc['length'] : null,
+                'width'          => isset($packageDesc['width'])  ? (float) $packageDesc['width']  : null,
+                'height'         => isset($packageDesc['height']) ? (float) $packageDesc['height'] : null,
+                'dimension_unit' => $packageDesc['dimensionsUOM'] ?? null,
+                'raw'            => $data,
             ];
         } catch (\RuntimeException $e) {
             throw $e;
