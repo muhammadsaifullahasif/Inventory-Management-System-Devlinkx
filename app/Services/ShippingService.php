@@ -654,6 +654,15 @@ class ShippingService
         $fedexWeightUnit = in_array(strtolower($weightUnit), ['kg', 'kgs', 'kilogram', 'kilograms']) ? 'KG' : 'LB';
         $fedexDimUnit    = strtolower($dimensionUnit) === 'cm' ? 'CM' : 'IN';
 
+        // Customer reference actually used for this shipment
+        $customerRef = substr(
+            !empty($unitOverrides['customer_reference'])
+                ? $unitOverrides['customer_reference']
+                : $this->getCustomerReference($order),
+            0,
+            30
+        );
+
         // Build shipper address from carrier
         $shipperStreetLines = array_values(array_filter([
             $carrier->shipper_address ?? '',
@@ -796,13 +805,7 @@ class ShippingService
                     ],
                     'customerReferences' => [[
                         'customerReferenceType' => 'CUSTOMER_REFERENCE',
-                        'value' => substr(
-                            !empty($unitOverrides['customer_reference'])
-                                ? $unitOverrides['customer_reference']
-                                : $this->getCustomerReference($order),
-                            0,
-                            30
-                        ),
+                        'value' => $customerRef,
                     ]],
                 ]],
 
@@ -832,11 +835,18 @@ class ShippingService
         Storage::put($filename, $labelData);
 
         return [
-            'tracking_number'   => $trackingNumber,
-            'label_path'        => $filename,
-            'carrier_name'      => $carrier->name,
-            'shipping_cost'     => $result['shipping_cost'] ?? null,
-            'shipping_currency' => $result['shipping_currency'] ?? 'USD',
+            'tracking_number'    => $trackingNumber,
+            'label_path'         => $filename,
+            'carrier_name'       => $carrier->name,
+            'shipping_cost'      => $result['shipping_cost'] ?? null,
+            'shipping_currency'  => $result['shipping_currency'] ?? 'USD',
+            'weight'             => round($totalWeight, 2),
+            'length'             => $maxLength,
+            'width'              => $maxWidth,
+            'height'             => $maxHeight,
+            'weight_unit'        => $weightUnit,
+            'dimension_unit'     => $dimensionUnit,
+            'customer_reference' => $customerRef,
         ];
     }
 
@@ -1057,12 +1067,19 @@ class ShippingService
             Storage::put($filename, $labelData);
 
             $packages[] = [
-                'tracking_number'   => $trackingNumber,
-                'label_path'        => $filename,
-                'package_number'    => $i + 1,
-                'shipping_cost'     => $result['shipping_cost'] ?? null,
-                'shipping_currency' => $result['shipping_currency'] ?? 'USD',
-                'declared_value'    => $declaredValue > 0 ? round($declaredValue, 2) : null,
+                'tracking_number'    => $trackingNumber,
+                'label_path'         => $filename,
+                'package_number'     => $i + 1,
+                'shipping_cost'      => $result['shipping_cost'] ?? null,
+                'shipping_currency'  => $result['shipping_currency'] ?? 'USD',
+                'declared_value'     => $declaredValue > 0 ? round($declaredValue, 2) : null,
+                'weight'             => round($weight, 2),
+                'length'             => $length,
+                'width'              => $width,
+                'height'             => $height,
+                'weight_unit'        => $weightUnit,
+                'dimension_unit'     => $dimensionUnit,
+                'customer_reference' => $customerRef,
             ];
         }
 
@@ -1438,6 +1455,14 @@ class ShippingService
             $order, $carrier, 'lbs', 'in', $unitOverrides, [], $itemOverrides
         );
 
+        $customerRef = substr(
+            !empty($unitOverrides['customer_reference'])
+                ? $unitOverrides['customer_reference']
+                : $this->getCustomerReference($order),
+            0,
+            30
+        );
+
         $recipientStreetLines = array_values(array_filter([
             $order->shipping_address_line1 ?? '',
             $order->shipping_address_line2 ?? null,
@@ -1474,13 +1499,7 @@ class ShippingService
                 'rateIndicator'      => 'SP',
                 'processingCategory' => 'MACHINABLE',
                 'mailingDate'        => date('Y-m-d'),
-                'referenceNumber'    => substr(
-                    !empty($unitOverrides['customer_reference'])
-                        ? $unitOverrides['customer_reference']
-                        : $this->getCustomerReference($order),
-                    0,
-                    30
-                ),
+                'referenceNumber'    => $customerRef,
             ],
             'senderAccountNumber' => $carrier->account_number ?? '',
         ];
@@ -1495,11 +1514,18 @@ class ShippingService
         Storage::put($filename, base64_decode($labelBase64));
 
         return [
-            'tracking_number'   => $trackingNumber,
-            'label_path'        => $filename,
-            'carrier_name'      => $carrier->name,
-            'shipping_cost'     => $result['shipping_cost'] ?? null,
-            'shipping_currency' => $result['shipping_currency'] ?? 'USD',
+            'tracking_number'    => $trackingNumber,
+            'label_path'         => $filename,
+            'carrier_name'       => $carrier->name,
+            'shipping_cost'      => $result['shipping_cost'] ?? null,
+            'shipping_currency'  => $result['shipping_currency'] ?? 'USD',
+            'weight'             => round($weight, 2),
+            'length'             => $length,
+            'width'              => $width,
+            'height'             => $height,
+            'weight_unit'        => 'lbs',
+            'dimension_unit'     => 'in',
+            'customer_reference' => $customerRef,
         ];
     }
 
@@ -1587,11 +1613,18 @@ class ShippingService
             Storage::put($filename, base64_decode($labelBase64));
 
             $packages[] = [
-                'tracking_number'   => $trackingNumber,
-                'label_path'        => $filename,
-                'package_number'    => $i + 1,
-                'shipping_cost'     => $result['shipping_cost'] ?? null,
-                'shipping_currency' => $result['shipping_currency'] ?? 'USD',
+                'tracking_number'    => $trackingNumber,
+                'label_path'         => $filename,
+                'package_number'     => $i + 1,
+                'shipping_cost'      => $result['shipping_cost'] ?? null,
+                'shipping_currency'  => $result['shipping_currency'] ?? 'USD',
+                'weight'             => round($weight, 2),
+                'length'             => $length,
+                'width'              => $width,
+                'height'             => $height,
+                'weight_unit'        => 'lbs',
+                'dimension_unit'     => 'in',
+                'customer_reference' => $customerRef,
             ];
         }
 

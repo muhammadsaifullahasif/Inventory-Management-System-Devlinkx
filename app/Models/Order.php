@@ -333,18 +333,29 @@ class Order extends Model
 
     /**
      * Add a tracking number to this order (for multi-package shipments).
+     *
+     * @param array $details Extra inputs entered at label generation time:
+     *   weight, length, width, height, weight_unit, dimension_unit, customer_reference, declared_value
      */
-    public function addTrackingNumber(string $trackingNumber, string $carrier, ?string $labelPath = null, ?float $declaredValue = null): void
+    public function addTrackingNumber(string $trackingNumber, string $carrier, ?string $labelPath = null, array $details = []): void
     {
         $packages = $this->getMetaArray('shipping_packages', []);
 
-        $packages[] = [
-            'tracking_number' => $trackingNumber,
-            'carrier' => $carrier,
-            'label_path' => $labelPath,
-            'declared_value' => $declaredValue, // reference only — FedEx already factors this into shipping_cost, not recalculated here
+        $packages[] = array_merge([
+            'tracking_number'    => $trackingNumber,
+            'carrier'            => $carrier,
+            'label_path'         => $labelPath,
+            'weight'             => null,
+            'length'             => null,
+            'width'              => null,
+            'height'             => null,
+            'weight_unit'        => null,
+            'dimension_unit'     => null,
+            'customer_reference' => null,
+            'declared_value'     => null, // reference only — FedEx already factors this into shipping_cost, not recalculated here
+        ], $details, [
             'created_at' => now()->toIso8601String(),
-        ];
+        ]);
 
         $this->setMeta('shipping_packages', $packages);
     }

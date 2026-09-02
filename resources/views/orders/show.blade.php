@@ -168,7 +168,7 @@
                                         @if(count($allTrackingNumbers) > 1)
                                             {{-- Multi-package tracking --}}
                                             @foreach($allTrackingNumbers as $index => $pkg)
-                                                <div class="mb-1">
+                                                <div class="mb-2">
                                                     <span class="badge bg-soft-info text-info">Package {{ $index + 1 }}</span>
                                                     <strong>{{ $pkg['carrier'] ?? $order->shipping_carrier }}</strong>:
                                                     @if($order->tracking_url)
@@ -178,6 +178,7 @@
                                                     @else
                                                         {{ $pkg['tracking_number'] }}
                                                     @endif
+                                                    @include('orders.partials.label-input-details', ['pkg' => $pkg])
                                                 </div>
                                             @endforeach
                                         @elseif($order->tracking_number)
@@ -190,6 +191,7 @@
                                             @else
                                                 {{ $order->tracking_number }}
                                             @endif
+                                            @include('orders.partials.label-input-details', ['pkg' => $allTrackingNumbers[0] ?? null])
                                         @endif
                                     </td>
                                 </tr>

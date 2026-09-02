@@ -1268,6 +1268,18 @@ class OrderController extends Controller
                 $trackingUrl = $carrier->tracking_url . $trackingNumber;
             }
 
+            // Persist the inputs used to generate this label (weight/dims/units/reference)
+            $order->clearAllTrackingNumbers();
+            $order->addTrackingNumber($trackingNumber, $carrierName, $labelPath, [
+                'weight'             => $labelResult['weight'] ?? null,
+                'length'             => $labelResult['length'] ?? null,
+                'width'              => $labelResult['width'] ?? null,
+                'height'             => $labelResult['height'] ?? null,
+                'weight_unit'        => $labelResult['weight_unit'] ?? null,
+                'dimension_unit'     => $labelResult['dimension_unit'] ?? null,
+                'customer_reference' => $labelResult['customer_reference'] ?? null,
+            ]);
+
             // Update order with shipping info and mark as shipped
             $order->update([
                 'shipping_carrier'     => $carrierName,
@@ -1416,7 +1428,16 @@ class OrderController extends Controller
                     $package['tracking_number'],
                     $carrierName,
                     $package['label_path'],
-                    $package['declared_value'] ?? null
+                    [
+                        'weight'             => $package['weight'] ?? null,
+                        'length'             => $package['length'] ?? null,
+                        'width'              => $package['width'] ?? null,
+                        'height'             => $package['height'] ?? null,
+                        'weight_unit'        => $package['weight_unit'] ?? null,
+                        'dimension_unit'     => $package['dimension_unit'] ?? null,
+                        'customer_reference' => $package['customer_reference'] ?? null,
+                        'declared_value'     => $package['declared_value'] ?? null,
+                    ]
                 );
             }
 
