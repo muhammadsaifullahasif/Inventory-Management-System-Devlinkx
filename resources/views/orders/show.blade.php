@@ -19,10 +19,10 @@
                     <span class="badge bg-soft-{{ $order->order_status === 'cancelled' ? 'danger' : 'primary' }} text-{{ $order->order_status === 'cancelled' ? 'danger' : 'primary' }}">
                         {{ strtoupper($order->order_status ?? 'N/A') }}
                     </span>
-                    <a href="{{ route('orders.edit', $order->id) }}" class="btn btn-primary">
+                    {{-- <a href="{{ route('orders.edit', $order->id) }}" class="btn btn-primary">
                         <i class="feather-edit-2 me-2"></i>
                         <span>Edit Order</span>
-                    </a>
+                    </a> --}}
                     <a href="{{ route('orders.index') }}" class="btn btn-light-brand">
                         <i class="feather-arrow-left me-2"></i>
                         <span>Back to Orders</span>
