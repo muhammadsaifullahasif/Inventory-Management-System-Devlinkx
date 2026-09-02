@@ -6,6 +6,7 @@ use Exception;
 use Carbon\Carbon;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Product;
 use App\Models\Shipping;
 use App\Models\SalesChannel;
 use Illuminate\Http\Request;
@@ -317,10 +318,13 @@ class OrderController extends Controller
      */
     public function edit(string $id)
     {
-        $order = Order::with(['items', 'salesChannel'])->findOrFail($id);
+        $order = Order::with(['items.product', 'salesChannel'])->findOrFail($id);
         $salesChannels = SalesChannel::all();
+        $products = Product::where('delete_status', '0')
+            ->orderBy('name')
+            ->get(['id', 'name', 'sku']);
 
-        return view('orders.edit', compact('order', 'salesChannels'));
+        return view('orders.edit', compact('order', 'salesChannels', 'products'));
     }
 
     /**
@@ -343,7 +347,13 @@ class OrderController extends Controller
             'fulfillment_status' => 'nullable|in:unfulfilled,partially_fulfilled,fulfilled,ready_for_pickup',
             'shipping_carrier' => 'nullable|string|max:255',
             'tracking_number' => 'nullable|string|max:255',
+            'items' => 'nullable|array',
+            'items.*.id' => 'required_with:items|integer|exists:order_items,id',
+            'items.*.product_id' => 'nullable|integer|exists:products,id',
         ]);
+
+        $itemUpdates = $validated['items'] ?? [];
+        unset($validated['items']);
 
         try {
             // Track status changes
@@ -359,10 +369,33 @@ class OrderController extends Controller
 
             $order->update($validated);
 
+            $recordedCount = 0;
+            foreach ($itemUpdates as $itemUpdate) {
+                /** @var OrderItem|null $item */
+                $item = OrderItem::where('id', $itemUpdate['id'])->where('order_id', $order->id)->first();
+                if (!$item) {
+                    continue;
+                }
+
+                $newProductId = $itemUpdate['product_id'] ?? null;
+                if ($newProductId && (int) $item->product_id !== (int) $newProductId) {
+                    $item->product_id = $newProductId;
+                    $item->save();
+                }
+
+                // Record sale/revenue for this item now that it's matched to a product,
+                // but only if it hasn't already been recorded (inventory_updated guards this).
+                if ($item->product_id && !$item->inventory_updated) {
+                    if ($item->updateInventory()) {
+                        $recordedCount++;
+                    }
+                }
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'Order updated successfully',
-                'data' => $order->fresh(['items']),
+                'message' => 'Order updated successfully' . ($recordedCount > 0 ? " ({$recordedCount} item(s) matched and sale recorded)" : ''),
+                'data' => $order->fresh(['items.product']),
             ]);
 
         } catch (Exception $e) {

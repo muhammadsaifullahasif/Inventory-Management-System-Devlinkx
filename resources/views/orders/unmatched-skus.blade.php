@@ -160,8 +160,8 @@
                                 <td class="text-end">{{ number_format($item->total_price, 2) }}</td>
                                 <td class="text-end">
                                     @if($item->order)
-                                        <a href="{{ route('orders.show', $item->order_id) }}" class="btn btn-xs btn-light-brand">
-                                            <i class="feather-eye me-1"></i>View Order
+                                        <a href="{{ route('orders.edit', $item->order_id) }}" class="btn btn-xs btn-primary">
+                                            <i class="feather-edit-2 me-1"></i>Match Product
                                         </a>
                                     @endif
                                 </td>

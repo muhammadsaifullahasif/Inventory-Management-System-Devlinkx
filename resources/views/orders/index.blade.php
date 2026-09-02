@@ -413,6 +413,9 @@
                                             <a href="{{ route('orders.show', $order->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="View">
                                                 <i class="feather-eye"></i>
                                             </a>
+                                            <a href="{{ route('orders.edit', $order->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="Edit">
+                                                <i class="feather-edit-2"></i>
+                                            </a>
                                             @if($order->fulfillment_status !== 'fulfilled' && $order->order_status !== 'cancelled')
                                                 <a href="javascript:void(0);" class="avatar-text avatar-md text-primary ship-btn"
                                                     data-id="{{ $order->id }}"
