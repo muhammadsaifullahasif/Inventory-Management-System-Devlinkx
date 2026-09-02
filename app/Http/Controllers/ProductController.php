@@ -346,7 +346,6 @@ class ProductController extends Controller
             'channel_data.*.regular_price' => 'nullable|numeric|min:0',
             'channel_data.*.sale_price' => 'nullable|numeric|min:0',
             'is_bundle' => 'sometimes|boolean',
-            'bundle_type' => 'nullable|string|in:pair,kit,set,bundle',
             'components' => 'required_if:is_bundle,1|array|min:2',
             'components.*.product_id' => 'required|exists:products,id',
             'components.*.quantity' => 'required|integer|min:1',
@@ -363,7 +362,7 @@ class ProductController extends Controller
             $product->category_id = $request->category_id;
             $product->brand_id = $request->brand_id;
             $product->is_bundle = $request->has('is_bundle') && $request->is_bundle;
-            $product->bundle_type = $request->is_bundle ? $request->bundle_type : null;
+            $product->bundle_type = $request->is_bundle ? 'bundle' : null;
             if (empty($request->sale_price)) {
                 $product->price = $request->regular_price;
             } else {
@@ -569,7 +568,6 @@ class ProductController extends Controller
             'channel_data.*.regular_price' => 'nullable|numeric|min:0',
             'channel_data.*.sale_price' => 'nullable|numeric|min:0',
             'is_bundle' => 'sometimes|boolean',
-            'bundle_type' => 'nullable|string|in:pair,kit,set,bundle',
             'components' => 'required_if:is_bundle,1|array|min:2',
             'components.*.product_id' => 'required|exists:products,id',
             'components.*.quantity' => 'required|integer|min:1',
@@ -588,7 +586,7 @@ class ProductController extends Controller
             $product->category_id = $request->category_id;
             $product->brand_id = $request->brand_id;
             $product->is_bundle = $request->has('is_bundle') && $request->is_bundle;
-            $product->bundle_type = $request->is_bundle ? $request->bundle_type : null;
+            $product->bundle_type = $request->is_bundle ? 'bundle' : null;
             if (empty($request->sale_price)) {
                 $product->price = $request->regular_price;
             } else {

@@ -113,19 +113,6 @@
                         </div>
                     </div>
 
-                    <div id="bundleTypeContainer" class="mb-4" style="display: none;">
-                        <label for="bundle_type" class="form-label">Bundle Type</label>
-                        <select name="bundle_type" id="bundle_type" class="form-select @error('bundle_type') is-invalid @enderror">
-                            <option value="pair" {{ old('bundle_type') == 'pair' ? 'selected' : '' }}>Pair</option>
-                            <option value="kit" {{ old('bundle_type') == 'kit' ? 'selected' : '' }}>Kit</option>
-                            <option value="set" {{ old('bundle_type') == 'set' ? 'selected' : '' }}>Set</option>
-                            <option value="bundle" {{ old('bundle_type') == 'bundle' ? 'selected' : '' }}>Bundle</option>
-                        </select>
-                        @error('bundle_type')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
                     <div class="row">
                         <div class="col-md-3 mb-4">
                             <label for="weight" class="form-label">Weight</label>
@@ -457,10 +444,8 @@ $(document).ready(function() {
     // Toggle bundle sections
     $('#is_bundle').change(function() {
         if($(this).is(':checked')) {
-            $('#bundleTypeContainer').slideDown();
             $('#bundleComponentsSection').slideDown();
         } else {
-            $('#bundleTypeContainer').slideUp();
             $('#bundleComponentsSection').slideUp();
             $('#componentsContainer').empty();
             componentIndex = 0;
@@ -469,7 +454,6 @@ $(document).ready(function() {
 
     // Check on page load
     if($('#is_bundle').is(':checked')) {
-        $('#bundleTypeContainer').show();
         $('#bundleComponentsSection').show();
     }
 
