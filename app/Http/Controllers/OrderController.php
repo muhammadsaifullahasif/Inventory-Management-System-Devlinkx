@@ -379,7 +379,11 @@ class OrderController extends Controller
 
                 $newProductId = $itemUpdate['product_id'] ?? null;
                 if ($newProductId && (int) $item->product_id !== (int) $newProductId) {
+                    $product = Product::find($newProductId);
                     $item->product_id = $newProductId;
+                    if ($product && $product->sku) {
+                        $item->sku = $product->sku;
+                    }
                     $item->save();
                 }
 
@@ -392,18 +396,24 @@ class OrderController extends Controller
                 }
             }
 
+            $message = 'Order updated successfully' . ($recordedCount > 0 ? " ({$recordedCount} item(s) matched and sale recorded)" : '');
+            session()->flash('success', $message);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Order updated successfully' . ($recordedCount > 0 ? " ({$recordedCount} item(s) matched and sale recorded)" : ''),
+                'message' => $message,
                 'data' => $order->fresh(['items.product']),
             ]);
 
         } catch (Exception $e) {
             Log::error('Failed to update order', ['order_id' => $id, 'error' => $e->getMessage()]);
 
+            $message = 'Failed to update order: ' . $e->getMessage();
+            session()->flash('error', $message);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update order: ' . $e->getMessage(),
+                'message' => $message,
             ], 500);
         }
     }

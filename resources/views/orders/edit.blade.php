@@ -200,16 +200,13 @@
                     data: payload,
                     success: function(response) {
                         if (response.success) {
-                            alert(response.message);
                             window.location.href = '{{ route('orders.show', $order->id) }}';
                         } else {
-                            alert(response.message || 'Failed to update order');
-                            $btn.prop('disabled', false).html('<i class="feather-save me-2"></i>Save Changes');
+                            window.location.reload();
                         }
                     },
-                    error: function(xhr) {
-                        alert('Failed to update order: ' + (xhr.responseJSON?.message || 'Unknown error'));
-                        $btn.prop('disabled', false).html('<i class="feather-save me-2"></i>Save Changes');
+                    error: function() {
+                        window.location.reload();
                     }
                 });
             });
