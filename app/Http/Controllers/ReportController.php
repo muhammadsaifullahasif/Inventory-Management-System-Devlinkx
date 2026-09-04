@@ -3027,8 +3027,8 @@ class ReportController extends Controller
                 'items.product.product_meta',
                 'items.product.category'
             ])
-            ->whereDate('order_date', '>=', $dateFrom)
-            ->whereDate('order_date', '<=', $dateTo)
+            ->whereDate('shipped_at', '>=', $dateFrom)
+            ->whereDate('shipped_at', '<=', $dateTo)
             ->where('payment_status', 'paid')
             ->when($order_status !== 'all', function ($query) use ($order_status) {
                 if ($order_status == 'fulfilled') {
@@ -3051,7 +3051,7 @@ class ReportController extends Controller
         // }
         // 'all' shows everything
 
-        $orders = $orderQuery->orderBy('order_date', 'asc')->get();
+        $orders = $orderQuery->orderBy('shipped_at', 'asc')->get();
 
         // Build checklist items - group by order, handle bundles with components
         $checklistItems = [];
@@ -3277,8 +3277,8 @@ class ReportController extends Controller
                     $name = $product->category->name ?? 'Uncategorized';
                     break;
                 case 'date':
-                    $key = $order->order_date ? $order->order_date->format('Y-m-d') : 'Unknown';
-                    $name = $order->order_date ? $order->order_date->format('M d, Y') : 'Unknown';
+                    $key = $order->shipped_at ? $order->shipped_at->format('Y-m-d') : 'Unknown';
+                    $name = $order->shipped_at ? $order->shipped_at->format('M d, Y') : 'Unknown';
                     break;
                 case 'channel':
                 default:
@@ -3341,8 +3341,8 @@ class ReportController extends Controller
                 'items.product.product_stocks.rack',
                 'items.product.product_meta'
             ])
-            ->whereDate('order_date', '>=', $dateFrom)
-            ->whereDate('order_date', '<=', $dateTo)
+            ->whereDate('shipped_at', '>=', $dateFrom)
+            ->whereDate('shipped_at', '<=', $dateTo)
             ->where('payment_status', 'paid')
             ->when($order_status !== 'all', function ($query) use ($order_status) {
                 if ($order_status == 'fulfilled') {
@@ -3357,7 +3357,7 @@ class ReportController extends Controller
             $orderQuery->where('sales_channel_id', $channelId);
         }
 
-        $orders = $orderQuery->orderBy('order_date', 'asc')->get();
+        $orders = $orderQuery->orderBy('shipped_at', 'asc')->get();
 
         // Build checklist items - group by order, handle bundles with components
         $checklistItems = [];

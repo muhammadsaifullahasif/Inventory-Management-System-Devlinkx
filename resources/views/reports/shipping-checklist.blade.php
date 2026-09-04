@@ -228,11 +228,11 @@
         <div class="card-body">
             <form method="GET" action="{{ route('reports.shipping-checklist') }}" class="row g-3">
                 <div class="col-md-2">
-                    <label class="form-label">Date From</label>
+                    <label class="form-label">Ship Date From</label>
                     <input type="date" name="date_from" class="form-control" value="{{ $dateFrom }}">
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Date To</label>
+                    <label class="form-label">Ship Date To</label>
                     <input type="date" name="date_to" class="form-control" value="{{ $dateTo }}">
                 </div>
                 <div class="col-md-2">
