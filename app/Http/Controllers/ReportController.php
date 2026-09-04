@@ -3216,7 +3216,7 @@ class ReportController extends Controller
             'total_orders' => empty($categoryIds) ? $orders->count() : $checklistCollection->pluck('order.id')->unique()->count(),
             'total_items' => $checklistCollection->count(),
             'total_quantity' => $checklistCollection->sum('quantity_ordered'),
-            'total_labels_generated' => $uniqueOrdersInChecklist->filter(fn ($o) => $o->label_generated_at)->count(),
+            'total_labels_generated' => $uniqueOrdersInChecklist->filter(fn ($o) => $o->shipping_id)->count(),
             'total_subtotal_amount' => $uniqueOrdersInChecklist->sum('subtotal'),
         ];
 
@@ -3301,7 +3301,7 @@ class ReportController extends Controller
             $grouped[$key]['items_sold'] += (int) $entry['quantity_ordered'];
             $grouped[$key]['order_ids'][$order->id] = true;
 
-            if ($order->label_generated_at) {
+            if ($order->shipping_id) {
                 $grouped[$key]['labeled_order_ids'][$order->id] = true;
             }
 
