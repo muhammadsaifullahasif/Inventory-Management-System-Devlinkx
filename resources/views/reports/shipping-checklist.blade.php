@@ -288,6 +288,15 @@
                         <option value="fulfilled" {{ $order_status == 'fulfilled' ? 'selected' : '' }}>Fulfilled</option>
                     </select>
                 </div>
+                <div class="col-md-2">
+                    <label class="form-label">Group By</label>
+                    <select name="group_by" class="form-select">
+                        <option value="channel" {{ $groupBy == 'channel' ? 'selected' : '' }}>Sales Channel</option>
+                        <option value="product" {{ $groupBy == 'product' ? 'selected' : '' }}>Product</option>
+                        <option value="category" {{ $groupBy == 'category' ? 'selected' : '' }}>Category</option>
+                        <option value="date" {{ $groupBy == 'date' ? 'selected' : '' }}>Date</option>
+                    </select>
+                </div>
                 {{-- <div class="col-md-2">
                     <label class="form-label">Order Status</label>
                     <select name="order_status" class="form-select">
@@ -341,6 +350,61 @@
                     <h6 class="card-title text-white-50">Total Quantity @include('partials.info-tooltip', ['text' => 'Sum of quantity_ordered across the checklist rows above.', 'light' => true])</h6>
                     <h3 class="mb-0">{{ $summary['total_quantity'] }}</h3>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group By Summary Table (screen only, not in print view) -->
+    <div class="card mb-4 d-print-none">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="feather-layers me-2"></i>
+                Grouped by {{ ['channel' => 'Sales Channel', 'product' => 'Product', 'category' => 'Category', 'date' => 'Date'][$groupBy] ?? ucfirst($groupBy) }}
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{{ ['channel' => 'Sales Channel', 'product' => 'Product', 'category' => 'Category', 'date' => 'Date'][$groupBy] ?? 'Group' }}</th>
+                            <th class="text-end">Total Items Sold</th>
+                            <th class="text-center">Total Orders</th>
+                            <th class="text-center">Total Labels Generated</th>
+                            <th class="text-end">Total Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($groupedChecklist as $group)
+                            <tr>
+                                <td class="fw-semibold">{{ $group['name'] }}</td>
+                                <td class="text-end">{{ number_format($group['items_sold'], 0) }}</td>
+                                <td class="text-center">
+                                    <span class="badge bg-soft-primary text-primary">{{ $group['total_orders'] }}</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-soft-success text-success">{{ $group['labels_generated'] }}</span>
+                                </td>
+                                <td class="text-end text-success fw-semibold">{{ number_format($group['total_amount'], 2) }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">No data for the selected filters.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                    @if($groupedChecklist->isNotEmpty())
+                        <tfoot>
+                            <tr class="table-light">
+                                <th>Totals</th>
+                                <th class="text-end">{{ number_format($summary['total_quantity'], 0) }}</th>
+                                <th class="text-center">{{ $summary['total_orders'] }}</th>
+                                <th class="text-center">{{ $summary['total_labels_generated'] }}</th>
+                                <th class="text-end">{{ number_format($summary['total_subtotal_amount'], 2) }}</th>
+                            </tr>
+                        </tfoot>
+                    @endif
+                </table>
             </div>
         </div>
     </div>

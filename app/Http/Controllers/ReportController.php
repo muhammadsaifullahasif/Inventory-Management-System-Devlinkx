@@ -3009,6 +3009,7 @@ class ReportController extends Controller
         $fulfillmentStatus = $request->get('fulfillment_status', 'unfulfilled');
         $order_status = $request->get('order_status', 'processing');
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $groupBy = $request->get('group_by', 'channel'); // channel, product, category, date
 
         // Get filter options
         $salesChannels = SalesChannel::where('delete_status', '0')
@@ -3023,7 +3024,8 @@ class ReportController extends Controller
                 'salesChannel',
                 'items.product.product_stocks.warehouse',
                 'items.product.product_stocks.rack',
-                'items.product.product_meta'
+                'items.product.product_meta',
+                'items.product.category'
             ])
             ->whereDate('order_date', '>=', $dateFrom)
             ->whereDate('order_date', '<=', $dateTo)
@@ -3209,11 +3211,17 @@ class ReportController extends Controller
         ]);
 
         // Summary statistics
+        $uniqueOrdersInChecklist = $checklistCollection->pluck('order')->unique('id');
         $summary = [
             'total_orders' => empty($categoryIds) ? $orders->count() : $checklistCollection->pluck('order.id')->unique()->count(),
             'total_items' => $checklistCollection->count(),
             'total_quantity' => $checklistCollection->sum('quantity_ordered'),
+            'total_labels_generated' => $uniqueOrdersInChecklist->filter(fn ($o) => $o->label_generated_at)->count(),
+            'total_subtotal_amount' => $uniqueOrdersInChecklist->sum('subtotal'),
         ];
+
+        // Group By table (screen-only) - grouped totals by the selected dimension
+        $groupedChecklist = $this->groupShippingChecklist($checklistCollection, $groupBy);
 
         // Paginate the checklist items
         $perPage = 50;
@@ -3234,6 +3242,8 @@ class ReportController extends Controller
         return view('reports.shipping-checklist', compact(
             'checklistItems',
             'summary',
+            'groupedChecklist',
+            'groupBy',
             'salesChannels',
             'categories',
             'categoryIds',
@@ -3243,6 +3253,73 @@ class ReportController extends Controller
             // 'fulfillmentStatus',
             'order_status'
         ));
+    }
+
+    /**
+     * Group shipping checklist rows by the selected dimension (channel, product, category, date).
+     * Totals are computed off the already-filtered checklist collection so they match the table above.
+     */
+    protected function groupShippingChecklist($checklistCollection, string $groupBy)
+    {
+        $grouped = [];
+
+        foreach ($checklistCollection as $entry) {
+            $order = $entry['order'];
+
+            switch ($groupBy) {
+                case 'product':
+                    $key = $entry['sku'] ?: $entry['product_name'];
+                    $name = $entry['product_name'];
+                    break;
+                case 'category':
+                    $product = $entry['item']->product ?? null;
+                    $key = $product->category_id ?? 0;
+                    $name = $product->category->name ?? 'Uncategorized';
+                    break;
+                case 'date':
+                    $key = $order->order_date ? $order->order_date->format('Y-m-d') : 'Unknown';
+                    $name = $order->order_date ? $order->order_date->format('M d, Y') : 'Unknown';
+                    break;
+                case 'channel':
+                default:
+                    $key = $order->sales_channel_id ?? 0;
+                    $name = $entry['sales_channel'];
+                    break;
+            }
+
+            if (!isset($grouped[$key])) {
+                $grouped[$key] = [
+                    'name' => $name,
+                    'items_sold' => 0,
+                    'order_ids' => [],
+                    'labeled_order_ids' => [],
+                    'counted_order_ids' => [],
+                    'total_amount' => 0,
+                ];
+            }
+
+            $grouped[$key]['items_sold'] += (int) $entry['quantity_ordered'];
+            $grouped[$key]['order_ids'][$order->id] = true;
+
+            if ($order->label_generated_at) {
+                $grouped[$key]['labeled_order_ids'][$order->id] = true;
+            }
+
+            if (!isset($grouped[$key]['counted_order_ids'][$order->id])) {
+                $grouped[$key]['counted_order_ids'][$order->id] = true;
+                $grouped[$key]['total_amount'] += (float) $order->subtotal;
+            }
+        }
+
+        return collect($grouped)->map(function ($g) {
+            return [
+                'name' => $g['name'],
+                'items_sold' => $g['items_sold'],
+                'total_orders' => count($g['order_ids']),
+                'labels_generated' => count($g['labeled_order_ids']),
+                'total_amount' => $g['total_amount'],
+            ];
+        })->sortByDesc('total_amount')->values();
     }
 
     /**
