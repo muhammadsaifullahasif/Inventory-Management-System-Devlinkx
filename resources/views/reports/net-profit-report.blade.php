@@ -180,7 +180,7 @@
                                 <td class="text-end fw-semibold">{{ number_format($summary['gross_profit'], 2) }} <span class="text-muted small">({{ number_format($summary['gross_margin'], 1) }}%)</span></td>
                             </tr>
                             <tr>
-                                <td class="text-muted ps-4">(-) eBay Fees <span class="text-muted small">(transaction {{ number_format($summary['ebay_transaction_fee'], 2) }} + ad {{ number_format($summary['ebay_ad_fee'], 2) }} + other {{ number_format($summary['ebay_other_fees'], 2) }})</span></td>
+                                <td class="text-muted ps-4">(-) eBay Fees @include('partials.info-tooltip', ['text' => 'Sourced from ebay_finance_transactions filtered by transaction_date (when eBay posted the fee), not this report\'s order-date-based Revenue/COGS/Shipping legs. A fee posted a few days off from its order can shift this figure vs those legs for the same nominal period.']) <span class="text-muted small">(transaction {{ number_format($summary['ebay_transaction_fee'], 2) }} + ad {{ number_format($summary['ebay_ad_fee'], 2) }} + other {{ number_format($summary['ebay_other_fees'], 2) }})</span></td>
                                 <td class="text-end text-danger">({{ number_format($summary['ebay_fees'], 2) }})</td>
                             </tr>
                             <tr>

@@ -141,7 +141,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Sale Lines @include('partials.info-tooltip', ['text' => 'Sum of item quantity for order_items with inventory_updated=true in range - ALL orders regardless of payment status (compare against Paid Orders Only in the table below). A bundle counts once (its summary line).'])</h6>
+                                    <h6 class="text-muted mb-1 small">Sale Lines @include('partials.info-tooltip', ['text' => 'Sum of item quantity for order_items with inventory_updated=true in range - paid + refunded orders (compare against Paid Orders Only in the table below to isolate the refund impact). A bundle counts once (its summary line).'])</h6>
                                     <h4 class="mb-0 fw-bold">{{ number_format($summary['sale_lines'], 0) }}</h4>
                                     <small class="text-muted" data-bs-toggle="tooltip" title="Physical piece count - a bundle's components count individually instead of the summary line.">{{ number_format($summary['total_items_sold'], 0) }} total items sold</small>
                                 </div>
@@ -157,7 +157,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Total Revenue @include('partials.info-tooltip', ['text' => 'Sum of order_items.total_price for the same all-orders item set (no paid-only filter, unlike Gross Profit Report).'])</h6>
+                                    <h6 class="text-muted mb-1 small">Total Revenue @include('partials.info-tooltip', ['text' => 'Sum of order_items.total_price for paid + refunded orders, $0 for refunded/cancelled items - broader than Gross Profit Report\'s strict paid-only population.'])</h6>
                                     <h4 class="mb-0 fw-bold">{{ number_format($summary['total_revenue'], 2) }}</h4>
                                 </div>
                                 <div class="avatar-text avatar-md bg-success text-white rounded">
@@ -172,7 +172,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Total COGS @include('partials.info-tooltip', ['text' => 'Sum of cost_at_sale x quantity for the same all-orders item set.'])</h6>
+                                    <h6 class="text-muted mb-1 small">Total COGS @include('partials.info-tooltip', ['text' => 'Sum of cost_at_sale x quantity for paid + refunded orders, $0 for cancelled items.'])</h6>
                                     <h4 class="mb-0 fw-bold">{{ number_format($summary['total_cogs'], 2) }}</h4>
                                 </div>
                                 <div class="avatar-text avatar-md bg-danger text-white rounded">
@@ -187,7 +187,7 @@
                         <div class="card-body py-3">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
-                                    <h6 class="text-muted mb-1 small">Gross Profit @include('partials.info-tooltip', ['text' => 'All-orders Total Revenue minus Total COGS. See the table below for the same breakdown restricted to Paid Orders Only.'])</h6>
+                                    <h6 class="text-muted mb-1 small">Gross Profit @include('partials.info-tooltip', ['text' => 'Paid + refunded Total Revenue minus Total COGS. See the table below for the same breakdown restricted to Paid Orders Only, to isolate the refund impact.'])</h6>
                                     <h4 class="mb-0 fw-bold {{ $summary['gross_profit'] >= 0 ? 'text-success' : 'text-danger' }}">
                                         {{ number_format($summary['gross_profit'], 2) }}
                                     </h4>
@@ -381,7 +381,7 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6">
-                        <h6 class="text-uppercase text-muted mb-3">All Orders (Including Unpaid)</h6>
+                        <h6 class="text-uppercase text-muted mb-3">Paid + Refunded Orders</h6>
                         <table class="table table-sm">
                             <tr>
                                 <td>Sale Lines:</td>

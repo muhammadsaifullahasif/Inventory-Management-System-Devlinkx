@@ -1105,6 +1105,11 @@ class ReportController extends Controller
 
         $allOrders = $allOrdersQuery->get();
 
+        // Revenue population is paid + refunded orders, net of refunds - matches
+        // Revenue Report / Net Profit Report (a refund deducts from revenue
+        // already recognized, it doesn't erase that the sale happened).
+        $revenueOrders = $allOrders->whereIn('payment_status', ['paid', 'refunded']);
+
         // Calculate summary statistics from all orders
         $summary = [
             'total_orders' => $allOrders->count(),
@@ -1114,11 +1119,13 @@ class ReportController extends Controller
             'delivered_count' => $allOrders->where('order_status', 'delivered')->count(),
             'cancelled_count' => $allOrders->where('order_status', 'cancelled')->count(),
             'paid_count' => $allOrders->where('payment_status', 'paid')->count(),
-            'total_revenue' => $allOrders->where('payment_status', 'paid')->sum('total'),
-            'total_subtotal' => $allOrders->where('payment_status', 'paid')->sum('subtotal'),
-            'total_shipping' => $allOrders->where('payment_status', 'paid')->sum('shipping_cost'),
-            'total_tax' => $allOrders->where('payment_status', 'paid')->sum('tax'),
-            'total_discount' => $allOrders->where('payment_status', 'paid')->sum('discount'),
+            'refunded_count' => $allOrders->where('payment_status', 'refunded')->count(),
+            // Tax is pass-through - excluded from revenue, tracked separately below.
+            'total_revenue' => (float) $revenueOrders->sum('total') - (float) $revenueOrders->sum('tax') - (float) $revenueOrders->sum('total_refunded'),
+            'total_subtotal' => (float) $revenueOrders->sum('subtotal'),
+            'total_shipping' => (float) $revenueOrders->sum('shipping_cost'),
+            'total_tax' => (float) $revenueOrders->sum('tax'),
+            'total_discount' => (float) $revenueOrders->sum('discount'),
             'sale_lines' => 0,
             'total_items_sold' => 0,
             'average_order_value' => 0,
@@ -1128,7 +1135,7 @@ class ReportController extends Controller
         // line). Total Items Sold: physical piece count - a bundle's components
         // count individually instead of the summary line, since that's what
         // actually ships. Regular (non-bundle) items count toward both.
-        foreach ($allOrders->where('payment_status', 'paid') as $order) {
+        foreach ($revenueOrders as $order) {
             foreach ($order->items as $item) {
                 if ($this->isBundleComponentItem($item)) {
                     $summary['total_items_sold'] += $item->quantity;
@@ -1141,8 +1148,9 @@ class ReportController extends Controller
             }
         }
 
-        $summary['average_order_value'] = $summary['paid_count'] > 0
-            ? $summary['total_revenue'] / $summary['paid_count']
+        $revenueOrderCount = $revenueOrders->count();
+        $summary['average_order_value'] = $revenueOrderCount > 0
+            ? $summary['total_revenue'] / $revenueOrderCount
             : 0;
 
         // Build grouped report data based on group_by parameter
@@ -1277,9 +1285,10 @@ class ReportController extends Controller
 
             $grouped[$channelId]['order_count']++;
 
-            if ($order->payment_status === 'paid') {
+            if (in_array($order->payment_status, ['paid', 'refunded'])) {
                 $grouped[$channelId]['paid_count']++;
-                $grouped[$channelId]['total_revenue'] += (float) $order->total;
+                // Tax is pass-through - excluded from revenue.
+                $grouped[$channelId]['total_revenue'] += (float) $order->total - (float) $order->tax - (float) $order->total_refunded;
                 $grouped[$channelId]['total_shipping'] += (float) $order->shipping_cost;
                 $grouped[$channelId]['total_tax'] += (float) $order->tax;
                 $grouped[$channelId]['items_sold'] += $order->items->sum(function ($item) {
@@ -1301,7 +1310,7 @@ class ReportController extends Controller
         $grouped = [];
 
         foreach ($orders as $order) {
-            if ($order->payment_status !== 'paid') {
+            if (!in_array($order->payment_status, ['paid', 'refunded'])) {
                 continue;
             }
 
@@ -1349,7 +1358,7 @@ class ReportController extends Controller
         $grouped = [];
 
         foreach ($orders as $order) {
-            if ($order->payment_status !== 'paid') {
+            if (!in_array($order->payment_status, ['paid', 'refunded'])) {
                 continue;
             }
 
@@ -1399,9 +1408,10 @@ class ReportController extends Controller
 
             $grouped[$date]['order_count']++;
 
-            if ($order->payment_status === 'paid') {
+            if (in_array($order->payment_status, ['paid', 'refunded'])) {
                 $grouped[$date]['paid_count']++;
-                $grouped[$date]['total_revenue'] += (float) $order->total;
+                // Tax is pass-through - excluded from revenue.
+                $grouped[$date]['total_revenue'] += (float) $order->total - (float) $order->tax - (float) $order->total_refunded;
                 $grouped[$date]['items_sold'] += $order->items->sum(function ($item) {
                     return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
                 });
@@ -1450,6 +1460,11 @@ class ReportController extends Controller
 
         $allOrders = $allOrdersQuery->get();
 
+        // Revenue population is paid + refunded orders, net of refunds - matches
+        // Revenue Report / Net Profit Report (a refund deducts from revenue
+        // already recognized, it doesn't erase that the sale happened).
+        $revenueOrders = $allOrders->whereIn('payment_status', ['paid', 'refunded']);
+
         // Calculate summary statistics
         $summary = [
             'total_orders' => $allOrders->count(),
@@ -1459,11 +1474,13 @@ class ReportController extends Controller
             'delivered_count' => $allOrders->where('order_status', 'delivered')->count(),
             'cancelled_count' => $allOrders->where('order_status', 'cancelled')->count(),
             'paid_count' => $allOrders->where('payment_status', 'paid')->count(),
-            'total_revenue' => $allOrders->where('payment_status', 'paid')->sum('total'),
-            'total_subtotal' => $allOrders->where('payment_status', 'paid')->sum('subtotal'),
-            'total_shipping' => $allOrders->where('payment_status', 'paid')->sum('shipping_cost'),
-            'total_tax' => $allOrders->where('payment_status', 'paid')->sum('tax'),
-            'total_discount' => $allOrders->where('payment_status', 'paid')->sum('discount'),
+            'refunded_count' => $allOrders->where('payment_status', 'refunded')->count(),
+            // Tax is pass-through - excluded from revenue, tracked separately below.
+            'total_revenue' => (float) $revenueOrders->sum('total') - (float) $revenueOrders->sum('tax') - (float) $revenueOrders->sum('total_refunded'),
+            'total_subtotal' => (float) $revenueOrders->sum('subtotal'),
+            'total_shipping' => (float) $revenueOrders->sum('shipping_cost'),
+            'total_tax' => (float) $revenueOrders->sum('tax'),
+            'total_discount' => (float) $revenueOrders->sum('discount'),
             'sale_lines' => 0,
             'total_items_sold' => 0,
             'average_order_value' => 0,
@@ -1472,7 +1489,7 @@ class ReportController extends Controller
         // Sale Lines: 1 sold unit per line (bundle counts once, its summary line).
         // Total Items Sold: physical piece count (bundle components counted
         // individually instead). Regular items count toward both.
-        foreach ($allOrders->where('payment_status', 'paid') as $order) {
+        foreach ($revenueOrders as $order) {
             foreach ($order->items as $item) {
                 if ($this->isBundleComponentItem($item)) {
                     $summary['total_items_sold'] += $item->quantity;
@@ -1485,8 +1502,9 @@ class ReportController extends Controller
             }
         }
 
-        $summary['average_order_value'] = $summary['paid_count'] > 0
-            ? $summary['total_revenue'] / $summary['paid_count']
+        $revenueOrderCount = $revenueOrders->count();
+        $summary['average_order_value'] = $revenueOrderCount > 0
+            ? $summary['total_revenue'] / $revenueOrderCount
             : 0;
 
         // Group by channel for export
@@ -1642,7 +1660,9 @@ class ReportController extends Controller
             'refunded_count' => $allOrders->where('payment_status', 'refunded')->count(),
             'partially_refunded_count' => $allOrders->filter(fn($o) => $o->isPartiallyRefunded())->count(),
             'cancelled_count' => $allOrders->where('order_status', 'cancelled')->count(),
-            'gross_revenue' => (float) $revenueOrders->sum('total'),
+            // Tax is pass-through (collected on behalf of, and remitted to, the
+            // taxing authority) - excluded from revenue, tracked separately below.
+            'gross_revenue' => (float) $revenueOrders->sum('total') - (float) $revenueOrders->sum('tax'),
             'total_refunds' => (float) $revenueOrders->sum('total_refunded'),
             'total_discount' => (float) $revenueOrders->sum('discount'),
             'total_shipping' => (float) $revenueOrders->sum('shipping_cost'),
@@ -1711,7 +1731,8 @@ class ReportController extends Controller
 
             if (in_array($order->payment_status, ['paid', 'refunded'])) {
                 $grouped[$channelId]['revenue_order_count']++;
-                $grouped[$channelId]['gross_revenue'] += (float) $order->total;
+                // Tax is pass-through - excluded from revenue.
+                $grouped[$channelId]['gross_revenue'] += (float) $order->total - (float) $order->tax;
                 $grouped[$channelId]['total_refunds'] += (float) $order->total_refunded;
                 $grouped[$channelId]['items_sold'] += $order->items->sum(function ($item) {
                     return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
@@ -1832,7 +1853,8 @@ class ReportController extends Controller
 
             if (in_array($order->payment_status, ['paid', 'refunded'])) {
                 $grouped[$date]['revenue_order_count']++;
-                $grouped[$date]['gross_revenue'] += (float) $order->total;
+                // Tax is pass-through - excluded from revenue.
+                $grouped[$date]['gross_revenue'] += (float) $order->total - (float) $order->tax;
                 $grouped[$date]['total_refunds'] += (float) $order->total_refunded;
                 $grouped[$date]['items_sold'] += $order->items->sum(function ($item) {
                     return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
@@ -2398,6 +2420,9 @@ class ReportController extends Controller
             ->whereDate('orders.order_date', '<=', $dateTo)
             ->whereIn('orders.payment_status', ['paid', 'refunded'])
             ->where('order_items.inventory_updated', true)
+            // Cancelled orders assumed to have inventory restored - excluded from
+            // COGS, matching isOrderItemCancelled() used by COGS/Comparison Report.
+            ->where('orders.order_status', '!=', 'cancelled')
             ->where(function ($q) {
                 $q->whereNull('order_items.bundle_product_id')
                     ->orWhere('order_items.is_bundle_summary', true);
@@ -4643,6 +4668,10 @@ class ReportController extends Controller
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
+            // Population is paid + refunded orders only - matches Revenue/Net Profit
+            // Report's canonical "revenue orders" definition, so COGS/gross profit
+            // figures reconcile against the other reports for the same date range.
+            ->whereIn('orders.payment_status', ['paid', 'refunded'])
             ->where(function ($q) {
                 // Items with COGS recorded, OR items belonging to a cancelled/refunded
                 // order (inventory may have been restored, wiping inventory_updated) -
@@ -4692,6 +4721,7 @@ class ReportController extends Controller
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
+            ->whereIn('orders.payment_status', ['paid', 'refunded'])
             ->whereNotNull('order_items.bundle_product_id')
             ->where('order_items.is_bundle_summary', false);
 
@@ -4730,7 +4760,7 @@ class ReportController extends Controller
                 return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
             'total_revenue' => $orderItems->sum(function ($item) {
-                return $this->isOrderItemRefunded($item) ? 0 : $item->total_price;
+                return $this->itemNetRevenue($item);
             }),
             'items_with_cogs' => $orderItems->filter(function ($item) {
                 return !$this->isOrderItemCancelled($item) && !$this->isBundleComponentItem($item) && $item->cost_at_sale > 0;
@@ -4888,6 +4918,34 @@ class ReportController extends Controller
     }
 
     /**
+     * Item's revenue contribution, netted for whatever fraction of the order was
+     * actually refunded - dollar-precise, unlike isOrderItemRefunded()'s binary
+     * all-or-nothing check on order_status/payment_status labels alone. A "paid"
+     * order can carry a partial refund (total_refunded > 0) without ever flipping
+     * to payment_status='refunded', and an order flagged 'refunded'/'cancelled'
+     * doesn't always mean 100% of its value was refunded - both cases are
+     * approximated here by allocating the order's refund ratio across its items.
+     * Cancelled orders are still a flat $0 (sale voided, not a partial refund).
+     */
+    protected function itemNetRevenue($item): float
+    {
+        if ($item->order_status === 'cancelled') {
+            return 0.0;
+        }
+
+        $orderTotal = (float) ($item->order->total ?? 0);
+        $orderRefunded = (float) ($item->order->total_refunded ?? 0);
+
+        if ($orderTotal <= 0 || $orderRefunded <= 0) {
+            return (float) $item->total_price;
+        }
+
+        $refundRatio = min($orderRefunded / $orderTotal, 1.0);
+
+        return (float) $item->total_price * (1 - $refundRatio);
+    }
+
+    /**
      * Whether an order item belongs to a cancelled order - the only case where
      * inventory is assumed restored, so COGS should NOT apply. Refunded orders
      * keep their COGS (product stays with the customer; only revenue is zeroed).
@@ -4941,10 +4999,9 @@ class ReportController extends Controller
 
             $grouped[$productId]['quantity_sold'] += (int) $item->quantity;
             $grouped[$productId]['total_cogs'] += $itemCogs;
-            // Refunded orders still incur COGS (product not returned) but contribute $0 revenue.
-            if (!$this->isOrderItemRefunded($item)) {
-                $grouped[$productId]['total_revenue'] += (float) $item->total_price;
-            }
+            // Refunded orders still incur COGS (product not returned); revenue is
+            // netted for whatever fraction of the order was actually refunded.
+            $grouped[$productId]['total_revenue'] += $this->itemNetRevenue($item);
         }
 
         // Calculate averages and margins
@@ -4992,10 +5049,9 @@ class ReportController extends Controller
 
             $grouped[$channelId]['items_sold'] += (int) $item->quantity;
             $grouped[$channelId]['total_cogs'] += $itemCogs;
-            // Refunded orders still incur COGS (product not returned) but contribute $0 revenue.
-            if (!$this->isOrderItemRefunded($item)) {
-                $grouped[$channelId]['total_revenue'] += (float) $item->total_price;
-            }
+            // Refunded orders still incur COGS (product not returned); revenue is
+            // netted for whatever fraction of the order was actually refunded.
+            $grouped[$channelId]['total_revenue'] += $this->itemNetRevenue($item);
         }
 
         // Calculate margins
@@ -5037,10 +5093,9 @@ class ReportController extends Controller
 
             $grouped[$categoryId]['items_sold'] += (int) $item->quantity;
             $grouped[$categoryId]['total_cogs'] += $itemCogs;
-            // Refunded orders still incur COGS (product not returned) but contribute $0 revenue.
-            if (!$this->isOrderItemRefunded($item)) {
-                $grouped[$categoryId]['total_revenue'] += (float) $item->total_price;
-            }
+            // Refunded orders still incur COGS (product not returned); revenue is
+            // netted for whatever fraction of the order was actually refunded.
+            $grouped[$categoryId]['total_revenue'] += $this->itemNetRevenue($item);
         }
 
         // Calculate margins
@@ -5083,10 +5138,9 @@ class ReportController extends Controller
 
             $grouped[$date]['items_sold'] += (int) $item->quantity;
             $grouped[$date]['total_cogs'] += $itemCogs;
-            // Refunded orders still incur COGS (product not returned) but contribute $0 revenue.
-            if (!$this->isOrderItemRefunded($item)) {
-                $grouped[$date]['total_revenue'] += (float) $item->total_price;
-            }
+            // Refunded orders still incur COGS (product not returned); revenue is
+            // netted for whatever fraction of the order was actually refunded.
+            $grouped[$date]['total_revenue'] += $this->itemNetRevenue($item);
         }
 
         // Calculate margins
@@ -5139,13 +5193,12 @@ class ReportController extends Controller
             $grouped[$orderId]['items_count'] += (int) $item->quantity;
 
             // Cancelled orders (inventory restored) contribute $0 COGS. Refunded orders
-            // still incur COGS (product not returned) but contribute $0 revenue.
+            // still incur COGS (product not returned); revenue is netted for whatever
+            // fraction of the order was actually refunded.
             if (!$this->isOrderItemCancelled($item)) {
                 $grouped[$orderId]['total_cogs'] += ($item->cost_at_sale ?? 0) * $item->quantity;
             }
-            if (!$isRefunded) {
-                $grouped[$orderId]['total_revenue'] += (float) $item->total_price;
-            }
+            $grouped[$orderId]['total_revenue'] += $this->itemNetRevenue($item);
         }
 
         // Calculate margins
@@ -5186,6 +5239,9 @@ class ReportController extends Controller
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
+            // Population is paid + refunded orders only - matches Revenue/Net Profit
+            // Report's canonical "revenue orders" definition.
+            ->whereIn('orders.payment_status', ['paid', 'refunded'])
             ->where(function ($q) {
                 $q->where('order_items.inventory_updated', true)
                     ->orWhereIn('orders.order_status', ['cancelled', 'refunded'])
@@ -5229,6 +5285,7 @@ class ReportController extends Controller
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
+            ->whereIn('orders.payment_status', ['paid', 'refunded'])
             ->whereNotNull('order_items.bundle_product_id')
             ->where('order_items.is_bundle_summary', false);
 
@@ -5264,7 +5321,7 @@ class ReportController extends Controller
                 return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
             'total_revenue' => $orderItems->sum(function ($item) {
-                return $this->isOrderItemRefunded($item) ? 0 : $item->total_price;
+                return $this->itemNetRevenue($item);
             }),
         ];
 
@@ -5310,7 +5367,8 @@ class ReportController extends Controller
         $products = Product::where('delete_status', '0')->orderBy('name')->get();
         $categories = Category::orderBy('name')->get();
 
-        // Build order items query - only paid orders for profit calculation
+        // Build order items query - same population as COGS Report (paid + refunded
+        // orders, so every profit report derives from the identical order/item set).
         $query = OrderItem::select(
                 'order_items.*',
                 'orders.order_number',
@@ -5322,8 +5380,13 @@ class ReportController extends Controller
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
-            ->where('orders.payment_status', 'paid')
-            ->where('order_items.inventory_updated', true)
+            ->whereIn('orders.payment_status', ['paid', 'refunded'])
+            ->where(function ($q) {
+                $q->where('order_items.inventory_updated', true)
+                    ->orWhereIn('orders.order_status', ['cancelled', 'refunded'])
+                    ->orWhere('orders.payment_status', 'refunded')
+                    ->orWhereNull('order_items.product_id');
+            })
             // Bundle component lines are excluded - the bundle summary line already
             // carries the combined cost/revenue for the whole bundle sale.
             ->where(function ($q) {
@@ -5358,10 +5421,10 @@ class ReportController extends Controller
         // Bundle component quantities, fetched separately since the main query
         // excludes them. Needed only for the physical Total Items Sold count.
         $componentItems = OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
-            ->select('order_items.*')
+            ->select('order_items.*', 'orders.order_status')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
-            ->where('orders.payment_status', 'paid')
+            ->whereIn('orders.payment_status', ['paid', 'refunded'])
             ->whereNotNull('order_items.bundle_product_id')
             ->where('order_items.is_bundle_summary', false)
             ->when($channelId, fn($q) => $q->where('orders.sales_channel_id', $channelId))
@@ -5369,20 +5432,25 @@ class ReportController extends Controller
             ->when(!empty($categoryIds), fn($q) => $q->whereHas('bundleProduct', fn($q2) => $q2->whereIn('category_id', $categoryIds)))
             ->get();
 
-        // Calculate summary
+        // Calculate summary - identical formula to COGS Report (cancelled orders
+        // zeroed, refunded orders netted by actual refund ratio).
         // Sale Lines: 1 per sold unit, a bundle counts once (its summary line).
         // Total Items Sold: physical piece count - the bundle summary line is
         // swapped out for its components' quantities (what actually ships).
         $summary = [
             'sale_lines' => $orderItems->sum(function ($item) {
-                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+                return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : $item->quantity;
             }),
             'total_items_sold' => $orderItems->sum(function ($item) {
-                    return $item->is_bundle_summary ? 0 : $item->quantity;
-                }) + $componentItems->sum('quantity'),
-            'total_revenue' => $orderItems->sum('total_price'),
+                    return ($this->isOrderItemCancelled($item) || $item->is_bundle_summary) ? 0 : $item->quantity;
+                }) + $componentItems->sum(function ($item) {
+                    return $this->isOrderItemCancelled($item) ? 0 : $item->quantity;
+                }),
+            'total_revenue' => $orderItems->sum(function ($item) {
+                return $this->itemNetRevenue($item);
+            }),
             'total_cogs' => $orderItems->sum(function ($item) {
-                return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
+                return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
         ];
 
@@ -5546,8 +5614,13 @@ class ReportController extends Controller
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
-            ->where('orders.payment_status', 'paid')
-            ->where('order_items.inventory_updated', true)
+            ->whereIn('orders.payment_status', ['paid', 'refunded'])
+            ->where(function ($q) {
+                $q->where('order_items.inventory_updated', true)
+                    ->orWhereIn('orders.order_status', ['cancelled', 'refunded'])
+                    ->orWhere('orders.payment_status', 'refunded')
+                    ->orWhereNull('order_items.product_id');
+            })
             // Bundle component lines are excluded - the bundle summary line already
             // carries the combined cost/revenue for the whole bundle sale.
             ->where(function ($q) {
@@ -5582,10 +5655,10 @@ class ReportController extends Controller
         // Bundle component quantities, fetched separately since the main query
         // excludes them. Needed only for the physical Total Items Sold count.
         $componentItems = OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
-            ->select('order_items.*')
+            ->select('order_items.*', 'orders.order_status')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
-            ->where('orders.payment_status', 'paid')
+            ->whereIn('orders.payment_status', ['paid', 'refunded'])
             ->whereNotNull('order_items.bundle_product_id')
             ->where('order_items.is_bundle_summary', false)
             ->when($channelId, fn($q) => $q->where('orders.sales_channel_id', $channelId))
@@ -5593,17 +5666,21 @@ class ReportController extends Controller
             ->when(!empty($categoryIds), fn($q) => $q->whereHas('bundleProduct', fn($q2) => $q2->whereIn('category_id', $categoryIds)))
             ->get();
 
-        // Calculate summary
+        // Calculate summary - identical formula to COGS Report.
         $summary = [
             'sale_lines' => $orderItems->sum(function ($item) {
-                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+                return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : $item->quantity;
             }),
             'total_items_sold' => $orderItems->sum(function ($item) {
-                    return $item->is_bundle_summary ? 0 : $item->quantity;
-                }) + $componentItems->sum('quantity'),
-            'total_revenue' => $orderItems->sum('total_price'),
+                    return ($this->isOrderItemCancelled($item) || $item->is_bundle_summary) ? 0 : $item->quantity;
+                }) + $componentItems->sum(function ($item) {
+                    return $this->isOrderItemCancelled($item) ? 0 : $item->quantity;
+                }),
+            'total_revenue' => $orderItems->sum(function ($item) {
+                return $this->itemNetRevenue($item);
+            }),
             'total_cogs' => $orderItems->sum(function ($item) {
-                return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
+                return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
         ];
 
@@ -5666,7 +5743,17 @@ class ReportController extends Controller
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
-            ->where('order_items.inventory_updated', true)
+            // Population is paid + refunded orders only, same item-inclusion rule as
+            // COGS/Gross Profit Report - so the "all" tab here matches those exactly.
+            // The "all" vs "paid" comparison is specifically the impact of refunds
+            // (paid+refunded vs paid-only), not pipeline status noise.
+            ->whereIn('orders.payment_status', ['paid', 'refunded'])
+            ->where(function ($q) {
+                $q->where('order_items.inventory_updated', true)
+                    ->orWhereIn('orders.order_status', ['cancelled', 'refunded'])
+                    ->orWhere('orders.payment_status', 'refunded')
+                    ->orWhereNull('order_items.product_id');
+            })
             // Bundle component lines are excluded - the bundle summary line already
             // carries the combined cost/revenue for the whole bundle sale.
             ->where(function ($q) {
@@ -5700,10 +5787,11 @@ class ReportController extends Controller
 
         // Bundle component quantities, fetched separately since the main query
         // excludes them. Needed only for the physical Total Items Sold count.
-        $componentItems = OrderItem::select('order_items.*', 'orders.payment_status')
+        $componentItems = OrderItem::select('order_items.*', 'orders.payment_status', 'orders.order_status')
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
+            ->whereIn('orders.payment_status', ['paid', 'refunded'])
             ->whereNotNull('order_items.bundle_product_id')
             ->where('order_items.is_bundle_summary', false)
             ->when($channelId, fn($q) => $q->where('orders.sales_channel_id', $channelId))
@@ -5713,20 +5801,26 @@ class ReportController extends Controller
             ->when(!empty($categoryIds), fn($q) => $q->whereHas('bundleProduct', fn($q2) => $q2->whereIn('category_id', $categoryIds)))
             ->get();
 
-        // Calculate summary (all orders)
+        // Calculate summary (paid + refunded orders)
         // Sale Lines: 1 per sold unit, a bundle counts once (its summary line).
         // Total Items Sold: physical piece count - the bundle summary line is
         // swapped out for its components' quantities (what actually ships).
+        // Cancelled/refunded zeroing matches groupCogsBy*() below so the summary
+        // cards agree with the grouped table instead of double-counting.
         $summary = [
             'sale_lines' => $orderItems->sum(function ($item) {
-                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+                return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : $item->quantity;
             }),
             'total_items_sold' => $orderItems->sum(function ($item) {
-                    return $item->is_bundle_summary ? 0 : $item->quantity;
-                }) + $componentItems->sum('quantity'),
-            'total_revenue' => $orderItems->sum('total_price'),
+                    return ($this->isOrderItemCancelled($item) || $item->is_bundle_summary) ? 0 : $item->quantity;
+                }) + $componentItems->sum(function ($item) {
+                    return $this->isOrderItemCancelled($item) ? 0 : $item->quantity;
+                }),
+            'total_revenue' => $orderItems->sum(function ($item) {
+                return $this->itemNetRevenue($item);
+            }),
             'total_cogs' => $orderItems->sum(function ($item) {
-                return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
+                return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
         ];
 
@@ -5735,7 +5829,8 @@ class ReportController extends Controller
             ? ($summary['gross_profit'] / $summary['total_revenue']) * 100
             : 0;
 
-        // Calculate paid orders summary
+        // Calculate paid-only orders summary (isolates the refund impact from the
+        // "all" summary above, since both now share the same paid+refunded query).
         $paidItems = $orderItems->filter(function ($item) {
             return $item->order->payment_status === 'paid';
         });
@@ -5744,14 +5839,18 @@ class ReportController extends Controller
 
         $paidSummary = [
             'sale_lines' => $paidItems->sum(function ($item) {
-                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+                return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : $item->quantity;
             }),
             'total_items_sold' => $paidItems->sum(function ($item) {
-                    return $item->is_bundle_summary ? 0 : $item->quantity;
-                }) + $paidComponentItems->sum('quantity'),
-            'total_revenue' => $paidItems->sum('total_price'),
+                    return ($this->isOrderItemCancelled($item) || $item->is_bundle_summary) ? 0 : $item->quantity;
+                }) + $paidComponentItems->sum(function ($item) {
+                    return $this->isOrderItemCancelled($item) ? 0 : $item->quantity;
+                }),
+            'total_revenue' => $paidItems->sum(function ($item) {
+                return $this->itemNetRevenue($item);
+            }),
             'total_cogs' => $paidItems->sum(function ($item) {
-                return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
+                return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
         ];
 
@@ -5849,7 +5948,13 @@ class ReportController extends Controller
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
-            ->where('order_items.inventory_updated', true)
+            ->whereIn('orders.payment_status', ['paid', 'refunded'])
+            ->where(function ($q) {
+                $q->where('order_items.inventory_updated', true)
+                    ->orWhereIn('orders.order_status', ['cancelled', 'refunded'])
+                    ->orWhere('orders.payment_status', 'refunded')
+                    ->orWhereNull('order_items.product_id');
+            })
             // Bundle component lines are excluded - the bundle summary line already
             // carries the combined cost/revenue for the whole bundle sale.
             ->where(function ($q) {
@@ -5884,9 +5989,10 @@ class ReportController extends Controller
         // Bundle component quantities, fetched separately since the main query
         // excludes them. Needed only for the physical Total Items Sold count.
         $componentItems = OrderItem::join('orders', 'orders.id', '=', 'order_items.order_id')
-            ->select('order_items.*')
+            ->select('order_items.*', 'orders.order_status')
             ->whereDate('orders.order_date', '>=', $dateFrom)
             ->whereDate('orders.order_date', '<=', $dateTo)
+            ->whereIn('orders.payment_status', ['paid', 'refunded'])
             ->whereNotNull('order_items.bundle_product_id')
             ->where('order_items.is_bundle_summary', false)
             ->when($channelId, fn($q) => $q->where('orders.sales_channel_id', $channelId))
@@ -5896,17 +6002,22 @@ class ReportController extends Controller
             ->when(!empty($categoryIds), fn($q) => $q->whereHas('bundleProduct', fn($q2) => $q2->whereIn('category_id', $categoryIds)))
             ->get();
 
-        // Calculate summary
+        // Calculate summary - cancelled/refunded zeroing matches groupCogsBy*()
+        // below so the summary cards agree with the grouped table.
         $summary = [
             'sale_lines' => $orderItems->sum(function ($item) {
-                return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
+                return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : $item->quantity;
             }),
             'total_items_sold' => $orderItems->sum(function ($item) {
-                    return $item->is_bundle_summary ? 0 : $item->quantity;
-                }) + $componentItems->sum('quantity'),
-            'total_revenue' => $orderItems->sum('total_price'),
+                    return ($this->isOrderItemCancelled($item) || $item->is_bundle_summary) ? 0 : $item->quantity;
+                }) + $componentItems->sum(function ($item) {
+                    return $this->isOrderItemCancelled($item) ? 0 : $item->quantity;
+                }),
+            'total_revenue' => $orderItems->sum(function ($item) {
+                return $this->itemNetRevenue($item);
+            }),
             'total_cogs' => $orderItems->sum(function ($item) {
-                return $this->isBundleComponentItem($item) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
+                return ($this->isOrderItemCancelled($item) || $this->isBundleComponentItem($item)) ? 0 : ($item->cost_at_sale ?? 0) * $item->quantity;
             }),
         ];
 

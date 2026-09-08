@@ -256,7 +256,7 @@
                 <div class="card-body">
                     <table class="table table-sm mb-0">
                         <tr>
-                            <td class="text-muted">Sales Revenue: @include('partials.info-tooltip', ['text' => 'Same as Total Revenue above - sum of orders.total for paid orders in range.'])</td>
+                            <td class="text-muted">Sales Revenue: @include('partials.info-tooltip', ['text' => 'Same as Total Revenue above - net revenue (orders.total minus orders.total_refunded) for paid + refunded orders in range. Matches Revenue Report.'])</td>
                             <td class="text-end fw-semibold text-success">{{ number_format($summary['total_revenue'], 2) }}</td>
                         </tr>
                         <tr>

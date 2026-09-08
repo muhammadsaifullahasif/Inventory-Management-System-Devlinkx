@@ -28,6 +28,16 @@
 @endsection
 
 @section('content')
+    <!-- Scope note -->
+    <div class="col-12">
+        <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="alert">
+            <i class="feather-info mt-1"></i>
+            <div>
+                This report filters by <strong>the eBay fee transaction date</strong> (when eBay posted the fee), not the underlying order's order date. Every other report (Sales, COGS, Revenue, Shipping Expense, Net Profit) filters by order date. A fee posted a few days after (or before) its order's placement date can land in a different period here than in those reports - totals for "the same month" won't always match exactly.
+            </div>
+        </div>
+    </div>
+
     <!-- Filters Card -->
     <div class="col-12">
         <div class="card mb-4">
