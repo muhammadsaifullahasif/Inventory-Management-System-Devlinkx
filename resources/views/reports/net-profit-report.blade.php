@@ -27,6 +27,19 @@
     <!-- [ page-header ] end -->
 @endsection
 
+@php
+    // Same date/channel/category filters this report was generated with, carried
+    // over to each linked report's own filter set (unsupported params, e.g.
+    // category_id on eBay/Shipping/Expense Reports, are simply ignored by those).
+    $rf = ['date_from' => $dateFrom, 'date_to' => $dateTo];
+    if ($channelId) {
+        $rf['channel_id'] = $channelId;
+    }
+    if (!empty($categoryIds)) {
+        $rf['category_id'] = $categoryIds;
+    }
+@endphp
+
 @section('content')
     <!-- Filters Card -->
     <div class="col-12">
@@ -160,35 +173,35 @@
                     <table class="table table-sm mb-0">
                         <tbody>
                             <tr>
-                                <td class="text-muted">Gross Revenue</td>
+                                <td class="text-muted"><a href="{{ route('reports.revenue', $rf) }}">Gross Revenue</a></td>
                                 <td class="text-end">{{ number_format($summary['gross_revenue'], 2) }}</td>
                             </tr>
                             <tr>
-                                <td class="text-muted ps-4">(-) Refunds</td>
+                                <td class="text-muted ps-4"><a href="{{ route('reports.revenue', $rf) }}">(-) Refunds</a></td>
                                 <td class="text-end text-danger">({{ number_format($summary['total_refunds'], 2) }})</td>
                             </tr>
                             <tr class="table-light">
-                                <td class="fw-semibold">Net Revenue</td>
+                                <td class="fw-semibold"><a href="{{ route('reports.revenue', $rf) }}">Net Revenue</a></td>
                                 <td class="text-end fw-semibold">{{ number_format($summary['net_revenue'], 2) }}</td>
                             </tr>
                             <tr>
-                                <td class="text-muted ps-4">(-) COGS</td>
+                                <td class="text-muted ps-4"><a href="{{ route('reports.cogs', $rf) }}">(-) COGS</a></td>
                                 <td class="text-end text-danger">({{ number_format($summary['cogs'], 2) }})</td>
                             </tr>
                             <tr class="table-light">
-                                <td class="fw-semibold">Gross Profit</td>
+                                <td class="fw-semibold"><a href="{{ route('reports.gross-profit', $rf) }}">Gross Profit</a></td>
                                 <td class="text-end fw-semibold">{{ number_format($summary['gross_profit'], 2) }} <span class="text-muted small">({{ number_format($summary['gross_margin'], 1) }}%)</span></td>
                             </tr>
                             <tr>
-                                <td class="text-muted ps-4">(-) eBay Fees @include('partials.info-tooltip', ['text' => 'Sourced from ebay_finance_transactions filtered by transaction_date (when eBay posted the fee), not this report\'s order-date-based Revenue/COGS/Shipping legs. A fee posted a few days off from its order can shift this figure vs those legs for the same nominal period.']) <span class="text-muted small">(transaction {{ number_format($summary['ebay_transaction_fee'], 2) }} + ad {{ number_format($summary['ebay_ad_fee'], 2) }} + other {{ number_format($summary['ebay_other_fees'], 2) }})</span></td>
+                                <td class="text-muted ps-4"><a href="{{ route('reports.ebay-expenses', $rf) }}">(-) eBay Fees</a> @include('partials.info-tooltip', ['text' => 'Sourced from ebay_finance_transactions filtered by transaction_date (when eBay posted the fee), not this report\'s order-date-based Revenue/COGS/Shipping legs. A fee posted a few days off from its order can shift this figure vs those legs for the same nominal period.']) <span class="text-muted small">(transaction {{ number_format($summary['ebay_transaction_fee'], 2) }} + ad {{ number_format($summary['ebay_ad_fee'], 2) }} + other {{ number_format($summary['ebay_other_fees'], 2) }})</span></td>
                                 <td class="text-end text-danger">({{ number_format($summary['ebay_fees'], 2) }})</td>
                             </tr>
                             <tr>
-                                <td class="text-muted ps-4">(-) Shipping Costs <span class="text-muted small">(eBay labels {{ number_format($summary['shipping_costs_ebay'], 2) }} + system labels {{ number_format($summary['shipping_costs_system'], 2) }})</span></td>
+                                <td class="text-muted ps-4"><a href="{{ route('reports.shipping-expenses', $rf) }}">(-) Shipping Costs</a> <span class="text-muted small">(<a href="{{ route('reports.shipping-expenses', array_merge($rf, ['source' => 'ebay'])) }}">eBay labels {{ number_format($summary['shipping_costs_ebay'], 2) }}</a> + <a href="{{ route('reports.shipping-expenses', array_merge($rf, ['source' => 'system'])) }}">system labels {{ number_format($summary['shipping_costs_system'], 2) }}</a>)</span></td>
                                 <td class="text-end text-danger">({{ number_format($summary['shipping_costs'], 2) }})</td>
                             </tr>
                             <tr>
-                                <td class="text-muted ps-4">(-) Operating Expenses <span class="text-muted small">(posted bills against expense accounts only - excludes Purchase Order/inventory-asset bills, already in COGS)</span></td>
+                                <td class="text-muted ps-4"><a href="{{ route('reports.expense', $rf) }}">(-) Operating Expenses</a> <span class="text-muted small">(posted bills against expense accounts only - excludes Purchase Order/inventory-asset bills, already in COGS)</span></td>
                                 <td class="text-end text-danger">({{ number_format($summary['operating_expenses'], 2) }})</td>
                             </tr>
                             <tr class="table-light">
