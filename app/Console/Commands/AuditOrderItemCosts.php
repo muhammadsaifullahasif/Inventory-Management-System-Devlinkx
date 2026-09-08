@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\OrderItem;
-use App\Services\InventoryAccountingService;
+use App\Models\PurchaseItem;
 use Illuminate\Support\Facades\DB;
 
 class AuditOrderItemCosts extends Command
@@ -34,7 +34,6 @@ class AuditOrderItemCosts extends Command
         $fix = (bool) $this->option('fix');
         $threshold = (float) $this->option('threshold');
         $productId = $this->option('product');
-        $inventoryService = new InventoryAccountingService();
 
         // Bundle component rows are excluded - their cost is rolled up into the
         // bundle summary row, so auditing them separately would be comparing
@@ -59,7 +58,7 @@ class AuditOrderItemCosts extends Command
         $flagged = [];
 
         foreach ($items as $item) {
-            $referenceCost = $this->referenceCostFor($item, $inventoryService);
+            $referenceCost = $this->referenceCostFor($item);
 
             if ($referenceCost <= 0) {
                 continue; // No purchase history to compare against - nothing to audit.
@@ -116,19 +115,23 @@ class AuditOrderItemCosts extends Command
     }
 
     /**
-     * The best available ground-truth cost for an order item, given current
-     * purchase data. There is no historical cost ledger, so this is always
-     * "what the last purchase price says today" rather than a reconstruction
-     * of the true cost at the moment the item was sold.
+     * The best available ground-truth cost for an order item: the lifetime
+     * purchase-weighted-average across ALL received/partial purchase items
+     * for the product, pooled across every warehouse/rack. product_stocks.avg_cost
+     * is NOT used here - it's a moving average of what's currently on hand,
+     * recalculated only on stock increases, so it drifts away from the true
+     * lifetime average whenever sales happen between purchases. Last-purchase-price
+     * is also not used - with more than one purchase it's just as wrong as
+     * avg_cost, it only happens to be correct when there's a single purchase.
      */
-    protected function referenceCostFor(OrderItem $item, InventoryAccountingService $inventoryService): float
+    protected function referenceCostFor(OrderItem $item): float
     {
         if ($item->is_bundle_summary) {
             return OrderItem::where('order_id', $item->order_id)
                 ->where('bundle_product_id', $item->product_id)
                 ->where('is_bundle_summary', false)
                 ->get()
-                ->sum(fn ($component) => $inventoryService->getLastPurchaseCost($component->product_id) * $component->quantity)
+                ->sum(fn ($component) => $this->lifetimeAverageCost($component->product_id) * $component->quantity)
                 / max(1, $item->quantity);
         }
 
@@ -137,10 +140,34 @@ class AuditOrderItemCosts extends Command
         // summing component costs, same as BackfillOrderItemCosts does.
         if ($item->product && $item->product->is_bundle) {
             return $item->product->bundleComponents->sum(
-                fn ($component) => $inventoryService->getLastPurchaseCost($component->component_product_id) * $component->quantity_required
+                fn ($component) => $this->lifetimeAverageCost($component->component_product_id) * $component->quantity_required
             );
         }
 
-        return $inventoryService->getLastPurchaseCost($item->product_id);
+        return $this->lifetimeAverageCost($item->product_id);
+    }
+
+    /**
+     * sum(received_qty * price) / sum(received_qty) across every received/partial
+     * purchase item for the product, regardless of warehouse or rack - the whole
+     * system's quantity is pooled as one unit, matching how cost of goods should
+     * be tracked (a unit is a unit no matter which rack it sits on).
+     */
+    protected function lifetimeAverageCost(int $productId): float
+    {
+        $purchaseItems = PurchaseItem::where('product_id', $productId)
+            ->whereHas('purchase', function ($q) {
+                $q->whereIn('purchase_status', ['received', 'partial']);
+            })
+            ->get();
+
+        $totalQty = (float) $purchaseItems->sum('received_quantity');
+        $totalValue = (float) $purchaseItems->sum(fn ($pi) => $pi->received_quantity * $pi->price);
+
+        if ($totalQty <= 0) {
+            return 0;
+        }
+
+        return round($totalValue / $totalQty, 4);
     }
 }
