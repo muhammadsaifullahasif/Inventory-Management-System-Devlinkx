@@ -356,7 +356,13 @@ class EbayFinanceSyncService
 
         $expensesTotal = array_sum($marketplaceFees) + $shippingLabelsNet + $otherChargesNet;
         $orderEarnings = $grossAmount - $expensesTotal - $refunds + $adjustments;
-        $yourCost = (float) $order->items()->sum(DB::raw('cost_at_sale * quantity'));
+        // Exclude bundle component rows — their cost is already rolled up into
+        // the bundle summary row's cost_at_sale, so counting both double-counts.
+        $yourCost = (float) $order->items()
+            ->where(function ($q) {
+                $q->whereNull('bundle_product_id')->orWhere('is_bundle_summary', true);
+            })
+            ->sum(DB::raw('cost_at_sale * quantity'));
 
         return [
             'ebay_collected_tax' => $ebayCollectedTax,
