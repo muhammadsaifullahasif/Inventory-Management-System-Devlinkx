@@ -26,7 +26,7 @@ class MonitorDownNotification extends Notification implements ShouldQueue
             ->error()
             ->line("The monitor \"{$this->monitor->name}\" ({$this->monitor->url}) is reporting as down.")
             ->line("Reason: {$this->monitor->uptime_check_failure_reason}")
-            ->action('View Uptime Monitor', route('uptime-monitor.show', $this->monitor));
+            ->action('View Uptime Monitor', route('system-health.index'));
     }
 
     public function toArray(object $notifiable): array

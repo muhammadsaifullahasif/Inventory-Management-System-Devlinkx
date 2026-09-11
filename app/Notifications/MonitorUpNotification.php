@@ -30,7 +30,7 @@ class MonitorUpNotification extends Notification implements ShouldQueue
             $message->line("It was down for approximately {$this->downtime}.");
         }
 
-        return $message->action('View Uptime Monitor', route('uptime-monitor.show', $this->monitor));
+        return $message->action('View Uptime Monitor', route('system-health.index'));
     }
 
     public function toArray(object $notifiable): array
