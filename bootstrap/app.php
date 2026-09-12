@@ -19,6 +19,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
         ]);
 
+        // Audit trail: resolve ip/user-agent/actor for every request before
+        // controllers run, so AuditLogger/AuditObserver just read it.
+        $middleware->web(append: [\App\Http\Middleware\CaptureAuditContext::class]);
+        $middleware->api(append: [\App\Http\Middleware\CaptureAuditContext::class]);
+
         // These are set client-side as plain JSON by partials/column-toggle.blade.php,
         // not Laravel-encrypted - exclude so the server can read them back.
         $middleware->encryptCookies(except: [

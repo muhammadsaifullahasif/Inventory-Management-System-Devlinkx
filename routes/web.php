@@ -32,6 +32,8 @@ use App\Http\Controllers\ShippingSettingController;
 use App\Http\Controllers\SystemHealthController;
 use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BackupSettingController;
+use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\AuditSettingController;
 
 Route::get('/run-migrations', function() {
     if (!app()->environment('local')) {
@@ -184,6 +186,14 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('/settings', [BackupSettingController::class, 'edit'])->name('settings.edit');
         Route::put('/settings', [BackupSettingController::class, 'update'])->name('settings.update');
+    });
+
+    // Audit Trail
+    Route::prefix('audit-logs')->name('audit-logs.')->group(function () {
+        Route::get('/settings', [AuditSettingController::class, 'edit'])->name('settings.edit');
+        Route::put('/settings', [AuditSettingController::class, 'update'])->name('settings.update');
+        Route::get('/{uuid}', [AuditLogController::class, 'show'])->name('show')->where('uuid', '[0-9a-fA-F-]{36}');
+        Route::get('/', [AuditLogController::class, 'index'])->name('index');
     });
 
     // Categories

@@ -595,12 +595,15 @@ class OrderController extends Controller
         try {
             DB::beginTransaction();
 
-            $order->update([
+            app(\App\Services\AuditLogger::class)->withEvent('marked_as_shipped', $order, fn () => $order->update([
                 'shipping_carrier' => $validated['shipping_carrier'],
                 'tracking_number' => $validated['tracking_number'],
                 'fulfillment_status' => 'fulfilled',
                 'order_status' => 'shipped',
                 'shipped_at' => now(),
+            ]), [
+                'carrier' => $validated['shipping_carrier'],
+                'tracking_number' => $validated['tracking_number'],
             ]);
 
             // Deduct inventory for all items
@@ -745,9 +748,11 @@ class OrderController extends Controller
                 }
             }
 
-            $order->update([
+            app(\App\Services\AuditLogger::class)->withEvent('order_cancelled', $order, fn () => $order->update([
                 'order_status' => 'cancelled',
                 'cancel_status' => $request->input('reason', 'Cancelled by user'),
+            ]), [
+                'reason' => $request->input('reason', 'Cancelled by user'),
             ]);
 
             DB::commit();
@@ -1281,7 +1286,7 @@ class OrderController extends Controller
             ]);
 
             // Update order with shipping info and mark as shipped
-            $order->update([
+            app(\App\Services\AuditLogger::class)->withEvent('label_generated', $order, fn () => $order->update([
                 'shipping_carrier'     => $carrierName,
                 'shipping_id'          => $carrier->id,
                 'tracking_number'      => $trackingNumber,
@@ -1292,6 +1297,10 @@ class OrderController extends Controller
                 'order_status'         => 'shipped',
                 'shipped_at'           => now(),
                 ...($shippingCost !== null ? ['shipping_cost' => $shippingCost] : []),
+            ]), [
+                'carrier' => $carrierName,
+                'tracking_number' => $trackingNumber,
+                'service_code' => $serviceCode,
             ]);
 
             Log::channel('shipping-cost')->info('Single-package label: shipping_cost save result', [
@@ -1450,7 +1459,7 @@ class OrderController extends Controller
             // Update order with primary shipping info (first package) and mark as shipped
             $trackingNumbersString = implode(', ', $trackingNumbers);
 
-            $order->update([
+            app(\App\Services\AuditLogger::class)->withEvent('label_generated', $order, fn () => $order->update([
                 'shipping_carrier'     => $carrierName,
                 'shipping_id'          => $carrier->id,
                 'tracking_number'      => $trackingNumbersString, // Store all tracking numbers comma-separated
@@ -1461,6 +1470,10 @@ class OrderController extends Controller
                 'order_status'         => 'shipped',
                 'shipped_at'           => now(),
                 ...($shippingCost !== null ? ['shipping_cost' => $shippingCost] : []),
+            ]), [
+                'carrier' => $carrierName,
+                'tracking_numbers' => $trackingNumbers,
+                'package_count' => $packageCount,
             ]);
 
             // Refresh the order from database to verify the update
@@ -1612,7 +1625,7 @@ class OrderController extends Controller
             }
 
             // Clear shipping info from order and revert status
-            $order->update([
+            app(\App\Services\AuditLogger::class)->withEvent('label_cancelled', $order, fn () => $order->update([
                 'tracking_number'      => null,
                 'tracking_url'         => null,
                 'shipping_label_path'  => null,
@@ -1622,6 +1635,9 @@ class OrderController extends Controller
                 'fulfillment_status'   => 'unfulfilled',
                 'order_status'         => 'processing',
                 'shipped_at'           => null,
+            ]), [
+                'cancelled_tracking_number' => $trackingNumber,
+                'cancelled_carrier' => $carrierName,
             ]);
 
             // Restore inventory for all items (since we're un-shipping)
@@ -1775,13 +1791,17 @@ class OrderController extends Controller
         try {
             $refundAmount = $order->getRefundableAmount();
 
-            $order->update([
+            app(\App\Services\AuditLogger::class)->withEvent('order_refunded', $order, fn () => $order->update([
                 'refund_status' => 'completed',
                 'refund_amount' => $order->total,
                 'total_refunded' => $order->total,
                 'refund_initiated_at' => now(),
                 'refund_completed_at' => now(),
                 'payment_status' => 'refunded',
+            ]), [
+                'refund_amount' => $refundAmount,
+                'reason' => $validated['reason'] ?? null,
+                'comment' => $validated['comment'] ?? null,
             ]);
 
             // Log the refund
@@ -1893,7 +1913,11 @@ class OrderController extends Controller
             $amount = (float) $validated['amount'];
 
             // Record the partial refund
-            $order->recordPartialRefund($amount);
+            app(\App\Services\AuditLogger::class)->withEvent('order_partially_refunded', $order, fn () => $order->recordPartialRefund($amount), [
+                'refund_amount' => $amount,
+                'reason' => $validated['reason'] ?? null,
+                'comment' => $validated['comment'] ?? null,
+            ]);
 
             // Log the refund
             $order->setMeta('refund_log_' . time(), [

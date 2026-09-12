@@ -81,14 +81,21 @@ class RefreshEbayTokens extends Command
                         'name' => $channel->name,
                         'refresh_token_expires_at' => $channel->refresh_token_expires_at,
                     ]);
+                    app(\App\Services\AuditLogger::class)->log('ebay_reauthorization_required', $channel, [], [], [
+                        'refresh_token_expires_at' => (string) $channel->refresh_token_expires_at,
+                    ]);
                     $failed++;
                     continue;
                 }
 
                 $this->line("  → Refreshing token...");
+                app(\App\Support\AuditContext::class)->suppressNextUpdateFor($channel);
                 $ebayClient->refreshToken($channel);
 
                 $this->info("  → Token refreshed successfully! New expiry: {$channel->access_token_expires_at}");
+                app(\App\Services\AuditLogger::class)->log('ebay_token_refreshed', $channel, [], [], [
+                    'expires_at' => (string) $channel->access_token_expires_at,
+                ]);
                 $refreshed++;
 
             } catch (Exception $e) {
@@ -97,6 +104,9 @@ class RefreshEbayTokens extends Command
                     'sales_channel_id' => $channel->id,
                     'name' => $channel->name,
                     'error' => $e->getMessage(),
+                ]);
+                app(\App\Services\AuditLogger::class)->log('ebay_token_refresh_failed', $channel, [], [], [
+                    'reason' => $e->getMessage(),
                 ]);
                 $failed++;
             }

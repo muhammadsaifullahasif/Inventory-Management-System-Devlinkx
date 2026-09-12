@@ -272,15 +272,28 @@ class InventorySyncService
         string $triggerSource = 'manual',
         ?string $triggerReference = null
     ): array {
-        $results = [];
         $activeListings = SalesChannelProduct::where('product_id', $product->id)
             ->where('listing_status', SalesChannelProduct::STATUS_ACTIVE)
             ->where('sync_enabled', true)
             ->get();
 
-        foreach ($activeListings as $listing) {
-            $results[] = $this->syncListing($product, $listing, $triggerSource, $triggerReference);
-        }
+        $results = [];
+
+        app(\App\Services\AuditLogger::class)->batch('product_synced_to_all_channels', function () use ($product, $activeListings, $triggerSource, $triggerReference, &$results) {
+            $affected = [];
+
+            foreach ($activeListings as $listing) {
+                $result = $this->syncListing($product, $listing, $triggerSource, $triggerReference);
+                $results[] = $result;
+                $affected[] = [
+                    'type' => 'SalesChannelProduct', 'id' => $listing->id,
+                    'label' => "channel #{$listing->sales_channel_id}", 'effect' => $result->status,
+                    'reason' => $result->reason,
+                ];
+            }
+
+            return $affected;
+        }, ['product_sku' => $product->sku, 'trigger' => $triggerSource], $product);
 
         return $results;
     }
@@ -300,17 +313,29 @@ class InventorySyncService
         string $triggerSource = 'manual',
         ?string $triggerReference = null
     ): array {
-        $results = [];
         $listingsNeedingSync = $this->calculator->getListingsNeedingSync($product);
+        $results = [];
 
-        foreach ($listingsNeedingSync as $syncData) {
-            $results[] = $this->syncListing(
-                $product,
-                $syncData['listing'],
-                $triggerSource,
-                $triggerReference
-            );
-        }
+        app(\App\Services\AuditLogger::class)->batch('product_synced_to_all_channels', function () use ($product, $listingsNeedingSync, $triggerSource, $triggerReference, &$results) {
+            $affected = [];
+
+            foreach ($listingsNeedingSync as $syncData) {
+                $result = $this->syncListing(
+                    $product,
+                    $syncData['listing'],
+                    $triggerSource,
+                    $triggerReference
+                );
+                $results[] = $result;
+                $affected[] = [
+                    'type' => 'SalesChannelProduct', 'id' => $syncData['listing']->id,
+                    'label' => "channel #{$syncData['listing']->sales_channel_id}", 'effect' => $result->status,
+                    'reason' => $result->reason,
+                ];
+            }
+
+            return $affected;
+        }, ['product_sku' => $product->sku, 'trigger' => $triggerSource], $product);
 
         return $results;
     }

@@ -61,6 +61,7 @@ class ImportEbayListingsJob implements ShouldQueue
         $updatedCount = 0;
         $errorCount = 0;
         $errors = [];
+        $affected = [];
 
         // Get default warehouse and rack for new products
         $warehouse = Warehouse::where('is_default', true)->first();
@@ -118,7 +119,7 @@ class ImportEbayListingsJob implements ShouldQueue
 
                 if ($existingProduct) {
                     // EXISTING PRODUCT: Push local stock/dimensions TO eBay
-                    $this->syncExistingProductToEbay(
+                    $affected[] = $this->syncExistingProductToEbay(
                         $existingProduct,
                         $item,
                         $salesChannel,
@@ -133,8 +134,8 @@ class ImportEbayListingsJob implements ShouldQueue
                         $item,
                         $ebaySku,
                         $warehouse,
-                        $rack, 
-                        $salesChannel, 
+                        $rack,
+                        $salesChannel,
                         $ebayService
                     );
 
@@ -148,6 +149,11 @@ class ImportEbayListingsJob implements ShouldQueue
                         ]
                     ]);
 
+                    $affected[] = [
+                        'type' => 'Product', 'id' => $product->id, 'label' => $product->sku,
+                        'effect' => 'imported_from_channel', 'ebay_item_id' => $itemId,
+                    ];
+
                     $insertedCount++;
                 }
             } catch (Throwable $e) {
@@ -157,6 +163,10 @@ class ImportEbayListingsJob implements ShouldQueue
                     'title' => $item['title'] ?? 'N/A',
                     'error' => $e->getMessage(),
                 ];
+                $affected[] = [
+                    'type' => 'Product', 'id' => null, 'label' => $item['title'] ?? ($item['item_id'] ?? 'unknown'),
+                    'effect' => 'import_failed', 'ebay_item_id' => $item['item_id'] ?? 'unknown', 'reason' => $e->getMessage(),
+                ];
 
                 Log::error('eBay Import Job Item Error', [
                     'batch' => $this->batchNumber,
@@ -165,6 +175,14 @@ class ImportEbayListingsJob implements ShouldQueue
                     'trace' => $e->getTraceAsString(),
                 ]);
             }
+        }
+
+        if (!empty($affected)) {
+            app(\App\Services\AuditLogger::class)->logBatch('products_imported_from_channel', $affected, [
+                'batch' => $this->batchNumber,
+                'total_batches' => $this->totalBatches,
+                'import_log_id' => $this->importLogId,
+            ], $salesChannel);
         }
 
         $this->updateImportLog($insertedCount, $updatedCount, $errorCount, $errors);
@@ -180,7 +198,7 @@ class ImportEbayListingsJob implements ShouldQueue
         SalesChannel $salesChannel,
         EbayService $ebayService,
         VisibleStockCalculator $calculator
-    ): void {
+    ): array {
         $itemId = $ebayItem['item_id'];
 
         // Get or create pivot record first (needed for calculation)
@@ -235,6 +253,15 @@ class ImportEbayListingsJob implements ShouldQueue
         ];
 
         $product->sales_channels()->updateExistingPivot($this->salesChannelId, $pivotData);
+
+        return [
+            'type' => 'Product',
+            'id' => $product->id,
+            'label' => $product->sku,
+            'effect' => $ebayResult['success'] ? 'synced' : 'sync_failed',
+            'ebay_item_id' => $itemId,
+            'reason' => $ebayResult['success'] ? null : ($ebayResult['errors'][0]['message'] ?? 'Sync failed'),
+        ];
     }
 
     /**
@@ -278,7 +305,7 @@ class ImportEbayListingsJob implements ShouldQueue
         }
 
         // Create product
-        $product = Product::create([
+        $product = new Product([
             'sku' => $sku,
             'name' => $item['title'] ?? '',
             'barcode' => $sku,
@@ -288,6 +315,9 @@ class ImportEbayListingsJob implements ShouldQueue
             'price' => $item['price']['value'] ?? 0,
             'product_image' => $productImage,
         ]);
+
+        app(\App\Services\AuditLogger::class)->suppress($product);
+        $product->save();
 
         // Create product meta
         $metaData = [

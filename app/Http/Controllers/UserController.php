@@ -119,14 +119,30 @@ class UserController extends Controller
 
         try {
             $user = User::findOrFail($id);
+            $passwordChanged = !empty($request->password);
+            $rolesBefore = $user->getRoleNames()->sort()->values()->all();
+
             $user->name = $request->name;
             $user->email = $request->email;
-            if (!empty($request->password)) {
+            if ($passwordChanged) {
                 $user->password = Hash::make($request->password);
             }
-            $user->save();
+
+            app(\App\Services\AuditLogger::class)->withEvent(
+                $passwordChanged ? 'password_reset' : 'profile_updated',
+                $user,
+                fn () => $user->save()
+            );
 
             $user->syncRoles($request->role);
+            $rolesAfter = $user->getRoleNames()->sort()->values()->all();
+
+            if ($rolesBefore !== $rolesAfter) {
+                app(\App\Services\AuditLogger::class)->log('role_changed', $user,
+                    ['roles' => $rolesBefore],
+                    ['roles' => $rolesAfter]
+                );
+            }
 
             return redirect()->route('users.index')->with('success', 'User updated successfully');
         } catch (\Exception $e) {

@@ -113,10 +113,10 @@ class OrderReturnController extends Controller
             return response()->json(['success' => false, 'message' => 'Return not found'], 404);
         }
 
-        $orderReturn->update([
+        app(\App\Services\AuditLogger::class)->withEvent('return_approved', $orderReturn, fn () => $orderReturn->update([
             'status' => 'approved',
             'approved_at' => now(),
-        ]);
+        ]));
 
         $orderReturn->order?->update(['return_status' => 'approved']);
 
@@ -134,9 +134,11 @@ class OrderReturnController extends Controller
             return response()->json(['success' => false, 'message' => 'Return not found'], 404);
         }
 
-        $orderReturn->update([
+        app(\App\Services\AuditLogger::class)->withEvent('return_declined', $orderReturn, fn () => $orderReturn->update([
             'status' => 'declined',
             'notes' => $request->input('reason', $orderReturn->notes),
+        ]), [
+            'reason' => $request->input('reason'),
         ]);
 
         $orderReturn->order?->update(['return_status' => 'declined']);
@@ -163,9 +165,11 @@ class OrderReturnController extends Controller
                 $returnItem->restock();
             }
 
-            $orderReturn->update([
+            app(\App\Services\AuditLogger::class)->withEvent('return_items_received', $orderReturn, fn () => $orderReturn->update([
                 'status' => 'item_received',
                 'received_at' => now(),
+            ]), [
+                'items_restocked' => $orderReturn->items->count(),
             ]);
 
             $orderReturn->order?->update(['return_status' => 'return_received']);
@@ -199,11 +203,11 @@ class OrderReturnController extends Controller
             return response()->json(['success' => false, 'message' => 'Return not found'], 404);
         }
 
-        $orderReturn->update([
+        app(\App\Services\AuditLogger::class)->withEvent('return_closed', $orderReturn, fn () => $orderReturn->update([
             'status' => 'closed',
             'closed_at' => now(),
             'notes' => $request->input('notes', $orderReturn->notes),
-        ]);
+        ]));
 
         $orderReturn->order?->update(['return_closed_at' => now()]);
 

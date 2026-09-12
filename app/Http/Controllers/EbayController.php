@@ -86,6 +86,12 @@ class EbayController extends Controller
                 ->delay(now()->addSeconds(($page - 1) * self::IMPORT_BATCH_DELAY_SECONDS)); // Stagger jobs
             }
 
+            app(\App\Services\AuditLogger::class)->log('product_import_started', $salesChannel, [], [], [
+                'total_listings' => $totalListings,
+                'total_pages' => $totalPages,
+                'import_log_id' => $importLog->id,
+            ]);
+
             return redirect()->back()->with('success',
                 "Found {$totalListings} eBay listing(s) across {$totalPages} page(s). " .
                 "Processing in background. Import ID: {$importLog->id}"
@@ -162,6 +168,12 @@ class EbayController extends Controller
                 ->onQueue('ebay-imports')
                 ->delay(now()->addSeconds(($page - 1) * self::IMPORT_BATCH_DELAY_SECONDS)); // Stagger jobs
             }
+
+            app(\App\Services\AuditLogger::class)->log('product_import_started', $salesChannel, [], [], [
+                'total_listings' => $totalListings,
+                'total_pages' => $totalPages,
+                'import_log_id' => $importLog->id,
+            ]);
 
             return redirect()->back()->with('success',
                 "Found {$totalListings} eBay listing(s) across {$totalPages} page(s). " .
@@ -621,22 +633,33 @@ class EbayController extends Controller
             $updatedCount = 0;
             $errorCount = 0;
 
-            foreach ($allOrders as $ebayOrder) {
-                try {
-                    $processResult = $this->orderService->processOrder($ebayOrder, $id);
-                    if ($processResult === 'created') {
-                        $syncedCount++;
-                    } elseif ($processResult === 'updated') {
-                        $updatedCount++;
+            app(\App\Services\AuditLogger::class)->batch('orders_synced', function () use ($allOrders, $id, &$syncedCount, &$updatedCount, &$errorCount) {
+                $affected = [];
+
+                foreach ($allOrders as $ebayOrder) {
+                    try {
+                        $processResult = $this->orderService->processOrder($ebayOrder, $id);
+                        if ($processResult === 'created') {
+                            $syncedCount++;
+                        } elseif ($processResult === 'updated') {
+                            $updatedCount++;
+                        }
+                        $affected[] = ['type' => 'Order', 'label' => $ebayOrder['order_id'] ?? 'unknown', 'effect' => $processResult];
+                    } catch (Exception $e) {
+                        $errorCount++;
+                        Log::error('Failed to process eBay order', [
+                            'order_id' => $ebayOrder['order_id'] ?? 'unknown',
+                            'error' => $e->getMessage(),
+                        ]);
+                        $affected[] = [
+                            'type' => 'Order', 'label' => $ebayOrder['order_id'] ?? 'unknown',
+                            'effect' => 'failed', 'reason' => $e->getMessage(),
+                        ];
                     }
-                } catch (Exception $e) {
-                    $errorCount++;
-                    Log::error('Failed to process eBay order', [
-                        'order_id' => $ebayOrder['order_id'] ?? 'unknown',
-                        'error' => $e->getMessage(),
-                    ]);
                 }
-            }
+
+                return $affected;
+            }, ['sales_channel_id' => $id], $salesChannel);
 
             $message = "Order sync complete! New: {$syncedCount}, Updated: {$updatedCount}";
             if ($errorCount > 0) {

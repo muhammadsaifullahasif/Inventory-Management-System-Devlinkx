@@ -215,7 +215,9 @@ class BillController extends Controller
         }
 
         try {
-            $this->billService->postBill($bill);
+            app(\App\Services\AuditLogger::class)->withEvent('bill_posted', $bill, fn () => $this->billService->postBill($bill), [
+                'bill_number' => $bill->bill_number,
+            ]);
 
             return redirect()
                 ->route('bills.show', $bill)

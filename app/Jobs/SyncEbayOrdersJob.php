@@ -53,22 +53,36 @@ class SyncEbayOrdersJob implements ShouldQueue
             $updatedCount = 0;
             $errorCount = 0;
 
-            foreach ($allOrders as $ebayOrder) {
-                try {
-                    $processResult = $orderService->processOrder($ebayOrder, $this->salesChannelId);
-                    if ($processResult === 'created') {
-                        $syncedCount++;
-                    } elseif ($processResult === 'updated') {
-                        $updatedCount++;
+            app(\App\Services\AuditLogger::class)->batch('orders_synced', function () use ($allOrders, $orderService, &$syncedCount, &$updatedCount, &$errorCount) {
+                $affected = [];
+
+                foreach ($allOrders as $ebayOrder) {
+                    try {
+                        $processResult = $orderService->processOrder($ebayOrder, $this->salesChannelId);
+                        if ($processResult === 'created') {
+                            $syncedCount++;
+                        } elseif ($processResult === 'updated') {
+                            $updatedCount++;
+                        }
+                        $affected[] = [
+                            'type' => 'Order', 'label' => $ebayOrder['order_id'] ?? 'unknown',
+                            'effect' => $processResult,
+                        ];
+                    } catch (Exception $e) {
+                        $errorCount++;
+                        Log::error('Failed to process eBay order in job', [
+                            'order_id' => $ebayOrder['order_id'] ?? 'unknown',
+                            'error' => $e->getMessage(),
+                        ]);
+                        $affected[] = [
+                            'type' => 'Order', 'label' => $ebayOrder['order_id'] ?? 'unknown',
+                            'effect' => 'failed', 'reason' => $e->getMessage(),
+                        ];
                     }
-                } catch (Exception $e) {
-                    $errorCount++;
-                    Log::error('Failed to process eBay order in job', [
-                        'order_id' => $ebayOrder['order_id'] ?? 'unknown',
-                        'error' => $e->getMessage(),
-                    ]);
                 }
-            }
+
+                return $affected;
+            }, ['sales_channel_id' => $this->salesChannelId], $salesChannel);
         } catch (Exception $e) {
             Log::error('eBay order sync job failed', [
                 'error' => $e->getMessage(),

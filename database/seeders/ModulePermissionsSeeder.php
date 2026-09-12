@@ -34,6 +34,10 @@ class ModulePermissionsSeeder extends Seeder
             // Returns
             ['name' => 'add returns', 'category' => 'Orders'],
             ['name' => 'manage returns', 'category' => 'Orders'],
+
+            // Audit Trail
+            ['name' => 'view audit-logs', 'category' => 'Audit Trail'],
+            ['name' => 'manage audit-settings', 'category' => 'Audit Trail'],
         ];
 
         foreach ($permissions as $permission) {

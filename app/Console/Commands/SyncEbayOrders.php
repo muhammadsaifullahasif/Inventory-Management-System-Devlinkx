@@ -127,41 +127,55 @@ class SyncEbayOrders extends Command
                 $channelSkipped = 0;
                 $channelOrdersFailed = 0;
 
-                foreach ($orders as $ebayOrder) {
-                    $totalProcessed++;
-                    try {
-                        $action = $orderService->processOrder($ebayOrder, $channel->id);
+                app(\App\Services\AuditLogger::class)->batch('orders_synced', function () use (
+                    $orders, $orderService, $channel, &$totalProcessed, &$channelCreated, &$channelUpdated,
+                    &$totalCreated, &$channelSkipped, &$totalSkipped, &$channelOrdersFailed, &$totalOrdersFailed
+                ) {
+                    $affected = [];
 
-                        if ($action === 'created') {
-                            $channelCreated++;
-                            $totalCreated++;
-                        } elseif ($action === 'updated') {
-                            $channelUpdated++;
-                            $totalUpdated++;
-                        } else {
-                            $channelSkipped++;
-                            $totalSkipped++;
-                        }
-                    } catch (Exception $e) {
-                        $channelOrdersFailed++;
-                        $totalOrdersFailed++;
+                    foreach ($orders as $ebayOrder) {
+                        $totalProcessed++;
+                        try {
+                            $action = $orderService->processOrder($ebayOrder, $channel->id);
 
-                        // Log error but continue processing other orders
-                        Log::channel('ebay')->warning('Failed to process individual order during sync (continuing)', [
-                            'sales_channel_id' => $channel->id,
-                            'ebay_order_id' => $ebayOrder['order_id'] ?? 'unknown',
-                            'error' => $e->getMessage(),
-                        ]);
+                            if ($action === 'created') {
+                                $channelCreated++;
+                                $totalCreated++;
+                            } elseif ($action === 'updated') {
+                                $channelUpdated++;
+                                $totalUpdated++;
+                            } else {
+                                $channelSkipped++;
+                                $totalSkipped++;
+                            }
+                            $affected[] = ['type' => 'Order', 'label' => $ebayOrder['order_id'] ?? 'unknown', 'effect' => $action];
+                        } catch (Exception $e) {
+                            $channelOrdersFailed++;
+                            $totalOrdersFailed++;
+                            $affected[] = [
+                                'type' => 'Order', 'label' => $ebayOrder['order_id'] ?? 'unknown',
+                                'effect' => 'failed', 'reason' => $e->getMessage(),
+                            ];
 
-                        // Only log full trace for first few failures to avoid log spam
-                        if ($totalOrdersFailed <= 5) {
-                            Log::channel('ebay')->debug('Order sync failure trace', [
+                            // Log error but continue processing other orders
+                            Log::channel('ebay')->warning('Failed to process individual order during sync (continuing)', [
+                                'sales_channel_id' => $channel->id,
                                 'ebay_order_id' => $ebayOrder['order_id'] ?? 'unknown',
-                                'trace' => $e->getTraceAsString(),
+                                'error' => $e->getMessage(),
                             ]);
+
+                            // Only log full trace for first few failures to avoid log spam
+                            if ($totalOrdersFailed <= 5) {
+                                Log::channel('ebay')->debug('Order sync failure trace', [
+                                    'ebay_order_id' => $ebayOrder['order_id'] ?? 'unknown',
+                                    'trace' => $e->getTraceAsString(),
+                                ]);
+                            }
                         }
                     }
-                }
+
+                    return $affected;
+                }, ['sales_channel_id' => $channel->id], $channel);
 
                 $this->line("  Results for {$channel->name}:");
                 $this->line("    Created: {$channelCreated}");

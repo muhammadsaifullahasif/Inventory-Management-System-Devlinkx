@@ -82,15 +82,24 @@ class RefreshShippingTokens extends Command
                 $this->line("  → Refreshing token...");
 
                 // Handle different carrier types
+                app(\App\Support\AuditContext::class)->suppressNextUpdateFor($carrier);
                 $newToken = $this->refreshCarrierToken($carrier);
 
                 if ($newToken) {
                     $carrier->refresh(); // Reload from DB
                     $this->info("  → Token refreshed successfully! New expiry: {$carrier->access_token_expires_at}");
+                    app(\App\Services\AuditLogger::class)->log('shipping_token_refreshed', $carrier, [], [], [
+                        'carrier_type' => $carrier->type,
+                        'expires_at' => (string) $carrier->access_token_expires_at,
+                    ]);
                     $refreshed++;
                 } else {
                     $this->error("  → Failed to obtain new token");
                     $this->notifyTokenFailure($carrier, 'Failed to obtain new token');
+                    app(\App\Services\AuditLogger::class)->log('shipping_token_refresh_failed', $carrier, [], [], [
+                        'carrier_type' => $carrier->type,
+                        'reason' => 'Failed to obtain new token',
+                    ]);
                     $failed++;
                 }
 
@@ -103,6 +112,10 @@ class RefreshShippingTokens extends Command
                     'error' => $e->getMessage(),
                 ]);
                 $this->notifyTokenFailure($carrier, $e->getMessage());
+                app(\App\Services\AuditLogger::class)->log('shipping_token_refresh_failed', $carrier, [], [], [
+                    'carrier_type' => $carrier->type,
+                    'reason' => $e->getMessage(),
+                ]);
                 $failed++;
             }
         }

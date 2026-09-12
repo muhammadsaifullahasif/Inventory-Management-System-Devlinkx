@@ -576,10 +576,19 @@ class PurchaseController extends Controller
             $purchase = Purchase::with(['purchase_items.product', 'supplier'])->findOrFail($id);
             $productsToSync = [];
             $itemsProcessed = 0;
-            
+            $affected = [];
+
             // Initialize inventory accounting service
             $inventoryAccountingService = new InventoryAccountingService();
-            
+
+            // Every item below writes its own ProductStock/PurchaseItem save —
+            // batch mode collapses all of that into one summary row instead
+            // of one row per product received.
+            $auditContext = app(\App\Support\AuditContext::class);
+            $auditContext->beginBatch();
+
+            try {
+
             foreach ($request->items as $itemData) {
                 // New total received quantity (not additional)
                 $newReceivedQty = (float) ($itemData['receive_quantity'] ?? 0);
@@ -639,7 +648,7 @@ class PurchaseController extends Controller
                         $existingStock->avg_cost = $newAvgCost;
                         $existingStock->save();
                     } else {
-                        $product->product_stocks()->create([
+                        $newStock = new \App\Models\ProductStock([
                             'warehouse_id'  => $purchase->warehouse_id,
                             'rack_id'       => $rackId,
                             'quantity'      => $quantityDifference,
@@ -647,7 +656,14 @@ class PurchaseController extends Controller
                             'active_status' => '1',
                             'delete_status' => '0',
                         ]);
+                        $newStock->product_id = $product->id;
+                        $newStock->save();
                     }
+                    $affected[] = [
+                        'type' => 'Product', 'id' => $product->id, 'label' => $product->sku,
+                        'effect' => 'stock_received', 'quantity_received' => $quantityDifference,
+                        'purchase_item_id' => $purchaseItem->id,
+                    ];
 
                     // Update avg_cost on all ProductStock records for this product
                     $inventoryAccountingService->updateProductStockCost($product->id, $newAvgCost);
@@ -680,6 +696,11 @@ class PurchaseController extends Controller
                         } else {
                             $existingStock->save();
                         }
+                        $affected[] = [
+                            'type' => 'Product', 'id' => $product->id, 'label' => $product->sku,
+                            'effect' => 'stock_receipt_decreased', 'quantity_decreased' => $decreaseQty,
+                            'purchase_item_id' => $purchaseItem->id,
+                        ];
                     }
 
                     // $existingStock->save();
@@ -696,7 +717,17 @@ class PurchaseController extends Controller
                 $productsToSync[$product->id] = $product;
                 $itemsProcessed++;
             }
-                
+
+            } finally {
+                $auditContext->endBatch();
+            }
+
+            if (!empty($affected)) {
+                app(\App\Services\AuditLogger::class)->logBatch('purchase_stock_received', $affected, [
+                    'purchase_number' => $purchase->purchase_number,
+                ], $purchase);
+            }
+
             // Update purchase status based on received quantities
             $this->updatePurchaseStatus($purchase);
             
@@ -737,6 +768,8 @@ class PurchaseController extends Controller
         $totalOrdered = round((float) $purchase->purchase_items->sum('quantity'), 2);
         $totalReceived = round((float) $purchase->purchase_items->sum('received_quantity'), 2);
 
+        $statusBefore = $purchase->purchase_status;
+
         if ($totalReceived == 0) {
             $purchase->purchase_status = 'pending';
         } elseif ($totalReceived >= $totalOrdered) {
@@ -746,7 +779,18 @@ class PurchaseController extends Controller
             $purchase->purchase_status = 'partial';
         }
 
-        $purchase->save();
+        if ($purchase->purchase_status !== $statusBefore) {
+            $event = $purchase->purchase_status === 'received' ? 'purchase_fully_received' : 'purchase_partially_received';
+            app(\App\Support\AuditContext::class)->suppressNextUpdateFor($purchase);
+            $purchase->save();
+            app(\App\Services\AuditLogger::class)->log($event, $purchase,
+                ['purchase_status' => $statusBefore],
+                ['purchase_status' => $purchase->purchase_status],
+                ['total_ordered' => $totalOrdered, 'total_received' => $totalReceived]
+            );
+        } else {
+            $purchase->save();
+        }
     }
 
     public function import_purchases()
@@ -932,6 +976,8 @@ class PurchaseController extends Controller
 
             // Initialize inventory accounting service
             $inventoryAccountingService = new InventoryAccountingService();
+            $auditLogger = app(\App\Services\AuditLogger::class);
+            $affected = [];
 
             foreach ($purchases as $purchase_row) {
                 // Skip if no supplier or warehouse selected
@@ -940,7 +986,7 @@ class PurchaseController extends Controller
                 }
 
                 // Create the purchase with pending status - stock is added later via Receive Stock
-                $purchase = Purchase::create([
+                $purchase = new Purchase([
                     'purchase_number' => $purchase_row['purchase_number'],
                     'supplier_id'     => $purchase_row['supplier_id'],
                     'warehouse_id'    => $purchase_row['warehouse_id'],
@@ -949,6 +995,10 @@ class PurchaseController extends Controller
                     'freight_charges' => $purchase_row['freight_charges'] ?? 0,
                     'purchase_status' => 'pending',
                 ]);
+                $auditLogger->suppress($purchase);
+                $purchase->save();
+
+                $affected[] = ['type' => 'Purchase', 'id' => $purchase->id, 'label' => $purchase->purchase_number, 'effect' => 'created'];
 
                 // Create purchase items (no stock added yet - will be added on receive)
                 $products = $purchase_row['products'] ?? [];
@@ -964,7 +1014,7 @@ class PurchaseController extends Controller
                         continue;
                     }
 
-                    $purchase->purchase_items()->create([
+                    $purchaseItem = new \App\Models\PurchaseItem([
                         'product_id'        => $product->id,
                         'barcode'           => $product->barcode ?? '',
                         'sku'               => $product->sku ?? '',
@@ -975,6 +1025,14 @@ class PurchaseController extends Controller
                         'note'              => $productInput['note'] ?? null,
                         'rack_id'           => $productInput['rack_id'],
                     ]);
+                    $purchaseItem->purchase_id = $purchase->id;
+                    $auditLogger->suppress($purchaseItem);
+                    $purchaseItem->save();
+
+                    $affected[] = [
+                        'type' => 'PurchaseItem', 'id' => $purchaseItem->id, 'label' => $product->sku,
+                        'effect' => 'created', 'purchase_id' => $purchase->id, 'quantity' => $purchaseItem->quantity,
+                    ];
                 }
 
                 // Load supplier for accounting
@@ -985,6 +1043,12 @@ class PurchaseController extends Controller
             }
 
             DB::commit();
+
+            if (!empty($affected)) {
+                $auditLogger->logBatch('purchases_imported', $affected, [
+                    'purchase_count' => count($purchases),
+                ]);
+            }
 
             return redirect()->route('purchases.index')->with('success', 'Purchase(s) imported successfully. Use "Receive Stock" to add items to inventory.');
 

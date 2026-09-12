@@ -331,7 +331,7 @@
                     @endcan
                 @endcan
 
-                @canany(['view system-health', 'manage system-health', 'view backups', 'create backups', 'delete backups', 'manage backup-settings'])
+                @canany(['view system-health', 'manage system-health', 'view backups', 'create backups', 'delete backups', 'manage backup-settings', 'view audit-logs', 'manage audit-settings'])
                     <!-- System Section Caption -->
                     <li class="nxl-item nxl-caption">
                         <label>System</label>
@@ -356,6 +356,16 @@
                         </a>
                     </li>
                     @endcan
+
+                    @canany(['view audit-logs', 'manage audit-settings'])
+                    <!-- Audit Trail -->
+                    <li class="nxl-item {{ request()->routeIs('audit-logs.*') ? 'active' : '' }}">
+                        <a class="nxl-link" href="{{ route('audit-logs.index') }}">
+                            <span class="nxl-micon"><i class="feather-shield"></i></span>
+                            <span class="nxl-mtext">Audit Trail</span>
+                        </a>
+                    </li>
+                    @endcanany
                 @endcanany
             </ul>
 

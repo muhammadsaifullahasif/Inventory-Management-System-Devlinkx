@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\JournalEntry;
 use App\Models\ChartOfAccount;
 use App\Models\JournalEntryLine;
+use App\Support\AuditContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
@@ -27,7 +28,7 @@ class PaymentService
             }
 
             // Create payment
-            $payment = Payment::create([
+            $payment = new Payment([
                 'payment_number' => Payment::generatePaymentNumber(),
                 'payment_date' => $data['payment_date'],
                 'bill_id' => $data['bill_id'],
@@ -40,14 +41,32 @@ class PaymentService
                 'created_by' => Auth::id(),
             ]);
 
+            app(AuditLogger::class)->withEvent('payment_recorded', $payment, fn () => $payment->save(), [
+                'bill_number' => $bill->bill_number,
+                'amount' => $payment->amount,
+                'payment_method' => $payment->payment_method,
+            ]);
+
             // Update bill paid amount and status
+            $statusBefore = $bill->status;
+            $paidAmountBefore = $bill->paid_amount;
+
+            app(AuditContext::class)->suppressNextUpdateFor($bill);
             $bill->paid_amount += $payment->amount;
             $bill->updateStatus();
+
+            app(AuditLogger::class)->log(
+                $bill->status === 'paid' ? 'bill_paid' : 'bill_partially_paid',
+                $bill,
+                ['status' => $statusBefore, 'paid_amount' => $paidAmountBefore],
+                ['status' => $bill->status, 'paid_amount' => $bill->paid_amount],
+                ['payment_number' => $payment->payment_number]
+            );
 
             // Update bank/cash balance
             $paymentAccount = ChartOfAccount::findOrFail($data['payment_account_id']);
             if ($paymentAccount->is_bank_cash) {
-                $paymentAccount->updateBalance($payment->amount, 'credit'); // Money going out 
+                $paymentAccount->updateBalance($payment->amount, 'credit'); // Money going out
             }
 
             // Create journal entry if posted
@@ -74,8 +93,18 @@ class PaymentService
             }
 
             // Reverse bill paid amount
+            $statusBefore = $bill->status;
+            $paidAmountBefore = $bill->paid_amount;
+
+            app(AuditContext::class)->suppressNextUpdateFor($bill);
             $bill->paid_amount -= $payment->amount;
             $bill->updateStatus();
+
+            app(AuditLogger::class)->log('bill_payment_reversed', $bill,
+                ['status' => $statusBefore, 'paid_amount' => $paidAmountBefore],
+                ['status' => $bill->status, 'paid_amount' => $bill->paid_amount],
+                ['payment_number' => $payment->payment_number]
+            );
 
             // Delete journal entry
             if ($payment->journalEntry) {
@@ -83,7 +112,10 @@ class PaymentService
                 $payment->journalEntry->delete();
             }
 
-            return $payment->delete();
+            return app(AuditLogger::class)->withEvent('payment_reversed', $payment, fn () => $payment->delete(), [
+                'bill_number' => $bill->bill_number,
+                'amount' => $payment->amount,
+            ]);
         });
     }
 

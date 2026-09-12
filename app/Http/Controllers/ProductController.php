@@ -743,9 +743,18 @@ class ProductController extends Controller
             $synced = 0;
             $skipped = 0;
             $errors = 0;
+            $affected = [];
 
             $ebayController = app(\App\Http\Controllers\EbayController::class);
             $inventorySyncService = app(\App\Services\Inventory\InventorySyncService::class);
+
+            // Each product's syncToStore() call updates a SalesChannelProduct
+            // row — batch mode collapses all of those into the one summary
+            // row logged below instead of one per product.
+            $auditContext = app(\App\Support\AuditContext::class);
+            $auditContext->beginBatch();
+
+            try {
 
             foreach ($products as $product) {
                 // Only process eBay channels
@@ -762,6 +771,10 @@ class ProductController extends Controller
 
                         if ($syncResult->success) {
                             $synced++;
+                            $affected[] = [
+                                'type' => 'Product', 'id' => $product->id, 'label' => $product->sku,
+                                'effect' => 'synced',
+                            ];
                         } else {
                             // Update error status on pivot
                             $product->sales_channels()->updateExistingPivot($channel->id, [
@@ -769,6 +782,10 @@ class ProductController extends Controller
                                 'listing_error' => $syncResult->reason,
                             ]);
                             $errors++;
+                            $affected[] = [
+                                'type' => 'Product', 'id' => $product->id, 'label' => $product->sku,
+                                'effect' => 'sync_failed', 'reason' => $syncResult->reason,
+                            ];
                         }
                     } else {
                         // Not linked yet - find eBay listing and link
@@ -798,12 +815,24 @@ class ProductController extends Controller
                                     'listing_error' => $syncResult->reason,
                                 ]);
                                 $errors++;
+                                $affected[] = [
+                                    'type' => 'Product', 'id' => $product->id, 'label' => $product->sku,
+                                    'effect' => 'sync_failed', 'reason' => $syncResult->reason,
+                                ];
                             } else {
                                 $synced++;
+                                $affected[] = [
+                                    'type' => 'Product', 'id' => $product->id, 'label' => $product->sku,
+                                    'effect' => 'linked_to_channel', 'external_listing_id' => $existingListing['ItemID'],
+                                ];
                             }
                         } else {
                             // No listing found on eBay
                             $errors++;
+                            $affected[] = [
+                                'type' => 'Product', 'id' => $product->id, 'label' => $product->sku,
+                                'effect' => 'no_matching_listing',
+                            ];
                         }
                     }
                 } catch (\Exception $e) {
@@ -813,7 +842,22 @@ class ProductController extends Controller
                         'error' => $e->getMessage(),
                     ]);
                     $errors++;
+                    $affected[] = [
+                        'type' => 'Product', 'id' => $product->id, 'label' => $product->sku,
+                        'effect' => 'sync_failed', 'reason' => $e->getMessage(),
+                    ];
                 }
+            }
+
+            } finally {
+                $auditContext->endBatch();
+            }
+
+            if (!empty($affected)) {
+                app(\App\Services\AuditLogger::class)->logBatch('products_synced_to_sales_channel', $affected, [
+                    'sales_channel' => $channel->name,
+                    'trigger' => 'bulk_sync',
+                ], $channel);
             }
 
             $message = $synced . ' product(s) synced to ' . $channel->name . '.';
@@ -944,6 +988,15 @@ class ProductController extends Controller
         // Channels to update (still selected - sync inventory)
         $channelsToUpdate = array_intersect($selectedChannelIds, $currentChannelIds);
 
+        // Every channel touched below writes its own SalesChannelProduct
+        // update (via InventorySyncService) — batch mode collapses all of
+        // that into one audit row per save instead of one per channel.
+        $auditContext = app(\App\Support\AuditContext::class);
+        $auditContext->beginBatch();
+        $affected = [];
+
+        try {
+
         // Process new channels - Find and link existing eBay listings by SKU
         foreach ($channelsToAdd as $channelId) {
             $channel = SalesChannel::find($channelId);
@@ -978,6 +1031,9 @@ class ProductController extends Controller
                             'listing_status' => SalesChannelProduct::STATUS_ERROR,
                             'listing_error' => $syncResult->reason,
                         ]);
+                        $affected[] = ['type' => 'SalesChannel', 'id' => $channelId, 'label' => $channel->name, 'effect' => 'link_sync_failed', 'reason' => $syncResult->reason];
+                    } else {
+                        $affected[] = ['type' => 'SalesChannel', 'id' => $channelId, 'label' => $channel->name, 'effect' => 'linked'];
                     }
 
                 } else {
@@ -987,6 +1043,7 @@ class ProductController extends Controller
                     //     'listing_error' => "No eBay listing found with SKU: {$product->sku}",
                     //     'last_synced_at' => now(),
                     // ]);
+                    $affected[] = ['type' => 'SalesChannel', 'id' => $channelId, 'label' => $channel->name, 'effect' => 'no_matching_listing'];
 
                 }
 
@@ -996,6 +1053,7 @@ class ProductController extends Controller
                 //     'listing_error' => $e->getMessage(),
                 //     'last_synced_at' => now(),
                 // ]);
+                $affected[] = ['type' => 'SalesChannel', 'id' => $channelId, 'label' => $channel->name, 'effect' => 'link_failed', 'reason' => $e->getMessage()];
 
                 Log::error('Failed to link product to sales channel', [
                     'product_id' => $product->id,
@@ -1009,6 +1067,7 @@ class ProductController extends Controller
         foreach ($channelsToRemove as $channelId) {
             // Simply detach - the listing remains on eBay, we just stop managing it
             $product->sales_channels()->detach($channelId);
+            $affected[] = ['type' => 'SalesChannel', 'id' => $channelId, 'label' => "channel #{$channelId}", 'effect' => 'unlinked'];
 
         }
 
@@ -1056,6 +1115,11 @@ class ProductController extends Controller
                     'listing_error' => $result['success'] ? null : $this->extractListingError($result),
                     'last_synced_at' => now(),
                 ]);
+                $affected[] = [
+                    'type' => 'SalesChannel', 'id' => $channelId, 'label' => $channel->name,
+                    'effect' => $result['success'] ? 'synced' : 'sync_failed',
+                    'reason' => $result['success'] ? null : $this->extractListingError($result),
+                ];
 
             } catch (\Exception $e) {
                 $product->sales_channels()->updateExistingPivot($channelId, [
@@ -1063,6 +1127,7 @@ class ProductController extends Controller
                     'listing_error' => $e->getMessage(),
                     'last_synced_at' => now(),
                 ]);
+                $affected[] = ['type' => 'SalesChannel', 'id' => $channelId, 'label' => $channel->name, 'effect' => 'sync_failed', 'reason' => $e->getMessage()];
 
                 Log::error('Failed to sync product on sales channel', [
                     'product_id' => $product->id,
@@ -1070,6 +1135,16 @@ class ProductController extends Controller
                     'error' => $e->getMessage(),
                 ]);
             }
+        }
+
+        } finally {
+            $auditContext->endBatch();
+        }
+
+        if (!empty($affected)) {
+            app(\App\Services\AuditLogger::class)->logBatch('product_sales_channels_synced', $affected, [
+                'product_sku' => $product->sku,
+            ], $product);
         }
     }
 
@@ -1200,14 +1275,38 @@ class ProductController extends Controller
             DB::beginTransaction();
 
             $product = Product::findOrFail($id);
+            $auditLogger = app(\App\Services\AuditLogger::class);
+            $affected = [];
 
             foreach ($request->stock_id as $index => $stockId) {
                 $stock = $product->product_stocks()->find($stockId);
                 if ($stock) {
+                    $quantityBefore = $stock->quantity;
+                    $rackBefore = $stock->rack_id;
+
                     $stock->rack_id = $request->rack[$index];
                     $stock->quantity = $request->quantity[$index];
+
+                    $auditLogger->suppress($stock);
                     $stock->save();
+
+                    $affected[] = [
+                        'type' => 'ProductStock',
+                        'id' => $stock->id,
+                        'label' => "{$product->sku} @ rack {$stock->rack_id}",
+                        'effect' => 'stock_adjusted',
+                        'quantity_before' => $quantityBefore,
+                        'quantity_after' => $stock->quantity,
+                        'rack_before' => $rackBefore,
+                        'rack_after' => $stock->rack_id,
+                    ];
                 }
+            }
+
+            if (!empty($affected)) {
+                $auditLogger->logBatch('stock_adjusted', $affected, [
+                    'product_sku' => $product->sku,
+                ], $product);
             }
 
             // Sync inventory to all linked sales channels
@@ -1435,12 +1534,15 @@ class ProductController extends Controller
         try {
             DB::beginTransaction();
 
+            $auditLogger = app(\App\Services\AuditLogger::class);
+            $affected = [];
+
             foreach ($products as $product) {
                 // dd($product);
                 $productExists = Product::where('sku', $product['sku'])
                     ->where('barcode', $product['barcode'])
                     ->first();
-                
+
                 if (!$productExists) {
                     // Product creation logic here
                     $productNew = new Product();
@@ -1455,9 +1557,11 @@ class ProductController extends Controller
                     } else {
                         $productNew->price = $product['sale_price'];
                     }
+                    $auditLogger->suppress($productNew);
                     $productNew->save();
 
                     $productExists = $productNew;
+                    $affected[] = ['type' => 'Product', 'id' => $productExists->id, 'label' => $productExists->sku, 'effect' => 'created'];
                 } else {
                     $productExists->name = $product['name'];
                     $productExists->sku = $product['sku'];
@@ -1470,7 +1574,9 @@ class ProductController extends Controller
                     } else {
                         $productExists->price = $product['sale_price'];
                     }
+                    $auditLogger->suppress($productExists);
                     $productExists->save();
+                    $affected[] = ['type' => 'Product', 'id' => $productExists->id, 'label' => $productExists->sku, 'effect' => 'updated'];
                 }
 
                 // Update product meta
@@ -1497,6 +1603,12 @@ class ProductController extends Controller
             }
 
             DB::commit();
+
+            if (!empty($affected)) {
+                $auditLogger->logBatch('products_imported', $affected, [
+                    'count' => $productCount,
+                ]);
+            }
 
             return redirect()->route('products.index')->with('success', 'Product imported successfully.');
         } catch (\Exception $e) {

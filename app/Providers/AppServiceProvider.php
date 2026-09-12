@@ -5,16 +5,22 @@ namespace App\Providers;
 use App\Models\BackupSetting;
 use App\Models\ProductStock;
 use App\Models\ScheduleTaskRun;
+use App\Observers\AuditObserver;
 use App\Observers\ProductStockObserver;
 use App\Services\Ebay\EbayApiClient;
 use App\Services\Ebay\EbayNotificationService;
 use App\Services\Ebay\EbayOrderService;
 use App\Services\Ebay\EbayService;
 use App\Services\Ebay\EbayXmlBuilder;
+use App\Support\AuditContext;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Events\ScheduledTaskFailed;
 use Illuminate\Console\Events\ScheduledTaskFinished;
 use Illuminate\Foundation\Events\DiagnosingHealth;
+use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -39,6 +45,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(EbayService::class);
         $this->app->singleton(EbayOrderService::class);
         $this->app->singleton(EbayNotificationService::class);
+        $this->app->singleton(AuditContext::class);
     }
 
     /**
@@ -52,6 +59,60 @@ class AppServiceProvider extends ServiceProvider
 
         // Register ProductStock observer for auto-syncing bundle stock
         ProductStock::observe(ProductStockObserver::class);
+
+        // Audit trail: generic create/update/delete tracking for every model
+        // listed in config/audit.php, without touching each model individually.
+        foreach (config('audit.audited_models', []) as $auditedModel) {
+            $auditedModel::observe(AuditObserver::class);
+        }
+
+        // Audit trail: queue jobs have no HTTP request, so give them their
+        // own actor context ("queue", + job class) instead of leaking
+        // whatever the last processed request/job happened to set.
+        Queue::before(function (JobProcessing $event) {
+            $context = app(AuditContext::class);
+            $context->reset();
+            $context->actorType = 'queue';
+            $context->context = [
+                'job' => $event->job->resolveName(),
+                'job_id' => $event->job->getJobId(),
+            ];
+        });
+
+        // Audit trail: login/logout/failed-login events, captured with
+        // whatever ip/user-agent CaptureAuditContext already resolved for
+        // this request.
+        Event::listen(Login::class, function (Login $event) {
+            $context = app(AuditContext::class);
+            $context->actorType = 'user';
+            $context->actorId = $event->user->id;
+            $context->actorLabel = $event->user->name ?? $event->user->email;
+
+            app(\App\Services\AuditLogger::class)->log('login', $event->user);
+        });
+
+        Event::listen(Logout::class, function (Logout $event) {
+            if (! $event->user) {
+                return;
+            }
+
+            $context = app(AuditContext::class);
+            $context->actorType = 'user';
+            $context->actorId = $event->user->id;
+            $context->actorLabel = $event->user->name ?? $event->user->email;
+
+            app(\App\Services\AuditLogger::class)->log('logout', $event->user);
+        });
+
+        Event::listen(Failed::class, function (Failed $event) {
+            app(\App\Services\AuditLogger::class)->log(
+                'login_failed',
+                $event->user,
+                [],
+                [],
+                ['email' => $event->credentials['email'] ?? null]
+            );
+        });
 
         // eBay can burst notifications; keep this generous and IP-keyed
         // so retried deliveries from eBay's servers don't get starved.

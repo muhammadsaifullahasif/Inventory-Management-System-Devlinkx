@@ -1,6 +1,8 @@
 <?php
 
+use App\Jobs\ArchiveAuditLogsJob;
 use App\Jobs\UpdateEbayOrderStatusJob;
+use App\Models\AuditSetting;
 use App\Models\BackupSetting;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -141,6 +143,17 @@ Schedule::command('telescope:prune --hours=24')
     ->onFailure($onScheduleFailure('telescope:prune'));
 
 Schedule::command('queue:release-stale')->everyFiveMinutes();
+
+// Audit Log Settings page (audit_settings table) controls retention + toggle.
+// Moves rows older than retention_days from audit_logs into
+// audit_log_archives so the hot table stays small; archived rows remain
+// fully queryable (see AuditLogController).
+Schedule::job(new ArchiveAuditLogsJob())
+    ->dailyAt('03:30')
+    ->when(fn () => AuditSetting::current()->archive_enabled)
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/audit-log-archive.log'))
+    ->onFailure($onScheduleFailure('ArchiveAuditLogsJob'));
 
 // Automatically runs the queue worker every minute cleanly via internal code routing
 Schedule::command('queue:work database --queue=ebay-imports,inventory-sync,default --stop-when-empty --max-time=50 --timeout=1800')
