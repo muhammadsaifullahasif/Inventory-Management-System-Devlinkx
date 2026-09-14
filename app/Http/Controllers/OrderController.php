@@ -1293,6 +1293,7 @@ class OrderController extends Controller
                 'tracking_url'         => $trackingUrl,
                 'shipping_label_path'  => $labelPath,
                 'label_generated_at'   => now(),
+                'label_generated_by'   => auth()->id(),
                 'fulfillment_status'   => 'fulfilled',
                 'order_status'         => 'shipped',
                 'shipped_at'           => now(),
@@ -1466,6 +1467,7 @@ class OrderController extends Controller
                 'tracking_url'         => $trackingUrl,
                 'shipping_label_path'  => $labelPaths[0], // Store first label path
                 'label_generated_at'   => now(),
+                'label_generated_by'   => auth()->id(),
                 'fulfillment_status'   => 'fulfilled',
                 'order_status'         => 'shipped',
                 'shipped_at'           => now(),
@@ -1630,6 +1632,7 @@ class OrderController extends Controller
                 'tracking_url'         => null,
                 'shipping_label_path'  => null,
                 'label_generated_at'   => null,
+                'label_generated_by'   => null,
                 'shipping_carrier'     => null,
                 'shipping_id'          => null,
                 'fulfillment_status'   => 'unfulfilled',

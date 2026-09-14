@@ -43,6 +43,7 @@ class Order extends Model
         'tracking_url',
         'shipping_label_path',
         'label_generated_at',
+        'label_generated_by',
         'shipped_at',
         'delivered_at',
         'tracking_last_checked_at',
@@ -125,6 +126,14 @@ class Order extends Model
     public function salesChannel()
     {
         return $this->belongsTo(SalesChannel::class, 'sales_channel_id');
+    }
+
+    /**
+     * Get the user who generated the shipping label
+     */
+    public function labelGeneratedBy()
+    {
+        return $this->belongsTo(User::class, 'label_generated_by');
     }
 
     /**
