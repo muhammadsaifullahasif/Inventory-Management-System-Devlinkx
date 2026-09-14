@@ -286,11 +286,16 @@ class EbayOrderService
      * Process an eBay order from sync (parsed array from EbayService::parseOrder).
      * Creates or updates the local order record.
      */
-    public function processOrder(array $ebayOrder, int $salesChannelId): string
+    /**
+     * @return array{status: string, old: array<string, mixed>, new: array<string, mixed>}
+     */
+    public function processOrder(array $ebayOrder, int $salesChannelId): array
     {
         $existingOrder = Order::where('ebay_order_id', $ebayOrder['order_id'])->first();
 
         if ($existingOrder) {
+            $originalBefore = $existingOrder->getOriginal();
+
             $updateData = [
                 'ebay_order_status' => $ebayOrder['order_status'],
                 'ebay_payment_status' => $ebayOrder['payment_status'],
@@ -339,7 +344,14 @@ class EbayOrderService
                 }
             }
 
-            return 'updated';
+            $changes = $existingOrder->getChanges();
+            unset($changes['updated_at']);
+
+            return [
+                'status' => 'updated',
+                'old' => $this->filterOrderFields(array_intersect_key($originalBefore, $changes)),
+                'new' => $this->filterOrderFields($changes),
+            ];
         }
 
         DB::beginTransaction();
@@ -459,12 +471,31 @@ class EbayOrderService
                 }
             }
 
-            return 'created';
+            return [
+                'status' => 'created',
+                'old' => [],
+                'new' => $this->filterOrderFields($order->getAttributes()),
+            ];
 
         } catch (Exception $e) {
             DB::rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Strip fields that are huge or noisy from an Order diff before it goes
+     * into an audit log entry (ebay_raw_data is the full raw API payload —
+     * already stored on the order row itself, no need to duplicate it here).
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private function filterOrderFields(array $attributes): array
+    {
+        unset($attributes['ebay_raw_data'], $attributes['created_at'], $attributes['updated_at']);
+
+        return $attributes;
     }
 
     // =========================================

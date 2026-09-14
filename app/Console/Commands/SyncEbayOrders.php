@@ -129,14 +129,15 @@ class SyncEbayOrders extends Command
 
                 app(\App\Services\AuditLogger::class)->batch('orders_synced', function () use (
                     $orders, $orderService, $channel, &$totalProcessed, &$channelCreated, &$channelUpdated,
-                    &$totalCreated, &$channelSkipped, &$totalSkipped, &$channelOrdersFailed, &$totalOrdersFailed
+                    &$totalCreated, &$totalUpdated, &$channelSkipped, &$totalSkipped, &$channelOrdersFailed, &$totalOrdersFailed
                 ) {
                     $affected = [];
 
                     foreach ($orders as $ebayOrder) {
                         $totalProcessed++;
                         try {
-                            $action = $orderService->processOrder($ebayOrder, $channel->id);
+                            $result = $orderService->processOrder($ebayOrder, $channel->id);
+                            $action = $result['status'];
 
                             if ($action === 'created') {
                                 $channelCreated++;
@@ -148,7 +149,10 @@ class SyncEbayOrders extends Command
                                 $channelSkipped++;
                                 $totalSkipped++;
                             }
-                            $affected[] = ['type' => 'Order', 'label' => $ebayOrder['order_id'] ?? 'unknown', 'effect' => $action];
+                            $affected[] = [
+                                'type' => 'Order', 'label' => $ebayOrder['order_id'] ?? 'unknown', 'effect' => $action,
+                                'old' => $result['old'], 'new' => $result['new'],
+                            ];
                         } catch (Exception $e) {
                             $channelOrdersFailed++;
                             $totalOrdersFailed++;

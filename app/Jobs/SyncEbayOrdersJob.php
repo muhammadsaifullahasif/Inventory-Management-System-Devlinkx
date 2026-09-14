@@ -58,15 +58,17 @@ class SyncEbayOrdersJob implements ShouldQueue
 
                 foreach ($allOrders as $ebayOrder) {
                     try {
-                        $processResult = $orderService->processOrder($ebayOrder, $this->salesChannelId);
-                        if ($processResult === 'created') {
+                        $result = $orderService->processOrder($ebayOrder, $this->salesChannelId);
+                        if ($result['status'] === 'created') {
                             $syncedCount++;
-                        } elseif ($processResult === 'updated') {
+                        } elseif ($result['status'] === 'updated') {
                             $updatedCount++;
                         }
                         $affected[] = [
                             'type' => 'Order', 'label' => $ebayOrder['order_id'] ?? 'unknown',
-                            'effect' => $processResult,
+                            'effect' => $result['status'],
+                            'old' => $result['old'],
+                            'new' => $result['new'],
                         ];
                     } catch (Exception $e) {
                         $errorCount++;

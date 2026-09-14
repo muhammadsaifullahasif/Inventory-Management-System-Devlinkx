@@ -638,13 +638,16 @@ class EbayController extends Controller
 
                 foreach ($allOrders as $ebayOrder) {
                     try {
-                        $processResult = $this->orderService->processOrder($ebayOrder, $id);
-                        if ($processResult === 'created') {
+                        $result = $this->orderService->processOrder($ebayOrder, $id);
+                        if ($result['status'] === 'created') {
                             $syncedCount++;
-                        } elseif ($processResult === 'updated') {
+                        } elseif ($result['status'] === 'updated') {
                             $updatedCount++;
                         }
-                        $affected[] = ['type' => 'Order', 'label' => $ebayOrder['order_id'] ?? 'unknown', 'effect' => $processResult];
+                        $affected[] = [
+                            'type' => 'Order', 'label' => $ebayOrder['order_id'] ?? 'unknown', 'effect' => $result['status'],
+                            'old' => $result['old'], 'new' => $result['new'],
+                        ];
                     } catch (Exception $e) {
                         $errorCount++;
                         Log::error('Failed to process eBay order', [
