@@ -82,6 +82,46 @@ class AuditContext
         return $this->batchDepth > 0;
     }
 
+    /**
+     * Stack of in-flight auto-summary scopes — one per queue job / console
+     * command run (see AppServiceProvider's Queue::before/after/failing and
+     * CommandStarting/CommandFinished listeners), possibly nested. Unlike
+     * beginBatch()/endBatch() above (which just silences AuditObserver so
+     * calling code can build its own summary), this ALSO collects what
+     * AuditObserver would have logged, so a job/command that never calls
+     * AuditLogger::batch() itself still gets exactly one row instead of
+     * one-per-model-write (or none).
+     *
+     * @var array<int, array<int, array<string, mixed>>>
+     */
+    private array $autoSummaryStack = [];
+
+    public function beginAutoSummary(): void
+    {
+        $this->autoSummaryStack[] = [];
+    }
+
+    /** @param  array<string, mixed>  $entry */
+    public function recordAutoAffected(array $entry): void
+    {
+        if (empty($this->autoSummaryStack)) {
+            return;
+        }
+
+        $this->autoSummaryStack[array_key_last($this->autoSummaryStack)][] = $entry;
+    }
+
+    public function inAutoSummary(): bool
+    {
+        return !empty($this->autoSummaryStack);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function endAutoSummary(): array
+    {
+        return array_pop($this->autoSummaryStack) ?? [];
+    }
+
     public function reset(): void
     {
         $this->actorType = 'system';
@@ -93,5 +133,6 @@ class AuditContext
         $this->httpMethod = null;
         $this->context = [];
         $this->batchDepth = 0;
+        $this->autoSummaryStack = [];
     }
 }

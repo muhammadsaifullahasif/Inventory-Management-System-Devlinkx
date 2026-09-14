@@ -152,4 +152,24 @@ class AuditLogger
 
         return $affected;
     }
+
+    /**
+     * Close out the current auto-summary scope (see
+     * AuditContext::beginAutoSummary(), started by the queue job / console
+     * command hooks in AppServiceProvider) and write everything
+     * AuditObserver collected during it as ONE row. No-op if the job/command
+     * didn't touch any audited model.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    public function flushAutoSummary(string $event, array $context = [], ?Model $auditable = null): ?AuditLog
+    {
+        $affected = $this->context->endAutoSummary();
+
+        if (empty($affected)) {
+            return null;
+        }
+
+        return $this->logBatch($event, $affected, $context, $auditable);
+    }
 }

@@ -28,6 +28,16 @@ class AuditObserver
             return;
         }
 
+        // A queue job or console command is running (see AppServiceProvider)
+        // and hasn't itself opted into AuditLogger::batch() — collect this
+        // write into that run's auto-summary instead of writing its own row,
+        // so the whole job/command ends up as ONE audit row.
+        if ($this->context->inAutoSummary()) {
+            $this->context->recordAutoAffected($this->affectedEntry($model, 'created'));
+
+            return;
+        }
+
         $this->logger->log(
             'created',
             $model,
@@ -50,6 +60,12 @@ class AuditObserver
             return;
         }
 
+        if ($this->context->inAutoSummary()) {
+            $this->context->recordAutoAffected($this->affectedEntry($model, 'updated'));
+
+            return;
+        }
+
         $old = array_intersect_key($model->getOriginal(), $changes);
 
         $this->logger->log(
@@ -67,11 +83,39 @@ class AuditObserver
             return;
         }
 
+        if ($this->context->inAutoSummary()) {
+            $this->context->recordAutoAffected($this->affectedEntry($model, 'deleted'));
+
+            return;
+        }
+
         $this->logger->log(
             'deleted',
             $model,
             $this->logger->filterFields($model, $model->getOriginal()),
             []
         );
+    }
+
+    /** One entry for a job/command auto-summary row — see logBatch(). */
+    private function affectedEntry(Model $model, string $effect): array
+    {
+        return [
+            'type' => $model->getMorphClass(),
+            'id' => $model->getKey(),
+            'label' => $this->labelFor($model),
+            'effect' => $effect,
+        ];
+    }
+
+    private function labelFor(Model $model): ?string
+    {
+        foreach (['order_number', 'number', 'sku', 'name', 'title', 'email'] as $field) {
+            if (!empty($model->{$field})) {
+                return (string) $model->{$field};
+            }
+        }
+
+        return null;
     }
 }

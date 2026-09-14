@@ -17,9 +17,13 @@ use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Console\Events\CommandFinished;
+use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Console\Events\ScheduledTaskFailed;
 use Illuminate\Console\Events\ScheduledTaskFinished;
 use Illuminate\Foundation\Events\DiagnosingHealth;
+use Illuminate\Queue\Events\JobFailed;
+use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -68,15 +72,67 @@ class AppServiceProvider extends ServiceProvider
 
         // Audit trail: queue jobs have no HTTP request, so give them their
         // own actor context ("queue", + job class) instead of leaking
-        // whatever the last processed request/job happened to set.
+        // whatever the last processed request/job happened to set. Also
+        // opens an auto-summary scope so a job that touches N audited
+        // models (and never calls AuditLogger::batch() itself) still ends
+        // up as ONE audit row instead of N — see Queue::after/failing below
+        // and AuditObserver/AuditContext::beginAutoSummary().
         Queue::before(function (JobProcessing $event) {
             $context = app(AuditContext::class);
-            $context->reset();
+
+            if (! $context->inAutoSummary()) {
+                $context->reset();
+            }
+
             $context->actorType = 'queue';
             $context->context = [
                 'job' => $event->job->resolveName(),
                 'job_id' => $event->job->getJobId(),
             ];
+            $context->beginAutoSummary();
+        });
+
+        $flushJobAuditSummary = function (JobProcessed|JobFailed $event, string $status) {
+            app(\App\Services\AuditLogger::class)->flushAutoSummary('queue_job', [
+                'job' => $event->job->resolveName(),
+                'job_id' => $event->job->getJobId(),
+                'status' => $status,
+            ] + ($event instanceof JobFailed ? ['error' => $event->exception->getMessage()] : []));
+        };
+
+        Queue::after(fn (JobProcessed $event) => $flushJobAuditSummary($event, 'success'));
+        Queue::failing(fn (JobFailed $event) => $flushJobAuditSummary($event, 'failed'));
+
+        // Audit trail: same idea for Artisan commands (console jobs) — one
+        // row per command run instead of one per model write. Guarded to
+        // real CLI processes only, so an Artisan::call() made from inside
+        // an HTTP request doesn't hijack that request's audit context.
+        Event::listen(CommandStarting::class, function (CommandStarting $event) {
+            if (! $this->app->runningInConsole()) {
+                return;
+            }
+
+            $context = app(AuditContext::class);
+
+            if (! $context->inAutoSummary()) {
+                $context->reset();
+                $context->actorType = 'console';
+                $context->context = ['command' => $event->command];
+            }
+
+            $context->beginAutoSummary();
+        });
+
+        Event::listen(CommandFinished::class, function (CommandFinished $event) {
+            if (! $this->app->runningInConsole()) {
+                return;
+            }
+
+            app(\App\Services\AuditLogger::class)->flushAutoSummary('console_command', [
+                'command' => $event->command,
+                'exit_code' => $event->exitCode,
+                'status' => $event->exitCode === 0 ? 'success' : 'failed',
+            ]);
         });
 
         // Audit trail: login/logout/failed-login events, captured with
