@@ -1250,8 +1250,11 @@ class OrderController extends Controller
             'customer_reference' => $request->input('customer_reference'),
         ];
 
+        $auditContext = app(\App\Support\AuditContext::class);
+
         try {
             DB::beginTransaction();
+            $auditContext->beginAutoSummary();
 
             // Generate label via ShippingService
             $labelResult = $this->shippingService->generateLabelForOrder(
@@ -1286,7 +1289,7 @@ class OrderController extends Controller
             ]);
 
             // Update order with shipping info and mark as shipped
-            app(\App\Services\AuditLogger::class)->withEvent('label_generated', $order, fn () => $order->update([
+            $order->update([
                 'shipping_carrier'     => $carrierName,
                 'shipping_id'          => $carrier->id,
                 'tracking_number'      => $trackingNumber,
@@ -1298,10 +1301,6 @@ class OrderController extends Controller
                 'order_status'         => 'shipped',
                 'shipped_at'           => now(),
                 ...($shippingCost !== null ? ['shipping_cost' => $shippingCost] : []),
-            ]), [
-                'carrier' => $carrierName,
-                'tracking_number' => $trackingNumber,
-                'service_code' => $serviceCode,
             ]);
 
             Log::channel('shipping-cost')->info('Single-package label: shipping_cost save result', [
@@ -1315,12 +1314,22 @@ class OrderController extends Controller
                 'saved_shipping_cost'     => $order->fresh()->shipping_cost,
             ]);
 
-            // Deduct inventory for all items
+            // Deduct inventory for all items (also records COGS/revenue journal
+            // entries and syncs stock to sales channels — all captured below
+            // as one audit row instead of one per model touched)
             foreach ($order->items as $item) {
                 if (!$item->inventory_updated) {
                     $item->updateInventory();
                 }
             }
+
+            // One audit row for the whole action: order + line items + stock +
+            // journal entries + channel sync, however many models it touched.
+            app(\App\Services\AuditLogger::class)->flushAutoSummary('label_generated', [
+                'carrier' => $carrierName,
+                'tracking_number' => $trackingNumber,
+                'service_code' => $serviceCode,
+            ], $order);
 
             DB::commit();
 
@@ -1350,6 +1359,7 @@ class OrderController extends Controller
 
         } catch (Exception $e) {
             DB::rollBack();
+            $auditContext->endAutoSummary();
             Log::error('Failed to generate shipping label', [
                 'order_id' => $id,
                 'error'    => $e->getMessage(),
@@ -1405,8 +1415,11 @@ class OrderController extends Controller
 
         // dd($request->all());
 
+        $auditContext = app(\App\Support\AuditContext::class);
+
         try {
             DB::beginTransaction();
+            $auditContext->beginAutoSummary();
 
             // Generate multiple labels via ShippingService
             $labelResult = $this->shippingService->generateMultipleLabelsForOrder(
@@ -1460,7 +1473,7 @@ class OrderController extends Controller
             // Update order with primary shipping info (first package) and mark as shipped
             $trackingNumbersString = implode(', ', $trackingNumbers);
 
-            app(\App\Services\AuditLogger::class)->withEvent('label_generated', $order, fn () => $order->update([
+            $order->update([
                 'shipping_carrier'     => $carrierName,
                 'shipping_id'          => $carrier->id,
                 'tracking_number'      => $trackingNumbersString, // Store all tracking numbers comma-separated
@@ -1472,10 +1485,6 @@ class OrderController extends Controller
                 'order_status'         => 'shipped',
                 'shipped_at'           => now(),
                 ...($shippingCost !== null ? ['shipping_cost' => $shippingCost] : []),
-            ]), [
-                'carrier' => $carrierName,
-                'tracking_numbers' => $trackingNumbers,
-                'package_count' => $packageCount,
             ]);
 
             // Refresh the order from database to verify the update
@@ -1499,6 +1508,14 @@ class OrderController extends Controller
                     $item->updateInventory();
                 }
             }
+
+            // One audit row for the whole action: order + line items + stock +
+            // journal entries + channel sync, however many models it touched.
+            app(\App\Services\AuditLogger::class)->flushAutoSummary('label_generated', [
+                'carrier' => $carrierName,
+                'tracking_numbers' => $trackingNumbers,
+                'package_count' => $packageCount,
+            ], $order);
 
             DB::commit();
 
@@ -1531,6 +1548,7 @@ class OrderController extends Controller
 
         } catch (Exception $e) {
             DB::rollBack();
+            $auditContext->endAutoSummary();
             Log::error('Failed to generate multi-package shipping labels', [
                 'order_id'      => $id,
                 'package_count' => $packageCount,
@@ -1613,8 +1631,11 @@ class OrderController extends Controller
             ], 400);
         }
 
+        $auditContext = app(\App\Support\AuditContext::class);
+
         try {
             DB::beginTransaction();
+            $auditContext->beginAutoSummary();
 
             $trackingNumber = $order->tracking_number;
             $carrierName = $order->shipping_carrier;
@@ -1627,7 +1648,7 @@ class OrderController extends Controller
             }
 
             // Clear shipping info from order and revert status
-            app(\App\Services\AuditLogger::class)->withEvent('label_cancelled', $order, fn () => $order->update([
+            $order->update([
                 'tracking_number'      => null,
                 'tracking_url'         => null,
                 'shipping_label_path'  => null,
@@ -1638,17 +1659,23 @@ class OrderController extends Controller
                 'fulfillment_status'   => 'unfulfilled',
                 'order_status'         => 'processing',
                 'shipped_at'           => null,
-            ]), [
-                'cancelled_tracking_number' => $trackingNumber,
-                'cancelled_carrier' => $carrierName,
             ]);
 
-            // Restore inventory for all items (since we're un-shipping)
+            // Restore inventory for all items (since we're un-shipping) —
+            // reverses journal entries and re-syncs channel stock too, all
+            // captured below as one audit row instead of one per model.
             foreach ($order->items as $item) {
                 if ($item->inventory_updated) {
                     $item->restoreInventory();
                 }
             }
+
+            // One audit row for the whole action: order + line items + stock +
+            // reversed journal entries + channel sync.
+            app(\App\Services\AuditLogger::class)->flushAutoSummary('label_cancelled', [
+                'cancelled_tracking_number' => $trackingNumber,
+                'cancelled_carrier' => $carrierName,
+            ], $order);
 
             DB::commit();
 
@@ -1685,6 +1712,7 @@ class OrderController extends Controller
 
         } catch (Exception $e) {
             DB::rollBack();
+            $auditContext->endAutoSummary();
             Log::error('Failed to cancel shipping label', [
                 'order_id' => $id,
                 'error' => $e->getMessage(),
