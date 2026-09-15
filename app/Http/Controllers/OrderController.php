@@ -274,7 +274,7 @@ class OrderController extends Controller
      */
     public function show(Request $request, string $id)
     {
-        $order = Order::with(['items.product.product_meta', 'metas', 'salesChannel', 'returns.items.orderItem'])->find($id);
+        $order = Order::with(['items.product.product_meta', 'metas', 'salesChannel', 'returns.items.orderItem', 'labelGeneratedBy'])->find($id);
 
         if (!$order) {
             if ($request->wantsJson()) {
