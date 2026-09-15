@@ -36,6 +36,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuditSettingController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\GeneralSettingController;
+use App\Http\Controllers\Auth\LoginOtpController;
 
 Route::get('/run-migrations', function() {
     if (!app()->environment('local')) {
@@ -141,6 +142,11 @@ Route::get('/run-accounting-permissions-seeder', function() {
 Auth::routes([
     'register' => false,
 ]);
+
+Route::middleware('guest')->group(function () {
+    Route::get('login/verify', [LoginOtpController::class, 'showForm'])->name('login.otp.form');
+    Route::post('login/verify', [LoginOtpController::class, 'verify'])->name('login.otp.verify')->middleware('throttle:10,1');
+});
 
 // Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
 

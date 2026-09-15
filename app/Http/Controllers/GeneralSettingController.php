@@ -28,10 +28,28 @@ class GeneralSettingController extends Controller
         $validated = $request->validate([
             'app_name' => ['required', 'string', 'max:255'],
             'admin_email' => ['nullable', 'email'],
+            'login_auth_emails' => ['nullable', 'string', 'max:1000', function ($attribute, $value, $fail) {
+                if (! $value) {
+                    return;
+                }
+                foreach (explode(',', $value) as $email) {
+                    if (! filter_var(trim($email), FILTER_VALIDATE_EMAIL)) {
+                        $fail("The email \"{$email}\" in {$attribute} is not a valid email address.");
+                    }
+                }
+            }],
             'date_format' => ['required', Rule::in(['F d, Y', 'Y-m-d', 'm/d/Y', 'd/m/Y', 'M d, Y', 'd M Y'])],
             'week_start_day' => ['required', 'integer', 'between:0,6'],
+            'session_lifetime_minutes' => ['required', 'integer', 'between:1,43200'],
             'logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,svg', 'max:2048'],
         ]);
+
+        if (! empty($validated['login_auth_emails'])) {
+            $validated['login_auth_emails'] = implode(',', array_map(
+                fn ($email) => trim($email),
+                explode(',', $validated['login_auth_emails'])
+            ));
+        }
 
         if ($request->hasFile('logo')) {
             $current = GeneralSetting::current();

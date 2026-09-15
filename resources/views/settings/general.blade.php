@@ -81,6 +81,15 @@
                     @error('admin_email')
                         <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
+
+                    <label for="login_auth_emails" class="form-label mt-3">Login authentication email(s)</label>
+                    <input type="text" class="form-control @error('login_auth_emails') is-invalid @enderror" id="login_auth_emails" name="login_auth_emails" value="{{ old('login_auth_emails', $settings->login_auth_emails) }}" placeholder="security1@example.com, security2@example.com" style="max-width: 480px;">
+                    @error('login_auth_emails')
+                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                    @enderror
+                    <div class="fs-12 text-muted mt-1">
+                        Every login one-time code is sent here (comma-separated for multiple addresses) and to the Admin email above — never to the email the user logs in with.
+                    </div>
                 </div>
             </div>
 
@@ -111,6 +120,22 @@
                                 @endforeach
                             </select>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title"><i class="feather-lock me-2"></i>Security</h5>
+                </div>
+                <div class="card-body">
+                    <label for="session_lifetime_minutes" class="form-label">Session timeout (minutes)</label>
+                    <input type="number" min="1" max="43200" class="form-control @error('session_lifetime_minutes') is-invalid @enderror" id="session_lifetime_minutes" name="session_lifetime_minutes" value="{{ old('session_lifetime_minutes', $settings->session_lifetime_minutes) }}" style="max-width: 200px;">
+                    @error('session_lifetime_minutes')
+                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                    @enderror
+                    <div class="fs-12 text-muted mt-1">
+                        After successful login + OTP verification, a user's session expires after this many idle minutes and they must log in again.
                     </div>
                 </div>
             </div>

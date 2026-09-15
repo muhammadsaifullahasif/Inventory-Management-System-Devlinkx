@@ -53,8 +53,10 @@ class GeneralSetting extends Model
             'app_name' => config('app.name', 'Sigma Body Parts'),
             'logo' => null,
             'admin_email' => null,
+            'login_auth_emails' => null,
             'date_format' => 'Y-m-d',
             'week_start_day' => 0,
+            'session_lifetime_minutes' => config('session.lifetime', 120),
         ];
     }
 }

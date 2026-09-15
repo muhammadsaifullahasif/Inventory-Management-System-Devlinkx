@@ -24,6 +24,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [\App\Http\Middleware\CaptureAuditContext::class]);
         $middleware->api(append: [\App\Http\Middleware\CaptureAuditContext::class]);
 
+        // Must run before StartSession so admin-configured timeout applies.
+        $middleware->web(prepend: [\App\Http\Middleware\ApplyDynamicSessionLifetime::class]);
+
         // These are set client-side as plain JSON by partials/column-toggle.blade.php,
         // not Laravel-encrypted - exclude so the server can read them back.
         $middleware->encryptCookies(except: [

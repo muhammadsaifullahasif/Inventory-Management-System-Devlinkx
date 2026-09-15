@@ -377,5 +377,20 @@
 
 	<!-- Modals Section - placed outside of nxl-container for proper z-index stacking -->
 	@stack('modals')
+
+	@auth
+	<!-- Session timeout: auto-logout + redirect to login, no manual refresh needed -->
+	<form id="session-timeout-logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
+		@csrf
+	</form>
+	<script>
+		(function () {
+			var sessionLifetimeMs = {{ (int) (\App\Models\GeneralSetting::get('session_lifetime_minutes', config('session.lifetime', 120))) * 60 * 1000 }};
+			var timeoutId = setTimeout(function () {
+				document.getElementById('session-timeout-logout-form').submit();
+			}, sessionLifetimeMs);
+		})();
+	</script>
+	@endauth
 </body>
 </html>
