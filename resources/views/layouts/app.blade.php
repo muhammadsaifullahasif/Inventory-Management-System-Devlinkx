@@ -9,13 +9,14 @@
     <meta name="keyword" content="" />
     <meta name="author" content="flexilecode" />
     <!--! The above 6 meta tags *must* come first in the head; any other head content must come *after* these tags !-->
+    @php($generalSettings = \App\Models\GeneralSetting::current())
     <!--! BEGIN: Apps Title-->
-    <title>{{ config('app.name', 'Sigma Body Parts') }}</title>
+    <title>{{ $generalSettings->app_name ?? config('app.name') }}</title>
     <!--! END:  Apps Title-->
 	<!-- CSRF Token -->
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <!--! BEGIN: Favicon-->
-    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('images/sigma-body-parts-logo.png') }}" />
+    <link rel="shortcut icon" type="image/x-icon" href="{{ $generalSettings->logo ? asset($generalSettings->logo) : asset('images/sigma-body-parts-logo.png') }}" />
     <!--! END: Favicon-->
     <!--! BEGIN: Bootstrap CSS-->
     <link rel="stylesheet" type="text/css" href="{{ asset('css/bootstrap.min.css') }}" />

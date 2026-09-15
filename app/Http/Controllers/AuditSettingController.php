@@ -19,7 +19,7 @@ class AuditSettingController extends Controller
     {
         $settings = AuditSetting::current();
 
-        return view('audit-logs.settings', compact('settings'));
+        return view('settings.audit-log', compact('settings'));
     }
 
     public function update(Request $request): RedirectResponse
@@ -33,6 +33,6 @@ class AuditSettingController extends Controller
         AuditSetting::query()->first()?->update($validated)
             ?? AuditSetting::query()->create($validated);
 
-        return redirect()->route('audit-logs.settings.edit')->with('success', 'Audit log settings updated.');
+        return redirect()->route('settings.audit-log.edit')->with('success', 'Audit log settings updated.');
     }
 }

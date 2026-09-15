@@ -5,10 +5,11 @@
     <div class="navbar-wrapper">
         <div class="m-header">
             <a href="{{ route('dashboard') }}" class="b-brand navbar-brand">
-                <!-- ========   change your logo here   ============ -->
-                <img src="{{ asset('images/sigma-body-parts-logo.png') }}" alt="" class="logo logo-lg" style="width: 52px;" />
-                <img src="{{ asset('images/sigma-body-parts-logo.png') }}" alt="" class="logo logo-sm" style="width: 52px;" />
-                Sigma Body Parts
+                <!-- ========   change your logo/app name in Settings > General   ============ -->
+                @php($generalSettings ??= \App\Models\GeneralSetting::current())
+                <img src="{{ $generalSettings->logo ? asset($generalSettings->logo) : asset('images/sigma-body-parts-logo.png') }}" alt="" class="logo logo-lg" style="width: 52px;" />
+                <img src="{{ $generalSettings->logo ? asset($generalSettings->logo) : asset('images/sigma-body-parts-logo.png') }}" alt="" class="logo logo-sm" style="width: 52px;" />
+                {{ $generalSettings->app_name }}
             </a>
         </div>
         <div class="navbar-content">
@@ -216,11 +217,6 @@
                                 <a class="nxl-link" href="{{ route('shipping.create') }}">Add Shipping</a>
                             </li>
                             @endcan
-                            @can('edit shipping')
-                            <li class="nxl-item {{ request()->routeIs('shipping.settings.*') ? 'active' : '' }}">
-                                <a class="nxl-link" href="{{ route('shipping.settings.edit') }}">Settings</a>
-                            </li>
-                            @endcan
                         </ul>
                     </li>
                 @endcan
@@ -366,6 +362,21 @@
                         </a>
                     </li>
                     @endcanany
+                @endcanany
+
+                @canany(['manage general-settings', 'manage audit-settings', 'manage backup-settings', 'edit shipping'])
+                    <!-- Settings Section Caption -->
+                    <li class="nxl-item nxl-caption">
+                        <label>Settings</label>
+                    </li>
+
+                    <!-- Settings -->
+                    <li class="nxl-item {{ request()->routeIs('settings.*') ? 'active' : '' }}">
+                        <a class="nxl-link" href="{{ route('settings.index') }}">
+                            <span class="nxl-micon"><i class="feather-settings"></i></span>
+                            <span class="nxl-mtext">Settings</span>
+                        </a>
+                    </li>
                 @endcanany
             </ul>
 

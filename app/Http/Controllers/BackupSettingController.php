@@ -19,7 +19,7 @@ class BackupSettingController extends Controller
     {
         $settings = BackupSetting::current();
 
-        return view('backups.settings', compact('settings'));
+        return view('settings.backup', compact('settings'));
     }
 
     public function update(Request $request): RedirectResponse
@@ -36,6 +36,6 @@ class BackupSettingController extends Controller
         BackupSetting::query()->first()?->update($validated)
             ?? BackupSetting::query()->create($validated);
 
-        return redirect()->route('backups.settings.edit')->with('success', 'Backup settings updated.');
+        return redirect()->route('settings.backup.edit')->with('success', 'Backup settings updated.');
     }
 }

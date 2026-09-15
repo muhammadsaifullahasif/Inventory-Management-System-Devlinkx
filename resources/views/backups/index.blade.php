@@ -16,7 +16,7 @@
             <div class="page-header-right-items">
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
                     @can('manage backup-settings')
-                    <a href="{{ route('backups.settings.edit') }}" class="btn btn-light-brand">
+                    <a href="{{ route('settings.backup.edit') }}" class="btn btn-light-brand">
                         <i class="feather-settings me-2"></i>
                         <span>Settings</span>
                     </a>

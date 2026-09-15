@@ -36,7 +36,7 @@
         <div class="page-header-right ms-auto">
             <div class="page-header-right-items">
                 @can('manage audit-settings')
-                <a href="{{ route('audit-logs.settings.edit') }}" class="btn btn-light-brand">
+                <a href="{{ route('settings.audit-log.edit') }}" class="btn btn-light-brand">
                     <i class="feather-settings me-2"></i>
                     <span>Settings</span>
                 </a>

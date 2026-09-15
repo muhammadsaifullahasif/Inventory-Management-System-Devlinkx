@@ -9,11 +9,12 @@
     <meta name="keyword" content="">
     <meta name="author" content="theme_ocean">
     <!--! The above 6 meta tags *must* come first in the head; any other head content must come *after* these tags !-->
+    @php($generalSettings = \App\Models\GeneralSetting::current())
     <!--! BEGIN: Apps Title-->
-    <title>Sigma Body Parts || Login</title>
+    <title>{{ $generalSettings->app_name }} || Login</title>
     <!--! END:  Apps Title-->
     <!--! BEGIN: Favicon-->
-    <link rel="shortcut icon" type="image/x-icon" href="{{ asset('images/sigma-body-parts-logo.png') }}">
+    <link rel="shortcut icon" type="image/x-icon" href="{{ $generalSettings->logo ? asset($generalSettings->logo) : asset('images/sigma-body-parts-logo.png') }}">
     <!--! END: Favicon-->
     <!--! BEGIN: Bootstrap CSS-->
     <link rel="stylesheet" type="text/css" href="{{ asset('css/bootstrap.min.css') }}">

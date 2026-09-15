@@ -19,7 +19,7 @@ class ShippingSettingController extends Controller
     {
         $settings = ShippingSetting::current();
 
-        return view('shipping.settings', compact('settings'));
+        return view('settings.shipping', compact('settings'));
     }
 
     public function update(Request $request): RedirectResponse
@@ -31,6 +31,6 @@ class ShippingSettingController extends Controller
         ShippingSetting::query()->first()?->update($validated)
             ?? ShippingSetting::query()->create($validated);
 
-        return redirect()->route('shipping.settings.edit')->with('success', 'Shipping settings updated.');
+        return redirect()->route('settings.shipping.edit')->with('success', 'Shipping settings updated.');
     }
 }

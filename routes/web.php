@@ -34,6 +34,8 @@ use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BackupSettingController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuditSettingController;
+use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\GeneralSettingController;
 
 Route::get('/run-migrations', function() {
     if (!app()->environment('local')) {
@@ -184,16 +186,25 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/{filename}/download', [BackupController::class, 'download'])->name('download')->where('filename', '[A-Za-z0-9._-]+\.zip');
         Route::delete('/{filename}', [BackupController::class, 'destroy'])->name('destroy')->where('filename', '[A-Za-z0-9._-]+\.zip');
 
-        Route::get('/settings', [BackupSettingController::class, 'edit'])->name('settings.edit');
-        Route::put('/settings', [BackupSettingController::class, 'update'])->name('settings.update');
     });
 
     // Audit Trail
     Route::prefix('audit-logs')->name('audit-logs.')->group(function () {
-        Route::get('/settings', [AuditSettingController::class, 'edit'])->name('settings.edit');
-        Route::put('/settings', [AuditSettingController::class, 'update'])->name('settings.update');
         Route::get('/{uuid}', [AuditLogController::class, 'show'])->name('show')->where('uuid', '[0-9a-fA-F-]{36}');
         Route::get('/', [AuditLogController::class, 'index'])->name('index');
+    });
+
+    // Settings (consolidated: Audit Log, Backup, Shipping)
+    Route::prefix('settings')->name('settings.')->group(function () {
+        Route::get('/', [SettingsController::class, 'index'])->name('index');
+        Route::get('/general', [GeneralSettingController::class, 'edit'])->name('general.edit');
+        Route::put('/general', [GeneralSettingController::class, 'update'])->name('general.update');
+        Route::get('/audit-log', [AuditSettingController::class, 'edit'])->name('audit-log.edit');
+        Route::put('/audit-log', [AuditSettingController::class, 'update'])->name('audit-log.update');
+        Route::get('/backup', [BackupSettingController::class, 'edit'])->name('backup.edit');
+        Route::put('/backup', [BackupSettingController::class, 'update'])->name('backup.update');
+        Route::get('/shipping', [ShippingSettingController::class, 'edit'])->name('shipping.edit');
+        Route::put('/shipping', [ShippingSettingController::class, 'update'])->name('shipping.update');
     });
 
     // Categories
@@ -328,8 +339,6 @@ Route::middleware(['auth'])->group(function () {
 
 
     // Shipping
-    Route::get('/shipping/settings', [ShippingSettingController::class, 'edit'])->name('shipping.settings.edit');
-    Route::put('/shipping/settings', [ShippingSettingController::class, 'update'])->name('shipping.settings.update');
     Route::post('/shipping/bulk-delete', [ShippingController::class, 'bulkDelete'])->name('shipping.bulk-delete');
     Route::resource('/shipping', ShippingController::class);
     Route::post('/shipping/{id}/toggle-status', [ShippingController::class, 'toggleStatus'])->name('shipping.toggle-status');

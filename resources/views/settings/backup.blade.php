@@ -5,27 +5,21 @@
     <div class="page-header">
         <div class="page-header-left d-flex align-items-center">
             <div class="page-header-title">
-                <h5 class="m-b-10">Backup Settings</h5>
+                <h5 class="m-b-10">Settings</h5>
             </div>
             <ul class="breadcrumb">
                 <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
-                <li class="breadcrumb-item"><a href="{{ route('backups.index') }}">Backups</a></li>
                 <li class="breadcrumb-item">Settings</li>
+                <li class="breadcrumb-item">Backup</li>
             </ul>
-        </div>
-        <div class="page-header-right ms-auto">
-            <div class="page-header-right-items">
-                <a href="{{ route('backups.index') }}" class="btn btn-light-brand">
-                    <i class="feather-arrow-left me-2"></i>
-                    <span>Back to Backups</span>
-                </a>
-            </div>
         </div>
     </div>
     <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
+    @include('settings._nav')
+
     @if(session('success'))
         <div class="col-12">
             <div class="alert alert-success">{{ session('success') }}</div>
@@ -45,7 +39,7 @@
     @endif
 
     <div class="col-12">
-        <form action="{{ route('backups.settings.update') }}" method="POST">
+        <form action="{{ route('settings.backup.update') }}" method="POST">
             @csrf
             @method('PUT')
 

@@ -5,27 +5,21 @@
     <div class="page-header">
         <div class="page-header-left d-flex align-items-center">
             <div class="page-header-title">
-                <h5 class="m-b-10">Audit Log Settings</h5>
+                <h5 class="m-b-10">Settings</h5>
             </div>
             <ul class="breadcrumb">
                 <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
-                <li class="breadcrumb-item"><a href="{{ route('audit-logs.index') }}">Audit Trail</a></li>
                 <li class="breadcrumb-item">Settings</li>
+                <li class="breadcrumb-item">Audit Log</li>
             </ul>
-        </div>
-        <div class="page-header-right ms-auto">
-            <div class="page-header-right-items">
-                <a href="{{ route('audit-logs.index') }}" class="btn btn-light-brand">
-                    <i class="feather-arrow-left me-2"></i>
-                    <span>Back to Audit Trail</span>
-                </a>
-            </div>
         </div>
     </div>
     <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
+    @include('settings._nav')
+
     @if(session('success'))
         <div class="col-12">
             <div class="alert alert-success">{{ session('success') }}</div>
@@ -45,7 +39,7 @@
     @endif
 
     <div class="col-12">
-        <form action="{{ route('audit-logs.settings.update') }}" method="POST">
+        <form action="{{ route('settings.audit-log.update') }}" method="POST">
             @csrf
             @method('PUT')
 
@@ -70,8 +64,8 @@
 
                     <div class="fs-12 text-muted mt-2">
                         Activity older than this moves out of the live table into an archive table — it stays fully
-                        searchable on this page, it just no longer counts toward the live table's size. Nothing is
-                        ever deleted.
+                        searchable on the Audit Trail page, it just no longer counts toward the live table's size.
+                        Nothing is ever deleted.
                     </div>
                 </div>
             </div>

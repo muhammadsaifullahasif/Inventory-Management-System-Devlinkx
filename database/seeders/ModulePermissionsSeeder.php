@@ -38,6 +38,9 @@ class ModulePermissionsSeeder extends Seeder
             // Audit Trail
             ['name' => 'view audit-logs', 'category' => 'Audit Trail'],
             ['name' => 'manage audit-settings', 'category' => 'Audit Trail'],
+
+            // General Settings
+            ['name' => 'manage general-settings', 'category' => 'General'],
         ];
 
         foreach ($permissions as $permission) {
