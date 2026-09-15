@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 use App\Models\ProductStock;
 use App\Models\SalesChannel;
 use Illuminate\Http\Request;
-use App\Models\EbayImportLog;
+use App\Models\SalesChannelImportLog;
 use App\Services\Ebay\EbayApiClient;
 use App\Services\Ebay\EbayService;
 use App\Services\Ebay\EbayOrderService;
@@ -60,7 +60,7 @@ class EbayController extends Controller
             }
 
             // Create import log
-            $importLog = EbayImportLog::create([
+            $importLog = SalesChannelImportLog::create([
                 'sales_channel_id' => $id,
                 'total_listings' => $totalListings,
                 'total_batches' => $totalPages, // Each page = 1 job
@@ -143,7 +143,7 @@ class EbayController extends Controller
             }
 
             // Create import log
-            $importLog = EbayImportLog::create([
+            $importLog = SalesChannelImportLog::create([
                 'sales_channel_id' => $id,
                 'total_listings' => $totalListings,
                 'total_batches' => $totalPages, // Each page = 1 job
@@ -335,7 +335,7 @@ class EbayController extends Controller
     public function getImportStatus(string $importLogId)
     {
         try {
-            $importLog = EbayImportLog::findOrFail($importLogId);
+            $importLog = SalesChannelImportLog::findOrFail($importLogId);
 
             return response()->json([
                 'success' => true,
@@ -368,7 +368,7 @@ class EbayController extends Controller
     public function getLatestImportLog(string $salesChannelId)
     {
         try {
-            $importLog = EbayImportLog::where('sales_channel_id', $salesChannelId)
+            $importLog = SalesChannelImportLog::where('sales_channel_id', $salesChannelId)
                 ->orderBy('created_at', 'desc')
                 ->first();
 
@@ -410,7 +410,7 @@ class EbayController extends Controller
     public function listImportLogs(Request $request)
     {
         try {
-            $query = EbayImportLog::query()
+            $query = SalesChannelImportLog::query()
                 ->with('salesChannel')
                 ->orderBy('created_at', 'desc');
 
@@ -1109,7 +1109,7 @@ class EbayController extends Controller
 
     /**
      * Find the correct sales channel from notification data
-     * Checks against both ebay_user_id and ebay_user_ids array since eBay uses
+     * Checks against both external_account_id and external_account_ids array since eBay uses
      * different RecipientUserIDs for different notification types for the same seller.
      */
     protected function findSalesChannelFromNotification(array $jsonData): ?SalesChannel
@@ -1118,12 +1118,12 @@ class EbayController extends Controller
         $recipientUserId = $jsonData['RecipientUserID'] ?? null;
 
         if (!empty($recipientUserId)) {
-            // Check single ebay_user_id field
-            $channel = SalesChannel::where('ebay_user_id', $recipientUserId)->first();
+            // Check single external_account_id field
+            $channel = SalesChannel::where('external_account_id', $recipientUserId)->first();
 
-            // If not found, check in ebay_user_ids JSON array
+            // If not found, check in external_account_ids JSON array
             if (!$channel) {
-                $channel = SalesChannel::whereJsonContains('ebay_user_ids', $recipientUserId)->first();
+                $channel = SalesChannel::whereJsonContains('external_account_ids', $recipientUserId)->first();
             }
 
             if ($channel) {
@@ -1134,8 +1134,8 @@ class EbayController extends Controller
         // Try SellerUserID
         $sellerUserId = $jsonData['SellerUserID'] ?? null;
         if (!empty($sellerUserId)) {
-            $channel = SalesChannel::where('ebay_user_id', $sellerUserId)
-                ->orWhereJsonContains('ebay_user_ids', $sellerUserId)
+            $channel = SalesChannel::where('external_account_id', $sellerUserId)
+                ->orWhereJsonContains('external_account_ids', $sellerUserId)
                 ->first();
             if ($channel) {
                 return $channel;
@@ -1145,8 +1145,8 @@ class EbayController extends Controller
         // Try Item.Seller.UserID
         $itemSellerUserId = $jsonData['Item']['Seller']['UserID'] ?? null;
         if (!empty($itemSellerUserId)) {
-            $channel = SalesChannel::where('ebay_user_id', $itemSellerUserId)
-                ->orWhereJsonContains('ebay_user_ids', $itemSellerUserId)
+            $channel = SalesChannel::where('external_account_id', $itemSellerUserId)
+                ->orWhereJsonContains('external_account_ids', $itemSellerUserId)
                 ->first();
             if ($channel) {
                 return $channel;
@@ -1158,7 +1158,7 @@ class EbayController extends Controller
             'recipient_user_id' => $recipientUserId,
             'seller_user_id' => $sellerUserId,
             'item_seller_user_id' => $itemSellerUserId,
-            'available_channels' => SalesChannel::select('id', 'name', 'ebay_user_id', 'ebay_user_ids')->get()->toArray(),
+            'available_channels' => SalesChannel::select('id', 'name', 'external_account_id', 'external_account_ids')->get()->toArray(),
         ]);
 
         return null;
@@ -1189,9 +1189,9 @@ class EbayController extends Controller
         }
 
         // Find the sales channel matching this eBay user ID
-        // Check both ebay_user_id and ebay_user_ids array
-        $matchedChannel = SalesChannel::where('ebay_user_id', $recipientUserId)
-            ->orWhereJsonContains('ebay_user_ids', $recipientUserId)
+        // Check both external_account_id and external_account_ids array
+        $matchedChannel = SalesChannel::where('external_account_id', $recipientUserId)
+            ->orWhereJsonContains('external_account_ids', $recipientUserId)
             ->first();
 
         if ($matchedChannel) {
@@ -1504,7 +1504,7 @@ class EbayController extends Controller
             } else {
                 return [
                     'success' => false,
-                    'message' => 'Either ebay_order_id or itemId+transactionId is required',
+                    'message' => 'Either channel_order_id or itemId+transactionId is required',
                 ];
             }
 
@@ -1558,7 +1558,7 @@ class EbayController extends Controller
             } else {
                 return [
                     'success' => false,
-                    'message' => 'Either ebay_order_id or itemId+transactionId is required',
+                    'message' => 'Either channel_order_id or itemId+transactionId is required',
                 ];
             }
 
@@ -1762,7 +1762,7 @@ class EbayController extends Controller
 
                 // Restock inventory for the returned line item(s). Refunds never
                 // restock on their own — only a confirmed physical return does.
-                $orderReturn = OrderReturn::with('items')->where('ebay_return_id', $returnId)->first();
+                $orderReturn = OrderReturn::with('items')->where('channel_return_id', $returnId)->first();
                 if ($orderReturn) {
                     foreach ($orderReturn->items as $returnItem) {
                         $returnItem->restock();
@@ -1900,7 +1900,7 @@ class EbayController extends Controller
 
             if ($result['success']) {
                 // Update local order
-                $order = Order::where('ebay_order_id', $orderId)->first();
+                $order = Order::where('channel_order_id', $orderId)->first();
                 if ($order) {
                     $order->update([
                         'order_status' => 'cancelled',
@@ -1941,7 +1941,7 @@ class EbayController extends Controller
 
             if ($result['success']) {
                 // Update local order
-                $order = Order::where('ebay_order_id', $orderId)->first();
+                $order = Order::where('channel_order_id', $orderId)->first();
                 if ($order) {
                     // Revert to previous status
                     $previousStatus = $order->payment_status === 'paid' ? 'processing' : 'pending';
@@ -1980,7 +1980,7 @@ class EbayController extends Controller
 
             if ($result['success']) {
                 // Update local order
-                $order = Order::where('ebay_order_id', $orderId)->first();
+                $order = Order::where('channel_order_id', $orderId)->first();
                 if ($order) {
                     $order->update([
                         'order_status' => 'cancellation_requested',
@@ -2029,7 +2029,7 @@ class EbayController extends Controller
 
             if ($result['success']) {
                 // Update local order
-                $order = Order::where('ebay_order_id', $orderId)->first();
+                $order = Order::where('channel_order_id', $orderId)->first();
                 if ($order) {
                     $order->update([
                         'refund_status' => 'completed',
@@ -2091,7 +2091,7 @@ class EbayController extends Controller
 
             if ($result['success']) {
                 // Update local order
-                $order = Order::where('ebay_order_id', $orderId)->first();
+                $order = Order::where('channel_order_id', $orderId)->first();
                 if ($order) {
                     $totalRefunded = $result['total_refunded'] ?? array_sum(array_column($lineItems, 'amount'));
                     $order->recordPartialRefund($totalRefunded, $result['refund_id'] ?? null);

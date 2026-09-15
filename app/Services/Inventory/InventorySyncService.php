@@ -147,7 +147,7 @@ class InventorySyncService
             'status' => 'pending',
             'trigger_source' => $triggerSource,
             'trigger_reference' => $triggerReference,
-            'ebay_item_id' => $listing->external_listing_id,
+            'channel_item_id' => $listing->external_listing_id,
         ]);
 
         // Check if sync should proceed
@@ -210,7 +210,7 @@ class InventorySyncService
                 'product_id' => $product->id,
                 'sku' => $product->sku,
                 'sales_channel_id' => $listing->sales_channel_id,
-                'ebay_item_id' => $listing->external_listing_id,
+                'channel_item_id' => $listing->external_listing_id,
                 'previous_qty' => $previousQuantity,
                 'new_qty' => $decision->newVisible,
             ]);
@@ -401,7 +401,7 @@ class InventorySyncService
             $status['listings'][] = [
                 'sales_channel_id' => $listing->sales_channel_id,
                 'sales_channel_name' => $listing->salesChannel->name ?? 'Unknown',
-                'ebay_item_id' => $listing->external_listing_id,
+                'channel_item_id' => $listing->external_listing_id,
                 'listing_status' => $listing->listing_status,
                 'sync_enabled' => $listing->sync_enabled,
                 'visible_threshold' => $listing->visible_quantity,

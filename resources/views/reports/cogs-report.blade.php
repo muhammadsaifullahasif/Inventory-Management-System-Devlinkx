@@ -346,8 +346,8 @@
                                             @if($item['is_refunded'] ?? false)
                                                 <span class="badge bg-soft-warning text-warning ms-1">Refunded</span>
                                             @endif
-                                            @if(!empty($item['ebay_order_id']))
-                                                <br><small class="text-muted fw-normal">eBay: {{ $item['ebay_order_id'] }}</small>
+                                            @if(!empty($item['channel_order_id']))
+                                                <br><small class="text-muted fw-normal">eBay: {{ $item['channel_order_id'] }}</small>
                                             @endif
                                         </td>
                                         <td>{{ $item['formatted_date'] }}</td>
@@ -432,8 +432,8 @@
                                         @if($isRefunded)
                                             <span class="badge bg-soft-warning text-warning ms-1">Refunded</span>
                                         @endif
-                                        @if($item->order->ebay_order_id)
-                                            <br><small class="text-muted fw-normal">eBay: {{ $item->order->ebay_order_id }}</small>
+                                        @if($item->order->channel_order_id)
+                                            <br><small class="text-muted fw-normal">eBay: {{ $item->order->channel_order_id }}</small>
                                         @endif
                                     </td>
                                     <td><span class="fs-12">{{ $item->order->salesChannel->name ?? '-' }}</span></td>

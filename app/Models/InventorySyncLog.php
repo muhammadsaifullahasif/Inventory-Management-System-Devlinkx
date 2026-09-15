@@ -18,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $status pending|success|failed|skipped
  * @property string|null $skip_reason
  * @property string|null $error_message
- * @property string|null $ebay_item_id
+ * @property string|null $channel_item_id
  * @property string|null $trigger_source
  * @property string|null $trigger_reference
  * @property \Carbon\Carbon $created_at
@@ -36,7 +36,7 @@ class InventorySyncLog extends Model
         'status',
         'skip_reason',
         'error_message',
-        'ebay_item_id',
+        'channel_item_id',
         'trigger_source',
         'trigger_reference',
     ];

@@ -133,8 +133,8 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
         $cutoffDate = now()->subDays($this->daysBack);
 
         $orders = Order::where('sales_channel_id', $salesChannel->id)
-            ->whereNotNull('ebay_order_id')
-            ->where('ebay_order_id', '!=', '')
+            ->whereNotNull('channel_order_id')
+            ->where('channel_order_id', '!=', '')
             ->where('created_at', '>=', $cutoffDate)
             ->where(function ($query) {
                 // Exclude orders already in final states
@@ -148,7 +148,7 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
                             });
                     });
             })
-            ->pluck('ebay_order_id', 'id')
+            ->pluck('channel_order_id', 'id')
             ->toArray();
 
         if (empty($orders)) {
@@ -234,7 +234,7 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
             'return_updated' => false,
         ];
 
-        $localOrder = Order::where('ebay_order_id', $ebayOrder['order_id'])->first();
+        $localOrder = Order::where('channel_order_id', $ebayOrder['order_id'])->first();
 
         if (!$localOrder) {
             return $result;
@@ -324,11 +324,11 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
         }
 
         // Update eBay-specific status fields
-        if (strtolower($localOrder->ebay_order_status) !== strtolower($ebayOrder['order_status'])) {
-            $updateData['ebay_order_status'] = $ebayOrder['order_status'];
+        if (strtolower($localOrder->channel_order_status) !== strtolower($ebayOrder['order_status'])) {
+            $updateData['channel_order_status'] = $ebayOrder['order_status'];
         }
-        if (strtolower($localOrder->ebay_payment_status) !== strtolower($ebayOrder['payment_status'])) {
-            $updateData['ebay_payment_status'] = $ebayOrder['payment_status'];
+        if (strtolower($localOrder->channel_payment_status) !== strtolower($ebayOrder['payment_status'])) {
+            $updateData['channel_payment_status'] = $ebayOrder['payment_status'];
         }
 
         if (in_array($ebayOrder['order_status'], ['cancelled', 'Cancelled']) || in_array($ebayOrder['cancel_status'], ['CancelComplete', 'cancelcomplete', 'CancelClosed', 'cancelclosed', 'CancelClosedWithRefund', 'cancelclosedwithrefund', 'CancelClosedNoRefund', 'cancelclosednorefund'])) {

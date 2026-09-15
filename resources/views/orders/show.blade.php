@@ -51,10 +51,10 @@
                                     <td class="text-muted" style="width: 140px;">Order Number:</td>
                                     <td><strong>{{ $order->order_number }}</strong></td>
                                 </tr>
-                                @if($order->ebay_order_id)
+                                @if($order->channel_order_id)
                                 <tr>
                                     <td class="text-muted">eBay Order ID:</td>
-                                    <td><code class="fs-12">{{ $order->ebay_order_id }}</code></td>
+                                    <td><code class="fs-12">{{ $order->channel_order_id }}</code></td>
                                 </tr>
                                 @endif
                                 <tr>
@@ -253,8 +253,8 @@
                                                     <i class="feather-package me-1"></i>{{ $item->title }}
                                                 </span>
                                                 <span class="badge bg-primary text-white fs-11 mt-1">Bundle</span>
-                                                @if ($item->ebay_item_id)
-                                                    <span class="d-block fs-11 text-muted mt-1">{{ $item->ebay_item_id }}</span>
+                                                @if ($item->channel_item_id)
+                                                    <span class="d-block fs-11 text-muted mt-1">{{ $item->channel_item_id }}</span>
                                                 @endif
                                             </td>
                                             <td>
@@ -311,8 +311,8 @@
                                             </td>
                                             <td>
                                                 <span style="white-space: normal; width: 300px; display: block;" class="fw-semibold">{{ \Illuminate\Support\Str::limit($item->title, 50) }}</span>
-                                                @if ($item->ebay_item_id)
-                                                    <span class="d-block fs-11 text-muted">{{ $item->ebay_item_id }}</span>
+                                                @if ($item->channel_item_id)
+                                                    <span class="d-block fs-11 text-muted">{{ $item->channel_item_id }}</span>
                                                 @endif
                                                 @if($item->variation_attributes)
                                                     <span class="d-block fs-11 text-muted">
@@ -358,8 +358,8 @@
                                                     @endforeach
                                                 </span>
                                             @endif
-                                            @if($item->ebay_item_id)
-                                                <span class="d-block fs-11 text-muted">eBay Item: {{ $item->ebay_item_id }}</span>
+                                            @if($item->channel_item_id)
+                                                <span class="d-block fs-11 text-muted">eBay Item: {{ $item->channel_item_id }}</span>
                                             @endif
                                         </td>
                                         <td>
@@ -545,7 +545,7 @@
                                 </tr>
                             </tbody>
                         </table>
-                        <p class="text-muted fs-11 mt-2 mb-0">Synced {{ $order->ebay_financials_synced_at->diffForHumans() }}</p>
+                        <p class="text-muted fs-11 mt-2 mb-0">Synced {{ $order->channel_financials_synced_at->diffForHumans() }}</p>
                     @endif
                 </div>
             </div>

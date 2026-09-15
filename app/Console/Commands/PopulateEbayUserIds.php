@@ -28,7 +28,7 @@ class PopulateEbayUserIds extends Command
      */
     public function handle()
     {
-        $channels = SalesChannel::whereNull('ebay_user_id')
+        $channels = SalesChannel::whereNull('external_account_id')
             ->whereNotNull('access_token')
             ->get();
 
@@ -59,7 +59,7 @@ class PopulateEbayUserIds extends Command
                 $userId = $response['User']['UserID'] ?? null;
 
                 if ($userId) {
-                    $channel->ebay_user_id = $userId;
+                    $channel->external_account_id = $userId;
                     $channel->save();
 
                     $this->info("  -> eBay UserID: {$userId}");

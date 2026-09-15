@@ -30,7 +30,7 @@ class CogsReportDetailSheet implements FromArray, WithHeadings, WithStyles, With
             $rows[] = [
                 $item->order->order_date ? $item->order->order_date->format('M d, Y') : '-',
                 $item->order->order_number,
-                $item->order->ebay_order_id ?? '-',
+                $item->order->channel_order_id ?? '-',
                 $item->order->salesChannel->name ?? '-',
                 $item->product->name ?? $item->title,
                 $item->sku ?? '-',

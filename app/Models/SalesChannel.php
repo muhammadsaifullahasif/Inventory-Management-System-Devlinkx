@@ -2,17 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 
 class SalesChannel extends Model
 {
     protected $fillable = [
         'name',
-        'ebay_user_id',
-        'ebay_user_ids', // Array of all eBay user IDs for this seller
+        'type',
+        'external_account_id',
+        'external_account_ids', // Array of all platform account IDs for this seller
         'client_id',
         'client_secret',
         'ru_name',
+        'provider_config',
         'user_scopes',
         'authorization_code',
         'access_token',
@@ -41,8 +44,21 @@ class SalesChannel extends Model
         'platform_notifications_enabled' => 'boolean',
         'platform_notification_events' => 'array',
         'notification_subscriptions' => 'array',
-        'ebay_user_ids' => 'array', // Cast to array
+        'external_account_ids' => 'array', // Cast to array
+        'provider_config' => 'array',
     ];
+
+    /**
+     * eBay's OAuth redirect-name concept — has no equivalent on other platforms,
+     * so it lives inside provider_config rather than as its own column.
+     */
+    protected function ruName(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => ($this->provider_config ?? [])['ru_name'] ?? null,
+            set: fn ($value) => ['provider_config' => array_merge($this->provider_config ?? [], ['ru_name' => $value])],
+        );
+    }
 
     public function products()
     {
@@ -69,7 +85,7 @@ class SalesChannel extends Model
      */
     public function isEbay(): bool
     {
-        return !empty($this->client_id) && !empty($this->client_secret);
+        return $this->type === 'ebay';
     }
 
     /**

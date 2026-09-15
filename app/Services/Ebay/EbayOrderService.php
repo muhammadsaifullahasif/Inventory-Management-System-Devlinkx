@@ -291,14 +291,14 @@ class EbayOrderService
      */
     public function processOrder(array $ebayOrder, int $salesChannelId): array
     {
-        $existingOrder = Order::where('ebay_order_id', $ebayOrder['order_id'])->first();
+        $existingOrder = Order::where('channel_order_id', $ebayOrder['order_id'])->first();
 
         if ($existingOrder) {
             $originalBefore = $existingOrder->getOriginal();
 
             $updateData = [
-                'ebay_order_status' => $ebayOrder['order_status'],
-                'ebay_payment_status' => $ebayOrder['payment_status'],
+                'channel_order_status' => $ebayOrder['order_status'],
+                'channel_payment_status' => $ebayOrder['payment_status'],
                 'order_status' => $this->mapOrderStatus($ebayOrder['order_status'], $ebayOrder),
                 'payment_status' => $this->mapPaymentStatus($ebayOrder['payment_status'], $ebayOrder),
                 'fulfillment_status' => $this->mapFulfillmentStatus($ebayOrder),
@@ -363,7 +363,7 @@ class EbayOrderService
             $order = Order::create([
                 'order_number' => Order::generateOrderNumber(),
                 'sales_channel_id' => $salesChannelId,
-                'ebay_order_id' => $ebayOrder['order_id'],
+                'channel_order_id' => $ebayOrder['order_id'],
                 'buyer_username' => $ebayOrder['buyer']['username'],
                 'buyer_email' => $ebayOrder['buyer']['email'],
                 'buyer_name' => $ebayOrder['shipping_address']['name'] ?? null,
@@ -384,9 +384,9 @@ class EbayOrderService
                 'order_status' => $this->mapOrderStatus($ebayOrder['order_status'], $ebayOrder),
                 'payment_status' => $this->mapPaymentStatus($ebayOrder['payment_status'], $ebayOrder),
                 'fulfillment_status' => $this->mapFulfillmentStatus($ebayOrder),
-                'ebay_order_status' => $ebayOrder['order_status'],
-                'ebay_payment_status' => $ebayOrder['payment_status'],
-                'ebay_raw_data' => $ebayOrder['raw_data'],
+                'channel_order_status' => $ebayOrder['order_status'],
+                'channel_payment_status' => $ebayOrder['payment_status'],
+                'channel_raw_data' => $ebayOrder['raw_data'],
                 'order_date' => !empty($ebayOrder['created_time']) ? new \DateTime($ebayOrder['created_time']) : (!empty($ebayOrder['paid_time']) ? new \DateTime($ebayOrder['paid_time']) : now()),
                 'paid_at' => !empty($ebayOrder['paid_time']) ? new \DateTime($ebayOrder['paid_time']) : null,
                 'shipped_at' => !empty($ebayOrder['shipped_time']) ? new \DateTime($ebayOrder['shipped_time']) : null,
@@ -420,9 +420,9 @@ class EbayOrderService
                     $orderItem = OrderItem::create([
                         'order_id' => $order->id,
                         'product_id' => $product?->id,
-                        'ebay_item_id' => $lineItem['item_id'],
-                        'ebay_transaction_id' => $lineItem['transaction_id'],
-                        'ebay_line_item_id' => $lineItem['line_item_id'],
+                        'channel_item_id' => $lineItem['item_id'],
+                        'channel_transaction_id' => $lineItem['transaction_id'],
+                        'channel_line_item_id' => $lineItem['line_item_id'],
                         'sku' => $lineItem['sku'] ?: $lineItem['item_id'],
                         'title' => $lineItem['title'],
                         'quantity' => $qty,
@@ -485,7 +485,7 @@ class EbayOrderService
 
     /**
      * Strip fields that are huge or noisy from an Order diff before it goes
-     * into an audit log entry (ebay_raw_data is the full raw API payload —
+     * into an audit log entry (channel_raw_data is the full raw API payload —
      * already stored on the order row itself, no need to duplicate it here).
      *
      * @param  array<string, mixed>  $attributes
@@ -493,7 +493,7 @@ class EbayOrderService
      */
     private function filterOrderFields(array $attributes): array
     {
-        unset($attributes['ebay_raw_data'], $attributes['created_at'], $attributes['updated_at']);
+        unset($attributes['channel_raw_data'], $attributes['created_at'], $attributes['updated_at']);
 
         return $attributes;
     }
@@ -660,7 +660,7 @@ class EbayOrderService
             return null;
         }
 
-        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        $order = Order::where('channel_order_id', $ebayOrderId)->first();
 
         // Get buyer information
         $buyer = $transaction['Buyer'] ?? [];
@@ -722,8 +722,8 @@ class EbayOrderService
 
         $orderData = [
             'sales_channel_id' => $channel->id,
-            'ebay_order_id' => $ebayOrderId,
-            'ebay_extended_order_id' => $transaction['ContainingOrder']['ExtendedOrderID'] ?? $transaction['ExtendedOrderID'] ?? $ebayOrderId,
+            'channel_order_id' => $ebayOrderId,
+            'channel_extended_order_id' => $transaction['ContainingOrder']['ExtendedOrderID'] ?? $transaction['ExtendedOrderID'] ?? $ebayOrderId,
 
             'buyer_username' => $buyer['UserID'] ?? '',
             'buyer_email' => $buyer['Email'] ?? '',
@@ -750,8 +750,8 @@ class EbayOrderService
             'order_status' => $this->mapOrderStatusFromTransaction($transaction),
             'payment_status' => $this->mapPaymentStatusFromTransaction($transaction),
             'fulfillment_status' => $this->mapFulfillmentStatusFromTransaction($transaction),
-            'ebay_order_status' => $transaction['ContainingOrder']['OrderStatus'] ?? 'Completed',
-            'ebay_payment_status' => $transaction['Status']['eBayPaymentStatus'] ?? '',
+            'channel_order_status' => $transaction['ContainingOrder']['OrderStatus'] ?? 'Completed',
+            'channel_payment_status' => $transaction['Status']['eBayPaymentStatus'] ?? '',
             'cancel_status' => $transaction['ContainingOrder']['CancelStatus'] ?? '',
 
             'buyer_checkout_message' => $transaction['BuyerCheckoutMessage'] ?? '',
@@ -771,7 +771,7 @@ class EbayOrderService
             'shipment_deadline' => $shipmentDeadline,
             'handling_time_days' => $handlingTimeDays,
 
-            'ebay_raw_data' => $data,
+            'channel_raw_data' => $data,
         ];
 
         try {
@@ -828,7 +828,7 @@ class EbayOrderService
         } catch (Exception $e) {
             DB::rollBack();
             Log::channel('ebay')->error('Failed to save order from notification', [
-                'ebay_order_id' => $ebayOrderId,
+                'channel_order_id' => $ebayOrderId,
                 'error' => $e->getMessage(),
             ]);
             throw $e;
@@ -855,9 +855,9 @@ class EbayOrderService
             return null;
         }
 
-        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        $order = Order::where('channel_order_id', $ebayOrderId)->first();
         if (!$order) {
-            Log::channel('ebay')->warning('Order not found for ItemMarkedShipped', ['ebay_order_id' => $ebayOrderId]);
+            Log::channel('ebay')->warning('Order not found for ItemMarkedShipped', ['channel_order_id' => $ebayOrderId]);
             return null;
         }
 
@@ -880,7 +880,7 @@ class EbayOrderService
                 'tracking_number' => $trackingNumber ?: $order->tracking_number,
                 'shipping_carrier' => $shippingCarrier ?: $order->shipping_carrier,
                 'shipped_at' => $shippedTime ?? now(),
-                'ebay_order_status' => $transaction['ContainingOrder']['OrderStatus'] ?? $order->ebay_order_status,
+                'channel_order_status' => $transaction['ContainingOrder']['OrderStatus'] ?? $order->channel_order_status,
             ]);
 
             if (!empty($trackingNumber)) {
@@ -911,7 +911,7 @@ class EbayOrderService
         } catch (Exception $e) {
             DB::rollBack();
             Log::channel('ebay')->error('Failed to process ItemMarkedShipped', [
-                'ebay_order_id' => $ebayOrderId,
+                'channel_order_id' => $ebayOrderId,
                 'error' => $e->getMessage(),
             ]);
             throw $e;
@@ -936,7 +936,7 @@ class EbayOrderService
             return null;
         }
 
-        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        $order = Order::where('channel_order_id', $ebayOrderId)->first();
         if (!$order) {
             return $this->saveFromNotification($data, $channel, $notificationType, $timestamp);
         }
@@ -949,7 +949,7 @@ class EbayOrderService
             $updateData = [
                 'payment_status' => 'paid',
                 'paid_at' => $paidTime ?? now(),
-                'ebay_payment_status' => $transaction['Status']['eBayPaymentStatus'] ?? 'NoPaymentFailure',
+                'channel_payment_status' => $transaction['Status']['eBayPaymentStatus'] ?? 'NoPaymentFailure',
             ];
 
             // When paid but not yet shipped, move order to processing
@@ -972,7 +972,7 @@ class EbayOrderService
         } catch (Exception $e) {
             DB::rollBack();
             Log::channel('ebay')->error('Failed to process ItemMarkedPaid', [
-                'ebay_order_id' => $ebayOrderId,
+                'channel_order_id' => $ebayOrderId,
                 'error' => $e->getMessage(),
             ]);
             throw $e;
@@ -997,7 +997,7 @@ class EbayOrderService
             return null;
         }
 
-        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        $order = Order::where('channel_order_id', $ebayOrderId)->first();
         if (!$order) {
             return null;
         }
@@ -1008,7 +1008,7 @@ class EbayOrderService
             $order->update([
                 'order_status' => 'delivered',
                 'fulfillment_status' => 'fulfilled',
-                'ebay_order_status' => $transaction['ContainingOrder']['OrderStatus'] ?? 'Completed',
+                'channel_order_status' => $transaction['ContainingOrder']['OrderStatus'] ?? 'Completed',
             ]);
 
             $order->setMeta('event_log_' . time(), [
@@ -1023,7 +1023,7 @@ class EbayOrderService
         } catch (Exception $e) {
             DB::rollBack();
             Log::channel('ebay')->error('Failed to process ItemDelivered', [
-                'ebay_order_id' => $ebayOrderId,
+                'channel_order_id' => $ebayOrderId,
                 'error' => $e->getMessage(),
             ]);
             throw $e;
@@ -1047,7 +1047,7 @@ class EbayOrderService
             return null;
         }
 
-        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        $order = Order::where('channel_order_id', $ebayOrderId)->first();
         if (!$order) {
             return null;
         }
@@ -1058,7 +1058,7 @@ class EbayOrderService
             $order->update([
                 'order_status' => 'delivered',
                 'fulfillment_status' => 'fulfilled',
-                'ebay_order_status' => $transaction['ContainingOrder']['OrderStatus'] ?? 'Completed',
+                'channel_order_status' => $transaction['ContainingOrder']['OrderStatus'] ?? 'Completed',
             ]);
 
             $order->setMeta('event_log_' . time(), [
@@ -1093,7 +1093,7 @@ class EbayOrderService
             return null;
         }
 
-        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        $order = Order::where('channel_order_id', $ebayOrderId)->first();
         if (!$order) {
             return null;
         }
@@ -1104,7 +1104,7 @@ class EbayOrderService
             $order->update([
                 'order_status' => 'ready_for_pickup',
                 'fulfillment_status' => 'ready_for_pickup',
-                'ebay_order_status' => $transaction['ContainingOrder']['OrderStatus'] ?? $order->ebay_order_status,
+                'channel_order_status' => $transaction['ContainingOrder']['OrderStatus'] ?? $order->channel_order_status,
             ]);
 
             if (isset($transaction['PickupDetails'])) {
@@ -1143,7 +1143,7 @@ class EbayOrderService
             return null;
         }
 
-        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        $order = Order::where('channel_order_id', $ebayOrderId)->first();
         if (!$order) {
             return null;
         }
@@ -1199,7 +1199,7 @@ class EbayOrderService
             return null;
         }
 
-        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        $order = Order::where('channel_order_id', $ebayOrderId)->first();
         if (!$order) {
             return null;
         }
@@ -1263,7 +1263,7 @@ class EbayOrderService
             return null;
         }
 
-        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        $order = Order::where('channel_order_id', $ebayOrderId)->first();
         if (!$order) {
             return null;
         }
@@ -1316,7 +1316,7 @@ class EbayOrderService
             return null;
         }
 
-        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        $order = Order::where('channel_order_id', $ebayOrderId)->first();
         if (!$order) {
             return null;
         }
@@ -1363,11 +1363,11 @@ class EbayOrderService
 
         $order = null;
         if (!empty($orderId)) {
-            $order = Order::where('ebay_order_id', $orderId)->first();
+            $order = Order::where('channel_order_id', $orderId)->first();
         }
         if (!$order && !empty($itemId)) {
             $order = Order::whereHas('items', function ($q) use ($itemId) {
-                $q->where('ebay_item_id', $itemId);
+                $q->where('channel_item_id', $itemId);
             })->first();
         }
 
@@ -1408,10 +1408,10 @@ class EbayOrderService
             ]);
 
             // Create/refresh the local return record (line-item level, restock tracking).
-            // Item-specific returns match by ebay_item_id; if eBay didn't scope to one
+            // Item-specific returns match by channel_item_id; if eBay didn't scope to one
             // item, treat it as a whole-order return covering every order item.
             $orderReturn = OrderReturn::updateOrCreate(
-                ['ebay_return_id' => $returnId],
+                ['channel_return_id' => $returnId],
                 [
                     'order_id' => $order->id,
                     'sales_channel_id' => $order->sales_channel_id,
@@ -1425,7 +1425,7 @@ class EbayOrderService
 
             if ($orderReturn->items()->doesntExist()) {
                 $items = !empty($itemId)
-                    ? $order->items()->where('ebay_item_id', $itemId)->get()
+                    ? $order->items()->where('channel_item_id', $itemId)->get()
                     : $order->items;
 
                 foreach ($items as $item) {
@@ -1472,7 +1472,7 @@ class EbayOrderService
             $order = Order::where('return_id', $returnId)->first();
         }
         if (!$order && !empty($orderId)) {
-            $order = Order::where('ebay_order_id', $orderId)->first();
+            $order = Order::where('channel_order_id', $orderId)->first();
         }
 
         if (!$order) {
@@ -1539,7 +1539,7 @@ class EbayOrderService
             $order = Order::where('return_id', $returnId)->first();
         }
         if (!$order && !empty($orderId)) {
-            $order = Order::where('ebay_order_id', $orderId)->first();
+            $order = Order::where('channel_order_id', $orderId)->first();
         }
 
         if (!$order) {
@@ -1590,7 +1590,7 @@ class EbayOrderService
             $order = Order::where('return_id', $returnId)->first();
         }
         if (!$order && !empty($orderId)) {
-            $order = Order::where('ebay_order_id', $orderId)->first();
+            $order = Order::where('channel_order_id', $orderId)->first();
         }
 
         if (!$order) {
@@ -1667,7 +1667,7 @@ class EbayOrderService
             $order = Order::where('return_id', $returnId)->first();
         }
         if (!$order && !empty($orderId)) {
-            $order = Order::where('ebay_order_id', $orderId)->first();
+            $order = Order::where('channel_order_id', $orderId)->first();
         }
 
         if (!$order) {
@@ -1718,7 +1718,7 @@ class EbayOrderService
             $order = Order::where('return_id', $returnId)->first();
         }
         if (!$order && !empty($orderId)) {
-            $order = Order::where('ebay_order_id', $orderId)->first();
+            $order = Order::where('channel_order_id', $orderId)->first();
         }
 
         if (!$order) {
@@ -1772,15 +1772,15 @@ class EbayOrderService
         // Try to find order by item + transaction
         if (!empty($itemId) && !empty($transactionId)) {
             $order = Order::whereHas('items', function ($q) use ($itemId, $transactionId) {
-                $q->where('ebay_item_id', $itemId)
-                  ->where('ebay_transaction_id', $transactionId);
+                $q->where('channel_item_id', $itemId)
+                  ->where('channel_transaction_id', $transactionId);
             })->first();
         }
 
         // Fallback: find by item ID only
         if (!$order && !empty($itemId)) {
             $order = Order::whereHas('items', function ($q) use ($itemId) {
-                $q->where('ebay_item_id', $itemId);
+                $q->where('channel_item_id', $itemId);
             })->first();
         }
 
@@ -1857,7 +1857,7 @@ class EbayOrderService
         $ebayOrderId = $this->extractOrderId($transaction);
 
         if (!empty($ebayOrderId)) {
-            $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+            $order = Order::where('channel_order_id', $ebayOrderId)->first();
             if ($order) {
                 $order->setMeta('event_log_' . time(), [
                     'event' => 'CheckoutBuyerRequestsTotal',
@@ -1887,7 +1887,7 @@ class EbayOrderService
             return null;
         }
 
-        $order = Order::where('ebay_order_id', $ebayOrderId)->first();
+        $order = Order::where('channel_order_id', $ebayOrderId)->first();
         if (!$order) {
             return $this->saveFromNotification($data, $channel, $notificationType, $timestamp);
         }
@@ -2001,7 +2001,7 @@ class EbayOrderService
 
         // Check if order item already exists
         $existingOrderItem = OrderItem::where('order_id', $order->id)
-            ->where('ebay_transaction_id', $transactionId)
+            ->where('channel_transaction_id', $transactionId)
             ->first();
 
         // If item already exists, just update it (don't recreate bundle components)
@@ -2036,9 +2036,9 @@ class EbayOrderService
         $itemData = [
             'order_id' => $order->id,
             'product_id' => $product?->id,
-            'ebay_item_id' => $itemId,
-            'ebay_transaction_id' => $transactionId,
-            'ebay_line_item_id' => $transaction['OrderLineItemID'] ?? '',
+            'channel_item_id' => $itemId,
+            'channel_transaction_id' => $transactionId,
+            'channel_line_item_id' => $transaction['OrderLineItemID'] ?? '',
             'sku' => $sku,
             'title' => $item['Title'] ?? $transaction['Item']['Title'] ?? '',
             'quantity' => $quantity,
@@ -2086,9 +2086,9 @@ class EbayOrderService
         $summaryItem = OrderItem::create([
             'order_id' => $order->id,
             'product_id' => $bundleProduct->id,
-            'ebay_item_id' => $itemId,
-            'ebay_transaction_id' => $transactionId,
-            'ebay_line_item_id' => $transaction['OrderLineItemID'] ?? '',
+            'channel_item_id' => $itemId,
+            'channel_transaction_id' => $transactionId,
+            'channel_line_item_id' => $transaction['OrderLineItemID'] ?? '',
             'sku' => $bundleProduct->sku,
             'title' => $item['Title'] ?? $transaction['Item']['Title'] ?? $bundleProduct->name,
             'quantity' => $quantity,
@@ -2224,7 +2224,7 @@ class EbayOrderService
                 'payment_hold_status' => $status['PaymentHoldStatus'] ?? '',
                 'inquiry_status' => $status['InquiryStatus'] ?? '',
                 'return_status' => $status['ReturnStatus'] ?? '',
-                'ebay_payment_status' => $status['eBayPaymentStatus'] ?? '',
+                'channel_payment_status' => $status['eBayPaymentStatus'] ?? '',
                 'checkout_status' => $status['CheckoutStatus'] ?? '',
                 'complete_status' => $status['CompleteStatus'] ?? '',
             ]);
@@ -2289,9 +2289,9 @@ class EbayOrderService
         $summaryItem = OrderItem::create([
             'order_id' => $order->id,
             'product_id' => $bundleProduct->id,
-            'ebay_item_id' => $lineItem['item_id'],
-            'ebay_transaction_id' => $lineItem['transaction_id'],
-            'ebay_line_item_id' => $lineItem['line_item_id'],
+            'channel_item_id' => $lineItem['item_id'],
+            'channel_transaction_id' => $lineItem['transaction_id'],
+            'channel_line_item_id' => $lineItem['line_item_id'],
             'sku' => $bundleProduct->sku,
             'title' => $bundleProduct->name,
             'quantity' => $lineItem['quantity'],

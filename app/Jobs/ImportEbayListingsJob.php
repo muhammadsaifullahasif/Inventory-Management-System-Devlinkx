@@ -10,7 +10,7 @@ use App\Models\Category;
 use App\Models\Warehouse;
 use Illuminate\Support\Str;
 use App\Models\SalesChannel;
-use App\Models\EbayImportLog;
+use App\Models\SalesChannelImportLog;
 use App\Models\SalesChannelProduct;
 use App\Services\Ebay\EbayApiClient;
 use App\Services\Ebay\EbayService;
@@ -330,7 +330,7 @@ class ImportEbayListingsJob implements ShouldQueue
             ['product_id' => $product->id, 'meta_key' => 'height', 'meta_value' => $item['dimensions']['height'] ?? ''],
             ['product_id' => $product->id, 'meta_key' => 'dimension_unit', 'meta_value' => $item['dimensions']['dimension_unit'] ?? 'inches'],
             ['product_id' => $product->id, 'meta_key' => 'condition', 'meta_value' => $item['condition'] ?? ''],
-            ['product_id' => $product->id, 'meta_key' => 'ebay_item_id', 'meta_value' => $item['item_id'] ?? ''],
+            ['product_id' => $product->id, 'meta_key' => 'channel_item_id', 'meta_value' => $item['item_id'] ?? ''],
         ];
 
         $product->product_meta()->upsert($metaData, ['product_id', 'meta_key'], ['meta_value']);
@@ -405,7 +405,7 @@ class ImportEbayListingsJob implements ShouldQueue
         }
 
         try {
-            $importLog = EbayImportLog::find($this->importLogId);
+            $importLog = SalesChannelImportLog::find($this->importLogId);
             $importLog?->recordBatchResult($inserted, $updated, $failed, $errors, $this->batchNumber);
         } catch (Exception $e) {
             Log::error('Failed to update import log', [
@@ -426,7 +426,7 @@ class ImportEbayListingsJob implements ShouldQueue
 
         if ($this->importLogId) {
             try {
-                $importLog = EbayImportLog::find($this->importLogId);
+                $importLog = SalesChannelImportLog::find($this->importLogId);
                 $importLog?->markBatchFailed($this->batchNumber, $exception->getMessage());
             } catch (Exception $e) {
                 Log::error('Failed to update import log on job failure', [

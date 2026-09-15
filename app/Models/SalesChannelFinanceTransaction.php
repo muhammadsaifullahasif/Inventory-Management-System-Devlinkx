@@ -4,13 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class EbayFinanceTransaction extends Model
+class SalesChannelFinanceTransaction extends Model
 {
     protected $fillable = [
         'sales_channel_id',
         'order_id',
-        'ebay_transaction_id',
-        'ebay_order_id',
+        'channel_transaction_id',
+        'channel_order_id',
         'transaction_type',
         'fee_category',
         'booking_entry',

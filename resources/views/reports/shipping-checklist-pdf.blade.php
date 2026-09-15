@@ -388,7 +388,7 @@
                             @endif
                             @if($visibleColumns['order_id'] ?? true)
                                 <td class="col-order" style="{{ $colStyle('order_id') }}">
-                                    <strong>{{ $item['ebay_order_id'] }}</strong>
+                                    <strong>{{ $item['channel_order_id'] }}</strong>
                                 </td>
                             @endif
                             @if($visibleColumns['image'] ?? true)

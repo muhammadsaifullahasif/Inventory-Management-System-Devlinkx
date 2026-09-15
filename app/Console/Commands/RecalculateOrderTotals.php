@@ -19,7 +19,7 @@ class RecalculateOrderTotals extends Command
                             {--channel= : Filter by sales_channel_id}
                             {--from= : Start date (Y-m-d) on order_date}
                             {--to= : End date (Y-m-d) on order_date}
-                            {--ebay-only : Only orders with ebay_order_id}
+                            {--ebay-only : Only orders with channel_order_id}
                             {--bundles-only : Only orders that contain bundle items}
                             {--chunk=200 : Chunk size}
                             {--dry-run : Show changes without saving}';
@@ -44,7 +44,7 @@ class RecalculateOrderTotals extends Command
                         'id', 
                         'order_number', 
                         'sales_channel_id', 
-                        'ebay_order_id', 
+                        'channel_order_id',
                         'order_date', 
                         'subtotal', 
                         'shipping_cost', 
@@ -72,7 +72,7 @@ class RecalculateOrderTotals extends Command
         }
 
         if ($this->option('ebay-only')) {
-            $query->whereNotNull('ebay_order_id');
+            $query->whereNotNull('channel_order_id');
         }
 
         if ($this->option('bundles-only')) {

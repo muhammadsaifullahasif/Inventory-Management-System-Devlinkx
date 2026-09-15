@@ -12,8 +12,8 @@ class Order extends Model
     protected $fillable = [
         'order_number',
         'sales_channel_id',
-        'ebay_order_id',
-        'ebay_extended_order_id',
+        'channel_order_id',
+        'channel_extended_order_id',
         'buyer_username',
         'buyer_email',
         'buyer_name',
@@ -47,11 +47,11 @@ class Order extends Model
         'shipped_at',
         'delivered_at',
         'tracking_last_checked_at',
-        'ebay_order_status',
-        'ebay_payment_status',
+        'channel_order_status',
+        'channel_payment_status',
         'cancel_status',
         'buyer_checkout_message',
-        'ebay_raw_data',
+        'channel_raw_data',
         'notification_type',
         'notification_received_at',
         'order_date',
@@ -79,17 +79,17 @@ class Order extends Model
         // Shipment deadline fields
         'shipment_deadline',
         'handling_time_days',
-        // eBay Finances API summary fields
-        'ebay_transaction_fee',
-        'ebay_shipping_label_cost',
-        'ebay_ad_fee',
-        'ebay_other_fees',
-        'ebay_net_earnings',
-        'ebay_financials_synced_at',
+        // Sales channel finance summary fields
+        'channel_transaction_fee',
+        'channel_shipping_label_cost',
+        'channel_ad_fee',
+        'channel_other_fees',
+        'channel_net_earnings',
+        'channel_financials_synced_at',
     ];
 
     protected $casts = [
-        'ebay_raw_data' => 'array',
+        'channel_raw_data' => 'array',
         'order_date' => 'datetime',
         'paid_at' => 'datetime',
         'shipped_at' => 'datetime',
@@ -112,12 +112,12 @@ class Order extends Model
         'total' => 'decimal:2',
         'refund_amount' => 'decimal:2',
         'total_refunded' => 'decimal:2',
-        'ebay_transaction_fee' => 'decimal:2',
-        'ebay_shipping_label_cost' => 'decimal:2',
-        'ebay_ad_fee' => 'decimal:2',
-        'ebay_other_fees' => 'decimal:2',
-        'ebay_net_earnings' => 'decimal:2',
-        'ebay_financials_synced_at' => 'datetime',
+        'channel_transaction_fee' => 'decimal:2',
+        'channel_shipping_label_cost' => 'decimal:2',
+        'channel_ad_fee' => 'decimal:2',
+        'channel_other_fees' => 'decimal:2',
+        'channel_net_earnings' => 'decimal:2',
+        'channel_financials_synced_at' => 'datetime',
     ];
 
     /**
@@ -231,11 +231,11 @@ class Order extends Model
     }
 
     /**
-     * Check if order is from eBay
+     * Check if order is from a connected sales channel (not a local/manual sale)
      */
     public function isEbayOrder(): bool
     {
-        return !empty($this->ebay_order_id);
+        return !empty($this->channel_order_id);
     }
 
     /**
@@ -313,11 +313,11 @@ class Order extends Model
     }
 
     /**
-     * Check if order is a local sale (non-eBay)
+     * Check if order is a local sale (not from any connected sales channel)
      */
     public function isLocalSale(): bool
     {
-        return empty($this->ebay_order_id);
+        return empty($this->channel_order_id);
     }
 
     /**

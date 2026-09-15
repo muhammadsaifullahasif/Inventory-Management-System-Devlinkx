@@ -18,7 +18,7 @@ use App\Models\JournalEntryLine;
 use App\Models\Product;
 use App\Models\ProductStock;
 use App\Models\Category;
-use App\Models\EbayFinanceTransaction;
+use App\Models\SalesChannelFinanceTransaction;
 use App\Services\JournalService;
 use App\Services\InventoryAccountingService;
 use Illuminate\Support\Facades\DB;
@@ -1929,7 +1929,7 @@ class ReportController extends Controller
     /**
      * Shipping Expenses Report
      * Two views on the same row shape, toggled by "source": labels eBay
-     * generated (orders.ebay_shipping_label_cost) vs labels our own
+     * generated (orders.channel_shipping_label_cost) vs labels our own
      * FedEx/USPS integration generated (orders.shipping_cost, which
      * ShippingService overwrites with the real carrier charge once
      * label_generated_at + shipping_id are set - see canBeRefunded-style
@@ -1948,7 +1948,7 @@ class ReportController extends Controller
             $groupBy = 'channel';
         }
 
-        $costField = $source === 'ebay' ? 'ebay_shipping_label_cost' : 'shipping_cost';
+        $costField = $source === 'ebay' ? 'channel_shipping_label_cost' : 'shipping_cost';
 
         $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
         $carriers = \App\Models\Shipping::where('delete_status', '0')->orderBy('name')->get();
@@ -1998,7 +1998,7 @@ class ReportController extends Controller
         $overview = [
             'ebay' => $this->buildShippingExpensesSummary(
                 $this->buildShippingExpensesQuery('ebay', $dateFrom, $dateTo, $channelId, null)->get(),
-                'ebay_shipping_label_cost'
+                'channel_shipping_label_cost'
             ),
             'system' => $this->buildShippingExpensesSummary(
                 $this->buildShippingExpensesQuery('system', $dateFrom, $dateTo, $channelId, null)->get(),
@@ -2036,7 +2036,7 @@ class ReportController extends Controller
             ->whereDate('order_date', '<=', $dateTo);
 
         if ($source === 'ebay') {
-            $query->whereNotNull('ebay_shipping_label_cost')->where('ebay_shipping_label_cost', '>', 0);
+            $query->whereNotNull('channel_shipping_label_cost')->where('channel_shipping_label_cost', '>', 0);
         } else {
             $query->whereNotNull('label_generated_at')->whereNotNull('shipping_id');
 
@@ -2122,7 +2122,7 @@ class ReportController extends Controller
             $groupBy = 'channel';
         }
 
-        $costField = $source === 'ebay' ? 'ebay_shipping_label_cost' : 'shipping_cost';
+        $costField = $source === 'ebay' ? 'channel_shipping_label_cost' : 'shipping_cost';
 
         $allOrders = $this->buildShippingExpensesQuery($source, $dateFrom, $dateTo, $channelId, $carrierId)
             ->with(['salesChannel', 'shippingCarrier'])
@@ -2140,7 +2140,7 @@ class ReportController extends Controller
 
     /**
      * eBay Expenses Report
-     * Sourced directly from ebay_finance_transactions (the eBay Finance API sync,
+     * Sourced directly from sales_channel_finance_transactions (the eBay Finance API sync,
      * see EbayFinanceSyncService), not the orders.ebay_* rollup columns - those
      * are a current-state snapshot per order and can't be filtered by period if
      * an order's transactions span multiple sync dates. Bucket math mirrors
@@ -2175,21 +2175,21 @@ class ReportController extends Controller
             ->with(['salesChannel', 'order']);
 
         if ($request->get('item_sort') === 'channel') {
-            $transactionsQuery->select('ebay_finance_transactions.*')
-                ->leftJoin('sales_channels', 'sales_channels.id', '=', 'ebay_finance_transactions.sales_channel_id');
+            $transactionsQuery->select('sales_channel_finance_transactions.*')
+                ->leftJoin('sales_channels', 'sales_channels.id', '=', 'sales_channel_finance_transactions.sales_channel_id');
         } elseif ($request->get('item_sort') === 'order_number') {
-            $transactionsQuery->select('ebay_finance_transactions.*')
-                ->leftJoin('orders', 'orders.id', '=', 'ebay_finance_transactions.order_id');
+            $transactionsQuery->select('sales_channel_finance_transactions.*')
+                ->leftJoin('orders', 'orders.id', '=', 'sales_channel_finance_transactions.order_id');
         }
 
         $transactionsQuery = $this->applyQuerySort($transactionsQuery, $request, [
-            'date' => 'ebay_finance_transactions.transaction_date',
+            'date' => 'sales_channel_finance_transactions.transaction_date',
             'order_number' => 'orders.order_number',
             'channel' => 'sales_channels.name',
-            'category' => 'ebay_finance_transactions.fee_category',
-            'booking' => 'ebay_finance_transactions.booking_entry',
-            'amount' => 'ebay_finance_transactions.amount',
-        ], 'ebay_finance_transactions.transaction_date', 'desc', 'item_sort', 'item_direction');
+            'category' => 'sales_channel_finance_transactions.fee_category',
+            'booking' => 'sales_channel_finance_transactions.booking_entry',
+            'amount' => 'sales_channel_finance_transactions.amount',
+        ], 'sales_channel_finance_transactions.transaction_date', 'desc', 'item_sort', 'item_direction');
 
         $transactions = $transactionsQuery->paginate(50);
 
@@ -2211,7 +2211,7 @@ class ReportController extends Controller
      */
     protected function buildEbayExpensesQuery(string $dateFrom, string $dateTo, $channelId, $feeCategory)
     {
-        $query = EbayFinanceTransaction::whereDate('transaction_date', '>=', $dateFrom)
+        $query = SalesChannelFinanceTransaction::whereDate('transaction_date', '>=', $dateFrom)
             ->whereDate('transaction_date', '<=', $dateTo);
 
         if ($channelId) {
@@ -2258,7 +2258,7 @@ class ReportController extends Controller
      * the sale) rather than the sale proceeds themselves - the proceeds are
      * revenue, not an expense.
      */
-    protected function ebayFinanceTransactionValue(EbayFinanceTransaction $transaction): float
+    protected function ebayFinanceTransactionValue(SalesChannelFinanceTransaction $transaction): float
     {
         $signedAmount = $transaction->booking_entry === 'CREDIT' ? (float) $transaction->amount : -(float) $transaction->amount;
         $cost = -$signedAmount;
@@ -2464,7 +2464,7 @@ class ReportController extends Controller
             });
         }
 
-        $ebayLabelCost = (float) $ebayShippingQuery->sum('ebay_shipping_label_cost');
+        $ebayLabelCost = (float) $ebayShippingQuery->sum('channel_shipping_label_cost');
         $systemLabelCost = (float) $systemShippingQuery->sum('shipping_cost');
         $shippingCosts = $ebayLabelCost + $systemLabelCost;
 
@@ -2704,7 +2704,7 @@ class ReportController extends Controller
         }
 
         // Shipping label costs (both sources)
-        foreach (['ebay' => 'ebay_shipping_label_cost', 'system' => 'shipping_cost'] as $source => $costField) {
+        foreach (['ebay' => 'channel_shipping_label_cost', 'system' => 'shipping_cost'] as $source => $costField) {
             $shippingQuery = $this->buildShippingExpensesQuery($source, $dateFrom, $dateTo, $channelId, null)->with('salesChannel');
 
             if ($groupBy === 'category') {
@@ -3147,7 +3147,7 @@ class ReportController extends Controller
                     $checklistItems[] = [
                         'order' => $order,
                         'item' => $item,
-                        'ebay_order_id' => $order->ebay_order_id ?: $order->order_number,
+                        'channel_order_id' => $order->channel_order_id ?: $order->order_number,
                         'image_url' => $imageUrl,
                         'product_name' => $item->bundle_name ?? ($item->title ?? ($product->name ?? 'Unknown Bundle')),
                         'sku' => $item->sku ?? ($product->sku ?? ''),
@@ -3202,7 +3202,7 @@ class ReportController extends Controller
                     $checklistItems[] = [
                         'order' => $order,
                         'item' => $item,
-                        'ebay_order_id' => $order->ebay_order_id ?: $order->order_number,
+                        'channel_order_id' => $order->channel_order_id ?: $order->order_number,
                         'image_url' => $imageUrl,
                         'product_name' => $item->title ?? ($product->name ?? 'Unknown Product'),
                         'sku' => $item->sku ?? ($product->sku ?? ''),
@@ -3228,7 +3228,7 @@ class ReportController extends Controller
         $checklistCollection = collect($checklistItems);
 
         $checklistCollection = $this->applyCollectionSort($checklistCollection, $request, [
-            'order_id' => 'ebay_order_id',
+            'order_id' => 'channel_order_id',
             'product_name' => 'product_name',
             'sales_channel' => 'sales_channel',
             'quantity_ordered' => 'quantity_ordered',
@@ -3445,7 +3445,7 @@ class ReportController extends Controller
                     $checklistItems[] = [
                         'order' => $order,
                         'item' => $item,
-                        'ebay_order_id' => $order->ebay_order_id ?: $order->order_number,
+                        'channel_order_id' => $order->channel_order_id ?: $order->order_number,
                         'image_url' => $imageUrl,
                         'product_name' => $item->bundle_name ?? ($item->title ?? ($product->name ?? 'Unknown Bundle')),
                         'sku' => $item->sku ?? ($product->sku ?? ''),
@@ -3496,7 +3496,7 @@ class ReportController extends Controller
                     $checklistItems[] = [
                         'order' => $order,
                         'item' => $item,
-                        'ebay_order_id' => $order->ebay_order_id ?: $order->order_number,
+                        'channel_order_id' => $order->channel_order_id ?: $order->order_number,
                         'image_url' => $imageUrl,
                         'product_name' => $item->title ?? ($product->name ?? 'Unknown Product'),
                         'sku' => $item->sku ?? ($product->sku ?? ''),
@@ -5173,7 +5173,7 @@ class ReportController extends Controller
                 $grouped[$orderId] = [
                     'order_id' => $orderId,
                     'order_number' => $orderNumber,
-                    'ebay_order_id' => $item->order->ebay_order_id,
+                    'channel_order_id' => $item->order->channel_order_id,
                     'order_date' => $orderDate,
                     'formatted_date' => $orderDate ? $orderDate->format('M d, Y') : 'Unknown',
                     'channel' => $item->order->salesChannel->name ?? 'Direct Sales',

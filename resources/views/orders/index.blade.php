@@ -265,8 +265,8 @@
                                         <a href="{{ route('orders.show', $order->id) }}" class="fw-semibold text-primary">
                                             {{ $order->order_number }}
                                         </a>
-                                        @if($order->ebay_order_id)
-                                            <span class="d-block fs-11 text-muted">eBay: {{ \Illuminate\Support\Str::limit($order->ebay_order_id, 20) }}</span>
+                                        @if($order->channel_order_id)
+                                            <span class="d-block fs-11 text-muted">eBay: {{ \Illuminate\Support\Str::limit($order->channel_order_id, 20) }}</span>
                                         @endif
                                     </td>
                                     <td data-column="channel">
@@ -459,7 +459,7 @@
                                                     data-refundable="{{ $order->getRefundableAmount() }}"
                                                     data-currency="{{ $order->currency ?? 'USD' }}"
                                                     data-is-ebay="{{ $order->isEbayOrder() ? '1' : '0' }}"
-                                                    data-ebay-order-id="{{ $order->ebay_order_id }}"
+                                                    data-ebay-order-id="{{ $order->channel_order_id }}"
                                                     data-sales-channel-id="{{ $order->sales_channel_id }}"
                                                     data-bs-toggle="tooltip"
                                                     title="Issue Refund">
@@ -527,8 +527,8 @@
                                                                             <i class="feather-package me-1"></i>{{ $item->title }}
                                                                         </span>
                                                                         <span class="badge bg-primary text-white fs-11 mt-1">Bundle</span>
-                                                                        @if ($item->ebay_item_id)
-                                                                            <span class="d-block fs-11 text-muted mt-1">{{ $item->ebay_item_id }}</span>
+                                                                        @if ($item->channel_item_id)
+                                                                            <span class="d-block fs-11 text-muted mt-1">{{ $item->channel_item_id }}</span>
                                                                         @endif
                                                                     </td>
                                                                     <td>
@@ -585,8 +585,8 @@
                                                                     </td>
                                                                     <td>
                                                                         <span style="white-space: normal; width: 300px; display: block;" class="fw-semibold">{{ \Illuminate\Support\Str::limit($item->title, 50) }}</span>
-                                                                        @if ($item->ebay_item_id)
-                                                                            <span class="d-block fs-11 text-muted">{{ $item->ebay_item_id }}</span>
+                                                                        @if ($item->channel_item_id)
+                                                                            <span class="d-block fs-11 text-muted">{{ $item->channel_item_id }}</span>
                                                                         @endif
                                                                         @if($item->variation_attributes)
                                                                             <span class="d-block fs-11 text-muted">

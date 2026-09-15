@@ -196,8 +196,8 @@
                             <tr>
                                 <td>
                                     <a href="{{ route('orders.show', $order->id) }}"><strong>{{ $order->order_number }}</strong></a>
-                                    @if($order->ebay_order_id)
-                                        <span class="d-block fs-11 text-muted">eBay: {{ \Illuminate\Support\Str::limit($order->ebay_order_id, 20) }}</span>
+                                    @if($order->channel_order_id)
+                                        <span class="d-block fs-11 text-muted">eBay: {{ \Illuminate\Support\Str::limit($order->channel_order_id, 20) }}</span>
                                     @endif
                                 </td>
                                 <td>

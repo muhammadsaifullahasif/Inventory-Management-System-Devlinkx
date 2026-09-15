@@ -179,7 +179,7 @@
     <div class="col-12 mb-3">
         <div class="alert alert-info py-2 px-3 mb-0 small">
             <i class="feather-info me-1"></i>
-            Sourced directly from eBay's Finance API sync (<code>ebay_finance_transactions</code>), filtered by transaction date.
+            Sourced directly from eBay's Finance API sync (<code>sales_channel_finance_transactions</code>), filtered by transaction date.
             Fee buckets match the per-order earnings breakdown shown on each order's detail page.
         </div>
     </div>
@@ -275,11 +275,11 @@
                                     <td>
                                         @if ($transaction->order)
                                             <a href="{{ route('orders.show', $transaction->order->id) }}">{{ $transaction->order->order_number }}</a>
-                                            @if ($transaction->ebay_order_id)
-                                                <br><small class="text-muted fw-normal">eBay: {{ $transaction->ebay_order_id }}</small>
+                                            @if ($transaction->channel_order_id)
+                                                <br><small class="text-muted fw-normal">eBay: {{ $transaction->channel_order_id }}</small>
                                             @endif
                                         @else
-                                            <span class="text-muted" title="No matching local order">{{ $transaction->ebay_order_id ?? '-' }}</span>
+                                            <span class="text-muted" title="No matching local order">{{ $transaction->channel_order_id ?? '-' }}</span>
                                         @endif
                                     </td>
                                     <td>{{ $transaction->salesChannel->name ?? '-' }}</td>

@@ -122,12 +122,12 @@ class PriceComparisonService
 
         if ($usernames === null) {
             $usernames = SalesChannel::query()
-                ->whereNotNull('ebay_user_ids')
-                ->orWhereNotNull('ebay_user_id')
-                ->get(['ebay_user_id', 'ebay_user_ids'])
+                ->whereNotNull('external_account_ids')
+                ->orWhereNotNull('external_account_id')
+                ->get(['external_account_id', 'external_account_ids'])
                 ->flatMap(fn ($channel) => array_merge(
-                    $channel->ebay_user_id ? [$channel->ebay_user_id] : [],
-                    $channel->ebay_user_ids ?? []
+                    $channel->external_account_id ? [$channel->external_account_id] : [],
+                    $channel->external_account_ids ?? []
                 ))
                 ->filter()
                 ->map(fn ($username) => strtolower($username))
@@ -192,7 +192,7 @@ class PriceComparisonService
                     'competitor_price' => $seller['price'],
                     'currency' => $seller['currency'],
                     'items_sold_last_month' => $seller['sold'],
-                    'ebay_item_id' => $seller['item_id'],
+                    'channel_item_id' => $seller['item_id'],
                     'listing_url' => $seller['url'],
                     'rank' => $index + 1, // 1 = most units sold
                     'captured_at' => $now,

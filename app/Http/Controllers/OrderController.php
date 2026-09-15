@@ -89,7 +89,7 @@ class OrderController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('order_number', 'like', "%{$search}%")
-                    ->orWhere('ebay_order_id', 'like', "%{$search}%")
+                    ->orWhere('channel_order_id', 'like', "%{$search}%")
                     ->orWhere('buyer_email', 'like', "%{$search}%")
                     ->orWhere('buyer_name', 'like', "%{$search}%")
                     ->orWhereHas('items', function ($itemQuery) use ($search) {
@@ -306,7 +306,7 @@ class OrderController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'type', 'is_default']);
 
-        $earningsBreakdown = $order->isEbayOrder() && $order->ebay_financials_synced_at
+        $earningsBreakdown = $order->isEbayOrder() && $order->channel_financials_synced_at
             ? app(EbayFinanceSyncService::class)->buildEarningsBreakdown($order)
             : null;
 
@@ -463,7 +463,7 @@ class OrderController extends Controller
     public function getByEbayOrderId(string $ebayOrderId): JsonResponse
     {
         $order = Order::with(['items', 'metas'])
-            ->where('ebay_order_id', $ebayOrderId)
+            ->where('channel_order_id', $ebayOrderId)
             ->first();
 
         if (!$order) {
@@ -617,7 +617,7 @@ class OrderController extends Controller
 
             // Sync shipment to eBay if this is an eBay order
             $ebayResult = null;
-            if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+            if ($order->isEbayOrder() && !empty($order->channel_order_id)) {
                 $ebayResult = $this->syncShipmentToEbay($order, $validated['shipping_carrier'], $validated['tracking_number']);
             }
 
@@ -671,12 +671,12 @@ class OrderController extends Controller
 
             // Get item ID and transaction ID from order items for fallback
             $firstItem = $order->items->first();
-            $itemId = $firstItem?->ebay_item_id;
-            $transactionId = $firstItem?->ebay_transaction_id;
+            $itemId = $firstItem?->channel_item_id;
+            $transactionId = $firstItem?->channel_transaction_id;
 
             $result = $ebayController->markOrderAsShipped(
                 $salesChannel,
-                $order->ebay_order_id,
+                $order->channel_order_id,
                 $shippingCarrier,
                 $trackingNumber,
                 $itemId,
@@ -696,7 +696,7 @@ class OrderController extends Controller
             if (!$result['success']) {
                 Log::warning('Failed to sync shipment to eBay', [
                     'order_id' => $order->id,
-                    'ebay_order_id' => $order->ebay_order_id,
+                    'channel_order_id' => $order->channel_order_id,
                     'result' => $result,
                 ]);
             }
@@ -759,7 +759,7 @@ class OrderController extends Controller
 
             // Sync cancellation to eBay if this is an eBay order
             $ebayResult = null;
-            if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+            if ($order->isEbayOrder() && !empty($order->channel_order_id)) {
                 $ebayResult = $this->syncCancellationToEbay($order, $request->input('reason'));
             }
 
@@ -821,7 +821,7 @@ class OrderController extends Controller
                     'buyer_note' => $buyerNote,
                 ]),
                 $salesChannel->id,
-                $order->ebay_order_id
+                $order->channel_order_id
             );
 
             // Extract result from JsonResponse
@@ -838,7 +838,7 @@ class OrderController extends Controller
             if (!$result['success'] ?? false) {
                 Log::warning('Failed to sync cancellation to eBay', [
                     'order_id' => $order->id,
-                    'ebay_order_id' => $order->ebay_order_id,
+                    'channel_order_id' => $order->channel_order_id,
                     'result' => $result,
                 ]);
             }
@@ -995,7 +995,7 @@ class OrderController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('order_number', 'like', "%{$search}%")
-                    ->orWhere('ebay_order_id', 'like', "%{$search}%")
+                    ->orWhere('channel_order_id', 'like', "%{$search}%")
                     ->orWhere('buyer_email', 'like', "%{$search}%")
                     ->orWhere('buyer_name', 'like', "%{$search}%");
             });
@@ -1335,7 +1335,7 @@ class OrderController extends Controller
 
             // Sync shipment to eBay if this is an eBay order
             $ebayResult = null;
-            // if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+            // if ($order->isEbayOrder() && !empty($order->channel_order_id)) {
             //     $ebayResult = $this->syncShipmentToEbay($order, $carrierName, $trackingNumber);
             // }
 
@@ -1521,7 +1521,7 @@ class OrderController extends Controller
 
             // Sync ALL tracking numbers to eBay if this is an eBay order
             $ebayResult = null;
-            if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+            if ($order->isEbayOrder() && !empty($order->channel_order_id)) {
                 $ebayResult = $this->syncShipmentToEbay($order, $carrierName, $trackingNumbers);
             }
 
@@ -1681,7 +1681,7 @@ class OrderController extends Controller
 
             // Remove tracking from eBay if this is an eBay order
             $ebayResult = null;
-            if ($order->isEbayOrder() && !empty($order->ebay_order_id)) {
+            if ($order->isEbayOrder() && !empty($order->channel_order_id)) {
                 $ebayResult = $this->removeTrackingFromEbay($order);
             }
 
@@ -1744,15 +1744,15 @@ class OrderController extends Controller
 
             // Get item ID and transaction ID from order items for fallback
             $firstItem = $order->items->first();
-            $itemId = $firstItem?->ebay_item_id;
-            $transactionId = $firstItem?->ebay_transaction_id;
+            $itemId = $firstItem?->channel_item_id;
+            $transactionId = $firstItem?->channel_transaction_id;
 
             // Mark as not shipped (this removes the shipped status on eBay)
             // Note: eBay doesn't allow removing tracking once added, but marking as not shipped
             // effectively tells eBay the item hasn't been shipped yet
             $result = $ebayController->markOrderAsNotShipped(
                 $salesChannel,
-                $order->ebay_order_id,
+                $order->channel_order_id,
                 $itemId,
                 $transactionId
             );
@@ -1766,7 +1766,7 @@ class OrderController extends Controller
             if (!$result['success']) {
                 Log::warning('Failed to remove tracking from eBay', [
                     'order_id' => $order->id,
-                    'ebay_order_id' => $order->ebay_order_id,
+                    'channel_order_id' => $order->channel_order_id,
                     'result' => $result,
                 ]);
             }

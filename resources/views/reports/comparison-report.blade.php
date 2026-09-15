@@ -326,8 +326,8 @@
                                             @else
                                                 {{ $item['order_number'] }}
                                             @endif
-                                            @if(!empty($item['ebay_order_id']))
-                                                <br><small class="text-muted fw-normal">eBay: {{ $item['ebay_order_id'] }}</small>
+                                            @if(!empty($item['channel_order_id']))
+                                                <br><small class="text-muted fw-normal">eBay: {{ $item['channel_order_id'] }}</small>
                                             @endif
                                         </td>
                                         <td>{{ $item['formatted_date'] }}</td>

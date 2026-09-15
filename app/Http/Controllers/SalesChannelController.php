@@ -252,7 +252,7 @@ class SalesChannelController extends Controller
                 $userId = (string) ($xmlResponse->User->UserID ?? '');
 
                 if (!empty($userId)) {
-                    $salesChannel->ebay_user_id = $userId;
+                    $salesChannel->external_account_id = $userId;
                     $salesChannel->save();
                 }
             }

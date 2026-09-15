@@ -21,8 +21,8 @@ if (!$glorix) {
 }
 
 echo "Found GLORIX: ID {$glorix->id}, Name: {$glorix->name}\n";
-echo "Current ebay_user_id: {$glorix->ebay_user_id}\n";
-echo "Current ebay_user_ids: " . json_encode($glorix->ebay_user_ids) . "\n\n";
+echo "Current external_account_id: {$glorix->external_account_id}\n";
+echo "Current external_account_ids: " . json_encode($glorix->external_account_ids) . "\n\n";
 
 // Add all known user IDs for GLORIX (from notification logs)
 $knownUserIds = [
@@ -31,8 +31,8 @@ $knownUserIds = [
     'mx7c0lh6qxa',   // Return notifications
 ];
 
-$glorix->ebay_user_ids = $knownUserIds;
+$glorix->external_account_ids = $knownUserIds;
 $glorix->save();
 
-echo "Updated ebay_user_ids to: " . json_encode($glorix->ebay_user_ids) . "\n";
+echo "Updated external_account_ids to: " . json_encode($glorix->external_account_ids) . "\n";
 echo "Done!\n";

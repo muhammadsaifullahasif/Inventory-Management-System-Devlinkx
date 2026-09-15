@@ -6,10 +6,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class EbayImportLog extends Model
+class SalesChannelImportLog extends Model
 {
     use HasFactory;
-    
+
     protected $fillable = [
         'sales_channel_id',
         'total_listings',
@@ -54,7 +54,7 @@ class EbayImportLog extends Model
         if ($this->total_batches === 0) {
             return 0;
         }
-        
+
         return round(($this->completed_batches / $this->total_batches) * 100, 2);
     }
 

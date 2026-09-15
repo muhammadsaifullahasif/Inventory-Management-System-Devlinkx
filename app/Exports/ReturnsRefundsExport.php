@@ -34,7 +34,7 @@ class ReturnsRefundsExport implements FromArray, WithHeadings, WithStyles
 
             $rows[] = [
                 $order->order_number,
-                $order->ebay_order_id ?? '-',
+                $order->channel_order_id ?? '-',
                 $order->salesChannel->name ?? 'Local',
                 $order->buyer_name ?? 'N/A',
                 $order->buyer_email ?? '-',

@@ -56,7 +56,7 @@
                     <div class="card-body py-3">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <h6 class="text-muted mb-1 small">eBay-Generated Labels @include('partials.info-tooltip', ['text' => 'Sum of orders.ebay_shipping_label_cost (rolled up from the eBay Finance API sync) for orders with that field > 0 in range. Cost % of revenue = this total / sum of orders.total for those orders x 100.'])</h6>
+                                <h6 class="text-muted mb-1 small">eBay-Generated Labels @include('partials.info-tooltip', ['text' => 'Sum of orders.channel_shipping_label_cost (rolled up from the eBay Finance API sync) for orders with that field > 0 in range. Cost % of revenue = this total / sum of orders.total for those orders x 100.'])</h6>
                                 <h4 class="mb-0 fw-bold">{{ number_format($overview['ebay']['total_cost'], 2) }}</h4>
                                 <small class="text-muted">{{ $overview['ebay']['label_count'] }} labels &middot; avg {{ number_format($overview['ebay']['avg_cost'], 2) }} &middot; {{ number_format($overview['ebay']['cost_pct_of_revenue'], 1) }}% of revenue</small>
                             </div>
@@ -279,8 +279,8 @@
                                     <td><span class="fs-12 text-muted">{{ $order->order_date ? $order->order_date->format('M d, Y') : '-' }}</span></td>
                                     <td class="fw-semibold">
                                         <a href="{{ route('orders.show', $order->id) }}">{{ $order->order_number }}</a>
-                                        @if ($order->ebay_order_id)
-                                            <br><small class="text-muted fw-normal">eBay: {{ $order->ebay_order_id }}</small>
+                                        @if ($order->channel_order_id)
+                                            <br><small class="text-muted fw-normal">eBay: {{ $order->channel_order_id }}</small>
                                         @endif
                                     </td>
                                     <td>{{ $order->salesChannel->name ?? 'Direct' }}</td>

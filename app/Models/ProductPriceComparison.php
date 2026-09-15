@@ -12,7 +12,7 @@ class ProductPriceComparison extends Model
         'competitor_price',
         'currency',
         'items_sold_last_month',
-        'ebay_item_id',
+        'channel_item_id',
         'listing_url',
         'rank',
         'captured_at',

@@ -75,7 +75,7 @@ class SalesChannelDetailSheet implements FromArray, WithHeadings, WithStyles, Sh
             $rows[] = [
                 $order->order_date->format('M d, Y'),
                 $order->order_number,
-                $order->ebay_order_id ?? '-',
+                $order->channel_order_id ?? '-',
                 $customerName,
                 $itemCount,
                 number_format($subtotal, 2),

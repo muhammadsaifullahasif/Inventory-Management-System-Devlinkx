@@ -26,7 +26,7 @@ class OrderReturn extends Model
         'order_id',
         'sales_channel_id',
         'source',
-        'ebay_return_id',
+        'channel_return_id',
         'status',
         'reason',
         'buyer_comments',
@@ -71,7 +71,7 @@ class OrderReturn extends Model
 
     public function isEbayReturn(): bool
     {
-        return $this->source === 'ebay' && !empty($this->ebay_return_id);
+        return $this->source === 'ebay' && !empty($this->channel_return_id);
     }
 
     public function isFullyRestocked(): bool

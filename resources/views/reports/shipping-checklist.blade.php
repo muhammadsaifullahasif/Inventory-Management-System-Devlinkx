@@ -479,7 +479,7 @@
                                     </td>
                                     <td data-column="sales_channel">{{ $item['sales_channel'] }}</td>
                                     <td data-column="order_id" class="text-center">
-                                        <strong>{{ $item['ebay_order_id'] }}</strong>
+                                        <strong>{{ $item['channel_order_id'] }}</strong>
                                     </td>
                                     <td data-column="product">
                                         <div class="product-details">

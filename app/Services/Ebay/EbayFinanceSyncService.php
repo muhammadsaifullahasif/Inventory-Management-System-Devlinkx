@@ -2,7 +2,7 @@
 
 namespace App\Services\Ebay;
 
-use App\Models\EbayFinanceTransaction;
+use App\Models\SalesChannelFinanceTransaction;
 use App\Models\Order;
 use App\Models\SalesChannel;
 use Illuminate\Support\Facades\DB;
@@ -85,25 +85,25 @@ class EbayFinanceSyncService
         $ebayOrderId = $transaction['orderId'] ?? $this->extractOrderIdFromReferences($transaction);
 
         $order = $ebayOrderId
-            ? Order::where('sales_channel_id', $salesChannel->id)->where('ebay_order_id', $ebayOrderId)->first()
+            ? Order::where('sales_channel_id', $salesChannel->id)->where('channel_order_id', $ebayOrderId)->first()
             : null;
 
         if ($ebayOrderId && !$order) {
             Log::warning('eBay finance transaction has no matching order', [
                 'sales_channel_id' => $salesChannel->id,
-                'ebay_transaction_id' => $transactionId,
-                'ebay_order_id' => $ebayOrderId,
+                'channel_transaction_id' => $transactionId,
+                'channel_order_id' => $ebayOrderId,
             ]);
         }
 
-        $existing = EbayFinanceTransaction::where('ebay_transaction_id', $transactionId)->first();
+        $existing = SalesChannelFinanceTransaction::where('channel_transaction_id', $transactionId)->first();
 
-        $row = EbayFinanceTransaction::updateOrCreate(
-            ['ebay_transaction_id' => $transactionId],
+        $row = SalesChannelFinanceTransaction::updateOrCreate(
+            ['channel_transaction_id' => $transactionId],
             [
                 'sales_channel_id' => $salesChannel->id,
                 'order_id' => $order?->id,
-                'ebay_order_id' => $ebayOrderId,
+                'channel_order_id' => $ebayOrderId,
                 'transaction_type' => $type,
                 'fee_category' => $category,
                 'booking_entry' => $transaction['bookingEntry'] ?? null,
@@ -172,7 +172,7 @@ class EbayFinanceSyncService
             return;
         }
 
-        $transactions = EbayFinanceTransaction::where('order_id', $orderId)
+        $transactions = SalesChannelFinanceTransaction::where('order_id', $orderId)
             ->get(['fee_category', 'booking_entry', 'amount', 'total_fee_amount']);
 
         $netEarnings = 0.0;
@@ -220,12 +220,12 @@ class EbayFinanceSyncService
         }
 
         $order->update([
-            'ebay_transaction_fee' => $transactionFee,
-            'ebay_shipping_label_cost' => $shippingLabelCost,
-            'ebay_ad_fee' => $adFee,
-            'ebay_other_fees' => $otherFees,
-            'ebay_net_earnings' => $netEarnings,
-            'ebay_financials_synced_at' => now(),
+            'channel_transaction_fee' => $transactionFee,
+            'channel_shipping_label_cost' => $shippingLabelCost,
+            'channel_ad_fee' => $adFee,
+            'channel_other_fees' => $otherFees,
+            'channel_net_earnings' => $netEarnings,
+            'channel_financials_synced_at' => now(),
         ]);
 
         // Finance API gives the real refunded amount, unlike Trading API
@@ -261,7 +261,7 @@ class EbayFinanceSyncService
 
     /**
      * Build the itemized per-order earnings breakdown (mirrors eBay's own
-     * Order Details earnings page) from already-synced EbayFinanceTransaction
+     * Order Details earnings page) from already-synced SalesChannelFinanceTransaction
      * rows. Pure read — no API calls, no writes. Item price/subtotal/
      * shipping/tax/discount are NOT included here since they already live
      * on `orders`/`order_items` from the Trading API sync.
@@ -292,7 +292,7 @@ class EbayFinanceSyncService
      */
     public function buildEarningsBreakdown(Order $order): array
     {
-        $transactions = EbayFinanceTransaction::where('order_id', $order->id)->get();
+        $transactions = SalesChannelFinanceTransaction::where('order_id', $order->id)->get();
 
         $ebayCollectedTax = 0.0;
         $grossAmount = 0.0;

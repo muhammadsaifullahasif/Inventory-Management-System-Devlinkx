@@ -81,7 +81,7 @@ class CogsReportSummarySheet implements FromArray, WithHeadings, WithStyles, Wit
             } elseif ($this->groupBy === 'order') {
                 $row = [
                     $item['order_number'],
-                    $item['ebay_order_id'] ?? '-',
+                    $item['channel_order_id'] ?? '-',
                     $item['formatted_date'],
                     $item['channel'],
                     number_format($item['items_count'], 0),
