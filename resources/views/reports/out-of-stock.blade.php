@@ -31,17 +31,9 @@
                 <div class="card-body py-3">
                     <form action="{{ route('reports.out-of-stock') }}" method="GET">
                         <div class="row g-3">
-                            <div class="col-md-2">
-                                <label class="form-label">Category</label>
-                                <select name="category_id" class="form-select form-select-sm">
-                                    <option value="">-- All Categories --</option>
-                                    @foreach($categories as $category)
-                                        <option value="{{ $category->id }}" {{ $categoryId == $category->id ? 'selected' : '' }}>
-                                            {{ $category->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'category_id', 'label' => 'Category', 'items' => $categories, 'selectedIds' => $categoryIds, 'idPrefix' => 'out_of_stock_category'])
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'brand_id', 'label' => 'Brand', 'items' => $brands, 'selectedIds' => $brandIds, 'idPrefix' => 'out_of_stock_brand'])
+                            @include('partials.filters.group-by', ['options' => ['product' => 'Product', 'category' => 'Category'], 'current' => $groupBy])
                             <div class="col-md-2">
                                 <label class="form-label">Warehouse</label>
                                 <select name="warehouse_id" class="form-select form-select-sm">
@@ -145,6 +137,41 @@
             </div>
         </div>
     </div>
+
+    @if($groupBy === 'category' && $groupedData->isNotEmpty())
+    <!-- Grouped by Category -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="feather-grid me-2"></i>By Category</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Items</th>
+                                <th>Out of Stock</th>
+                                <th>Total Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($groupedData as $row)
+                                <tr>
+                                    <td>{{ $row['name'] }}</td>
+                                    <td>{{ number_format($row['items_count']) }}</td>
+                                    <td>{{ number_format($row['out_of_stock_count']) }}</td>
+                                    <td>{{ number_format($row['total_stock']) }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 
     <!-- Out of Stock Items Table -->
     <div class="col-12">

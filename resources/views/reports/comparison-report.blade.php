@@ -110,6 +110,7 @@
                                     </div>
                                 </div>
                             </div>
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'brand_id', 'label' => 'Brand', 'items' => $brands, 'selectedIds' => $brandIds, 'idPrefix' => 'comparison_report_brand'])
                         </div>
                         <div class="row mt-3">
                             <div class="col-12 d-flex align-items-end gap-2">

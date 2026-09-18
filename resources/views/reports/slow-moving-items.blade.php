@@ -39,17 +39,9 @@
                                 <label class="form-label">Date To</label>
                                 <input type="date" name="date_to" class="form-control form-control-sm" value="{{ $dateTo }}">
                             </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Category</label>
-                                <select name="category_id" class="form-select form-select-sm">
-                                    <option value="">-- All Categories --</option>
-                                    @foreach($categories as $category)
-                                        <option value="{{ $category->id }}" {{ $categoryId == $category->id ? 'selected' : '' }}>
-                                            {{ $category->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'category_id', 'label' => 'Category', 'items' => $categories, 'selectedIds' => $categoryIds, 'idPrefix' => 'slow_moving_category'])
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'brand_id', 'label' => 'Brand', 'items' => $brands, 'selectedIds' => $brandIds, 'idPrefix' => 'slow_moving_brand'])
+                            @include('partials.filters.group-by', ['options' => ['product' => 'Product', 'category' => 'Category'], 'current' => $groupBy])
                             <div class="col-md-2">
                                 <label class="form-label">Warehouse</label>
                                 <select name="warehouse_id" class="form-select form-select-sm">
@@ -159,6 +151,41 @@
             Consider running promotions, markdowns, or bundling these items to improve turnover.
         </div>
     </div>
+
+    @if($groupBy === 'category' && $groupedData->isNotEmpty())
+    <!-- Grouped by Category -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="feather-grid me-2"></i>By Category</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Items</th>
+                                <th>Total Sold</th>
+                                <th>Stock Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($groupedData as $row)
+                                <tr>
+                                    <td>{{ $row['name'] }}</td>
+                                    <td>{{ number_format($row['items_count']) }}</td>
+                                    <td>{{ number_format($row['total_sold']) }}</td>
+                                    <td>{{ number_format($row['total_stock_value'], 2) }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 
     <!-- Slow Moving Items Table -->
     <div class="col-12">

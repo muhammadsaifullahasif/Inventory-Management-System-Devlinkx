@@ -89,6 +89,8 @@
                                     <option value="category" {{ $groupBy == 'category' ? 'selected' : '' }}>Category</option>
                                 </select>
                             </div>
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'category_id', 'label' => 'Category', 'items' => $categories, 'selectedIds' => $categoryIds, 'idPrefix' => 'purchase_report_category'])
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'brand_id', 'label' => 'Brand', 'items' => $brands, 'selectedIds' => $brandIds, 'idPrefix' => 'purchase_report_brand'])
                         </div>
                         <div class="row mt-3">
                             <div class="col-12 d-flex align-items-end gap-2">

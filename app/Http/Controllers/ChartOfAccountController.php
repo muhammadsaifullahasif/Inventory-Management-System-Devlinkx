@@ -38,8 +38,16 @@ class ChartOfAccountController extends Controller
             $query->where('nature', $request->nature);
         }
 
+        // Filter by date range
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
         // Get all accounts grouped by parent for tree view
-        if ($request->filled('search') || $request->filled('nature')) {
+        if ($request->filled('search') || $request->filled('nature') || $request->filled('date_from') || $request->filled('date_to')) {
             // Flat list for search results
             $accounts = $query->with('parent')->orderBy('code')->get();
             $isFiltered = true;
@@ -51,7 +59,7 @@ class ChartOfAccountController extends Controller
                 }])
                 ->orderBy('code')
                 ->get();
-            $isFiltered = true;
+            $isFiltered = false;
         }
 
         // Get groups for dropdown (when adding new account)

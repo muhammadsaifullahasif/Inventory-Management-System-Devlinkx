@@ -104,24 +104,8 @@
                                 <label class="form-label">Search</label>
                                 <input type="text" name="search" class="form-control form-control-sm" placeholder="Name, SKU, Barcode..." value="{{ request('search') }}">
                             </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Category</label>
-                                <select name="category_id" class="form-select form-select-sm">
-                                    <option value="">All Categories</option>
-                                    @foreach($categories as $category)
-                                        <option value="{{ $category->id }}" {{ request('category_id') == $category->id ? 'selected' : '' }}>{{ $category->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Brand</label>
-                                <select name="brand_id" class="form-select form-select-sm">
-                                    <option value="">All Brands</option>
-                                    @foreach($brands as $brand)
-                                        <option value="{{ $brand->id }}" {{ request('brand_id') == $brand->id ? 'selected' : '' }}>{{ $brand->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'category_id', 'label' => 'Category', 'items' => $categories, 'selectedIds' => $categoryIds, 'idPrefix' => 'products_category'])
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'brand_id', 'label' => 'Brand', 'items' => $brands, 'selectedIds' => $brandIds, 'idPrefix' => 'products_brand'])
                             <div class="col-md-2">
                                 <label class="form-label">Stock Status</label>
                                 <select name="stock_status" class="form-select form-select-sm">

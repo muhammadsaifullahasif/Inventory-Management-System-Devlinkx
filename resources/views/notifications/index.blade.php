@@ -51,6 +51,22 @@
                     </li>
                 </ul>
             </div>
+            <div class="card-body py-3 border-bottom">
+                <form action="{{ route('notifications.index') }}" method="GET">
+                    <input type="hidden" name="filter" value="{{ $filter }}">
+                    <div class="row g-3">
+                        @include('partials.filters.date-range')
+                        <div class="col-md-2 d-flex align-items-end gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="feather-search me-2"></i>Filter
+                            </button>
+                            <a href="{{ route('notifications.index') }}" class="btn btn-light-brand btn-sm">
+                                <i class="feather-x me-2"></i>Clear
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">

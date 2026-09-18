@@ -58,6 +58,7 @@
                                     </div>
                                 </div>
                             </div>
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'brand_id', 'label' => 'Brand', 'items' => $brands, 'selectedIds' => $brandIds, 'idPrefix' => 'inventory_valuation_brand'])
                             <div class="col-md-3">
                                 <label class="form-label">Warehouse</label>
                                 <select name="warehouse_id" class="form-select form-select-sm">

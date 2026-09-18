@@ -39,17 +39,8 @@
                                 <label class="form-label">Date To</label>
                                 <input type="date" name="date_to" class="form-control form-control-sm" value="{{ $dateTo }}">
                             </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Category</label>
-                                <select name="category_id" class="form-select form-select-sm">
-                                    <option value="">-- All Categories --</option>
-                                    @foreach($categories as $category)
-                                        <option value="{{ $category->id }}" {{ $categoryId == $category->id ? 'selected' : '' }}>
-                                            {{ $category->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'category_id', 'label' => 'Category', 'items' => $categories, 'selectedIds' => $categoryIds, 'idPrefix' => 'frequently_ordered_category'])
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'brand_id', 'label' => 'Brand', 'items' => $brands, 'selectedIds' => $brandIds, 'idPrefix' => 'frequently_ordered_brand'])
                             <div class="col-md-2">
                                 <label class="form-label">Sales Channel</label>
                                 <select name="channel_id" class="form-select form-select-sm">

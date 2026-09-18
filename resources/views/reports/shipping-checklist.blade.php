@@ -273,6 +273,7 @@
                         </div>
                     </div>
                 </div>
+                @include('partials.filters.multi-select-dropdown', ['name' => 'brand_id', 'label' => 'Brand', 'items' => $brands, 'selectedIds' => $brandIds, 'idPrefix' => 'shipping_checklist_brand'])
                 {{-- <div class="col-md-2 d-flex justify-content-end flex-column">
                     <label for="fulfilled" class="form-label">Order Status</label>
                     <div class="form-check form-switch">

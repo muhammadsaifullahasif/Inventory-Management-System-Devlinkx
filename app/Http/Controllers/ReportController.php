@@ -18,9 +18,11 @@ use App\Models\JournalEntryLine;
 use App\Models\Product;
 use App\Models\ProductStock;
 use App\Models\Category;
+use App\Models\Brand;
 use App\Models\SalesChannelFinanceTransaction;
 use App\Services\JournalService;
 use App\Services\InventoryAccountingService;
+use App\Traits\FiltersByCatalog;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Exports\ReportExport;
@@ -33,6 +35,8 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ReportController extends Controller
 {
+    use FiltersByCatalog;
+
     protected JournalService $journalService;
 
     public function __construct(JournalService $journalService)
@@ -694,6 +698,8 @@ class ReportController extends Controller
         $warehouseId = $request->get('warehouse_id');
         $status = $request->get('status');
         $groupBy = $request->get('group_by', 'supplier'); // supplier, warehouse, product
+        $categoryIds = $this->catalogIds($request, 'category_id');
+        $brandIds = $this->catalogIds($request, 'brand_id');
 
         // Get filter options
         $suppliers = Supplier::where('delete_status', '0')
@@ -703,6 +709,9 @@ class ReportController extends Controller
         $warehouses = Warehouse::where('delete_status', '0')
             ->orderBy('name')
             ->get();
+
+        $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
 
         // Build purchase query
         $purchaseQuery = Purchase::with(['supplier', 'warehouse', 'purchase_items.product'])
@@ -721,6 +730,8 @@ class ReportController extends Controller
         if ($status) {
             $purchaseQuery->where('purchase_status', $status);
         }
+
+        $this->applyCategoryBrandFilter($purchaseQuery, 'purchase_items.product', $categoryIds, $brandIds);
 
         $purchases = $purchaseQuery->orderBy('created_at', 'desc')->get();
 
@@ -806,6 +817,10 @@ class ReportController extends Controller
             'accountingSummary',
             'suppliers',
             'warehouses',
+            'categories',
+            'brands',
+            'categoryIds',
+            'brandIds',
             'dateFrom',
             'dateTo',
             'supplierId',
@@ -984,6 +999,8 @@ class ReportController extends Controller
         $warehouseId = $request->get('warehouse_id');
         $status = $request->get('status');
         $groupBy = $request->get('group_by', 'supplier');
+        $categoryIds = $this->catalogIds($request, 'category_id');
+        $brandIds = $this->catalogIds($request, 'brand_id');
 
         // Build purchase query
         $purchaseQuery = Purchase::with(['supplier', 'warehouse', 'purchase_items.product'])
@@ -1002,6 +1019,8 @@ class ReportController extends Controller
         if ($status) {
             $purchaseQuery->where('purchase_status', $status);
         }
+
+        $this->applyCategoryBrandFilter($purchaseQuery, 'purchase_items.product', $categoryIds, $brandIds);
 
         $purchases = $purchaseQuery->orderBy('created_at', 'desc')->get();
 
@@ -1073,13 +1092,15 @@ class ReportController extends Controller
         $orderStatus = $request->get('order_status');
         $paymentStatus = $request->get('payment_status');
         $groupBy = $request->get('group_by', 'channel'); // channel, product, date
-        $categoryIds = array_filter((array) $request->get('category_id', []));
+        $categoryIds = $this->catalogIds($request, 'category_id');
+        $brandIds = $this->catalogIds($request, 'brand_id');
 
         // Get filter options
         $salesChannels = SalesChannel::where('delete_status', '0')
             ->orderBy('name')
             ->get();
         $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
 
         // Build orders query - get all for summary stats
         $allOrdersQuery = Order::whereDate('order_date', '>=', $dateFrom)
@@ -1097,11 +1118,8 @@ class ReportController extends Controller
             $allOrdersQuery->where('payment_status', $paymentStatus);
         }
 
-        if (!empty($categoryIds)) {
-            $allOrdersQuery->whereHas('items.product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($allOrdersQuery, 'items.product', $categoryIds, $brandIds);
 
         $allOrders = $allOrdersQuery->get();
 
@@ -1197,11 +1215,8 @@ class ReportController extends Controller
             $ordersQuery->where('payment_status', $paymentStatus);
         }
 
-        if (!empty($categoryIds)) {
-            $ordersQuery->whereHas('items.product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($ordersQuery, 'items.product', $categoryIds, $brandIds);
 
         if ($request->get('item_sort') === 'channel') {
             $ordersQuery->select('orders.*')->leftJoin('sales_channels', 'sales_channels.id', '=', 'orders.sales_channel_id');
@@ -1434,6 +1449,7 @@ class ReportController extends Controller
         $orderStatus = $request->get('order_status');
         $paymentStatus = $request->get('payment_status');
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
 
         // Build orders query
         $allOrdersQuery = Order::with(['salesChannel', 'items.product'])
@@ -1452,11 +1468,8 @@ class ReportController extends Controller
             $allOrdersQuery->where('payment_status', $paymentStatus);
         }
 
-        if (!empty($categoryIds)) {
-            $allOrdersQuery->whereHas('items.product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($allOrdersQuery, 'items.product', $categoryIds, $brandIds);
 
         $allOrders = $allOrdersQuery->get();
 
@@ -1532,11 +1545,13 @@ class ReportController extends Controller
         $paymentStatus = $request->get('payment_status');
         $groupBy = $request->get('group_by', 'channel'); // channel, product, date, category
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
 
         $salesChannels = SalesChannel::where('delete_status', '0')
             ->orderBy('name')
             ->get();
         $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
 
         $allOrdersQuery = Order::whereDate('order_date', '>=', $dateFrom)
             ->whereDate('order_date', '<=', $dateTo);
@@ -1553,11 +1568,8 @@ class ReportController extends Controller
             $allOrdersQuery->where('payment_status', $paymentStatus);
         }
 
-        if (!empty($categoryIds)) {
-            $allOrdersQuery->whereHas('items.product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($allOrdersQuery, 'items.product', $categoryIds, $brandIds);
 
         $allOrders = $allOrdersQuery->get();
 
@@ -1604,11 +1616,8 @@ class ReportController extends Controller
             $ordersQuery->where('payment_status', $paymentStatus);
         }
 
-        if (!empty($categoryIds)) {
-            $ordersQuery->whereHas('items.product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($ordersQuery, 'items.product', $categoryIds, $brandIds);
 
         if ($request->get('item_sort') === 'channel') {
             $ordersQuery->select('orders.*')->leftJoin('sales_channels', 'sales_channels.id', '=', 'orders.sales_channel_id');
@@ -1881,6 +1890,7 @@ class ReportController extends Controller
         $paymentStatus = $request->get('payment_status');
         $groupBy = $request->get('group_by', 'channel');
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
 
         $allOrdersQuery = Order::with(['salesChannel', 'items.product.category'])
             ->whereDate('order_date', '>=', $dateFrom)
@@ -1898,11 +1908,8 @@ class ReportController extends Controller
             $allOrdersQuery->where('payment_status', $paymentStatus);
         }
 
-        if (!empty($categoryIds)) {
-            $allOrdersQuery->whereHas('items.product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($allOrdersQuery, 'items.product', $categoryIds, $brandIds);
 
         $allOrders = $allOrdersQuery->get();
 
@@ -2369,9 +2376,11 @@ class ReportController extends Controller
         $channelId = $request->get('channel_id');
         $groupBy = $request->get('group_by', 'channel'); // channel, date, category
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
 
         $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
         $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
 
         $summary = $this->buildNetProfitSummary($dateFrom, $dateTo, $channelId, $categoryIds);
 
@@ -2407,11 +2416,8 @@ class ReportController extends Controller
             $orderQuery->where('sales_channel_id', $channelId);
         }
 
-        if (!empty($categoryIds)) {
-            $orderQuery->whereHas('items.product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($orderQuery, 'items.product', $categoryIds, $brandIds);
 
         $revenueSummary = $this->buildRevenueSummary($orderQuery->get());
 
@@ -2432,21 +2438,15 @@ class ReportController extends Controller
             $cogsQuery->where('orders.sales_channel_id', $channelId);
         }
 
-        if (!empty($categoryIds)) {
-            $cogsQuery->whereHas('product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($cogsQuery, 'product', $categoryIds, $brandIds);
 
         $cogs = (float) ($cogsQuery->selectRaw('SUM(order_items.cost_at_sale * order_items.quantity) as total')->value('total') ?? 0);
 
         $ebayTransactionsQuery = $this->buildEbayExpensesQuery($dateFrom, $dateTo, $channelId, null);
 
-        if (!empty($categoryIds)) {
-            $ebayTransactionsQuery->whereHas('order.items.product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($ebayTransactionsQuery, 'order.items.product', $categoryIds, $brandIds);
 
         $ebayTransactions = $ebayTransactionsQuery->get();
         $ebaySummary = $this->buildEbayExpensesSummary($ebayTransactions);
@@ -2455,14 +2455,9 @@ class ReportController extends Controller
         $ebayShippingQuery = $this->buildShippingExpensesQuery('ebay', $dateFrom, $dateTo, $channelId, null);
         $systemShippingQuery = $this->buildShippingExpensesQuery('system', $dateFrom, $dateTo, $channelId, null);
 
-        if (!empty($categoryIds)) {
-            $ebayShippingQuery->whereHas('items.product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-            $systemShippingQuery->whereHas('items.product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($ebayShippingQuery, 'items.product', $categoryIds, $brandIds);
+        $this->applyCategoryBrandFilter($systemShippingQuery, 'items.product', $categoryIds, $brandIds);
 
         $ebayLabelCost = (float) $ebayShippingQuery->sum('channel_shipping_label_cost');
         $systemLabelCost = (float) $systemShippingQuery->sum('shipping_cost');
@@ -2590,11 +2585,8 @@ class ReportController extends Controller
             $orderQuery->where('sales_channel_id', $channelId);
         }
 
-        if (!empty($categoryIds)) {
-            $orderQuery->whereHas('items.product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($orderQuery, 'items.product', $categoryIds, $brandIds);
 
         foreach ($orderQuery->get() as $order) {
             $netRevenue = (float) $order->total - (float) ($order->total_refunded ?? 0);
@@ -2635,11 +2627,8 @@ class ReportController extends Controller
             $cogsQuery->where('orders.sales_channel_id', $channelId);
         }
 
-        if (!empty($categoryIds)) {
-            $cogsQuery->whereHas('product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($cogsQuery, 'product', $categoryIds, $brandIds);
 
         foreach ($cogsQuery->get() as $item) {
             $cogsAmount = (float) ($item->cost_at_sale ?? 0) * $item->quantity;
@@ -2669,11 +2658,8 @@ class ReportController extends Controller
             $ebayQuery->with('order.items.product.category');
         }
 
-        if (!empty($categoryIds)) {
-            $ebayQuery->whereHas('order.items.product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($ebayQuery, 'order.items.product', $categoryIds, $brandIds);
 
         foreach ($ebayQuery->get() as $transaction) {
             if (!in_array($transaction->fee_category, ['sale', 'marketplace_fee_adjustment', 'ad_fee', 'other'])) {
@@ -2711,11 +2697,8 @@ class ReportController extends Controller
                 $shippingQuery->with('items.product.category');
             }
 
-            if (!empty($categoryIds)) {
-                $shippingQuery->whereHas('items.product', function ($q) use ($categoryIds) {
-                    $q->whereIn('category_id', $categoryIds);
-                });
-            }
+            $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+            $this->applyCategoryBrandFilter($shippingQuery, 'items.product', $categoryIds, $brandIds);
 
             foreach ($shippingQuery->get() as $order) {
                 $costAmount = (float) $order->{$costField};
@@ -2753,6 +2736,7 @@ class ReportController extends Controller
         $channelId = $request->get('channel_id');
         $groupBy = $request->get('group_by', 'channel');
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
 
         $summary = $this->buildNetProfitSummary($dateFrom, $dateTo, $channelId, $categoryIds);
         $groupedData = $this->buildNetProfitGroupedData($dateFrom, $dateTo, $channelId, $groupBy, $categoryIds);
@@ -2771,11 +2755,13 @@ class ReportController extends Controller
     public function inventoryValuation(Request $request)
     {
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
         $warehouseId = $request->get('warehouse_id');
         $groupBy = $request->get('group_by', 'product'); // product, category, warehouse
 
         // Get filter options
         $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
         $warehouses = Warehouse::orderBy('name')->get();
 
         // Build query for product stocks
@@ -2786,11 +2772,8 @@ class ReportController extends Controller
             $query->where('warehouse_id', $warehouseId);
         }
 
-        if (!empty($categoryIds)) {
-            $query->whereHas('product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($query, 'product', $categoryIds, $brandIds);
 
         $allStocks = $query->get();
 
@@ -2900,6 +2883,7 @@ class ReportController extends Controller
     public function exportInventoryValuation(Request $request)
     {
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
         $warehouseId = $request->get('warehouse_id');
         $groupBy = $request->get('group_by', 'product');
 
@@ -2911,11 +2895,8 @@ class ReportController extends Controller
             $query->where('warehouse_id', $warehouseId);
         }
 
-        if (!empty($categoryIds)) {
-            $query->whereHas('product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($query, 'product', $categoryIds, $brandIds);
 
         $allStocks = $query->get();
 
@@ -3034,6 +3015,7 @@ class ReportController extends Controller
         $fulfillmentStatus = $request->get('fulfillment_status', 'unfulfilled');
         $order_status = $request->get('order_status', 'processing');
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
         $groupBy = $request->get('group_by', 'channel'); // channel, product, category, date
 
         // Get filter options
@@ -3043,6 +3025,7 @@ class ReportController extends Controller
         $categories = Category::where('delete_status', '0')
             ->orderBy('name')
             ->get();
+        $brands = Brand::orderBy('name')->get();
 
         // Build orders query - get orders that need to be shipped
         $orderQuery = Order::with([
@@ -3088,7 +3071,8 @@ class ReportController extends Controller
                 if ($item->is_bundle_summary) {
                     $product = $item->product;
 
-                    if (!empty($categoryIds) && (!$product || !in_array($product->category_id, $categoryIds))) {
+                    if ((!empty($categoryIds) && (!$product || !in_array($product->category_id, $categoryIds)))
+                        || (!empty($brandIds) && (!$product || !in_array($product->brand_id, $brandIds)))) {
                         continue;
                     }
 
@@ -3169,7 +3153,8 @@ class ReportController extends Controller
                     // Regular product (not a bundle component)
                     $product = $item->product;
 
-                    if (!empty($categoryIds) && (!$product || !in_array($product->category_id, $categoryIds))) {
+                    if ((!empty($categoryIds) && (!$product || !in_array($product->category_id, $categoryIds)))
+                        || (!empty($brandIds) && (!$product || !in_array($product->brand_id, $brandIds)))) {
                         continue;
                     }
 
@@ -3272,6 +3257,8 @@ class ReportController extends Controller
             'salesChannels',
             'categories',
             'categoryIds',
+            'brands',
+            'brandIds',
             'dateFrom',
             'dateTo',
             'channelId',
@@ -3358,6 +3345,7 @@ class ReportController extends Controller
         $channelId = $request->get('channel_id');
         $order_status = $request->get('order_status', 'processing');
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
 
         // Build orders query - get orders that need to be shipped
         $orderQuery = Order::with([
@@ -3392,7 +3380,8 @@ class ReportController extends Controller
                 if ($item->is_bundle_summary) {
                     $product = $item->product;
 
-                    if (!empty($categoryIds) && (!$product || !in_array($product->category_id, $categoryIds))) {
+                    if ((!empty($categoryIds) && (!$product || !in_array($product->category_id, $categoryIds)))
+                        || (!empty($brandIds) && (!$product || !in_array($product->brand_id, $brandIds)))) {
                         continue;
                     }
 
@@ -3466,7 +3455,8 @@ class ReportController extends Controller
                 } elseif (!$item->bundle_product_id) {
                     $product = $item->product;
 
-                    if (!empty($categoryIds) && (!$product || !in_array($product->category_id, $categoryIds))) {
+                    if ((!empty($categoryIds) && (!$product || !in_array($product->category_id, $categoryIds)))
+                        || (!empty($brandIds) && (!$product || !in_array($product->brand_id, $brandIds)))) {
                         continue;
                     }
 
@@ -3568,13 +3558,16 @@ class ReportController extends Controller
      */
     public function outOfStock(Request $request)
     {
-        $categoryId = $request->get('category_id');
+        $categoryIds = $this->catalogIds($request, 'category_id');
+        $brandIds = $this->catalogIds($request, 'brand_id');
         $warehouseId = $request->get('warehouse_id');
         $threshold = (int) $request->get('threshold', 0); // Show items at or below this quantity
         $includeInactive = $request->get('include_inactive', false);
+        $groupBy = $request->get('group_by', 'product'); // product, category
 
         // Get filter options
         $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
         $warehouses = Warehouse::where('delete_status', '0')->orderBy('name')->get();
 
         // Build query for products
@@ -3585,9 +3578,7 @@ class ReportController extends Controller
             $query->where('active_status', '1');
         }
 
-        if ($categoryId) {
-            $query->where('category_id', $categoryId);
-        }
+        $this->applyCategoryBrandFilter($query, null, $categoryIds, $brandIds);
 
         $products = $query->get();
 
@@ -3682,6 +3673,19 @@ class ReportController extends Controller
             'categories_affected' => $outOfStockCollection->pluck('category_name')->unique()->count(),
         ];
 
+        // Grouped summary (category view groups the same filtered collection by category)
+        $groupedData = collect();
+        if ($groupBy === 'category') {
+            $groupedData = $outOfStockCollection->groupBy('category_name')->map(function ($items, $categoryName) {
+                return [
+                    'name' => $categoryName,
+                    'items_count' => $items->count(),
+                    'out_of_stock_count' => $items->where('total_stock', 0)->count(),
+                    'total_stock' => $items->sum('total_stock'),
+                ];
+            })->values();
+        }
+
         // Paginate the out of stock items
         $perPage = 50;
         $currentPage = \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPage();
@@ -3701,9 +3705,13 @@ class ReportController extends Controller
         return view('reports.out-of-stock', compact(
             'outOfStockItems',
             'summary',
+            'groupedData',
+            'groupBy',
             'categories',
+            'brands',
             'warehouses',
-            'categoryId',
+            'categoryIds',
+            'brandIds',
             'warehouseId',
             'threshold',
             'includeInactive'
@@ -3718,13 +3726,16 @@ class ReportController extends Controller
     {
         $dateFrom = $request->get('date_from', date('Y-m-d', strtotime(now()->startOfMonth())));
         $dateTo = $request->get('date_to', date('Y-m-d'));
-        $categoryId = $request->get('category_id');
+        $categoryIds = $this->catalogIds($request, 'category_id');
+        $brandIds = $this->catalogIds($request, 'brand_id');
         $warehouseId = $request->get('warehouse_id');
         $minStock = (int) $request->get('min_stock', 1); // Minimum stock to be considered
         $maxSales = (int) $request->get('max_sales', 5); // Maximum sales to be considered slow
+        $groupBy = $request->get('group_by', 'product'); // product, category
 
         // Get filter options
         $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
         $warehouses = Warehouse::where('delete_status', '0')->orderBy('name')->get();
 
         // Get products with their stock
@@ -3732,9 +3743,7 @@ class ReportController extends Controller
             ->where('delete_status', '0')
             ->where('active_status', '1');
 
-        if ($categoryId) {
-            $query->where('category_id', $categoryId);
-        }
+        $this->applyCategoryBrandFilter($query, null, $categoryIds, $brandIds);
 
         $products = $query->get();
 
@@ -3864,6 +3873,19 @@ class ReportController extends Controller
             'period_days' => (int) $daysDiff,
         ];
 
+        // Grouped summary (category view groups the same filtered collection by category)
+        $groupedData = collect();
+        if ($groupBy === 'category') {
+            $groupedData = $slowMovingCollection->groupBy('category_name')->map(function ($items, $categoryName) {
+                return [
+                    'name' => $categoryName,
+                    'items_count' => $items->count(),
+                    'total_sold' => $items->sum('total_sold'),
+                    'total_stock_value' => $items->sum('inventory_value'),
+                ];
+            })->values();
+        }
+
         // Paginate the slow moving items
         $perPage = 50;
         $currentPage = \Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPage();
@@ -3883,11 +3905,15 @@ class ReportController extends Controller
         return view('reports.slow-moving-items', compact(
             'slowMovingItems',
             'summary',
+            'groupedData',
+            'groupBy',
             'categories',
+            'brands',
             'warehouses',
             'dateFrom',
             'dateTo',
-            'categoryId',
+            'categoryIds',
+            'brandIds',
             'warehouseId',
             'minStock',
             'maxSales'
@@ -3902,13 +3928,15 @@ class ReportController extends Controller
     {
         $dateFrom = $request->get('date_from', date('Y-m-01'));
         $dateTo = $request->get('date_to', date('Y-m-d'));
-        $categoryId = $request->get('category_id');
+        $categoryIds = $this->catalogIds($request, 'category_id');
+        $brandIds = $this->catalogIds($request, 'brand_id');
         $channelId = $request->get('channel_id');
         $limit = (int) $request->get('limit', 50);
         $groupBy = $request->get('group_by', 'product'); // product, category, channel
 
         // Get filter options
         $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
         $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
 
         // Build base query for order items
@@ -3935,11 +3963,7 @@ class ReportController extends Controller
             $query->where('orders.sales_channel_id', $channelId);
         }
 
-        if ($categoryId) {
-            $query->whereHas('product', function ($q) use ($categoryId) {
-                $q->where('category_id', $categoryId);
-            });
-        }
+        $this->applyCategoryBrandFilter($query, 'product', (array) $categoryIds, (array) $brandIds);
 
         $query->groupBy('order_items.product_id', 'order_items.sku', 'order_items.title');
 
@@ -4041,7 +4065,7 @@ class ReportController extends Controller
             ], 'cat_sort', 'cat_direction');
         } elseif ($groupBy === 'channel') {
             // Re-query with channel grouping
-            $groupedData = $this->getFrequentItemsByChannel($dateFrom, $dateTo, $categoryId, $limit);
+            $groupedData = $this->getFrequentItemsByChannel($dateFrom, $dateTo, $categoryIds, $limit, $brandIds);
             $groupedData = $this->applyCollectionSort($groupedData, $request, [
                 'name' => 'name',
                 'total_quantity' => 'total_quantity',
@@ -4087,10 +4111,12 @@ class ReportController extends Controller
             'groupedData',
             'summary',
             'categories',
+            'brands',
             'salesChannels',
             'dateFrom',
             'dateTo',
-            'categoryId',
+            'categoryIds',
+            'brandIds',
             'channelId',
             'limit',
             'groupBy'
@@ -4131,7 +4157,7 @@ class ReportController extends Controller
     /**
      * Get frequent items grouped by sales channel
      */
-    protected function getFrequentItemsByChannel($dateFrom, $dateTo, $categoryId, $limit)
+    protected function getFrequentItemsByChannel($dateFrom, $dateTo, $categoryIds, $limit, $brandIds = [])
     {
         $query = OrderItem::select(
                 'orders.sales_channel_id',
@@ -4147,11 +4173,7 @@ class ReportController extends Controller
             ->whereDate('orders.order_date', '<=', $dateTo)
             ->whereNull('order_items.bundle_product_id');
 
-        if ($categoryId) {
-            $query->whereHas('product', function ($q) use ($categoryId) {
-                $q->where('category_id', $categoryId);
-            });
-        }
+        $this->applyCategoryBrandFilter($query, 'product', (array) $categoryIds, (array) $brandIds);
 
         $channelData = $query->groupBy('orders.sales_channel_id')
             ->orderBy('total_quantity', 'desc')
@@ -4210,12 +4232,13 @@ class ReportController extends Controller
         // Get report data using the same logic as the view
         $dateFrom = $request->input('date_from', now()->subDays(90)->format('Y-m-d'));
         $dateTo = $request->input('date_to', now()->format('Y-m-d'));
-        $categoryId = $request->input('category_id');
+        $categoryIds = $this->catalogIds($request, 'category_id');
+        $brandIds = $this->catalogIds($request, 'brand_id');
         $warehouseId = $request->input('warehouse_id');
         $minStock = $request->input('min_stock', 1);
         $maxSales = $request->input('max_sales', 5);
 
-        $data = $this->getSlowMovingItemsData($dateFrom, $dateTo, $categoryId, $warehouseId, $minStock, $maxSales);
+        $data = $this->getSlowMovingItemsData($dateFrom, $dateTo, $categoryIds, $warehouseId, $minStock, $maxSales, $brandIds);
 
         $export = new ReportExport($data->toArray(), $columns, $visibleColumns, 'Slow Moving Items Report');
 
@@ -4249,12 +4272,13 @@ class ReportController extends Controller
             'status' => ['label' => 'Status', 'field' => 'stock_status'],
         ];
 
-        $categoryId = $request->input('category_id');
+        $categoryIds = $this->catalogIds($request, 'category_id');
+        $brandIds = $this->catalogIds($request, 'brand_id');
         $warehouseId = $request->input('warehouse_id');
         $threshold = $request->input('threshold', 0);
         $includeInactive = $request->boolean('include_inactive', false);
 
-        $data = $this->getOutOfStockData($categoryId, $warehouseId, $threshold, $includeInactive);
+        $data = $this->getOutOfStockData($categoryIds, $warehouseId, $threshold, $includeInactive, $brandIds);
 
         $export = new ReportExport($data->toArray(), $columns, $visibleColumns, 'Out of Stock Report');
 
@@ -4292,11 +4316,12 @@ class ReportController extends Controller
 
         $dateFrom = $request->input('date_from', now()->subDays(30)->format('Y-m-d'));
         $dateTo = $request->input('date_to', now()->format('Y-m-d'));
-        $categoryId = $request->input('category_id');
+        $categoryIds = $this->catalogIds($request, 'category_id');
+        $brandIds = $this->catalogIds($request, 'brand_id');
         $channelId = $request->input('channel_id');
         $limit = $request->input('limit', 50);
 
-        $data = $this->getFrequentlyOrderedItemsData($dateFrom, $dateTo, $categoryId, $channelId, $limit);
+        $data = $this->getFrequentlyOrderedItemsData($dateFrom, $dateTo, $categoryIds, $channelId, $limit, $brandIds);
 
         $export = new ReportExport($data->toArray(), $columns, $visibleColumns, 'Frequently Ordered Items Report');
 
@@ -4306,16 +4331,14 @@ class ReportController extends Controller
     /**
      * Get slow moving items data (extracted for reuse - matches slowMovingItems view method)
      */
-    protected function getSlowMovingItemsData($dateFrom, $dateTo, $categoryId, $warehouseId, $minStock, $maxSales)
+    protected function getSlowMovingItemsData($dateFrom, $dateTo, $categoryIds, $warehouseId, $minStock, $maxSales, $brandIds = [])
     {
         // Get products with their stock
         $query = Product::with(['category', 'product_stocks.warehouse'])
             ->where('delete_status', '0')
             ->where('active_status', '1');
 
-        if ($categoryId) {
-            $query->where('category_id', $categoryId);
-        }
+        $this->applyCategoryBrandFilter($query, null, (array) $categoryIds, (array) $brandIds);
 
         $products = $query->get();
 
@@ -4411,7 +4434,7 @@ class ReportController extends Controller
     /**
      * Get out of stock data (extracted for reuse - matches outOfStock view method)
      */
-    protected function getOutOfStockData($categoryId, $warehouseId, $threshold, $includeInactive)
+    protected function getOutOfStockData($categoryIds, $warehouseId, $threshold, $includeInactive, $brandIds = [])
     {
         $query = Product::with(['category', 'product_stocks.warehouse', 'product_stocks.rack'])
             ->where('delete_status', '0');
@@ -4420,9 +4443,7 @@ class ReportController extends Controller
             $query->where('active_status', '1');
         }
 
-        if ($categoryId) {
-            $query->where('category_id', $categoryId);
-        }
+        $this->applyCategoryBrandFilter($query, null, (array) $categoryIds, (array) $brandIds);
 
         $products = $query->get();
         $productIds = $products->pluck('id')->toArray();
@@ -4543,7 +4564,7 @@ class ReportController extends Controller
     /**
      * Get frequently ordered items data (extracted for reuse - matches frequentlyOrderedItems view method)
      */
-    protected function getFrequentlyOrderedItemsData($dateFrom, $dateTo, $categoryId, $channelId, $limit)
+    protected function getFrequentlyOrderedItemsData($dateFrom, $dateTo, $categoryIds, $channelId, $limit, $brandIds = [])
     {
         $query = OrderItem::select(
                 'order_items.product_id',
@@ -4568,11 +4589,7 @@ class ReportController extends Controller
             $query->where('orders.sales_channel_id', $channelId);
         }
 
-        if ($categoryId) {
-            $query->whereHas('product', function ($q) use ($categoryId) {
-                $q->where('category_id', $categoryId);
-            });
-        }
+        $this->applyCategoryBrandFilter($query, 'product', (array) $categoryIds, (array) $brandIds);
 
         $query->groupBy('order_items.product_id', 'order_items.sku', 'order_items.title');
 
@@ -4650,11 +4667,13 @@ class ReportController extends Controller
         $sku = $request->get('sku');
         $groupBy = $request->get('group_by', 'product'); // product, channel, date, order
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
 
         // Get filter options
         $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
         $products = Product::where('delete_status', '0')->orderBy('name')->get();
         $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
 
         // Build order items query
         $query = OrderItem::select(
@@ -4706,11 +4725,8 @@ class ReportController extends Controller
             $query->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
-        if (!empty($categoryIds)) {
-            $query->whereHas('product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($query, 'product', $categoryIds, $brandIds);
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
@@ -4733,11 +4749,8 @@ class ReportController extends Controller
             $componentQuery->where('orders.order_status', $orderStatus);
         }
 
-        if (!empty($categoryIds)) {
-            $componentQuery->whereHas('bundleProduct', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($componentQuery, 'bundleProduct', $categoryIds, $brandIds);
 
         $componentItems = $componentQuery->get();
 
@@ -4867,11 +4880,8 @@ class ReportController extends Controller
             $paginatedQuery->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
-        if (!empty($categoryIds)) {
-            $paginatedQuery->whereHas('product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($paginatedQuery, 'product', $categoryIds, $brandIds);
 
         $paginatedQuery = $this->applyQuerySort($paginatedQuery, $request, [
             'date' => 'orders.order_date',
@@ -5226,6 +5236,7 @@ class ReportController extends Controller
         $sku = $request->get('sku');
         $groupBy = $request->get('group_by', 'product');
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
 
         // Build query
         $query = OrderItem::select(
@@ -5271,11 +5282,8 @@ class ReportController extends Controller
             $query->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
-        if (!empty($categoryIds)) {
-            $query->whereHas('product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($query, 'product', $categoryIds, $brandIds);
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
@@ -5297,11 +5305,8 @@ class ReportController extends Controller
             $componentQuery->where('orders.order_status', $orderStatus);
         }
 
-        if (!empty($categoryIds)) {
-            $componentQuery->whereHas('bundleProduct', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($componentQuery, 'bundleProduct', $categoryIds, $brandIds);
 
         $componentItems = $componentQuery->get();
 
@@ -5361,11 +5366,13 @@ class ReportController extends Controller
         $sku = $request->get('sku');
         $groupBy = $request->get('group_by', 'product'); // product, channel, date, order
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
 
         // Get filter options
         $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
         $products = Product::where('delete_status', '0')->orderBy('name')->get();
         $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
 
         // Build order items query - same population as COGS Report (paid + refunded
         // orders, so every profit report derives from the identical order/item set).
@@ -5410,11 +5417,8 @@ class ReportController extends Controller
             $query->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
-        if (!empty($categoryIds)) {
-            $query->whereHas('product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($query, 'product', $categoryIds, $brandIds);
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
@@ -5548,11 +5552,8 @@ class ReportController extends Controller
             $paginatedQuery->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
-        if (!empty($categoryIds)) {
-            $paginatedQuery->whereHas('product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($paginatedQuery, 'product', $categoryIds, $brandIds);
 
         $paginatedQuery = $this->applyQuerySort($paginatedQuery, $request, [
             'date' => 'orders.order_date',
@@ -5601,6 +5602,7 @@ class ReportController extends Controller
         $sku = $request->get('sku');
         $groupBy = $request->get('group_by', 'product');
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
 
         // Build query
         $query = OrderItem::select(
@@ -5644,11 +5646,8 @@ class ReportController extends Controller
             $query->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
-        if (!empty($categoryIds)) {
-            $query->whereHas('product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($query, 'product', $categoryIds, $brandIds);
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
@@ -5725,11 +5724,13 @@ class ReportController extends Controller
         $sku = $request->get('sku');
         $groupBy = $request->get('group_by', 'product');
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
 
         // Get filter options
         $salesChannels = SalesChannel::where('delete_status', '0')->orderBy('name')->get();
         $products = Product::where('delete_status', '0')->orderBy('name')->get();
         $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
 
         // Build order items query
         $query = OrderItem::select(
@@ -5777,11 +5778,8 @@ class ReportController extends Controller
             $query->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
-        if (!empty($categoryIds)) {
-            $query->whereHas('product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($query, 'product', $categoryIds, $brandIds);
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 
@@ -5935,6 +5933,7 @@ class ReportController extends Controller
         $sku = $request->get('sku');
         $groupBy = $request->get('group_by', 'product');
         $categoryIds = array_filter((array) $request->get('category_id', []));
+        $brandIds = array_filter((array) $request->get('brand_id', []));
 
         // Build query
         $query = OrderItem::select(
@@ -5978,11 +5977,8 @@ class ReportController extends Controller
             $query->where('order_items.sku', 'like', '%' . $sku . '%');
         }
 
-        if (!empty($categoryIds)) {
-            $query->whereHas('product', function ($q) use ($categoryIds) {
-                $q->whereIn('category_id', $categoryIds);
-            });
-        }
+        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($query, 'product', $categoryIds, $brandIds);
 
         $orderItems = $query->with(['order.salesChannel', 'product'])->get();
 

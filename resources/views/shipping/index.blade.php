@@ -29,6 +29,39 @@
 @endsection
 
 @section('content')
+    <!-- Filters Card -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <h5 class="card-title"><i class="feather-filter me-2"></i>Filters</h5>
+                <a href="javascript:void(0);" class="avatar-text avatar-md text-primary" data-bs-toggle="collapse" data-bs-target="#filterCollapse">
+                    <i class="feather-minus toggle-icon"></i>
+                </a>
+            </div>
+            <div class="collapse show" id="filterCollapse">
+                <div class="card-body py-3">
+                    <form action="{{ route('shipping.index') }}" method="GET">
+                        <div class="row g-3">
+                            @include('partials.filters.date-range')
+                            <div class="col-md-2 d-flex align-items-end gap-2">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="feather-search me-2"></i>Filter
+                                </button>
+                                <a href="{{ route('shipping.index') }}" class="btn btn-light-brand btn-sm">
+                                    <i class="feather-x me-2"></i>Clear
+                                </a>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end justify-content-end">
+                                <span class="text-muted fs-12">{{ $shippings->total() }} results</span>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shipping Carriers Table -->
     <div class="col-12">
         <div class="card">
             <div class="card-body pb-0 d-flex align-items-center justify-content-between">

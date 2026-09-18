@@ -50,7 +50,11 @@ class MarketResearchController extends Controller
             ->withQueryString();
 
         return view('market-research.index', array_merge(
-            ['products' => $products],
+            [
+                'products' => $products,
+                'categoryIds' => array_filter((array) $request->get('category_id', [])),
+                'brandIds' => array_filter((array) $request->get('brand_id', [])),
+            ],
             $this->filterOptions()
         ));
     }

@@ -46,6 +46,7 @@
                                 <label class="form-label">Search</label>
                                 <input type="text" name="search" class="form-control form-control-sm" placeholder="Brand name..." value="{{ request('search') }}">
                             </div>
+                            @include('partials.filters.date-range')
                             <div class="col-md-4 d-flex align-items-end gap-2">
                                 <button type="submit" class="btn btn-primary btn-sm">
                                     <i class="feather-search me-2"></i>Filter

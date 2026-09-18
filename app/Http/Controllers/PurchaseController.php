@@ -12,6 +12,7 @@ use App\Models\Rack;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Services\InventoryAccountingService;
+use App\Traits\FiltersByCatalog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -20,6 +21,8 @@ use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class PurchaseController extends Controller
 {
+    use FiltersByCatalog;
+
     protected $aliases = [
         'purchase_number' => ['purchase_number', 'po_number', 'po', 'purchase_no', 'purchaseno'],
         'supplier' => ['supplier', 'supplier_id', 'supplier_name', 'vendor', 'vendor_name'],
@@ -75,6 +78,11 @@ class PurchaseController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
+        // Filter by product category/brand (multi-select)
+        $categoryIds = $this->catalogIds($request, 'category_id');
+        $brandIds = $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($query, 'purchase_items.product', $categoryIds, $brandIds);
+
         // Sort
         $sortBy = $request->input('sort_by', 'created_at');
         $sortOrder = $request->input('sort_order', 'desc');
@@ -90,8 +98,10 @@ class PurchaseController extends Controller
         // Get filter options
         $suppliers = Supplier::orderBy('first_name')->get();
         $warehouses = Warehouse::orderBy('name')->get();
+        $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
 
-        return view('purchases.index', compact('purchases', 'suppliers', 'warehouses', 'perPage'));
+        return view('purchases.index', compact('purchases', 'suppliers', 'warehouses', 'perPage', 'categories', 'brands', 'categoryIds', 'brandIds'));
     }
 
     /**

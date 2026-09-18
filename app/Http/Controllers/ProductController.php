@@ -63,14 +63,16 @@ class ProductController extends Controller
             });
         }
 
-        // Filter by category
-        if ($request->filled('category_id')) {
-            $query->where('category_id', $request->category_id);
+        // Filter by category (multi-select)
+        $categoryIds = array_filter((array) $request->get('category_id', []));
+        if (!empty($categoryIds)) {
+            $query->whereIn('category_id', $categoryIds);
         }
 
-        // Filter by brand
-        if ($request->filled('brand_id')) {
-            $query->where('brand_id', $request->brand_id);
+        // Filter by brand (multi-select)
+        $brandIds = array_filter((array) $request->get('brand_id', []));
+        if (!empty($brandIds)) {
+            $query->whereIn('brand_id', $brandIds);
         }
 
         // Filter by sales channel
@@ -299,7 +301,7 @@ class ProductController extends Controller
         $warehouses = Warehouse::orderBy('name')->get();
         $racks = Rack::with('warehouse')->orderBy('name')->get();
 
-        return view('products.index', compact('products', 'categories', 'brands', 'salesChannels', 'warehouses', 'racks', 'perPage'));
+        return view('products.index', compact('products', 'categories', 'brands', 'salesChannels', 'warehouses', 'racks', 'perPage', 'categoryIds', 'brandIds'));
     }
 
     /**

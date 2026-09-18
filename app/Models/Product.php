@@ -203,12 +203,14 @@ class Product extends Model
             });
         }
 
-        if ($request->filled('category_id')) {
-            $query->where('category_id', $request->category_id);
+        $categoryIds = array_filter((array) $request->get('category_id', []));
+        if (!empty($categoryIds)) {
+            $query->whereIn('category_id', $categoryIds);
         }
 
-        if ($request->filled('brand_id')) {
-            $query->where('brand_id', $request->brand_id);
+        $brandIds = array_filter((array) $request->get('brand_id', []));
+        if (!empty($brandIds)) {
+            $query->whereIn('brand_id', $brandIds);
         }
 
         if ($request->filled('sales_channel_id')) {

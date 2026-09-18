@@ -58,6 +58,7 @@
                                 <label class="form-label">City</label>
                                 <input type="text" name="city" class="form-control form-control-sm" placeholder="City..." value="{{ request('city') }}">
                             </div>
+                            @include('partials.filters.date-range')
                             <div class="col-md-2 d-flex align-items-end gap-2">
                                 <button type="submit" class="btn btn-primary btn-sm">
                                     <i class="feather-search me-2"></i>Filter

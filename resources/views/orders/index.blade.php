@@ -127,6 +127,8 @@
                                 <label class="form-label">To Date</label>
                                 <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}">
                             </div>
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'category_id', 'label' => 'Category', 'items' => $categories, 'selectedIds' => $categoryIds, 'idPrefix' => 'orders_category'])
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'brand_id', 'label' => 'Brand', 'items' => $brands, 'selectedIds' => $brandIds, 'idPrefix' => 'orders_brand'])
                             <div class="col-md-2 d-flex align-items-end gap-2">
                                 <button type="submit" class="btn btn-primary btn-sm">
                                     <i class="feather-search me-2"></i>Filter

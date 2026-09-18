@@ -53,24 +53,8 @@
                                 <label class="form-label">Search</label>
                                 <input type="text" name="search" class="form-control form-control-sm" placeholder="Name, SKU, Barcode..." value="{{ request('search') }}">
                             </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Category</label>
-                                <select name="category_id" class="form-select form-select-sm">
-                                    <option value="">All Categories</option>
-                                    @foreach($categories as $category)
-                                        <option value="{{ $category->id }}" {{ request('category_id') == $category->id ? 'selected' : '' }}>{{ $category->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Brand</label>
-                                <select name="brand_id" class="form-select form-select-sm">
-                                    <option value="">All Brands</option>
-                                    @foreach($brands as $brand)
-                                        <option value="{{ $brand->id }}" {{ request('brand_id') == $brand->id ? 'selected' : '' }}>{{ $brand->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'category_id', 'label' => 'Category', 'items' => $categories, 'selectedIds' => $categoryIds, 'idPrefix' => 'market_research_category'])
+                            @include('partials.filters.multi-select-dropdown', ['name' => 'brand_id', 'label' => 'Brand', 'items' => $brands, 'selectedIds' => $brandIds, 'idPrefix' => 'market_research_brand'])
                             <div class="col-md-2">
                                 <label class="form-label">Sales Channel</label>
                                 <select name="sales_channel_id" class="form-select form-select-sm">
@@ -108,6 +92,7 @@
                                     @endforeach
                                 </select>
                             </div>
+                            @include('partials.filters.date-range')
                             <div class="col-md-2 d-flex align-items-end gap-2">
                                 <button type="submit" class="btn btn-primary btn-sm">
                                     <i class="feather-search me-2"></i>Filter

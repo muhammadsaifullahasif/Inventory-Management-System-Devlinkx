@@ -21,6 +21,14 @@ class NotificationController extends Controller
             $query->whereNull('read_at');
         }
 
+        // Filter by date range
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
         $notifications = $query->latest()->paginate(20)->withQueryString();
 
         return view('notifications.index', [

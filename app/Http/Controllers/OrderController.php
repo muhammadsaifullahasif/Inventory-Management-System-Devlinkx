@@ -16,11 +16,16 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use App\Services\ShippingService;
 use App\Services\Ebay\EbayFinanceSyncService;
+use App\Models\Category;
+use App\Models\Brand;
+use App\Traits\FiltersByCatalog;
 use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
 class OrderController extends Controller
 {
+    use FiltersByCatalog;
+
     protected ShippingService $shippingService;
 
     public function __construct(ShippingService $shippingService)
@@ -84,6 +89,11 @@ class OrderController extends Controller
             $query->whereDate('order_date', '<=', $request->date_to);
         }
 
+        // Filter by product category/brand (multi-select)
+        $categoryIds = $this->catalogIds($request, 'category_id');
+        $brandIds = $this->catalogIds($request, 'brand_id');
+        $this->applyCategoryBrandFilter($query, 'items.product', $categoryIds, $brandIds);
+
         // Search by order number, buyer email, or eBay order ID
         if ($request->filled('search')) {
             $search = $request->search;
@@ -141,6 +151,8 @@ class OrderController extends Controller
 
         // Get sales channels for filter dropdown
         $salesChannels = SalesChannel::all();
+        $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
 
         // Get active carriers for the ship modal
         $shippingCarriers = Shipping::where('active_status', '1')
@@ -158,7 +170,7 @@ class OrderController extends Controller
         }
 
         // return $orders;
-        return view('orders.index', compact('orders', 'salesChannels', 'shippingCarriers', 'perPage'));
+        return view('orders.index', compact('orders', 'salesChannels', 'shippingCarriers', 'perPage', 'categories', 'brands', 'categoryIds', 'brandIds'));
     }
 
     /**
