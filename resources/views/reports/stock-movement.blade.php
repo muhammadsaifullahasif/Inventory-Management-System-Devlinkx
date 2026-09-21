@@ -13,6 +13,16 @@
                 <li class="breadcrumb-item">Stock Movement</li>
             </ul>
         </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('reports.inventory-valuation') }}" class="btn btn-light-brand">
+                        <i class="feather-package me-2"></i>
+                        <span>Inventory Valuation</span>
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
     <!-- [ page-header ] end -->
 @endsection

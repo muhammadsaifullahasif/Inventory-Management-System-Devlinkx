@@ -111,9 +111,9 @@
                                 </div>
                             </div>
                             @include('partials.filters.multi-select-dropdown', ['name' => 'brand_id', 'label' => 'Brand', 'items' => $brands, 'selectedIds' => $brandIds, 'idPrefix' => 'comparison_report_brand'])
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col-12 d-flex align-items-end gap-2">
+                        {{-- </div> --}}
+                        {{-- <div class="row mt-3"> --}}
+                            <div class="col-md-5 d-flex align-items-end gap-2">
                                 <button type="submit" class="btn btn-primary btn-sm">
                                     <i class="feather-search me-2"></i>Generate Report
                                 </button>

@@ -86,7 +86,7 @@
 
     <!-- Summary Cards -->
     <div class="row mb-4">
-        <div class="col-lg-2 col-md-4">
+        <div class="col-lg-4 col-md-4">
             <div class="card bg-soft-primary">
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
@@ -101,7 +101,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-lg-2 col-md-4">
+        <div class="col-lg-4 col-md-4">
             <div class="card bg-soft-success">
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
@@ -116,7 +116,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-lg-2 col-md-4">
+        <div class="col-lg-4 col-md-4">
             <div class="card bg-soft-info">
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
@@ -131,7 +131,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-lg-2 col-md-4">
+        <div class="col-lg-4 col-md-4">
             <div class="card bg-soft-warning">
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
@@ -146,7 +146,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-lg-2 col-md-4">
+        <div class="col-lg-4 col-md-4">
             <div class="card bg-soft-secondary">
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
@@ -161,7 +161,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-lg-2 col-md-4">
+        <div class="col-lg-4 col-md-4">
             <div class="card bg-soft-dark">
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">

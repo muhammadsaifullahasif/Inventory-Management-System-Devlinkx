@@ -1082,455 +1082,6 @@ class ReportController extends Controller
     }
 
     /**
-     * Sales Report - Detailed sales analysis with accounting sync
-     */
-    public function salesReport(Request $request)
-    {
-        $dateFrom = $request->get('date_from', date('Y-m-01'));
-        $dateTo = $request->get('date_to', date('Y-m-d'));
-        $channelId = $request->get('channel_id');
-        $orderStatus = $request->get('order_status');
-        $paymentStatus = $request->get('payment_status');
-        $groupBy = $request->get('group_by', 'channel'); // channel, product, date
-        $categoryIds = $this->catalogIds($request, 'category_id');
-        $brandIds = $this->catalogIds($request, 'brand_id');
-
-        // Get filter options
-        $salesChannels = SalesChannel::where('delete_status', '0')
-            ->orderBy('name')
-            ->get();
-        $categories = Category::orderBy('name')->get();
-        $brands = Brand::orderBy('name')->get();
-
-        // Build orders query - get all for summary stats
-        $allOrdersQuery = Order::whereDate('order_date', '>=', $dateFrom)
-            ->whereDate('order_date', '<=', $dateTo);
-
-        if ($channelId) {
-            $allOrdersQuery->where('sales_channel_id', $channelId);
-        }
-
-        if ($orderStatus) {
-            $allOrdersQuery->where('order_status', $orderStatus);
-        }
-
-        if ($paymentStatus) {
-            $allOrdersQuery->where('payment_status', $paymentStatus);
-        }
-
-        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
-        $this->applyCategoryBrandFilter($allOrdersQuery, 'items.product', $categoryIds, $brandIds);
-
-        $allOrders = $allOrdersQuery->get();
-
-        // Revenue population is paid + refunded orders, net of refunds - matches
-        // Revenue Report / Net Profit Report (a refund deducts from revenue
-        // already recognized, it doesn't erase that the sale happened).
-        $revenueOrders = $allOrders->whereIn('payment_status', ['paid', 'refunded']);
-
-        // Calculate summary statistics from all orders
-        $summary = [
-            'total_orders' => $allOrders->count(),
-            'pending_count' => $allOrders->where('order_status', 'pending')->count(),
-            'processing_count' => $allOrders->where('order_status', 'processing')->count(),
-            'shipped_count' => $allOrders->where('order_status', 'shipped')->count(),
-            'delivered_count' => $allOrders->where('order_status', 'delivered')->count(),
-            'cancelled_count' => $allOrders->where('order_status', 'cancelled')->count(),
-            'paid_count' => $allOrders->where('payment_status', 'paid')->count(),
-            'refunded_count' => $allOrders->where('payment_status', 'refunded')->count(),
-            // Tax is pass-through - excluded from revenue, tracked separately below.
-            'total_revenue' => (float) $revenueOrders->sum('total') - (float) $revenueOrders->sum('tax') - (float) $revenueOrders->sum('total_refunded'),
-            'total_subtotal' => (float) $revenueOrders->sum('subtotal'),
-            'total_shipping' => (float) $revenueOrders->sum('shipping_cost'),
-            'total_tax' => (float) $revenueOrders->sum('tax'),
-            'total_discount' => (float) $revenueOrders->sum('discount'),
-            'sale_lines' => 0,
-            'total_items_sold' => 0,
-            'average_order_value' => 0,
-        ];
-
-        // Sale Lines: 1 sold unit per line - a bundle counts once (its summary
-        // line). Total Items Sold: physical piece count - a bundle's components
-        // count individually instead of the summary line, since that's what
-        // actually ships. Regular (non-bundle) items count toward both.
-        foreach ($revenueOrders as $order) {
-            foreach ($order->items as $item) {
-                if ($this->isBundleComponentItem($item)) {
-                    $summary['total_items_sold'] += $item->quantity;
-                } elseif ($item->is_bundle_summary) {
-                    $summary['sale_lines'] += $item->quantity;
-                } else {
-                    $summary['sale_lines'] += $item->quantity;
-                    $summary['total_items_sold'] += $item->quantity;
-                }
-            }
-        }
-
-        $revenueOrderCount = $revenueOrders->count();
-        $summary['average_order_value'] = $revenueOrderCount > 0
-            ? $summary['total_revenue'] / $revenueOrderCount
-            : 0;
-
-        // Build grouped report data based on group_by parameter
-        $reportData = collect();
-
-        if ($groupBy === 'channel') {
-            $reportData = $this->groupOrdersByChannel($allOrders);
-        } elseif ($groupBy === 'product') {
-            $reportData = $this->groupOrdersByProduct($allOrders);
-        } elseif ($groupBy === 'date') {
-            $reportData = $this->groupOrdersByDate($allOrders);
-        } elseif ($groupBy === 'category') {
-            $reportData = $this->groupOrdersByCategory($allOrders);
-        }
-
-        $reportData = $this->applyCollectionSort($reportData, $request, [
-            'name' => 'name',
-            'sku' => 'sku',
-            'avg_price' => 'avg_price',
-            'order_count' => 'order_count',
-            'paid_count' => 'paid_count',
-            'items_sold' => 'items_sold',
-            'quantity_sold' => 'quantity_sold',
-            'total_revenue' => 'total_revenue',
-            'total_shipping' => 'total_shipping',
-            'total_tax' => 'total_tax',
-        ]);
-
-        // Paginated orders query for details table
-        $ordersQuery = Order::with(['salesChannel', 'items.product'])
-            ->withCount('items')
-            ->whereDate('order_date', '>=', $dateFrom)
-            ->whereDate('order_date', '<=', $dateTo);
-
-        if ($channelId) {
-            $ordersQuery->where('sales_channel_id', $channelId);
-        }
-
-        if ($orderStatus) {
-            $ordersQuery->where('order_status', $orderStatus);
-        }
-
-        if ($paymentStatus) {
-            $ordersQuery->where('payment_status', $paymentStatus);
-        }
-
-        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
-        $this->applyCategoryBrandFilter($ordersQuery, 'items.product', $categoryIds, $brandIds);
-
-        if ($request->get('item_sort') === 'channel') {
-            $ordersQuery->select('orders.*')->leftJoin('sales_channels', 'sales_channels.id', '=', 'orders.sales_channel_id');
-        }
-
-        $ordersQuery = $this->applyQuerySort($ordersQuery, $request, [
-            'date' => 'orders.order_date',
-            'order_number' => 'orders.order_number',
-            'channel' => 'sales_channels.name',
-            'buyer' => 'orders.buyer_name',
-            'items' => 'items_count',
-            'total' => 'orders.total',
-            'payment' => 'orders.payment_status',
-            'status' => 'orders.order_status',
-        ], 'orders.order_date', 'desc', 'item_sort', 'item_direction');
-
-        $orders = $ordersQuery->paginate(50);
-
-        // Get related accounting data (payments received in this period)
-        $relatedPayments = Payment::where('status', 'posted')
-            ->whereDate('payment_date', '>=', $dateFrom)
-            ->whereDate('payment_date', '<=', $dateTo)
-            ->with('bill.supplier')
-            ->get();
-
-        // Get expense bills for the period
-        $relatedBills = Bill::whereIn('status', ['unpaid', 'partially_paid', 'paid'])
-            ->whereDate('bill_date', '>=', $dateFrom)
-            ->whereDate('bill_date', '<=', $dateTo)
-            ->get();
-
-        $accountingSummary = [
-            'total_payments_out' => $relatedPayments->sum('amount'),
-            'total_bills' => $relatedBills->sum('total_amount'),
-            'net_income' => $summary['total_revenue'] - $relatedBills->sum('total_amount'),
-            'gross_margin' => $summary['total_revenue'] > 0
-                ? (($summary['total_revenue'] - $relatedBills->sum('total_amount')) / $summary['total_revenue']) * 100
-                : 0,
-        ];
-
-        return view('reports.sales-report', compact(
-            'orders',
-            'reportData',
-            'summary',
-            'accountingSummary',
-            'salesChannels',
-            'categories',
-            'categoryIds',
-            'dateFrom',
-            'dateTo',
-            'channelId',
-            'orderStatus',
-            'paymentStatus',
-            'groupBy'
-        ));
-    }
-
-    /**
-     * Group orders by sales channel
-     */
-    protected function groupOrdersByChannel($orders)
-    {
-        $grouped = [];
-
-        foreach ($orders as $order) {
-            $channelName = $order->salesChannel->name ?? 'Direct Sales';
-            $channelId = $order->sales_channel_id ?? 0;
-
-            if (!isset($grouped[$channelId])) {
-                $grouped[$channelId] = [
-                    'name' => $channelName,
-                    'order_count' => 0,
-                    'paid_count' => 0,
-                    'items_sold' => 0,
-                    'total_revenue' => 0,
-                    'total_shipping' => 0,
-                    'total_tax' => 0,
-                    'orders' => [],
-                ];
-            }
-
-            $grouped[$channelId]['order_count']++;
-
-            if (in_array($order->payment_status, ['paid', 'refunded'])) {
-                $grouped[$channelId]['paid_count']++;
-                // Tax is pass-through - excluded from revenue.
-                $grouped[$channelId]['total_revenue'] += (float) $order->total - (float) $order->tax - (float) $order->total_refunded;
-                $grouped[$channelId]['total_shipping'] += (float) $order->shipping_cost;
-                $grouped[$channelId]['total_tax'] += (float) $order->tax;
-                $grouped[$channelId]['items_sold'] += $order->items->sum(function ($item) {
-                    return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
-                });
-            }
-
-            $grouped[$channelId]['orders'][] = $order;
-        }
-
-        return collect($grouped)->sortByDesc('total_revenue')->values();
-    }
-
-    /**
-     * Group orders by product
-     */
-    protected function groupOrdersByProduct($orders)
-    {
-        $grouped = [];
-
-        foreach ($orders as $order) {
-            if (!in_array($order->payment_status, ['paid', 'refunded'])) {
-                continue;
-            }
-
-            foreach ($order->items as $item) {
-                $productId = $item->product_id ?? $item->sku;
-                $productName = $item->product->name ?? $item->title;
-                $productSku = $item->sku;
-
-                if (!isset($grouped[$productId])) {
-                    $grouped[$productId] = [
-                        'name' => $productName,
-                        'sku' => $productSku,
-                        'order_count' => 0,
-                        'quantity_sold' => 0,
-                        'total_revenue' => 0,
-                        'avg_price' => 0,
-                        'total_price' => 0,
-                        'price_count' => 0,
-                    ];
-                }
-
-                $grouped[$productId]['order_count']++;
-                $grouped[$productId]['quantity_sold'] += (int) $item->quantity;
-                $grouped[$productId]['total_revenue'] += (float) $item->total_price;
-                $grouped[$productId]['total_price'] += (float) $item->unit_price;
-                $grouped[$productId]['price_count']++;
-            }
-        }
-
-        // Calculate average price
-        foreach ($grouped as &$product) {
-            $product['avg_price'] = $product['price_count'] > 0
-                ? $product['total_price'] / $product['price_count']
-                : 0;
-        }
-
-        return collect($grouped)->sortByDesc('total_revenue')->values();
-    }
-
-    /**
-     * Group orders by product category
-     */
-    protected function groupOrdersByCategory($orders)
-    {
-        $grouped = [];
-
-        foreach ($orders as $order) {
-            if (!in_array($order->payment_status, ['paid', 'refunded'])) {
-                continue;
-            }
-
-            foreach ($order->items as $item) {
-                $categoryName = $item->product->category->name ?? 'Uncategorized';
-                $categoryId = $item->product->category_id ?? 0;
-
-                if (!isset($grouped[$categoryId])) {
-                    $grouped[$categoryId] = [
-                        'name' => $categoryName,
-                        'order_count' => 0,
-                        'quantity_sold' => 0,
-                        'total_revenue' => 0,
-                    ];
-                }
-
-                $grouped[$categoryId]['order_count']++;
-                $grouped[$categoryId]['quantity_sold'] += (int) $item->quantity;
-                $grouped[$categoryId]['total_revenue'] += (float) $item->total_price;
-            }
-        }
-
-        return collect($grouped)->sortByDesc('total_revenue')->values();
-    }
-
-    /**
-     * Group orders by date
-     */
-    protected function groupOrdersByDate($orders)
-    {
-        $grouped = [];
-
-        foreach ($orders as $order) {
-            $date = $order->order_date ? $order->order_date->format('Y-m-d') : 'Unknown';
-
-            if (!isset($grouped[$date])) {
-                $grouped[$date] = [
-                    'date' => $date,
-                    'formatted_date' => $order->order_date ? $order->order_date->format('M d, Y') : 'Unknown',
-                    'order_count' => 0,
-                    'paid_count' => 0,
-                    'items_sold' => 0,
-                    'total_revenue' => 0,
-                    'orders' => [],
-                ];
-            }
-
-            $grouped[$date]['order_count']++;
-
-            if (in_array($order->payment_status, ['paid', 'refunded'])) {
-                $grouped[$date]['paid_count']++;
-                // Tax is pass-through - excluded from revenue.
-                $grouped[$date]['total_revenue'] += (float) $order->total - (float) $order->tax - (float) $order->total_refunded;
-                $grouped[$date]['items_sold'] += $order->items->sum(function ($item) {
-                    return $this->isBundleComponentItem($item) ? 0 : $item->quantity;
-                });
-            }
-
-            $grouped[$date]['orders'][] = $order;
-        }
-
-        return collect($grouped)->sortByDesc('date')->values();
-    }
-
-    /**
-     * Export Sales Report to Excel
-     */
-    public function exportSalesReport(Request $request)
-    {
-        $dateFrom = $request->get('date_from', date('Y-m-01'));
-        $dateTo = $request->get('date_to', date('Y-m-d'));
-        $channelId = $request->get('channel_id');
-        $orderStatus = $request->get('order_status');
-        $paymentStatus = $request->get('payment_status');
-        $categoryIds = array_filter((array) $request->get('category_id', []));
-        $brandIds = array_filter((array) $request->get('brand_id', []));
-
-        // Build orders query
-        $allOrdersQuery = Order::with(['salesChannel', 'items.product'])
-            ->whereDate('order_date', '>=', $dateFrom)
-            ->whereDate('order_date', '<=', $dateTo);
-
-        if ($channelId) {
-            $allOrdersQuery->where('sales_channel_id', $channelId);
-        }
-
-        if ($orderStatus) {
-            $allOrdersQuery->where('order_status', $orderStatus);
-        }
-
-        if ($paymentStatus) {
-            $allOrdersQuery->where('payment_status', $paymentStatus);
-        }
-
-        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
-        $this->applyCategoryBrandFilter($allOrdersQuery, 'items.product', $categoryIds, $brandIds);
-
-        $allOrders = $allOrdersQuery->get();
-
-        // Revenue population is paid + refunded orders, net of refunds - matches
-        // Revenue Report / Net Profit Report (a refund deducts from revenue
-        // already recognized, it doesn't erase that the sale happened).
-        $revenueOrders = $allOrders->whereIn('payment_status', ['paid', 'refunded']);
-
-        // Calculate summary statistics
-        $summary = [
-            'total_orders' => $allOrders->count(),
-            'pending_count' => $allOrders->where('order_status', 'pending')->count(),
-            'processing_count' => $allOrders->where('order_status', 'processing')->count(),
-            'shipped_count' => $allOrders->where('order_status', 'shipped')->count(),
-            'delivered_count' => $allOrders->where('order_status', 'delivered')->count(),
-            'cancelled_count' => $allOrders->where('order_status', 'cancelled')->count(),
-            'paid_count' => $allOrders->where('payment_status', 'paid')->count(),
-            'refunded_count' => $allOrders->where('payment_status', 'refunded')->count(),
-            // Tax is pass-through - excluded from revenue, tracked separately below.
-            'total_revenue' => (float) $revenueOrders->sum('total') - (float) $revenueOrders->sum('tax') - (float) $revenueOrders->sum('total_refunded'),
-            'total_subtotal' => (float) $revenueOrders->sum('subtotal'),
-            'total_shipping' => (float) $revenueOrders->sum('shipping_cost'),
-            'total_tax' => (float) $revenueOrders->sum('tax'),
-            'total_discount' => (float) $revenueOrders->sum('discount'),
-            'sale_lines' => 0,
-            'total_items_sold' => 0,
-            'average_order_value' => 0,
-        ];
-
-        // Sale Lines: 1 sold unit per line (bundle counts once, its summary line).
-        // Total Items Sold: physical piece count (bundle components counted
-        // individually instead). Regular items count toward both.
-        foreach ($revenueOrders as $order) {
-            foreach ($order->items as $item) {
-                if ($this->isBundleComponentItem($item)) {
-                    $summary['total_items_sold'] += $item->quantity;
-                } elseif ($item->is_bundle_summary) {
-                    $summary['sale_lines'] += $item->quantity;
-                } else {
-                    $summary['sale_lines'] += $item->quantity;
-                    $summary['total_items_sold'] += $item->quantity;
-                }
-            }
-        }
-
-        $revenueOrderCount = $revenueOrders->count();
-        $summary['average_order_value'] = $revenueOrderCount > 0
-            ? $summary['total_revenue'] / $revenueOrderCount
-            : 0;
-
-        // Group by channel for export
-        $groupedData = $this->groupOrdersByChannel($allOrders);
-
-        $export = new \App\Exports\SalesReportExport($groupedData, $summary);
-
-        $filename = 'sales-report-' . $dateFrom . '-to-' . $dateTo . '.xlsx';
-
-        return \Maatwebsite\Excel\Facades\Excel::download($export, $filename);
-    }
-
-    /**
      * Revenue Report
      * Shows gross revenue, refunds, and net revenue (revenue recognized on
      * paid + refunded orders, since a refund deducts from revenue already
@@ -1644,6 +1195,8 @@ class ReportController extends Controller
             'salesChannels',
             'categories',
             'categoryIds',
+            'brands',
+            'brandIds',
             'dateFrom',
             'dateTo',
             'channelId',
@@ -2382,9 +1935,9 @@ class ReportController extends Controller
         $categories = Category::orderBy('name')->get();
         $brands = Brand::orderBy('name')->get();
 
-        $summary = $this->buildNetProfitSummary($dateFrom, $dateTo, $channelId, $categoryIds);
+        $summary = $this->buildNetProfitSummary($dateFrom, $dateTo, $channelId, $categoryIds, $brandIds);
 
-        $reportData = $this->buildNetProfitGroupedData($dateFrom, $dateTo, $channelId, $groupBy, $categoryIds);
+        $reportData = $this->buildNetProfitGroupedData($dateFrom, $dateTo, $channelId, $groupBy, $categoryIds, $brandIds);
 
         $reportData = $this->applyCollectionSort($reportData, $request, [
             'name' => 'name',
@@ -2401,6 +1954,8 @@ class ReportController extends Controller
             'salesChannels',
             'categories',
             'categoryIds',
+            'brands',
+            'brandIds',
             'dateFrom',
             'dateTo',
             'channelId',
@@ -2408,7 +1963,7 @@ class ReportController extends Controller
         ));
     }
 
-    protected function buildNetProfitSummary(string $dateFrom, string $dateTo, $channelId, $categoryIds = [])
+    protected function buildNetProfitSummary(string $dateFrom, string $dateTo, $channelId, $categoryIds = [], $brandIds = [])
     {
         $orderQuery = Order::whereDate('order_date', '>=', $dateFrom)->whereDate('order_date', '<=', $dateTo);
 
@@ -2416,7 +1971,6 @@ class ReportController extends Controller
             $orderQuery->where('sales_channel_id', $channelId);
         }
 
-        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
         $this->applyCategoryBrandFilter($orderQuery, 'items.product', $categoryIds, $brandIds);
 
         $revenueSummary = $this->buildRevenueSummary($orderQuery->get());
@@ -2438,14 +1992,12 @@ class ReportController extends Controller
             $cogsQuery->where('orders.sales_channel_id', $channelId);
         }
 
-        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
         $this->applyCategoryBrandFilter($cogsQuery, 'product', $categoryIds, $brandIds);
 
         $cogs = (float) ($cogsQuery->selectRaw('SUM(order_items.cost_at_sale * order_items.quantity) as total')->value('total') ?? 0);
 
         $ebayTransactionsQuery = $this->buildEbayExpensesQuery($dateFrom, $dateTo, $channelId, null);
 
-        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
         $this->applyCategoryBrandFilter($ebayTransactionsQuery, 'order.items.product', $categoryIds, $brandIds);
 
         $ebayTransactions = $ebayTransactionsQuery->get();
@@ -2455,7 +2007,6 @@ class ReportController extends Controller
         $ebayShippingQuery = $this->buildShippingExpensesQuery('ebay', $dateFrom, $dateTo, $channelId, null);
         $systemShippingQuery = $this->buildShippingExpensesQuery('system', $dateFrom, $dateTo, $channelId, null);
 
-        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
         $this->applyCategoryBrandFilter($ebayShippingQuery, 'items.product', $categoryIds, $brandIds);
         $this->applyCategoryBrandFilter($systemShippingQuery, 'items.product', $categoryIds, $brandIds);
 
@@ -2518,7 +2069,7 @@ class ReportController extends Controller
      * revenue, so a multi-category order's amounts are proportionally
      * distributed rather than duplicated.
      */
-    protected function buildNetProfitGroupedData(string $dateFrom, string $dateTo, $channelId, string $groupBy, $categoryIds = [])
+    protected function buildNetProfitGroupedData(string $dateFrom, string $dateTo, $channelId, string $groupBy, $categoryIds = [], $brandIds = [])
     {
         $groups = [];
 
@@ -2585,7 +2136,6 @@ class ReportController extends Controller
             $orderQuery->where('sales_channel_id', $channelId);
         }
 
-        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
         $this->applyCategoryBrandFilter($orderQuery, 'items.product', $categoryIds, $brandIds);
 
         foreach ($orderQuery->get() as $order) {
@@ -2627,7 +2177,6 @@ class ReportController extends Controller
             $cogsQuery->where('orders.sales_channel_id', $channelId);
         }
 
-        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
         $this->applyCategoryBrandFilter($cogsQuery, 'product', $categoryIds, $brandIds);
 
         foreach ($cogsQuery->get() as $item) {
@@ -2658,7 +2207,6 @@ class ReportController extends Controller
             $ebayQuery->with('order.items.product.category');
         }
 
-        $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
         $this->applyCategoryBrandFilter($ebayQuery, 'order.items.product', $categoryIds, $brandIds);
 
         foreach ($ebayQuery->get() as $transaction) {
@@ -2697,7 +2245,6 @@ class ReportController extends Controller
                 $shippingQuery->with('items.product.category');
             }
 
-            $brandIds = $brandIds ?? $this->catalogIds($request, 'brand_id');
             $this->applyCategoryBrandFilter($shippingQuery, 'items.product', $categoryIds, $brandIds);
 
             foreach ($shippingQuery->get() as $order) {
@@ -2738,8 +2285,8 @@ class ReportController extends Controller
         $categoryIds = array_filter((array) $request->get('category_id', []));
         $brandIds = array_filter((array) $request->get('brand_id', []));
 
-        $summary = $this->buildNetProfitSummary($dateFrom, $dateTo, $channelId, $categoryIds);
-        $groupedData = $this->buildNetProfitGroupedData($dateFrom, $dateTo, $channelId, $groupBy, $categoryIds);
+        $summary = $this->buildNetProfitSummary($dateFrom, $dateTo, $channelId, $categoryIds, $brandIds);
+        $groupedData = $this->buildNetProfitGroupedData($dateFrom, $dateTo, $channelId, $groupBy, $categoryIds, $brandIds);
 
         $export = new \App\Exports\NetProfitReportExport($groupedData->toArray(), $summary, $groupBy);
 
@@ -2873,8 +2420,10 @@ class ReportController extends Controller
             'summary',
             'reconciliation',
             'categories',
+            'brands',
             'warehouses',
             'categoryIds',
+            'brandIds',
             'warehouseId',
             'groupBy'
         ));
@@ -4907,6 +4456,8 @@ class ReportController extends Controller
             'products',
             'categories',
             'categoryIds',
+            'brands',
+            'brandIds',
             'dateFrom',
             'dateTo',
             'channelId',
@@ -5578,6 +5129,8 @@ class ReportController extends Controller
             'products',
             'categories',
             'categoryIds',
+            'brands',
+            'brandIds',
             'dateFrom',
             'dateTo',
             'channelId',
@@ -5909,6 +5462,8 @@ class ReportController extends Controller
             'products',
             'categories',
             'categoryIds',
+            'brands',
+            'brandIds',
             'dateFrom',
             'dateTo',
             'channelId',

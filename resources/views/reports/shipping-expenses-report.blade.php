@@ -160,9 +160,9 @@
                                     <option value="date" {{ $groupBy == 'date' ? 'selected' : '' }}>Date</option>
                                 </select>
                             </div>
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col-12 d-flex align-items-end gap-2">
+                        {{-- </div> --}}
+                        {{-- <div class="row mt-3"> --}}
+                            <div class="col-md-5 d-flex align-items-end gap-2">
                                 <button type="submit" class="btn btn-primary btn-sm">
                                     <i class="feather-search me-2"></i>Generate Report
                                 </button>

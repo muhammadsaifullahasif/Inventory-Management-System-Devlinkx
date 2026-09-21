@@ -16,6 +16,10 @@
         <div class="page-header-right ms-auto">
             <div class="page-header-right-items">
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('reports.supplier-ledger') }}" class="btn btn-light-brand">
+                        <i class="feather-users me-2"></i>
+                        <span>Supplier Ledger</span>
+                    </a>
                     <a href="{{ route('reports.index') }}" class="btn btn-light-brand">
                         <i class="feather-arrow-left me-2"></i>
                         <span>Back to Reports</span>

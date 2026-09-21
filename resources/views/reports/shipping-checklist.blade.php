@@ -9,7 +9,7 @@
             </div>
             <ul class="breadcrumb">
                 <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Home</a></li>
-                <li class="breadcrumb-item"><a href="{{ route('orders.index') }}">Orders</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('reports.index') }}">Reports</a></li>
                 <li class="breadcrumb-item">Shipping Checklist</li>
             </ul>
         </div>
@@ -229,15 +229,15 @@
             <form method="GET" action="{{ route('reports.shipping-checklist') }}" class="row g-3">
                 <div class="col-md-2">
                     <label class="form-label">Ship Date From</label>
-                    <input type="date" name="date_from" class="form-control" value="{{ $dateFrom }}">
+                    <input type="date" name="date_from" class="form-control form-control-sm" value="{{ $dateFrom }}">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Ship Date To</label>
-                    <input type="date" name="date_to" class="form-control" value="{{ $dateTo }}">
+                    <input type="date" name="date_to" class="form-control form-control-sm" value="{{ $dateTo }}">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Sales Channel</label>
-                    <select name="channel_id" class="form-select">
+                    <select name="channel_id" class="form-select form-control-sm">
                         <option value="">All Channels</option>
                         @foreach($salesChannels as $channel)
                             <option value="{{ $channel->id }}" {{ $channelId == $channel->id ? 'selected' : '' }}>
@@ -283,7 +283,7 @@
                 </div> --}}
                 <div class="col-md-2">
                     <label class="form-label">Order Status</label>
-                    <select name="order_status" class="form-select">
+                    <select name="order_status" class="form-select form-control-sm">
                         <option value="all" {{ $order_status == 'all' ? 'selected' : '' }}>All</option>
                         <option value="unfulfilleds" {{ $order_status == 'unfulfilled' ? 'selected' : '' }}>Unfulfilled</option>
                         <option value="fulfilled" {{ $order_status == 'fulfilled' ? 'selected' : '' }}>Fulfilled</option>
@@ -291,7 +291,7 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Group By</label>
-                    <select name="group_by" class="form-select">
+                    <select name="group_by" class="form-select form-control-sm">
                         <option value="channel" {{ $groupBy == 'channel' ? 'selected' : '' }}>Sales Channel</option>
                         <option value="product" {{ $groupBy == 'product' ? 'selected' : '' }}>Product</option>
                         <option value="category" {{ $groupBy == 'category' ? 'selected' : '' }}>Category</option>
@@ -310,16 +310,14 @@
                         <option value="ready_for_pickup" {{ $order_status == 'ready_for_pickup' ? 'selected' : '' }}>Ready for Pickup</option>
                     </select>
                 </div> --}}
-                <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary me-2">
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary btn-sm me-2">
                         <i class="feather-filter me-1"></i> Filter
                     </button>
-                    <a href="{{ route('reports.shipping-checklist') }}" class="btn btn-outline-secondary">
+                    <a href="{{ route('reports.shipping-checklist') }}" class="btn btn-outline-secondary btn-sm me-2">
                         <i class="feather-refresh-cw"></i>
                     </a>
-                </div>
-                <div class="col-md-2 d-flex align-items-end justify-content-end">
-                    <a href="{{ route('reports.shipping-checklist.pdf', ['date_from' => $dateFrom, 'date_to' => $dateTo, 'channel_id' => $channelId, 'order_status' => $order_status, 'category_id' => $categoryIds]) }}" class="btn btn-success">
+                    <a href="{{ route('reports.shipping-checklist.pdf', ['date_from' => $dateFrom, 'date_to' => $dateTo, 'channel_id' => $channelId, 'order_status' => $order_status, 'category_id' => $categoryIds]) }}" class="btn btn-success btn-sm me-2">
                         <i class="feather-download me-1"></i> Download PDF
                     </a>
                 </div>

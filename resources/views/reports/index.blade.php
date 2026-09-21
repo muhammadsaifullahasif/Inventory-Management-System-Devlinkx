@@ -48,21 +48,6 @@
             </a>
         </div>
 
-        <!-- Supplier Ledger -->
-        <div class="col-lg-3 col-md-6">
-            <a href="{{ route('reports.supplier-ledger') }}" class="text-decoration-none">
-                <div class="card mb-4">
-                    <div class="card-body text-center py-4">
-                        <div class="avatar-text avatar-xl bg-soft-warning text-warning rounded-circle mx-auto mb-3">
-                            <i class="feather-users" style="font-size: 1.5rem;"></i>
-                        </div>
-                        <h5 class="card-title mb-1 fw-semibold">Supplier Ledger</h5>
-                        <p class="text-muted small mb-0">Bill & payment history per supplier</p>
-                    </div>
-                </div>
-            </a>
-        </div>
-
         <!-- Bank & Cash Summary -->
         <div class="col-lg-3 col-md-6">
             <a href="{{ route('reports.bank-summary') }}" class="text-decoration-none">
@@ -93,16 +78,16 @@
             </a>
         </div>
 
-        <!-- Sales Report -->
+        <!-- Supplier Ledger -->
         <div class="col-lg-3 col-md-6">
-            <a href="{{ route('reports.sales') }}" class="text-decoration-none">
+            <a href="{{ route('reports.supplier-ledger') }}" class="text-decoration-none">
                 <div class="card mb-4">
                     <div class="card-body text-center py-4">
-                        <div class="avatar-text avatar-xl bg-soft-secondary text-secondary rounded-circle mx-auto mb-3">
-                            <i class="feather-trending-up" style="font-size: 1.5rem;"></i>
+                        <div class="avatar-text avatar-xl bg-soft-warning text-warning rounded-circle mx-auto mb-3">
+                            <i class="feather-users" style="font-size: 1.5rem;"></i>
                         </div>
-                        <h5 class="card-title mb-1 fw-semibold">Sales Report</h5>
-                        <p class="text-muted small mb-0">Detailed sales analysis with P&L sync</p>
+                        <h5 class="card-title mb-1 fw-semibold">Supplier Ledger</h5>
+                        <p class="text-muted small mb-0">Bill & payment history per supplier</p>
                     </div>
                 </div>
             </a>
@@ -123,21 +108,6 @@
             </a>
         </div>
 
-        <!-- Shipping Checklist -->
-        <div class="col-lg-3 col-md-6">
-            <a href="{{ route('reports.shipping-checklist') }}" class="text-decoration-none">
-                <div class="card mb-4">
-                    <div class="card-body text-center py-4">
-                        <div class="avatar-text avatar-xl bg-soft-primary text-primary rounded-circle mx-auto mb-3">
-                            <i class="feather-truck" style="font-size: 1.5rem;"></i>
-                        </div>
-                        <h5 class="card-title mb-1 fw-semibold">Shipping Checklist</h5>
-                        <p class="text-muted small mb-0">Printable order checklist for shipping</p>
-                    </div>
-                </div>
-            </a>
-        </div>
-
         <!-- Stock Movement -->
         <div class="col-lg-3 col-md-6">
             <a href="{{ route('reports.stock-movement') }}" class="text-decoration-none">
@@ -148,6 +118,21 @@
                         </div>
                         <h5 class="card-title mb-1 fw-semibold">Stock Movement</h5>
                         <p class="text-muted small mb-0">Out of Stock, Slow Moving Items, and Frequently Order Items Reports</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Shipping Checklist -->
+        <div class="col-lg-3 col-md-6">
+            <a href="{{ route('reports.shipping-checklist') }}" class="text-decoration-none">
+                <div class="card mb-4">
+                    <div class="card-body text-center py-4">
+                        <div class="avatar-text avatar-xl bg-soft-primary text-primary rounded-circle mx-auto mb-3">
+                            <i class="feather-truck" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <h5 class="card-title mb-1 fw-semibold">Shipping Checklist</h5>
+                        <p class="text-muted small mb-0">Printable order checklist for shipping</p>
                     </div>
                 </div>
             </a>

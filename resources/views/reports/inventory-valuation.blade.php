@@ -13,6 +13,16 @@
                 <li class="breadcrumb-item">Inventory Valuation</li>
             </ul>
         </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('reports.stock-movement') }}" class="btn btn-light-brand">
+                        <i class="feather-refresh-cw me-2"></i>
+                        <span>Stock Movement</span>
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
     <!-- [ page-header ] end -->
 @endsection
@@ -78,7 +88,7 @@
                                     <option value="warehouse" {{ $groupBy == 'warehouse' ? 'selected' : '' }}>Warehouse</option>
                                 </select>
                             </div>
-                            <div class="col-md-3 d-flex align-items-end gap-2">
+                            <div class="col-md-4 d-flex align-items-end gap-2">
                                 <button type="submit" class="btn btn-primary btn-sm">
                                     <i class="feather-search me-2"></i>Generate Report
                                 </button>

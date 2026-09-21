@@ -16,6 +16,10 @@
         <div class="page-header-right ms-auto">
             <div class="page-header-right-items">
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('reports.purchase') }}" class="btn btn-light-brand">
+                        <i class="feather-shopping-bag me-2"></i>
+                        <span>Purchase Report</span>
+                    </a>
                     @if ($supplier)
                         <a href="{{ route('reports.supplier-ledger.export', ['supplier_id' => $supplierId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="btn btn-success">
                             <i class="feather-download me-2"></i>Export Excel
