@@ -81,7 +81,7 @@
                                 <label class="form-label">Status</label>
                                 <select name="order_status" class="form-select form-select-sm">
                                     <option value="">All</option>
-                                    <option value="awaiting_payment" {{ request('order_status') == 'awaiting_payment' ? 'selected' : '' }}>Awaiting Payment</option>
+                                    <option value="pending" {{ request('order_status') == 'pending' ? 'selected' : '' }}>Awaiting Payment</option>
                                     <option value="processing" {{ request('order_status') == 'processing' ? 'selected' : '' }}>Processing</option>
                                     <option value="shipped" {{ request('order_status') == 'shipped' ? 'selected' : '' }}>Shipped / Fulfilled</option>
                                     <option value="delivered" {{ request('order_status') == 'delivered' ? 'selected' : '' }}>Delivered</option>
