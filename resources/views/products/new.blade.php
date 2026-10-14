@@ -181,35 +181,11 @@
                         @enderror
                     </div>
 
-                    <!-- Bundle Components Section -->
-                    <div id="bundleComponentsSection" style="display: none;">
-                        <div class="card bg-light border mb-4">
-                            <div class="card-header d-flex justify-content-between align-items-center bg-white">
-                                <h6 class="mb-0">Bundle Components <span class="text-danger">*</span></h6>
-                                <button type="button" class="btn btn-sm btn-primary" id="addComponentBtn">
-                                    <i class="feather-plus me-1"></i> Add Component
-                                </button>
-                            </div>
-                            <div class="card-body">
-                                <div class="alert alert-info mb-3">
-                                    <i class="feather-info me-2"></i>
-                                    <strong>Auto-Pairing:</strong> Each bundle uses 1 of each component. Bundle quantity is automatically calculated based on the product with the lowest stock.
-                                </div>
-                                <div id="componentsContainer"></div>
-                                @error('components')
-                                    <div class="text-danger mt-2">{{ $message }}</div>
-                                @enderror
-
-                                <!-- Stock Preview -->
-                                <div class="mt-3 p-3 bg-white rounded border">
-                                    <h6 class="mb-2">Stock Preview</h6>
-                                    <div id="stockPreview" class="text-center text-muted py-2">
-                                        <small>Add at least 2 components to see stock calculation</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    @include('products._bundle-components', [
+                        'products' => $products ?? [],
+                        'initialComponents' => old('components', []),
+                        'bundleComponentsVisible' => (bool) old('is_bundle'),
+                    ])
 
                     </div>
                     <!-- /Product Details tab-pane -->
@@ -330,8 +306,6 @@
 <script src="{{ asset('vendors/js/quill.min.js') }}"></script>
 <script>
 $(document).ready(function() {
-    let componentIndex = 0;
-
     // Per sales-channel listing description editors (Quill), synced to hidden textarea on submit
     (function() {
         var editors = [];
@@ -441,131 +415,26 @@ $(document).ready(function() {
         });
     })();
 
-    // Toggle bundle sections
+    // Toggle bundle components section; clears any added cards when turned off
+    // (the repeater itself — see products._bundle-components — owns adding/
+    // removing/validating individual component cards and the stock preview).
     $('#is_bundle').change(function() {
-        if($(this).is(':checked')) {
+        if ($(this).is(':checked')) {
             $('#bundleComponentsSection').slideDown();
+            if (window.bundleComponentsRepeater) {
+                window.bundleComponentsRepeater.ensureMinimum();
+            }
         } else {
             $('#bundleComponentsSection').slideUp();
-            $('#componentsContainer').empty();
-            componentIndex = 0;
+            if (window.bundleComponentsRepeater) {
+                window.bundleComponentsRepeater.reset();
+            }
         }
     });
 
     // Check on page load
-    if($('#is_bundle').is(':checked')) {
+    if ($('#is_bundle').is(':checked')) {
         $('#bundleComponentsSection').show();
-    }
-
-    // Add component row
-    $('#addComponentBtn').click(function() {
-        addComponentRow();
-    });
-
-    function addComponentRow(productId = '', quantity = 1) {
-        const row = `
-            <div class="component-row mb-3 p-3 border rounded bg-white" data-index="${componentIndex}">
-                <div class="row g-3">
-                    <div class="col-md-11">
-                        <label class="form-label">Product</label>
-                        <select name="components[${componentIndex}][product_id]" class="form-select component-product" required>
-                            <option value="">Select Product</option>
-                            @foreach($products ?? [] as $product)
-                                <option value="{{ $product->id }}" data-name="{{ $product->name }}"
-                                    ${productId == '{{ $product->id }}' ? 'selected' : ''}>
-                                    {{ $product->name }} ({{ $product->sku }})
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <input type="hidden" name="components[${componentIndex}][quantity]" class="component-quantity" value="1">
-                    <div class="col-md-1 d-flex align-items-end">
-                        <button type="button" class="btn btn-light-danger remove-component-btn">
-                            <i class="feather-trash-2"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        $('#componentsContainer').append(row);
-
-        // Initialize Select2 on the newly added select
-        const $newRow = $('.component-row').last();
-        $newRow.find('.component-product').select2({
-            placeholder: 'Search and select a product...',
-            allowClear: true,
-            width: '100%',
-            theme: 'bootstrap-5'
-        });
-
-        componentIndex++;
-        updateStockPreview();
-    }
-
-    // Remove component
-    $(document).on('click', '.remove-component-btn', function() {
-        $(this).closest('.component-row').remove();
-        updateStockPreview();
-    });
-
-    // Update stock preview when product is selected
-    $(document).on('change', '.component-product', function() {
-        updateStockPreview();
-    });
-
-    function updateStockPreview() {
-        const components = [];
-        let isValid = true;
-
-        $('.component-row').each(function() {
-            const productId = $(this).find('.component-product').val();
-            const quantity = parseInt($(this).find('.component-quantity').val());
-
-            if (productId && quantity > 0) {
-                components.push({
-                    product_id: productId,
-                    quantity: quantity
-                });
-            } else {
-                isValid = false;
-            }
-        });
-
-        if (!isValid || components.length < 2) {
-            $('#stockPreview').html(`<small class="text-muted">Add at least 2 components to see stock calculation</small>`);
-            return;
-        }
-
-        // Calculate stock preview
-        $.ajax({
-            url: '{{ route('bundles.calculate-stock') }}',
-            method: 'POST',
-            data: {
-                _token: '{{ csrf_token() }}',
-                components: components
-            },
-            success: function(response) {
-                if (response.success) {
-                    let html = `
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <strong>Available Bundles:</strong>
-                            <span class="badge bg-${response.available_bundles > 10 ? 'success' : response.available_bundles > 0 ? 'warning' : 'danger'} fs-6">
-                                ${response.available_bundles}
-                            </span>
-                        </div>
-                    `;
-
-                    if (response.limiting_component) {
-                        html += `<small class="text-muted">Limited by: <strong>${response.limiting_component}</strong></small>`;
-                    }
-
-                    $('#stockPreview').html(html);
-                }
-            },
-            error: function() {
-                $('#stockPreview').html(`<small class="text-danger">Failed to calculate stock</small>`);
-            }
-        });
     }
 });
 </script>
