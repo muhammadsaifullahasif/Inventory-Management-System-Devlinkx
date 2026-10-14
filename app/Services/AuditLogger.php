@@ -18,8 +18,16 @@ class AuditLogger
      * @param  array<string, mixed>  $new
      * @param  array<string, mixed>  $context  Extra detail merged over whatever the current AuditContext already carries.
      */
-    public function log(string $event, ?Model $auditable = null, array $old = [], array $new = [], array $context = []): AuditLog
+    public function log(string $event, ?Model $auditable = null, array $old = [], array $new = [], array $context = []): ?AuditLog
     {
+        // Only keep rows tied to an actual user (whether acting through the
+        // web UI or the API) — webhook/queue/console/system activity is
+        // skipped entirely to stop the table from growing with non-user
+        // noise. See AuditContext::$actorType for the full set of values.
+        if (! in_array($this->context->actorType, ['user', 'api'], true)) {
+            return null;
+        }
+
         return AuditLog::create([
             'uuid' => (string) Str::uuid(),
             'event' => $event,
@@ -113,7 +121,7 @@ class AuditLogger
      * @param  array<int, array<string, mixed>>  $affected  One entry per affected record, e.g. ['type' => 'Product', 'id' => 12, 'label' => 'SKU-1', 'effect' => 'created'].
      * @param  array<string, mixed>  $context  Extra detail beyond the affected list (e.g. sales channel, trigger).
      */
-    public function logBatch(string $event, array $affected, array $context = [], ?Model $auditable = null): AuditLog
+    public function logBatch(string $event, array $affected, array $context = [], ?Model $auditable = null): ?AuditLog
     {
         return $this->log($event, $auditable, [], [], array_merge($context, [
             'affected_count' => count($affected),
