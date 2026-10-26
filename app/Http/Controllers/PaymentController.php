@@ -19,6 +19,7 @@ class PaymentController extends Controller
         $this->middleware('permission:payments-view')->only(['index', 'show']);
         $this->middleware('permission:payments-add')->only(['create', 'store']);
         $this->middleware('permission:payments-delete')->only(['destroy']);
+        $this->middleware('permission:payments-view|payments-add')->only(['getBillDetails']);
     }
 
     /**

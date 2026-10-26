@@ -49,6 +49,14 @@ return [
         'password',
         'remember_token',
         'api_token',
+        // Integration secrets (SalesChannel, Shipping). The models also list
+        // these in $hidden; repeated here so they stay out even if that changes.
+        'client_secret',
+        'authorization_code',
+        'access_token',
+        'refresh_token',
+        'notification_verification_token',
+        'credentials',
     ],
 
 ];

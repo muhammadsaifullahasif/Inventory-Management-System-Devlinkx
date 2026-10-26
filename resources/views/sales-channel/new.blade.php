@@ -96,6 +96,17 @@
                             <small class="text-muted">RuName from your eBay Developer Application (e.g., Haroon_Naseem-HaroonNa-sigma--mwiqy)</small>
                         </div>
 
+                        <div class="col-md-6 mb-3">
+                            <label for="dev_id" class="form-label">Dev ID <span class="text-danger">*</span></label>
+                            <input type="text" name="dev_id" id="dev_id" value="{{ old('dev_id') }}"
+                                   class="form-control @error('dev_id') is-invalid @enderror"
+                                   placeholder="e.g., 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d" required>
+                            @error('dev_id')
+                                <span class="invalid-feedback">{{ $message }}</span>
+                            @enderror
+                            <small class="text-muted">Dev ID from the same eBay keyset as the Client ID; used to verify webhook notifications</small>
+                        </div>
+
                         <div class="col-md-12 mb-3">
                             <label for="user_scopes" class="form-label">User Scopes <span class="text-danger">*</span></label>
                             <textarea name="user_scopes" id="user_scopes" rows="3"

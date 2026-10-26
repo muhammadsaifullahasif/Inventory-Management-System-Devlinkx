@@ -94,7 +94,7 @@ class LoginController extends Controller
 
         $otp = LoginOtp::create([
             'user_id' => $user->id,
-            'code' => $code,
+            'code' => LoginOtp::hashCode($code),
             'ip_address' => $request->ip(),
             'expires_at' => now()->addMinutes(10),
         ]);

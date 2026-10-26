@@ -38,7 +38,7 @@ class LoginOtpController extends Controller
         }
 
         $otp = LoginOtp::where('user_id', $userId)
-            ->where('code', $request->input('code'))
+            ->where('code', LoginOtp::hashCode($request->input('code')))
             ->whereNull('used_at')
             ->latest('id')
             ->first();

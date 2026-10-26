@@ -12,10 +12,14 @@ class RackController extends Controller
 {
     public function __construct()
     {
-        $this->middleware(PermissionMiddleware::using('view racks'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('view racks'), ['only' => [
+            'index', 'show', 'printLabel', 'printLabelView', 'bulkPrintLabelForm', 'bulkPrintLabel',
+        ]]);
+        // Used by product and purchase forms to populate the rack dropdown
+        $this->middleware(PermissionMiddleware::using('view racks|add products|edit products|add purchases|edit purchases'), ['only' => ['getRacksByWarehouse']]);
         $this->middleware(PermissionMiddleware::using('add racks'), ['only' => ['create', 'store']]);
         $this->middleware(PermissionMiddleware::using('edit racks'), ['only' => ['edit', 'update']]);
-        $this->middleware(PermissionMiddleware::using('delete racks'), ['only' => ['destroy']]);
+        $this->middleware(PermissionMiddleware::using('delete racks'), ['only' => ['destroy', 'bulkDelete']]);
     }
     
     /**
@@ -57,21 +61,23 @@ class RackController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
-        // Sort
-        $sortBy = $request->input('sort_by', 'created_at');
-        $sortOrder = $request->input('sort_order', 'desc');
-        if ($sortBy === 'warehouse') {
-            $query->orderByRaw('warehouses.name ' . $sortOrder);
-        } else if ($sortBy === 'in_stock') {
-            $query->orderBy('products_count', $sortOrder);
-        } else if ($sortBy === 'out_of_stock') {
-            $query->orderBy('out_of_stock_count', $sortOrder);
-        } else if ($sortBy === 'total') {
+        // Sort (whitelisted: sort_by / sort_order must never reach SQL as-is)
+        $sortColumns = [
+            'id' => 'racks.id',
+            'name' => 'racks.name',
+            'created_at' => 'racks.created_at',
+            'warehouse' => 'warehouses.name',
+            'in_stock' => 'products_count',
+            'out_of_stock' => 'out_of_stock_count',
+            'quantity' => 'rack_stock_sum_quantity',
+        ];
+        $sortBy = $request->input('sort_by');
+        $sortBy = is_string($sortBy) ? $sortBy : 'created_at';
+        $sortOrder = $request->input('sort_order') === 'asc' ? 'asc' : 'desc';
+        if ($sortBy === 'total') {
             $query->orderByRaw('(products_count + out_of_stock_count) ' . $sortOrder);
-        } else if ($sortBy === 'quantity') {
-            $query->orderBy('rack_stock_sum_quantity', $sortOrder);
         } else {
-            $query->orderBy($sortBy, $sortOrder);
+            $query->orderBy($sortColumns[$sortBy] ?? 'racks.created_at', $sortOrder);
         }
 
         $perPage = $request->input('per_page', 25);

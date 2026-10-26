@@ -38,6 +38,8 @@ return [
     'ebay' => [
         'client_id' => env('EBAY_CLIENT_ID'),
         'client_secret' => env('EBAY_CLIENT_SECRET'),
+        // Developer ID (keyset "Dev ID") - required to verify webhook NotificationSignature
+        'dev_id' => env('EBAY_DEV_ID'),
         'ru_name' => env('EBAY_RU_NAME'),
         'scopes' => env('EBAY_SCOPES'),
         'auth_url' => env('EBAY_AUTH_URL', 'https://auth.ebay.com/oauth2/authorize'),

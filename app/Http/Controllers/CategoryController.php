@@ -11,10 +11,10 @@ class CategoryController extends Controller
 {
     public function __construct()
     {
-        $this->middleware(PermissionMiddleware::using('view categories'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('view categories'), ['only' => ['index', 'show']]);
         $this->middleware(PermissionMiddleware::using('add categories'), ['only' => ['create', 'store']]);
         $this->middleware(PermissionMiddleware::using('edit categories'), ['only' => ['edit', 'update']]);
-        $this->middleware(PermissionMiddleware::using('delete categories'), ['only' => ['destroy']]);
+        $this->middleware(PermissionMiddleware::using('delete categories'), ['only' => ['destroy', 'bulkDelete']]);
     }
     
     /**

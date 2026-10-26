@@ -38,9 +38,9 @@ class PurchaseController extends Controller
     public function __construct()
     {
         $this->middleware(PermissionMiddleware::using('view purchases'), ['only' => ['index', 'show']]);
-        $this->middleware(PermissionMiddleware::using('add purchases'), ['only' => ['create', 'store', 'import_purchases', 'import_purchase_preview', 'import_purchases_store']]);
+        $this->middleware(PermissionMiddleware::using('add purchases'), ['only' => ['create', 'store', 'import_purchases', 'downloadImportTemplate', 'import_purchase_preview', 'import_purchases_store']]);
         $this->middleware(PermissionMiddleware::using('edit purchases'), ['only' => ['edit', 'update', 'receiveStock', 'processReceiveStock']]);
-        $this->middleware(PermissionMiddleware::using('delete purchases'), ['only' => ['destroy']]);
+        $this->middleware(PermissionMiddleware::using('delete purchases'), ['only' => ['destroy', 'bulkDelete']]);
     }
 
     /**

@@ -1,9 +1,7 @@
 <?php
 
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\BillController;
 use App\Http\Controllers\EbayController;
 use App\Http\Controllers\RackController;
@@ -37,107 +35,6 @@ use App\Http\Controllers\AuditSettingController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\GeneralSettingController;
 use App\Http\Controllers\Auth\LoginOtpController;
-
-Route::get('/run-migrations', function() {
-    if (!app()->environment('local')) {
-        abort(403, 'Migrations can only be run in the local environment.');
-    }
-
-    Artisan::call('migrate', ['--force' => true]);
-
-    return response()->json([
-        'message' => 'Migrations ran successfully.',
-        'output' => Artisan::output()
-    ]);
-});
-
-Route::get('/rollback-migrations', function() {
-    // Allow only local or staging environments to run this route
-    if (!app()->environment(['local', 'staging'])) {
-        abort(403, 'Migrations can only be rolled back in the local or staging environments.');
-    }
-
-    Artisan::call('migrate:rollback', ['--force' => true]);
-
-    return response()->json([
-        'message' => 'Migrations rolled back successfully.',
-        'output' => Artisan::output()
-    ]);
-});
-
-// Route::get('/run-queue', function() {
-//     // Allow in local, staging, and production (with authentication)
-//     if (!app()->environment(['local', 'staging', 'production'])) {
-//         abort(403, 'Queue worker not available in this environment.');
-//     }
-
-//     // Get pending job count
-//     $pendingJobs = DB::table('jobs')->where('queue', 'ebay-imports')->count();
-
-//     if ($pendingJobs === 0) {
-//         return response()->json([
-//             'message' => 'No pending jobs in ebay-imports queue.',
-//             'pending_jobs' => 0,
-//         ]);
-//     }
-
-//     dd(request()->all());
-
-//     // Process one job using the job's own timeout/backoff configuration.
-//     Artisan::call('queue:work', [
-//         '--queue' => 'ebay-imports',
-//         '--once' => true,
-//     ]);
-
-//     $remainingJobs = DB::table('jobs')->where('queue', 'ebay-imports')->count();
-
-//     return response()->json([
-//         'message' => 'Processed 1 job.',
-//         'remaining_jobs' => $remainingJobs,
-//         'output' => Artisan::output()
-//     ]);
-// })->middleware('auth');
-
-// Process all queue jobs (use with caution - may timeout)
-// Route::get('/run-queue-all', function() {
-//     if (!app()->environment('local')) {
-//         abort(403, 'Queue worker can only be run in the local environment.');
-//     }
-
-//     set_time_limit(600); // 10 minutes max
-
-//     Artisan::call('queue:work', [
-//         '--queue' => 'ebay-imports',
-//         '--stop-when-empty' => true,
-//     ]);
-
-//     return response()->json([
-//         'message' => 'All queue jobs processed.',
-//         'output' => Artisan::output()
-//     ]);
-// });
-
-Route::get('/run-chart-of-accounts-seeder', function() {
-    Artisan::call('db:seed', [
-        '--class' => 'ChartOfAccountsSeeder'
-    ]);
-
-    return response()->json([
-        'message' => 'ChartOfAccountsSeeder executed',
-        'output' => Artisan::output()
-    ]);
-});
-
-Route::get('/run-accounting-permissions-seeder', function() {
-    Artisan::call('db:seed', [
-        '--class' => 'AccountingPermissionsSeeder'
-    ]);
-
-    return response()->json([
-        'message' => 'AccountingPermissionsSeeder executed',
-        'output' => Artisan::output()
-    ]);
-});
 
 Auth::routes([
     'register' => false,

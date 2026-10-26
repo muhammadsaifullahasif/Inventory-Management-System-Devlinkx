@@ -333,4 +333,63 @@ class EbayNotificationService
         $hashInput = $challengeCode . $verificationToken . $endpoint;
         return hash('sha256', $hashInput);
     }
+
+    /**
+     * Max age (minutes) of a Platform Notification's Timestamp before it is
+     * treated as a replay. eBay recommends 10 minutes.
+     */
+    public const SIGNATURE_MAX_AGE_MINUTES = 10;
+
+    /**
+     * Verify the NotificationSignature SOAP header of a Platform Notification.
+     *
+     * eBay signs each notification as base64(md5(Timestamp . DevID . AppID . CertID)),
+     * where Timestamp is the <Timestamp> of the notification body. Anyone can POST
+     * to the webhook, so nothing in the payload may be trusted until this passes.
+     *
+     * @param \SimpleXMLElement $envelope     Parsed (namespace-stripped) SOAP envelope
+     * @param \SimpleXMLElement $notification The notification element inside <Body>
+     * @param SalesChannel|null $channel      Channel whose app keys signed it (null = global config keys)
+     */
+    public function verifyPlatformNotificationSignature(
+        \SimpleXMLElement $envelope,
+        \SimpleXMLElement $notification,
+        ?SalesChannel $channel
+    ): bool {
+        if ($envelope->getName() !== 'Envelope') {
+            return false;
+        }
+
+        $signature = trim((string) ($envelope->Header->RequesterCredentials->NotificationSignature ?? ''));
+        $timestamp = trim((string) ($notification->Timestamp ?? ''));
+
+        if ($signature === '' || $timestamp === '') {
+            return false;
+        }
+
+        $devId = $channel?->dev_id ?: config('services.ebay.dev_id');
+        $appId = $channel?->client_id ?: config('services.ebay.client_id');
+        $certId = $channel?->client_secret ?: config('services.ebay.client_secret');
+
+        if (empty($devId) || empty($appId) || empty($certId)) {
+            Log::channel('ebay')->error('eBay notification signature cannot be verified: DevID/AppID/CertID not configured (set EBAY_DEV_ID)', [
+                'sales_channel_id' => $channel?->id,
+            ]);
+            return false;
+        }
+
+        $expected = base64_encode(md5($timestamp . $devId . $appId . $certId, true));
+
+        if (!hash_equals($expected, $signature)) {
+            return false;
+        }
+
+        try {
+            $sentAt = \Illuminate\Support\Carbon::parse($timestamp);
+        } catch (Exception $e) {
+            return false;
+        }
+
+        return abs(now()->diffInMinutes($sentAt, false)) <= self::SIGNATURE_MAX_AGE_MINUTES;
+    }
 }

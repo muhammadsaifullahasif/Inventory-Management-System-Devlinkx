@@ -21,6 +21,7 @@ class BillController extends Controller
         $this->middleware('permission:bills-edit')->only(['edit', 'update']);
         $this->middleware('permission:bills-delete')->only(['destroy']);
         $this->middleware('permission:bills-post')->only(['post']);
+        $this->middleware('permission:bills-add|bills-edit')->only(['getExpenseAccountsByGroup']);
     }
 
     /**

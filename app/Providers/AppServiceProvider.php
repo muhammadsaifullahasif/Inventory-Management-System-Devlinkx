@@ -103,6 +103,16 @@ class AppServiceProvider extends ServiceProvider
         Queue::after(fn (JobProcessed $event) => $flushJobAuditSummary($event, 'success'));
         Queue::failing(fn (JobFailed $event) => $flushJobAuditSummary($event, 'failed'));
 
+        // Backups contain the whole database (password hashes, eBay/carrier
+        // tokens), so refuse to write one unless it will be encrypted. Spatie
+        // silently writes a plain zip when no password is configured. Fires
+        // for the scheduled run and for RunBackupJob's Artisan::call().
+        Event::listen(CommandStarting::class, function (CommandStarting $event) {
+            if ($event->command === 'backup:run' && blank(config('backup.backup.password'))) {
+                throw new \RuntimeException('Backup refused: set BACKUP_ARCHIVE_PASSWORD so the backup archive is encrypted.');
+            }
+        });
+
         // Audit trail: same idea for Artisan commands (console jobs) — one
         // row per command run instead of one per model write. Guarded to
         // real CLI processes only, so an Artisan::call() made from inside

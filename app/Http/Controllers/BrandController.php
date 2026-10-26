@@ -11,10 +11,10 @@ class BrandController extends Controller
 {
     public function __construct()
     {
-        $this->middleware(PermissionMiddleware::using('view brands'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('view brands'), ['only' => ['index', 'show']]);
         $this->middleware(PermissionMiddleware::using('add brands'), ['only' => ['create', 'store']]);
         $this->middleware(PermissionMiddleware::using('edit brands'), ['only' => ['edit', 'update']]);
-        $this->middleware(PermissionMiddleware::using('delete brands'), ['only' => ['destroy']]);
+        $this->middleware(PermissionMiddleware::using('delete brands'), ['only' => ['destroy', 'bulkDelete']]);
     }
 
     /**

@@ -38,8 +38,20 @@ class Shipping extends Model
         'delete_status',
     ];
 
+    // Secrets: encrypted at rest with APP_KEY, and kept out of toArray()/JSON
+    // (which also keeps them out of the audit log, see AuditLogger::filterFields).
+    protected $hidden = [
+        'credentials',
+        'authorization_code',
+        'access_token',
+        'refresh_token',
+    ];
+
     protected $casts = [
-        'credentials' => 'array',
+        'credentials' => 'encrypted:array',
+        'authorization_code' => 'encrypted',
+        'access_token' => 'encrypted',
+        'refresh_token' => 'encrypted',
         'is_sandbox'            => 'boolean',
         'is_default'            => 'boolean',
         'is_address_validation' => 'boolean',

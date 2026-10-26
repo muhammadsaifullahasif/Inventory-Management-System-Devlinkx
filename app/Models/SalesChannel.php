@@ -38,7 +38,22 @@ class SalesChannel extends Model
         'sales_account_id',
     ];
 
+    // Secrets: encrypted at rest with APP_KEY, and kept out of toArray()/JSON
+    // (which also keeps them out of the audit log, see AuditLogger::filterFields).
+    protected $hidden = [
+        'client_secret',
+        'authorization_code',
+        'access_token',
+        'refresh_token',
+        'notification_verification_token',
+    ];
+
     protected $casts = [
+        'client_secret' => 'encrypted',
+        'authorization_code' => 'encrypted',
+        'access_token' => 'encrypted',
+        'refresh_token' => 'encrypted',
+        'notification_verification_token' => 'encrypted',
         'access_token_expires_at' => 'datetime',
         'refresh_token_expires_at' => 'datetime',
         'platform_notifications_enabled' => 'boolean',
@@ -56,7 +71,20 @@ class SalesChannel extends Model
     {
         return Attribute::make(
             get: fn () => ($this->provider_config ?? [])['ru_name'] ?? null,
-            set: fn ($value) => ['provider_config' => array_merge($this->provider_config ?? [], ['ru_name' => $value])],
+            // Raw attribute values bypass the 'array' cast, so encode it ourselves.
+            set: fn ($value) => ['provider_config' => json_encode(array_merge($this->provider_config ?? [], ['ru_name' => $value]))],
+        );
+    }
+
+    /**
+     * eBay keyset Dev ID — needed to verify the NotificationSignature on
+     * Platform Notifications sent to the webhook.
+     */
+    protected function devId(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => ($this->provider_config ?? [])['dev_id'] ?? null,
+            set: fn ($value) => ['provider_config' => json_encode(array_merge($this->provider_config ?? [], ['dev_id' => $value]))],
         );
     }
 

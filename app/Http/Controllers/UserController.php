@@ -12,10 +12,10 @@ class UserController extends Controller
 {
     public function __construct()
     {
-        $this->middleware(PermissionMiddleware::using('view users'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('view users'), ['only' => ['index', 'show']]);
         $this->middleware(PermissionMiddleware::using('add users'), ['only' => ['create', 'store']]);
         $this->middleware(PermissionMiddleware::using('edit users'), ['only' => ['edit', 'update']]);
-        $this->middleware(PermissionMiddleware::using('delete users'), ['only' => ['destroy']]);
+        $this->middleware(PermissionMiddleware::using('delete users'), ['only' => ['destroy', 'bulkDelete']]);
     }
     
     /**
@@ -66,7 +66,7 @@ class UserController extends Controller
      */
     public function create()
     {
-        $roles = Role::orderBy('name', 'DESC')->get();
+        $roles = $this->assignableRoles();
         return view('users.new', compact('roles'));
     }
 
@@ -80,6 +80,8 @@ class UserController extends Controller
             'email' => 'required|email|unique:users,email',
             'password' => 'required|confirmed|min:8',
         ]);
+
+        $this->authorizeRoleAssignment($request->role);
 
         try {
             $user = new User();
@@ -110,7 +112,8 @@ class UserController extends Controller
     public function edit(string $id)
     {
         $user = User::findOrFail($id);
-        $roles = Role::orderBy('name', 'DESC')->get();
+        $this->authorizeManageUser($user);
+        $roles = $this->assignableRoles();
         $hasRoles = $user->roles->pluck('id');
         return view('users.edit', compact('user', 'roles', 'hasRoles'));
     }
@@ -125,8 +128,11 @@ class UserController extends Controller
             'email' => 'required|email|unique:users,email,'.$id.',id',
         ]);
 
+        $user = User::findOrFail($id);
+        $this->authorizeManageUser($user);
+        $this->authorizeRoleAssignment($request->role);
+
         try {
-            $user = User::findOrFail($id);
             $passwordChanged = !empty($request->password);
             $rolesBefore = $user->getRoleNames()->sort()->values()->all();
 
@@ -163,8 +169,10 @@ class UserController extends Controller
      */
     public function destroy(string $id)
     {
+        $user = User::findOrFail($id);
+        $this->authorizeManageUser($user);
+
         try {
-            $user = User::findOrFail($id);
             $user->delete();
 
             return redirect()->route('users.index')->with('success', 'User deleted successfully.');
@@ -183,6 +191,14 @@ class UserController extends Controller
             'ids.*' => 'integer|exists:users,id',
         ]);
 
+        $users = User::whereIn('id', $request->ids)->get();
+        if ($users->contains(fn (User $user) => !auth()->user()->canManageUser($user))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You cannot delete users who have access you do not have.',
+            ], 403);
+        }
+
         try {
             $count = User::whereIn('id', $request->ids)->delete();
 
@@ -196,5 +212,29 @@ class UserController extends Controller
                 'message' => 'An error occurred while deleting users: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Roles the current user may hand out: never superadmin (unless they are
+     * one), and never a role carrying permissions they don't hold themselves.
+     */
+    private function assignableRoles()
+    {
+        return Role::with('permissions')->orderBy('name', 'DESC')->get()
+            ->filter(fn (Role $role) => auth()->user()->canManageRole($role))
+            ->values();
+    }
+
+    private function authorizeRoleAssignment($roleNames): void
+    {
+        $requested = collect($roleNames)->filter()->values();
+        $allowed = $this->assignableRoles()->pluck('name');
+
+        abort_if($requested->diff($allowed)->isNotEmpty(), 403, 'You cannot assign a role with access you do not have.');
+    }
+
+    private function authorizeManageUser(User $user): void
+    {
+        abort_unless(auth()->user()->canManageUser($user), 403, 'You cannot manage a user who has access you do not have.');
     }
 }

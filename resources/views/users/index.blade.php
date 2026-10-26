@@ -176,12 +176,13 @@
                                     <td data-column="created_at"><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($user->created_at)->format('d M, Y') }}</span></td>
                                     <td>
                                         <div class="hstack gap-2 justify-content-end">
-                                            @can('edit users')
+                                            @php($canManage = auth()->user()->canManageUser($user))
+                                            @if ($canManage && auth()->user()->can('edit users'))
                                                 <a href="{{ route('users.edit', $user->id) }}" class="avatar-text avatar-md" data-bs-toggle="tooltip" title="Edit">
                                                     <i class="feather-edit-3"></i>
                                                 </a>
-                                            @endcan
-                                            @can('delete users')
+                                            @endif
+                                            @if ($canManage && auth()->user()->can('delete users'))
                                                 <form action="{{ route('users.destroy', $user->id) }}" method="POST" id="user-{{ $user->id }}-delete-form">
                                                     @csrf
                                                     @method('DELETE')
@@ -189,7 +190,7 @@
                                                 <a href="javascript:void(0)" data-id="{{ $user->id }}" class="avatar-text avatar-md text-danger delete-btn" data-bs-toggle="tooltip" title="Delete">
                                                     <i class="feather-trash-2"></i>
                                                 </a>
-                                            @endcan
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>

@@ -11,10 +11,10 @@ class RoleController extends Controller
 {
     public function __construct()
     {
-        $this->middleware(PermissionMiddleware::using('view roles'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('view roles'), ['only' => ['index', 'show']]);
         $this->middleware(PermissionMiddleware::using('add roles'), ['only' => ['create', 'store']]);
         $this->middleware(PermissionMiddleware::using('edit roles'), ['only' => ['edit', 'update']]);
-        $this->middleware(PermissionMiddleware::using('delete roles'), ['only' => ['destroy']]);
+        $this->middleware(PermissionMiddleware::using('delete roles'), ['only' => ['destroy', 'bulkDelete']]);
     }
 
     /**
@@ -52,7 +52,7 @@ class RoleController extends Controller
      */
     public function create()
     {
-        $permissions = Permission::orderBy('created_at', 'DESC')->get();
+        $permissions = $this->grantablePermissions();
         return view('roles.new', compact('permissions'));
     }
 
@@ -64,6 +64,8 @@ class RoleController extends Controller
         $request->validate([
             'name' => 'required|unique:roles,name',
         ]);
+
+        $this->authorizePermissionGrant($request->permission);
 
         try {
             $role = Role::create(['name' => $request->name]);
@@ -94,7 +96,8 @@ class RoleController extends Controller
     public function edit(string $id)
     {
         $role = Role::findOrFail($id);
-        $permissions = Permission::orderBy('created_at', 'DESC')->get();
+        $this->authorizeManageRole($role);
+        $permissions = $this->grantablePermissions();
         $hasPermissions = $role->permissions->pluck('name');
         return view('roles.edit', compact('role', 'permissions', 'hasPermissions'));
     }
@@ -108,8 +111,11 @@ class RoleController extends Controller
             'name' => 'required|unique:roles,name,'.$id
         ]);
 
+        $role = Role::findOrFail($id);
+        $this->authorizeManageRole($role);
+        $this->authorizePermissionGrant($request->permission);
+
         try {
-            $role = Role::findOrFail($id);
             $role->name = $request->name;
             $role->save();
 
@@ -130,8 +136,10 @@ class RoleController extends Controller
      */
     public function destroy(string $id)
     {
+        $role = Role::findOrFail($id);
+        $this->authorizeManageRole($role);
+
         try {
-            $role = Role::findOrFail($id);
             $role->delete();
 
             return redirect()->route('roles.index')->with('success', 'Role deleted successfully.');
@@ -150,6 +158,14 @@ class RoleController extends Controller
             'ids.*' => 'integer|exists:roles,id',
         ]);
 
+        $roles = Role::with('permissions')->whereIn('id', $request->ids)->get();
+        if ($roles->contains(fn (Role $role) => !auth()->user()->canManageRole($role))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You cannot delete roles with access you do not have.',
+            ], 403);
+        }
+
         try {
             $count = Role::whereIn('id', $request->ids)->delete();
 
@@ -163,5 +179,29 @@ class RoleController extends Controller
                 'message' => 'An error occurred while deleting roles: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Permissions the current user may put on a role: only ones they hold.
+     */
+    private function grantablePermissions()
+    {
+        return Permission::orderBy('created_at', 'DESC')->get()
+            ->filter(fn (Permission $permission) => auth()->user()->holdsAllPermissions([$permission->name]))
+            ->values();
+    }
+
+    private function authorizePermissionGrant($permissionNames): void
+    {
+        abort_unless(
+            auth()->user()->holdsAllPermissions(collect($permissionNames)->filter()),
+            403,
+            'You cannot grant a permission you do not have.'
+        );
+    }
+
+    private function authorizeManageRole(Role $role): void
+    {
+        abort_unless(auth()->user()->canManageRole($role), 403, 'You cannot manage a role with access you do not have.');
     }
 }

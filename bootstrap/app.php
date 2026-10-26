@@ -19,6 +19,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
         ]);
 
+        // Let the same-origin UI call /api/* with its session cookie (and CSRF
+        // token) so those routes can sit behind auth:sanctum.
+        $middleware->statefulApi();
+
         // Audit trail: resolve ip/user-agent/actor for every request before
         // controllers run, so AuditLogger/AuditObserver just read it.
         $middleware->web(append: [\App\Http\Middleware\CaptureAuditContext::class]);

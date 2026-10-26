@@ -10,10 +10,10 @@ class WarehouseController extends Controller
 {
     public function __construct()
     {
-        $this->middleware(PermissionMiddleware::using('view warehouses'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('view warehouses'), ['only' => ['index', 'show']]);
         $this->middleware(PermissionMiddleware::using('add warehouses'), ['only' => ['create', 'store']]);
         $this->middleware(PermissionMiddleware::using('edit warehouses'), ['only' => ['edit', 'update']]);
-        $this->middleware(PermissionMiddleware::using('delete warehouses'), ['only' => ['destroy']]);
+        $this->middleware(PermissionMiddleware::using('delete warehouses'), ['only' => ['destroy', 'bulkDelete']]);
     }
 
     /**
@@ -49,21 +49,23 @@ class WarehouseController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
-        // Sort
-        $sortBy = $request->input('sort_by', 'created_at');
-        $sortOrder = $request->input('sort_order', 'desc');
-        if ($sortBy === 'racks') {
-            $query->orderBy('racks_count', $sortOrder);
-        } else if ($sortBy === 'in_stock') {
-            $query->orderBy('products_count', $sortOrder);
-        } else if ($sortBy === 'out_of_stock') {
-            $query->orderBy('out_of_stock_count', $sortOrder);
-        } else if ($sortBy === 'total') {
+        // Sort (whitelisted: sort_by / sort_order must never reach SQL as-is)
+        $sortColumns = [
+            'id' => 'id',
+            'name' => 'name',
+            'created_at' => 'created_at',
+            'racks' => 'racks_count',
+            'in_stock' => 'products_count',
+            'out_of_stock' => 'out_of_stock_count',
+            'quantity' => 'product_stocks_sum_quantity',
+        ];
+        $sortBy = $request->input('sort_by');
+        $sortBy = is_string($sortBy) ? $sortBy : 'created_at';
+        $sortOrder = $request->input('sort_order') === 'asc' ? 'asc' : 'desc';
+        if ($sortBy === 'total') {
             $query->orderByRaw('(products_count + out_of_stock_count) ' . $sortOrder);
-        } else if ($sortBy === 'quantity') {
-            $query->orderBy('product_stocks_sum_quantity', $sortOrder);
         } else {
-            $query->orderBy($sortBy, $sortOrder);
+            $query->orderBy($sortColumns[$sortBy] ?? 'created_at', $sortOrder);
         }
 
         $perPage = $request->input('per_page', 25);

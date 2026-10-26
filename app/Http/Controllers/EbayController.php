@@ -22,6 +22,7 @@ use App\Models\OrderReturn;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Jobs\ImportEbayListingsJob;
+use Spatie\Permission\Middleware\PermissionMiddleware;
 use App\Jobs\SyncEbayOrdersJob;
 
 class EbayController extends Controller
@@ -36,7 +37,21 @@ class EbayController extends Controller
         protected EbayOrderService $orderService,
         protected EbayNotificationService $notificationService,
         protected EbayPostOrderApiClient $postOrderClient,
-    ) {}
+    ) {
+        // Web routes only. API routes set their own permission middleware, and the
+        // webhook handlers are called by eBay without a user session.
+        $this->middleware(PermissionMiddleware::using('view sales-channels'), ['only' => [
+            'getImportStatus', 'listImportLogs', 'getLatestImportLog', 'getNotificationEvents',
+        ]]);
+        $this->middleware(PermissionMiddleware::using('edit sales-channels'), ['only' => [
+            'getAllActiveListings', 'syncListings', 'syncOrders', 'syncOrdersQueue',
+        ]]);
+        $this->middleware(PermissionMiddleware::using('view orders'), ['only' => ['getOrders', 'getEbayOrders']]);
+        // Used by the product create/edit forms to prefill listing fields
+        $this->middleware(PermissionMiddleware::using('add products|edit products'), ['only' => [
+            'getItemDetails', 'getItemDetailsBySku',
+        ]]);
+    }
 
     // =========================================
     // LISTING IMPORT & SYNC
@@ -923,6 +938,10 @@ class EbayController extends Controller
             // Try to find the correct sales channel based on RecipientUserID
             $salesChannel = $this->resolveCorrectSalesChannel($jsonData, $salesChannel);
 
+            if (!$this->notificationService->verifyPlatformNotificationSignature($xml, $notificationXml, $salesChannel)) {
+                return $this->rejectUnsignedNotification($request, $notificationType, $salesChannel);
+            }
+
             // Save notification to file
             $notificationData = [
                 'timestamp' => $timestamp->toIso8601String(),
@@ -1032,6 +1051,10 @@ class EbayController extends Controller
             // Find the correct sales channel based on RecipientUserID
             $salesChannel = $this->findSalesChannelFromNotification($jsonData);
 
+            if (!$this->notificationService->verifyPlatformNotificationSignature($xml, $notificationXml, $salesChannel)) {
+                return $this->rejectUnsignedNotification($request, $notificationType, $salesChannel);
+            }
+
             if (!$salesChannel) {
                 Log::channel('ebay')->error('Could not find sales channel for notification', [
                     'notification_type' => $notificationType,
@@ -1085,6 +1108,21 @@ class EbayController extends Controller
 
             return response('OK', 200);
         }
+    }
+
+    /**
+     * Reject a Platform Notification whose NotificationSignature is missing, wrong or stale.
+     * Nothing from the payload is saved or processed.
+     */
+    protected function rejectUnsignedNotification(Request $request, string $notificationType, ?SalesChannel $salesChannel)
+    {
+        Log::channel('ebay')->warning('eBay Platform Notification rejected: invalid NotificationSignature', [
+            'notification_type' => $notificationType,
+            'sales_channel_id' => $salesChannel?->id,
+            'ip' => $request->ip(),
+        ]);
+
+        return response('Invalid signature', 401);
     }
 
     /**

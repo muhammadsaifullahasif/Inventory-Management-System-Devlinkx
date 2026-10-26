@@ -15,6 +15,10 @@ class ChartOfAccountController extends Controller
         $this->middleware('permission:chart-of-accounts-add')->only(['create', 'store']);
         $this->middleware('permission:chart-of-accounts-edit')->only(['edit', 'update']);
         $this->middleware('permission:chart-of-accounts-delete')->only(['destroy']);
+        $this->middleware('permission:chart-of-accounts-add')->only(['getNextCode']);
+        $this->middleware('permission:chart-of-accounts-add|bills-add|bills-edit|payments-add')->only(['quickStore']);
+        $this->middleware('permission:chart-of-accounts-view|bills-view|bills-add|bills-edit|payments-view|payments-add')
+            ->only(['getByGroup', 'getExpenseAccounts', 'getBankCashAccounts']);
     }
 
     /**

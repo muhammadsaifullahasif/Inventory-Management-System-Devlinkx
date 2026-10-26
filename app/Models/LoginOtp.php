@@ -19,6 +19,16 @@ class LoginOtp extends Model
         'used_at' => 'datetime',
     ];
 
+    /**
+     * Codes are stored as an HMAC keyed with APP_KEY, never in plain text, so a
+     * database read alone can't be used to pass the email verification step.
+     * (A plain hash would not do: 6 digits are brute-forced instantly.)
+     */
+    public static function hashCode(string $code): string
+    {
+        return hash_hmac('sha256', $code, config('app.key'));
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

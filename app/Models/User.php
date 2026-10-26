@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Permission\Models\Role;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
@@ -45,5 +46,49 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function isSuperadmin(): bool
+    {
+        return $this->hasRole('superadmin');
+    }
+
+    /**
+     * Whether this user holds every one of the given permissions. Used to stop
+     * users handing out (or taking over accounts with) access they don't have.
+     */
+    public function holdsAllPermissions(iterable $permissionNames): bool
+    {
+        if ($this->isSuperadmin()) {
+            return true;
+        }
+
+        return collect($permissionNames)
+            ->diff($this->getAllPermissions()->pluck('name'))
+            ->isEmpty();
+    }
+
+    /**
+     * Whether this user may edit, reset the password of, or delete $target.
+     */
+    public function canManageUser(User $target): bool
+    {
+        if ($target->isSuperadmin()) {
+            return $this->isSuperadmin();
+        }
+
+        return $this->holdsAllPermissions($target->getAllPermissions()->pluck('name'));
+    }
+
+    /**
+     * Whether this user may assign or edit the given role.
+     */
+    public function canManageRole(Role $role): bool
+    {
+        if ($role->name === 'superadmin') {
+            return $this->isSuperadmin();
+        }
+
+        return $this->holdsAllPermissions($role->permissions->pluck('name'));
     }
 }

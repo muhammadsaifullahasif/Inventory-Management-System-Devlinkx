@@ -35,15 +35,20 @@ class ProductController extends Controller
 
     public function __construct()
     {
-        $this->middleware(PermissionMiddleware::using('view products'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('view products'), ['only' => [
+            'index', 'show', 'search', 'export', 'printBarcode', 'printBarcodeView',
+            'bulkPrintBarcodeForm', 'bulkPrintBarcode',
+        ]]);
         $this->middleware(PermissionMiddleware::using('add products'), ['only' => [
             'create', 'store', 'import_products', 'import_products_preview',
             'import_products_preview_show', 'import_products_store', 'downloadImportTemplate',
         ]]);
         $this->middleware(PermissionMiddleware::using('edit products'), ['only' => [
-            'edit', 'update', 'bulkUpdateForm', 'bulkUpdate',
+            'edit', 'update', 'bulkUpdateForm', 'bulkUpdate', 'updateStock', 'bulkSync',
         ]]);
-        $this->middleware(PermissionMiddleware::using('delete products'), ['only' => ['destroy']]);
+        $this->middleware(PermissionMiddleware::using('delete products'), ['only' => ['destroy', 'bulkDelete']]);
+        // Used by the bundle builder on the product create/edit forms
+        $this->middleware(PermissionMiddleware::using('add products|edit products'), ['only' => ['calculateStock']]);
     }
     
     /**

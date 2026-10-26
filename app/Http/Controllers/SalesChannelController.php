@@ -20,10 +20,12 @@ class SalesChannelController extends Controller
     {
         $this->notificationService = $notificationService;
         $this->accountService = $accountService;
-        $this->middleware(PermissionMiddleware::using('view sales-channels'), ['only' => ['index']]);
+        $this->middleware(PermissionMiddleware::using('view sales-channels'), ['only' => ['index', 'show', 'checkNotificationStatus']]);
         $this->middleware(PermissionMiddleware::using('add sales-channels'), ['only' => ['create', 'store']]);
-        $this->middleware(PermissionMiddleware::using('edit sales-channels'), ['only' => ['edit', 'update']]);
+        $this->middleware(PermissionMiddleware::using('edit sales-channels'), ['only' => ['edit', 'update', 'resubscribeNotifications', 'disableNotifications']]);
         $this->middleware(PermissionMiddleware::using('delete sales-channels'), ['only' => ['destroy']]);
+        // OAuth return from eBay when connecting or re-authorising a channel
+        $this->middleware(PermissionMiddleware::using('add sales-channels|edit sales-channels'), ['only' => ['ebay_callback']]);
     }
 
     /**
@@ -87,6 +89,7 @@ class SalesChannelController extends Controller
             'client_id' => 'required|string',
             'client_secret' => 'required|string',
             'ru_name' => 'required|string',
+            'dev_id' => 'required|string',
             'user_scopes' => 'required|string',
         ]);
 
@@ -97,6 +100,7 @@ class SalesChannelController extends Controller
             $sales_channel->client_id = $request->input('client_id');
             $sales_channel->client_secret = $request->input('client_secret');
             $sales_channel->ru_name = $request->input('ru_name');
+            $sales_channel->dev_id = $request->input('dev_id');
             $sales_channel->user_scopes = $request->input('user_scopes');
             $sales_channel->save();
 
@@ -396,6 +400,7 @@ class SalesChannelController extends Controller
             'client_id' => 'required|string',
             'client_secret' => 'required|string',
             'ru_name' => 'required|string',
+            'dev_id' => 'required|string',
             'user_scopes' => 'required|string',
         ]);
 
@@ -405,6 +410,7 @@ class SalesChannelController extends Controller
             $sales_channel->client_id = $request->input('client_id');
             $sales_channel->client_secret = $request->input('client_secret');
             $sales_channel->ru_name = $request->input('ru_name');
+            $sales_channel->dev_id = $request->input('dev_id');
             $sales_channel->user_scopes = $request->input('user_scopes');
 
             // If reconnecting, redirect to eBay OAuth
