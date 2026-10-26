@@ -114,6 +114,20 @@ class BasicSeeder extends Seeder
             $roleAdmin->givePermissionTo($permission['name']);
         }
 
+        $user = new User();
+        $user->name = 'Super Admin';
+        $user->email = 'superadmin@gmail.com';
+        $user->password = Hash::make('12345678');
+        $user->save();
+        $user->syncRoles('superadmin');
+        
+        $userAdmin = new User();
+        $userAdmin->name = 'Admin';
+        $userAdmin->email = 'admin@gmail.com';
+        $userAdmin->password = Hash::make('12345678');
+        $userAdmin->save();
+        $userAdmin->syncRoles('Admin');
+
 
         $categories = [
             'Body Moldings & Trims',
