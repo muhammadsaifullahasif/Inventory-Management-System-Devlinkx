@@ -387,7 +387,13 @@
                 <h5 class="card-title">Product Image</h5>
             </div>
             <div class="card-body text-center">
-                <img src="{{ $product->getImageUrl() }}" alt="{{ $product->name }}" class="img-fluid rounded" style="max-height: 300px;">
+                @if ($product->getImageUrl() && env('APP_ENV') === 'production')
+                    <img src="{{ $product->getImageUrl() }}" alt="{{ $product->name }}" class="img-fluid rounded" style="max-height: 300px;">
+                @else
+                    <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                        <i class="feather-image text-muted"></i>
+                    </div>
+                @endif
             </div>
         </div>
         @endif

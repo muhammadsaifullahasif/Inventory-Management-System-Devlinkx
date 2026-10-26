@@ -294,7 +294,7 @@
                                     @endcan
                                     <td data-column="id">{{ $product->id }}</td>
                                     <td data-column="image">
-                                        @if($product->getImageUrl())
+                                        @if($product->getImageUrl() && env('APP_ENV') === 'production')
                                             <img src="{{ $product->getImageUrl() }}" alt="{{ $product->name }}" class="rounded" style="width: 50px; height: 50px; object-fit: cover;">
                                         @else
                                             <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">

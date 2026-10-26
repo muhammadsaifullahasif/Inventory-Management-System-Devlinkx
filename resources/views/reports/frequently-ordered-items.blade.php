@@ -340,7 +340,7 @@
                                         @endif
                                     </td>
                                     <td data-column="image">
-                                        @if($item['product_image'])
+                                        @if($item['product_image'] && env('APP_ENV') === 'production')
                                             <img src="{{ $item['product_image'] }}" alt="{{ $item['product_name'] }}" class="rounded" style="width: 50px; height: 50px; object-fit: cover;">
                                         @else
                                             <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">

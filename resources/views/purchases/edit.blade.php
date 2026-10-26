@@ -272,7 +272,7 @@
                                             </div>
                                         </td>
                                         <td>
-                                            @if($product->getImageUrl())
+                                            @if($product->getImageUrl() && env('APP_ENV') === 'production')
                                                 <img src="{{ $product->getImageUrl() }}" alt="{{ $product->name }}" class="rounded" style="width: 45px; height: 45px; object-fit: cover;">
                                             @else
                                                 <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">

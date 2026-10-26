@@ -516,7 +516,7 @@
                                                                         @php
                                                                             $itemImageUrl = $item->product?->getImageUrl();
                                                                         @endphp
-                                                                        @if($itemImageUrl)
+                                                                        @if($itemImageUrl && env('APP_ENV') === 'production')
                                                                             <img src="{{ $itemImageUrl }}" alt="{{ $item->title }}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">
                                                                         @else
                                                                             <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
@@ -577,7 +577,7 @@
                                                                         @php
                                                                             $itemImageUrl = $item->product?->getImageUrl();
                                                                         @endphp
-                                                                        @if($itemImageUrl)
+                                                                        @if($itemImageUrl && env('APP_ENV') === 'production')
                                                                             <img src="{{ $itemImageUrl }}" alt="{{ $item->title }}" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">
                                                                         @else
                                                                             <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">

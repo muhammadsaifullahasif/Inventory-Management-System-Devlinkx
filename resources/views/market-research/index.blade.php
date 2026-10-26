@@ -163,8 +163,12 @@
                             @forelse ($products as $product)
                                 <tr>
                                     <td>
-                                        @if($product->getImageUrl())
+                                        @if($product->getImageUrl() && env('APP_ENV') === 'production')
                                             <img src="{{ $product->getImageUrl() }}" alt="{{ $product->name }}" class="rounded" style="width:36px;height:36px;object-fit:cover;">
+                                        @else
+                                            <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                                <i class="feather-image text-muted"></i>
+                                            </div>
                                         @endif
                                     </td>
                                     <td style="max-width: 260px;">
@@ -190,42 +194,6 @@
                                         @empty
                                             <span class="text-muted fs-12">-</span>
                                         @endforelse
-                                        {{-- <table class="table table-sm table-borderless mb-0">
-                                            <thead>
-                                                <tr class="text-muted fs-12">
-                                                    <th>#</th>
-                                                    <th>Seller</th>
-                                                    <th>Price</th>
-                                                    <th>Units Sold</th>
-                                                    <th>Listing</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach($product->priceComparisons as $comp)
-                                                    <tr>
-                                                        <td>{{ $comp->rank }}</td>
-                                                        <td>{{ $comp->competitor_seller }}</td>
-                                                        <td>
-                                                            {{ $comp->currency }} {{ number_format($comp->competitor_price, 2) }}
-                                                            @if($product->price > 0)
-                                                                @php $diff = $comp->competitor_price - $product->price; @endphp
-                                                                <span class="fs-12 {{ $diff < 0 ? 'text-danger' : 'text-success' }}">
-                                                                    ({{ $diff >= 0 ? '+' : '' }}{{ number_format($diff, 2) }})
-                                                                </span>
-                                                            @endif
-                                                        </td>
-                                                        <td>{{ $comp->items_sold_last_month }}</td>
-                                                        <td>
-                                                            @if($comp->listing_url)
-                                                                <a href="{{ $comp->listing_url }}" target="_blank" rel="noopener">
-                                                                    <i class="feather-external-link"></i>
-                                                                </a>
-                                                            @endif
-                                                        </td>
-                                                    </tr>
-                                                @endforeach
-                                            </tbody>
-                                        </table> --}}
                                     </td>
                                 </tr>
                             @empty

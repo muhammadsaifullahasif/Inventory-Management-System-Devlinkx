@@ -467,7 +467,7 @@
                                         <input type="checkbox" class="form-check-input d-print-none" style="margin: 0;">
                                     </td> --}}
                                     <td data-column="image" class="text-center">
-                                        @if($item['image_url'])
+                                        @if($item['image_url'] && env('APP_ENV') === 'production')
                                             <img src="{{ $item['image_url'] }}" alt="{{ $item['product_name'] }}"
                                                  class="product-img product-img-print">
                                         @else

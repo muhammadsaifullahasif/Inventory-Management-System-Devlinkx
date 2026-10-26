@@ -1,22 +1,35 @@
 @extends('layouts.app')
 
 @section('header')
-    <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0">Print Barcode</h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
-                        <li class="breadcrumb-item"><a href="{{ route('products.index') }}">Products</a></li>
-                        <li class="breadcrumb-item active">Print Barcode</li>
-                    </ol>
+    
+    <!-- [ page-header ] start -->
+    <div class="page-header">
+        <div class="page-header-left d-flex align-items-center">
+            <div class="page-header-title">
+                <h5 class="m-b-10">Print Barcode</h5>
+            </div>
+            <ul class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('products.index') }}">Products</a></li>
+                <li class="breadcrumb-item active">Print Barcode</li>
+            </ul>
+        </div>
+        <div class="page-header-right ms-auto">
+            <div class="page-header-right-items">
+                <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <a href="{{ route('products.index') }}" class="btn btn-light-brand">
+                        <i class="feather-arrow-left me-2"></i>
+                        <span>Back to Products</span>
+                    </a>
+                    <a href="{{ route('products.edit', $product->id) }}" class="btn btn-primary">
+                        <i class="feather-edit me-2"></i>
+                        <span>Edit Product</span>
+                    </a>
                 </div>
             </div>
         </div>
     </div>
+    <!-- [ page-header ] end -->
 @endsection
 
 @section('content')
@@ -53,14 +66,14 @@
                 <div class="card-body">
                     <form method="GET" action="{{ route('products.barcode.print', $product->id) }}" id="printForm">
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-6 mb-3">
                                 <div class="form-group">
                                     <label for="quantity">Number of Barcodes:</label>
                                     <input type="number" id="quantity" name="quantity" class="form-control" value="21" min="1" max="100">
                                     <small class="text-muted">1-100 labels</small>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-6 mb-3">
                                 <div class="form-group">
                                     <label for="columns">Columns per Row:</label>
                                     <select id="columns" name="columns" class="form-control">
@@ -72,15 +85,15 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="mt-3">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-print"></i> Print Barcodes
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary mb-3">
+                                <i class="fas fa-print me-2"></i>Print Barcodes
                             </button>
-                            <a href="{{ route('products.index') }}" class="btn btn-secondary">
-                                <i class="fas fa-arrow-left"></i> Back to Products
+                            <a href="{{ route('products.index') }}" class="btn btn-secondary mb-3">
+                                <i class="fas fa-arrow-left me-2"></i>Back to Products
                             </a>
-                            <a href="{{ route('products.barcode.bulk-form') }}" class="btn btn-info">
-                                <i class="fas fa-layer-group"></i> Bulk Print
+                            <a href="{{ route('products.barcode.bulk-form') }}" class="btn btn-info mb-3">
+                                <i class="fas fa-layer-group me-2"></i>Bulk Print
                             </a>
                         </div>
                     </form>
