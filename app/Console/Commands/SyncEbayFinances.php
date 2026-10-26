@@ -38,9 +38,8 @@ class SyncEbayFinances extends Command
     {
         $this->info('Starting eBay finance sync...');
 
-        $query = SalesChannel::whereNotNull('refresh_token')
-            ->whereNotNull('client_id')
-            ->whereNotNull('client_secret');
+        $query = SalesChannel::where('type', 'ebay')
+            ->whereNotNull('refresh_token');
 
         if ($channelId = $this->option('channel')) {
             $query->where('id', $channelId);

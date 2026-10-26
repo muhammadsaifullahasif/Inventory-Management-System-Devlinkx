@@ -567,6 +567,17 @@ XML;
     }
 
     /**
+     * Build GetUser request XML (the authenticated seller's own account).
+     */
+    public static function getUser(): string
+    {
+        return '<?xml version="1.0" encoding="utf-8"?>
+            <GetUserRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+                <ErrorLanguage>en_US</ErrorLanguage>
+            </GetUserRequest>';
+    }
+
+    /**
      * Build GetNotificationPreferences request XML for User level.
      */
     public static function getNotificationPreferences(): string

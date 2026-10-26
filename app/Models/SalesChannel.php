@@ -88,6 +88,50 @@ class SalesChannel extends Model
         );
     }
 
+    /*
+     * eBay keyset this channel's tokens belong to. Stores connected through
+     * "Login with eBay" use the shared app in config/services.php; values on
+     * the row only remain on channels connected before that, and are cleared
+     * by usesSharedEbayApp() when they are reconnected.
+     */
+    public function ebayClientId(): ?string
+    {
+        return $this->client_id ?: config('services.ebay.client_id');
+    }
+
+    public function ebayClientSecret(): ?string
+    {
+        return $this->client_secret ?: config('services.ebay.client_secret');
+    }
+
+    public function ebayDevId(): ?string
+    {
+        return $this->dev_id ?: config('services.ebay.dev_id');
+    }
+
+    public function ebayRuName(): ?string
+    {
+        return $this->ru_name ?: config('services.ebay.ru_name');
+    }
+
+    public function ebayScopes(): ?string
+    {
+        return $this->user_scopes ?: config('services.ebay.scopes');
+    }
+
+    /**
+     * Drop any per-channel keyset so the shared app's credentials apply.
+     */
+    public function usesSharedEbayApp(): static
+    {
+        $this->client_id = null;
+        $this->client_secret = null;
+        $this->user_scopes = null;
+        $this->provider_config = array_diff_key($this->provider_config ?? [], array_flip(['ru_name', 'dev_id'])) ?: null;
+
+        return $this;
+    }
+
     public function products()
     {
         return $this->belongsToMany(Product::class, 'sales_channel_product')

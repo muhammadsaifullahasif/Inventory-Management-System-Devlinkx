@@ -77,54 +77,17 @@
                         </div>
 
                         <div class="col-md-6 mb-3">
-                            <label for="client_id" class="form-label">Client ID (App ID) <span class="text-danger">*</span></label>
-                            <input type="text" name="client_id" id="client_id"
-                                   value="{{ old('client_id', $sales_channel->client_id) }}"
-                                   class="form-control @error('client_id') is-invalid @enderror" required>
-                            @error('client_id')
-                                <span class="invalid-feedback">{{ $message }}</span>
-                            @enderror
-                        </div>
-
-                        <div class="col-md-6 mb-3">
-                            <label for="client_secret" class="form-label">Client Secret (Cert ID) <span class="text-danger">*</span></label>
-                            <input type="password" name="client_secret" id="client_secret"
-                                   value="{{ old('client_secret', $sales_channel->client_secret) }}"
-                                   class="form-control @error('client_secret') is-invalid @enderror" required>
-                            @error('client_secret')
-                                <span class="invalid-feedback">{{ $message }}</span>
-                            @enderror
-                        </div>
-
-                        <div class="col-md-6 mb-3">
-                            <label for="ru_name" class="form-label">RuName <span class="text-danger">*</span></label>
-                            <input type="text" name="ru_name" id="ru_name"
-                                   value="{{ old('ru_name', $sales_channel->ru_name) }}"
-                                   class="form-control @error('ru_name') is-invalid @enderror" required>
-                            @error('ru_name')
-                                <span class="invalid-feedback">{{ $message }}</span>
-                            @enderror
-                            <small class="text-muted">RuName from eBay Developer Application</small>
-                        </div>
-
-                        <div class="col-md-6 mb-3">
-                            <label for="dev_id" class="form-label">Dev ID <span class="text-danger">*</span></label>
-                            <input type="text" name="dev_id" id="dev_id"
-                                   value="{{ old('dev_id', $sales_channel->dev_id) }}"
-                                   class="form-control @error('dev_id') is-invalid @enderror" required>
-                            @error('dev_id')
-                                <span class="invalid-feedback">{{ $message }}</span>
-                            @enderror
-                            <small class="text-muted">Dev ID from the same eBay keyset; used to verify webhook notifications</small>
+                            <label class="form-label">eBay Account</label>
+                            <input type="text" class="form-control" value="{{ $sales_channel->external_account_id ?? 'Not linked yet' }}" readonly>
+                            <small class="text-muted">Reconnect must be done while signed in to this eBay account</small>
                         </div>
 
                         <div class="col-md-12 mb-3">
-                            <label for="user_scopes" class="form-label">User Scopes <span class="text-danger">*</span></label>
-                            <textarea name="user_scopes" id="user_scopes" rows="3"
-                                      class="form-control @error('user_scopes') is-invalid @enderror" required>{{ old('user_scopes', $sales_channel->user_scopes) }}</textarea>
-                            @error('user_scopes')
-                                <span class="invalid-feedback">{{ $message }}</span>
-                            @enderror
+                            <label class="form-label">Webhook URL</label>
+                            <input type="text" class="form-control" value="{{ $sales_channel->webhook_url ?? 'Set automatically on connect' }}" readonly>
+                            @if($sales_channel->client_id)
+                                <small class="text-warning">This store still uses its own app credentials. Reconnect to move it onto the shared eBay app from .env.</small>
+                            @endif
                         </div>
                     </div>
                     <div class="d-flex gap-2">

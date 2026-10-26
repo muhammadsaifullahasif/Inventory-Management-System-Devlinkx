@@ -318,11 +318,13 @@ class EbayNotificationService
 
     /**
      * Get the webhook URL for notifications.
-     * Each sales channel has its own webhook URL with the channel ID.
+     * eBay keeps a single ApplicationURL per developer app, so every store on
+     * the shared keyset points at the same endpoint; handleEbayWebhook() routes
+     * each notification to its channel by RecipientUserID.
      */
     public function getWebhookUrl(SalesChannel $channel): string
     {
-        return rtrim(config('app.url'), '/') . '/api/ebay/webhook/' . $channel->id;
+        return rtrim(config('app.url'), '/') . '/api/ebay/webhook';
     }
 
     /**
@@ -367,9 +369,9 @@ class EbayNotificationService
             return false;
         }
 
-        $devId = $channel?->dev_id ?: config('services.ebay.dev_id');
-        $appId = $channel?->client_id ?: config('services.ebay.client_id');
-        $certId = $channel?->client_secret ?: config('services.ebay.client_secret');
+        $devId = $channel ? $channel->ebayDevId() : config('services.ebay.dev_id');
+        $appId = $channel ? $channel->ebayClientId() : config('services.ebay.client_id');
+        $certId = $channel ? $channel->ebayClientSecret() : config('services.ebay.client_secret');
 
         if (empty($devId) || empty($appId) || empty($certId)) {
             Log::channel('ebay')->error('eBay notification signature cannot be verified: DevID/AppID/CertID not configured (set EBAY_DEV_ID)', [

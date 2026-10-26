@@ -179,13 +179,13 @@ class EbayApiClient
             ->withOptions(['verify' => false])
             ->withHeaders([
                 'Content-Type' => 'application/x-www-form-urlencoded',
-                'Authorization' => 'Basic ' . base64_encode($salesChannel->client_id . ':' . $salesChannel->client_secret),
+                'Authorization' => 'Basic ' . base64_encode($salesChannel->ebayClientId() . ':' . $salesChannel->ebayClientSecret()),
             ])
             ->asForm()
             ->post(self::EBAY_TOKEN_URL, [
                 'grant_type' => 'refresh_token',
                 'refresh_token' => $salesChannel->refresh_token,
-                'scope' => $salesChannel->user_scopes,
+                'scope' => $salesChannel->ebayScopes(),
             ]);
 
         if ($response->failed()) {
@@ -200,45 +200,85 @@ class EbayApiClient
     }
 
     /**
-     * Exchange an authorization code for initial access + refresh tokens.
+     * Whether the shared eBay app keyset (config/services.php) is filled in.
      */
-    public function exchangeAuthorizationCode(SalesChannel $salesChannel, string $code): array
+    public function isAppConfigured(): bool
+    {
+        return filled(config('services.ebay.client_id'))
+            && filled(config('services.ebay.client_secret'))
+            && filled(config('services.ebay.ru_name'))
+            && filled(config('services.ebay.dev_id'));
+    }
+
+    /**
+     * Exchange an authorization code (from the shared app's consent page) for
+     * initial access + refresh tokens.
+     */
+    public function exchangeAuthorizationCode(string $code): array
     {
         $response = Http::timeout(60)
             ->connectTimeout(30)
-            ->withOptions(['verify' => false])
-            ->withHeaders([
-                'Content-Type' => 'application/x-www-form-urlencoded',
-                'Authorization' => 'Basic ' . base64_encode($salesChannel->client_id . ':' . $salesChannel->client_secret),
-            ])
             ->asForm()
-            ->post(self::EBAY_TOKEN_URL, [
+            ->withBasicAuth(config('services.ebay.client_id'), config('services.ebay.client_secret'))
+            ->post(config('services.ebay.token_url'), [
                 'grant_type' => 'authorization_code',
                 'code' => $code,
-                'redirect_uri' => $salesChannel->ru_name,
+                'redirect_uri' => config('services.ebay.ru_name'),
             ]);
 
-        if ($response->failed()) {
-            throw new Exception('eBay user token exchange failed: ' . $response->body());
+        if ($response->failed() || $response->json('error')) {
+            Log::error('eBay authorization code exchange failed', [
+                'status' => $response->status(),
+                'error' => $response->json('error'),
+                'error_description' => $response->json('error_description'),
+            ]);
+            throw new Exception($response->json('error_description') ?? $response->json('error') ?? 'Failed to retrieve eBay access token');
         }
 
         return $response->json();
     }
 
     /**
-     * Generate the OAuth authorization URL for user consent.
+     * Consent URL for the shared app. prompt=login makes eBay ask for the
+     * seller's sign-in even when the browser is already logged into another
+     * store, so each store can be connected in turn.
+     * eBay needs spaces in scopes as %20, hence RFC 3986 encoding.
      */
-    public function getAuthorizationUrl(SalesChannel $salesChannel, ?string $state = null): string
+    public function getAuthorizationUrl(string $state): string
     {
-        $state = $state ?? bin2hex(random_bytes(16));
-
-        return 'https://auth.ebay.com/oauth2/authorize?' . http_build_query([
-            'client_id' => $salesChannel->client_id,
-            'redirect_uri' => $salesChannel->ru_name,
+        return config('services.ebay.auth_url') . '?' . http_build_query([
+            'client_id' => config('services.ebay.client_id'),
+            'redirect_uri' => config('services.ebay.ru_name'),
             'response_type' => 'code',
-            'scope' => $salesChannel->user_scopes,
+            'scope' => preg_replace('/\s+/', ' ', trim(config('services.ebay.scopes'))),
             'state' => $state,
-        ]);
+            'prompt' => 'login',
+        ], '', '&', PHP_QUERY_RFC3986);
+    }
+
+    /**
+     * eBay UserID (seller username) that an access token belongs to.
+     */
+    public function getUserId(string $accessToken): ?string
+    {
+        $response = Http::timeout(60)
+            ->withHeaders([
+                'X-EBAY-API-SITEID' => self::API_SITE_ID,
+                'X-EBAY-API-COMPATIBILITY-LEVEL' => self::API_COMPATIBILITY_LEVEL,
+                'X-EBAY-API-CALL-NAME' => 'GetUser',
+                'X-EBAY-API-IAF-TOKEN' => $accessToken,
+                'Content-Type' => 'text/xml',
+            ])
+            ->withBody(EbayXmlBuilder::getUser(), 'text/xml')
+            ->post(self::EBAY_API_URL);
+
+        if ($response->failed()) {
+            throw new Exception('eBay GetUser failed: ' . $response->body());
+        }
+
+        $userId = $this->xmlToArray($response->body())['User']['UserID'] ?? null;
+
+        return is_string($userId) && $userId !== '' ? $userId : null;
     }
 
     // =========================================

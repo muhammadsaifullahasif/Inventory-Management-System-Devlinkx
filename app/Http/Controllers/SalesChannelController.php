@@ -4,8 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\SalesChannel;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use App\Services\Ebay\EbayNotificationService;
 use App\Services\Ebay\EbayApiClient;
 use App\Services\SalesChannelAccountService;
@@ -15,11 +16,13 @@ class SalesChannelController extends Controller
 {
     protected EbayNotificationService $notificationService;
     protected SalesChannelAccountService $accountService;
+    protected EbayApiClient $apiClient;
 
-    public function __construct(EbayNotificationService $notificationService, SalesChannelAccountService $accountService)
+    public function __construct(EbayNotificationService $notificationService, SalesChannelAccountService $accountService, EbayApiClient $apiClient)
     {
         $this->notificationService = $notificationService;
         $this->accountService = $accountService;
+        $this->apiClient = $apiClient;
         $this->middleware(PermissionMiddleware::using('view sales-channels'), ['only' => ['index', 'show', 'checkNotificationStatus']]);
         $this->middleware(PermissionMiddleware::using('add sales-channels'), ['only' => ['create', 'store']]);
         $this->middleware(PermissionMiddleware::using('edit sales-channels'), ['only' => ['edit', 'update', 'resubscribeNotifications', 'disableNotifications']]);
@@ -85,134 +88,120 @@ class SalesChannelController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
-            'client_id' => 'required|string',
-            'client_secret' => 'required|string',
-            'ru_name' => 'required|string',
-            'dev_id' => 'required|string',
-            'user_scopes' => 'required|string',
+            'name' => 'nullable|string|max:255',
         ]);
 
-        try {
-            // Store sales channel with credentials from form
-            $sales_channel = new SalesChannel();
-            $sales_channel->name = $request->input('name');
-            $sales_channel->client_id = $request->input('client_id');
-            $sales_channel->client_secret = $request->input('client_secret');
-            $sales_channel->ru_name = $request->input('ru_name');
-            $sales_channel->dev_id = $request->input('dev_id');
-            $sales_channel->user_scopes = $request->input('user_scopes');
-            $sales_channel->save();
-
-            // Create accounting accounts for this sales channel
-            $this->accountService->createAccountsForChannel($sales_channel);
-
-            session(['sales_channel_id' => $sales_channel->id]);
-
-            return redirect($this->buildEbayAuthUrl($sales_channel));
-        } catch (\Exception $e) {
-            Log::error('Failed to create sales channel', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return back()->withErrors(['error' => 'An error occurred while creating the sales channel: ' . $e->getMessage()])->withInput();
-        }
+        return $this->redirectToEbayLogin($request->input('name'));
     }
 
     /**
-     * Build eBay OAuth authorization URL with proper encoding.
-     * eBay requires spaces in scopes to be %20, not + signs.
+     * Send the user to eBay's sign-in/consent page for the shared developer app.
+     * The channel itself is only created (or matched) once eBay sends the
+     * seller back, so an abandoned login leaves nothing behind.
      */
-    protected function buildEbayAuthUrl(SalesChannel $salesChannel): string
+    protected function redirectToEbayLogin(?string $name = null, ?SalesChannel $reconnect = null)
     {
-        // Clean up scopes - remove any extra whitespace and ensure single spaces
-        $scopes = preg_replace('/\s+/', ' ', trim($salesChannel->user_scopes));
+        if (!$this->apiClient->isAppConfigured()) {
+            return back()->withErrors(['error' => 'eBay app credentials are not configured. Set EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_RU_NAME and EBAY_DEV_ID in .env.'])->withInput();
+        }
 
-        $url = env('EBAY_AUTH_URL')
-            . '?client_id=' . rawurlencode($salesChannel->client_id)
-            . '&response_type=code'
-            . '&redirect_uri=' . rawurlencode($salesChannel->ru_name)
-            . '&scope=' . rawurlencode($scopes);
+        $state = Str::random(40);
 
-        return $url;
+        session(['ebay_oauth' => [
+            'state' => $state,
+            'name' => $name,
+            'sales_channel_id' => $reconnect?->id,
+        ]]);
+
+        return redirect()->away($this->apiClient->getAuthorizationUrl($state));
     }
 
     public function ebay_callback(Request $request)
     {
+        $oauth = session()->pull('ebay_oauth');
+
         try {
-            $code = request('code');
+            if (!$oauth || !hash_equals($oauth['state'], (string) $request->query('state'))) {
+                throw new \Exception('Login session expired or did not match. Please try connecting again.');
+            }
 
+            $code = $request->query('code');
             if (!$code) {
-                // Check for error response from eBay
-                $error = request('error');
-                $errorDescription = request('error_description');
-                Log::error('eBay callback: No authorization code received', [
-                    'error' => $error,
-                    'error_description' => $errorDescription,
+                $error = $request->query('error_description') ?? $request->query('error') ?? 'No code received';
+                Log::warning('eBay callback: No authorization code received', ['error' => $error]);
+                throw new \Exception('Authorization failed: ' . $error);
+            }
+
+            $tokens = $this->apiClient->exchangeAuthorizationCode($code);
+
+            $ebayUserId = $this->apiClient->getUserId($tokens['access_token']);
+            if (!$ebayUserId) {
+                throw new \Exception('Could not identify the eBay account that signed in.');
+            }
+
+            $reconnect = $oauth['sales_channel_id'] ? SalesChannel::findOrFail($oauth['sales_channel_id']) : null;
+            $existing = $this->findChannelForEbayUser($ebayUserId);
+
+            if ($reconnect && $reconnect->external_account_id && $reconnect->external_account_id !== $ebayUserId) {
+                throw new \Exception("You signed in to eBay as \"{$ebayUserId}\", but \"{$reconnect->name}\" is connected to \"{$reconnect->external_account_id}\". Sign in with that account instead.");
+            }
+            if ($reconnect && $existing && !$existing->is($reconnect)) {
+                throw new \Exception("The eBay account \"{$ebayUserId}\" is already connected as \"{$existing->name}\".");
+            }
+
+            $salesChannel = $reconnect ?? $existing;
+            $isNew = !$salesChannel;
+
+            DB::transaction(function () use (&$salesChannel, $isNew, $oauth, $ebayUserId, $code, $tokens) {
+                $salesChannel ??= new SalesChannel([
+                    'name' => $oauth['name'] ?: $ebayUserId,
+                    'type' => 'ebay',
                 ]);
-                throw new \Exception('Authorization failed: ' . ($errorDescription ?? $error ?? 'No code received'));
-            }
 
-            $sales_channel_id = session('sales_channel_id');
-            if (!$sales_channel_id) {
-                Log::error('eBay callback: No sales_channel_id in session');
-                throw new \Exception('Session expired. Please try connecting again.');
-            }
+                $salesChannel->usesSharedEbayApp();
+                $salesChannel->external_account_id = $ebayUserId;
+                $salesChannel->external_account_ids = array_values(array_unique([...($salesChannel->external_account_ids ?? []), $ebayUserId]));
+                $salesChannel->authorization_code = $code;
+                $salesChannel->access_token = $tokens['access_token'];
+                $salesChannel->access_token_expires_at = now()->addSeconds($tokens['expires_in']);
+                $salesChannel->refresh_token = $tokens['refresh_token'];
+                $salesChannel->refresh_token_expires_at = now()->addSeconds($tokens['refresh_token_expires_in']);
+                $salesChannel->save();
 
-            $sales_channel = SalesChannel::find($sales_channel_id);
-            if (!$sales_channel) {
-                Log::error('eBay callback: Sales channel not found', ['id' => $sales_channel_id]);
-                throw new \Exception('Sales channel not found.');
-            }
+                if ($isNew) {
+                    $this->accountService->createAccountsForChannel($salesChannel);
+                }
+            });
 
-            $response = Http::asForm()
-                ->withBasicAuth($sales_channel->client_id, $sales_channel->client_secret)
-                ->post(env('EBAY_TOKEN_URL'), [
-                    'grant_type'   => 'authorization_code',
-                    'code'         => $code,
-                    'redirect_uri' => $sales_channel->ru_name,
-                ]);
+            $notificationResult = $this->subscribeToEbayNotifications($salesChannel);
 
-            $response_data = $response->json();
-
-            if ($response->failed() || isset($response_data['error'])) {
-                Log::error('eBay callback error', [
-                    'status' => $response->status(),
-                    'error' => $response_data['error'] ?? null,
-                    'error_description' => $response_data['error_description'] ?? null,
-                    'body' => $response->body(),
-                ]);
-                $errorMsg = $response_data['error_description'] ?? $response_data['error'] ?? 'Failed to retrieve eBay access token';
-                throw new \Exception($errorMsg);
-            }
-
-            $sales_channel->authorization_code = $code;
-            $sales_channel->access_token = $response_data['access_token'];
-            $sales_channel->access_token_expires_at = now()->addSeconds($response_data['expires_in']);
-            $sales_channel->refresh_token = $response_data['refresh_token'];
-            $sales_channel->refresh_token_expires_at = now()->addSeconds($response_data['refresh_token_expires_in']);
-            $sales_channel->save();
-
-            // Fetch and store the eBay UserID for this account
-            $this->fetchAndStoreEbayUserId($sales_channel);
-
-            // Subscribe to eBay notifications for orders
-            $notificationResult = $this->subscribeToEbayNotifications($sales_channel);
-
-            $message = 'Sales Channel created or updated successfully.';
+            $message = $isNew
+                ? "eBay store \"{$salesChannel->name}\" ({$ebayUserId}) connected."
+                : "eBay store \"{$salesChannel->name}\" ({$ebayUserId}) reconnected.";
             if ($notificationResult['success']) {
-                $message .= ' Order notifications enabled.';
+                $message .= ' Notifications enabled.';
             } else {
                 $message .= ' Warning: Could not enable notifications - ' . ($notificationResult['error'] ?? 'Unknown error');
             }
 
             return redirect()->route('sales-channels.index')->with('success', $message);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return redirect()->route('sales-channels.index')->with('error', 'Authorization code is missing or invalid.');
         } catch (\Exception $e) {
             Log::error('eBay callback error', ['error' => $e->getMessage()]);
             return redirect()->route('sales-channels.index')->with('error', 'Error during authorization: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * eBay channel already linked to this seller account, if any.
+     */
+    protected function findChannelForEbayUser(string $ebayUserId): ?SalesChannel
+    {
+        return SalesChannel::where('type', 'ebay')
+            ->where(function ($query) use ($ebayUserId) {
+                $query->where('external_account_id', $ebayUserId)
+                    ->orWhereJsonContains('external_account_ids', $ebayUserId);
+            })
+            ->first();
     }
 
     /**
@@ -233,47 +222,6 @@ class SalesChannelController extends Controller
             ]);
 
             return ['success' => false, 'error' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * Fetch and store the eBay UserID for the sales channel
-     * This is used to identify which sales channel incoming webhooks belong to
-     */
-    protected function fetchAndStoreEbayUserId(SalesChannel $salesChannel): void
-    {
-        try {
-            $xml = '<?xml version="1.0" encoding="utf-8"?>
-                <GetUserRequest xmlns="urn:ebay:apis:eBLBaseComponents">
-                    <ErrorLanguage>en_US</ErrorLanguage>
-                </GetUserRequest>';
-
-            $response = Http::timeout(60)
-                ->withHeaders([
-                    'X-EBAY-API-SITEID' => EbayApiClient::API_SITE_ID,
-                    'X-EBAY-API-COMPATIBILITY-LEVEL' => EbayApiClient::API_COMPATIBILITY_LEVEL,
-                    'X-EBAY-API-CALL-NAME' => 'GetUser',
-                    'X-EBAY-API-IAF-TOKEN' => $salesChannel->access_token,
-                    'Content-Type' => 'text/xml',
-                ])
-                ->withBody($xml, 'text/xml')
-                ->post('https://api.ebay.com/ws/api.dll');
-
-            if ($response->successful()) {
-                $xmlResponse = simplexml_load_string($response->body());
-                $userId = (string) ($xmlResponse->User->UserID ?? '');
-
-                if (!empty($userId)) {
-                    $salesChannel->external_account_id = $userId;
-                    $salesChannel->save();
-                }
-            }
-        } catch (\Exception $e) {
-            Log::warning('Failed to fetch eBay UserID', [
-                'sales_channel_id' => $salesChannel->id,
-                'error' => $e->getMessage(),
-            ]);
-            // Don't throw - this is not critical for the OAuth flow
         }
     }
 
@@ -397,30 +345,17 @@ class SalesChannelController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'client_id' => 'required|string',
-            'client_secret' => 'required|string',
-            'ru_name' => 'required|string',
-            'dev_id' => 'required|string',
-            'user_scopes' => 'required|string',
         ]);
 
         try {
             $sales_channel = SalesChannel::findOrFail($id);
             $sales_channel->name = $request->input('name');
-            $sales_channel->client_id = $request->input('client_id');
-            $sales_channel->client_secret = $request->input('client_secret');
-            $sales_channel->ru_name = $request->input('ru_name');
-            $sales_channel->dev_id = $request->input('dev_id');
-            $sales_channel->user_scopes = $request->input('user_scopes');
+            $sales_channel->save();
 
-            // If reconnecting, redirect to eBay OAuth
             if ($request->has('reconnect')) {
-                $sales_channel->save();
-                session(['sales_channel_id' => $sales_channel->id]);
-                return redirect($this->buildEbayAuthUrl($sales_channel));
+                return $this->redirectToEbayLogin(reconnect: $sales_channel);
             }
 
-            $sales_channel->save();
             return redirect()->route('sales-channels.index')->with('success', 'Sales Channel updated successfully.');
         } catch (\Exception $e) {
             Log::error('Failed to update sales channel', [

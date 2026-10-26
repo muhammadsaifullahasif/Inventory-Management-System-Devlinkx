@@ -65,12 +65,8 @@ class UpdateEbayOrderStatusJob implements ShouldQueue
 
         try {
             // Get all active eBay sales channels
-            // SalesChannel uses active_status column and isEbay() checks for client_id/client_secret
             $salesChannels = SalesChannel::where('active_status', 1)
-                ->whereNotNull('client_id')
-                ->whereNotNull('client_secret')
-                ->where('client_id', '!=', '')
-                ->where('client_secret', '!=', '')
+                ->where('type', 'ebay')
                 ->get();
 
             if ($salesChannels->isEmpty()) {

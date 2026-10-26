@@ -36,7 +36,9 @@
             <div class="card-body">
                 <div class="alert alert-info mb-4">
                     <i class="feather-info me-2"></i>
-                    Click the button below to connect your eBay store. You will be redirected to eBay to authorize access.
+                    You will be sent to eBay to sign in. Sign in with the eBay account of the store you want to connect;
+                    tokens, notifications and the webhook are set up automatically when you return.
+                    To connect another store, repeat this and sign in with that store's account.
                 </div>
 
                 @if ($errors->any())
@@ -53,74 +55,19 @@
                     @csrf
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="name" class="form-label">Store Name <span class="text-danger">*</span></label>
+                            <label for="name" class="form-label">Store Name</label>
                             <input type="text" name="name" id="name" value="{{ old('name') }}"
                                    class="form-control @error('name') is-invalid @enderror"
-                                   placeholder="e.g., My eBay Store" required>
+                                   placeholder="e.g., My eBay Store">
                             @error('name')
                                 <span class="invalid-feedback">{{ $message }}</span>
                             @enderror
-                            <small class="text-muted">Enter a friendly name to identify this eBay store</small>
-                        </div>
-
-                        <div class="col-md-6 mb-3">
-                            <label for="client_id" class="form-label">Client ID (App ID) <span class="text-danger">*</span></label>
-                            <input type="text" name="client_id" id="client_id" value="{{ old('client_id') }}"
-                                   class="form-control @error('client_id') is-invalid @enderror"
-                                   placeholder="Enter your eBay App ID" required>
-                            @error('client_id')
-                                <span class="invalid-feedback">{{ $message }}</span>
-                            @enderror
-                            <small class="text-muted">From your eBay Developer Application</small>
-                        </div>
-
-                        <div class="col-md-6 mb-3">
-                            <label for="client_secret" class="form-label">Client Secret (Cert ID) <span class="text-danger">*</span></label>
-                            <input type="password" name="client_secret" id="client_secret" value="{{ old('client_secret') }}"
-                                   class="form-control @error('client_secret') is-invalid @enderror"
-                                   placeholder="Enter your eBay Cert ID" required>
-                            @error('client_secret')
-                                <span class="invalid-feedback">{{ $message }}</span>
-                            @enderror
-                            <small class="text-muted">Keep this secret secure</small>
-                        </div>
-
-                        <div class="col-md-6 mb-3">
-                            <label for="ru_name" class="form-label">RuName <span class="text-danger">*</span></label>
-                            <input type="text" name="ru_name" id="ru_name" value="{{ old('ru_name') }}"
-                                   class="form-control @error('ru_name') is-invalid @enderror"
-                                   placeholder="e.g., YourName-YourApp-Production-xyz" required>
-                            @error('ru_name')
-                                <span class="invalid-feedback">{{ $message }}</span>
-                            @enderror
-                            <small class="text-muted">RuName from your eBay Developer Application (e.g., Haroon_Naseem-HaroonNa-sigma--mwiqy)</small>
-                        </div>
-
-                        <div class="col-md-6 mb-3">
-                            <label for="dev_id" class="form-label">Dev ID <span class="text-danger">*</span></label>
-                            <input type="text" name="dev_id" id="dev_id" value="{{ old('dev_id') }}"
-                                   class="form-control @error('dev_id') is-invalid @enderror"
-                                   placeholder="e.g., 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d" required>
-                            @error('dev_id')
-                                <span class="invalid-feedback">{{ $message }}</span>
-                            @enderror
-                            <small class="text-muted">Dev ID from the same eBay keyset as the Client ID; used to verify webhook notifications</small>
-                        </div>
-
-                        <div class="col-md-12 mb-3">
-                            <label for="user_scopes" class="form-label">User Scopes <span class="text-danger">*</span></label>
-                            <textarea name="user_scopes" id="user_scopes" rows="3"
-                                      class="form-control @error('user_scopes') is-invalid @enderror"
-                                      placeholder="Enter eBay API scopes (space-separated)" required>{{ old('user_scopes', 'https://api.ebay.com/oauth/api_scope https://api.ebay.com/oauth/api_scope/sell.marketing.readonly https://api.ebay.com/oauth/api_scope/sell.marketing https://api.ebay.com/oauth/api_scope/sell.inventory.readonly https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account.readonly https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly https://api.ebay.com/oauth/api_scope/sell.fulfillment https://api.ebay.com/oauth/api_scope/sell.analytics.readonly https://api.ebay.com/oauth/api_scope/sell.finances https://api.ebay.com/oauth/api_scope/sell.payment.dispute https://api.ebay.com/oauth/api_scope/commerce.identity.readonly https://api.ebay.com/oauth/api_scope/commerce.notification.subscription https://api.ebay.com/oauth/api_scope/commerce.notification.subscription.readonly https://api.ebay.com/oauth/api_scope/sell.stores https://api.ebay.com/oauth/api_scope/sell.stores.readonly') }}</textarea>
-                            @error('user_scopes')
-                                <span class="invalid-feedback">{{ $message }}</span>
-                            @enderror
-                            <small class="text-muted">Space-separated list of OAuth scopes</small>
+                            <small class="text-muted">Optional; defaults to the eBay username you sign in with</small>
                         </div>
                     </div>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary">
-                            <i class="feather-link me-2"></i>Connect with eBay
+                            <i class="feather-log-in me-2"></i>Login with eBay
                         </button>
                         <a href="{{ route('sales-channels.index') }}" class="btn btn-light-brand">Cancel</a>
                     </div>
