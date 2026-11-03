@@ -840,12 +840,42 @@ class InventoryAccountingService
             $totalValue += $qty * $cost;
         }
 
-        if ($totalQty <= 0) {
-            // Fallback to last purchase cost when no stock available
-            return $this->getLastPurchaseCost($productId);
+        $avgCost = $totalQty > 0 ? round($totalValue / $totalQty, 4) : 0;
+
+        if ($avgCost <= 0) {
+            // No stock on hand, OR stock on hand whose avg_cost was never set (0).
+            // Either way a sale must not be costed at 0 when purchase history exists.
+            return $this->getFallbackCost($productId);
         }
 
-        return round($totalValue / $totalQty, 4);
+        return $avgCost;
+    }
+
+    /**
+     * Best available cost when product_stocks.avg_cost cannot be trusted:
+     * lifetime purchase-weighted average, else the last purchase price, else 0.
+     */
+    public function getFallbackCost(int $productId): float
+    {
+        $purchaseItems = PurchaseItem::where('product_id', $productId)
+            ->whereHas('purchase', function ($q) {
+                $q->whereIn('purchase_status', ['received', 'partial']);
+            })
+            ->where('received_quantity', '>', 0)
+            ->get();
+
+        $receivedQty = (float) $purchaseItems->sum('received_quantity');
+
+        if ($receivedQty > 0) {
+            $value = (float) $purchaseItems->sum(fn ($pi) => (float) $pi->received_quantity * (float) $pi->price);
+            $average = round($value / $receivedQty, 4);
+
+            if ($average > 0) {
+                return $average;
+            }
+        }
+
+        return $this->getLastPurchaseCost($productId);
     }
 
     /**

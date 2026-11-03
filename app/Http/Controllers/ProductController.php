@@ -1276,6 +1276,7 @@ class ProductController extends Controller
             'rack.*' => 'required|exists:racks,id', 
             'quantity' => 'required|array',
             'quantity.*' => 'required|numeric|min:0',
+            'unit_cost' => 'nullable|numeric|min:0',
         ]);
 
         try {
@@ -1285,11 +1286,21 @@ class ProductController extends Controller
             $auditLogger = app(\App\Services\AuditLogger::class);
             $affected = [];
 
+            // Cost tracking: stock added here has no purchase behind it, so it needs
+            // a unit cost or it would enter inventory at 0 and poison COGS on every
+            // later sale. Snapshot qty/cost before any row changes.
+            $accounting = new \App\Services\InventoryAccountingService();
+            $qtyBefore = (float) $product->product_stocks()->sum('quantity');
+            $knownCost = $accounting->getCurrentAverageCost($product->id);
+            $addedQty = 0.0;
+
             foreach ($request->stock_id as $index => $stockId) {
                 $stock = $product->product_stocks()->find($stockId);
                 if ($stock) {
                     $quantityBefore = $stock->quantity;
                     $rackBefore = $stock->rack_id;
+
+                    $addedQty += max(0, (float) $request->quantity[$index] - (float) $quantityBefore);
 
                     $stock->rack_id = $request->rack[$index];
                     $stock->quantity = $request->quantity[$index];
@@ -1308,6 +1319,28 @@ class ProductController extends Controller
                         'rack_after' => $stock->rack_id,
                     ];
                 }
+            }
+
+            if ($addedQty > 0) {
+                $unitCost = (float) $request->input('unit_cost', 0);
+
+                if ($knownCost <= 0 && $unitCost <= 0) {
+                    DB::rollBack();
+                    return redirect()->back()
+                        ->withInput()
+                        ->with('error', 'Unit cost is required when adding stock to a product that has no recorded cost. Enter the cost per unit for the added quantity.');
+                }
+
+                // Weighted average of existing stock (at its known cost) and the added units.
+                if ($unitCost > 0) {
+                    $newAvgCost = $knownCost > 0
+                        ? round((($qtyBefore * $knownCost) + ($addedQty * $unitCost)) / ($qtyBefore + $addedQty), 4)
+                        : $unitCost;
+                } else {
+                    $newAvgCost = $knownCost;
+                }
+
+                $accounting->updateProductStockCost($product->id, $newAvgCost);
             }
 
             if (!empty($affected)) {

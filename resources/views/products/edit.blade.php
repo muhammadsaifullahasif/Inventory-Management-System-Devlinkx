@@ -431,6 +431,14 @@
                                 </tfoot>
                             </table>
                         </div>
+                        <div class="mt-3 mb-3" style="max-width: 320px;">
+                            <label for="stock_unit_cost" class="form-label fs-12">Unit Cost for added quantity
+                                @if (($stockCostMissing ?? false))<span class="text-danger">*</span>@endif
+                            </label>
+                            <input type="number" step="0.0001" min="0" name="unit_cost" id="stock_unit_cost"
+                                   value="{{ old('unit_cost') }}" class="form-control form-control-sm" placeholder="Cost per unit">
+                            <small class="text-muted">Required only when increasing quantity on a product with no recorded cost. Stock is normally added through purchases.</small>
+                        </div>
                         <div class="mt-3">
                             <button type="submit" class="btn btn-success">
                                 <i class="feather-refresh-cw me-2"></i>Update Stock & Sync to Sales Channels
