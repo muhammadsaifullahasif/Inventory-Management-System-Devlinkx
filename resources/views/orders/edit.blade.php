@@ -106,6 +106,72 @@
                     </div>
                 </div>
             </div>
+
+            @if($matchSku !== '')
+                <!-- Other orders with the same unmatched SKU -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title">
+                            <i class="feather-layers me-2"></i>Other Orders with SKU <code>{{ $matchSku }}</code>
+                            <span class="badge bg-soft-danger text-danger ms-2">{{ $otherItems->count() }}</span>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        @if($otherItems->isEmpty())
+                            <p class="text-muted mb-0">No other orders have this SKU unmatched.</p>
+                        @else
+                            <div class="d-flex align-items-center gap-2 mb-3">
+                                <select id="applyAllProduct" class="form-select">
+                                    <option value="">-- Pick a product to apply to all rows --</option>
+                                    @foreach($products as $product)
+                                        <option value="{{ $product->id }}">{{ $product->name }} ({{ $product->sku }})</option>
+                                    @endforeach
+                                </select>
+                                <button type="button" id="applyAllBtn" class="btn btn-light-brand text-nowrap">Apply to all</button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Order #</th>
+                                            <th>Channel</th>
+                                            <th>Date</th>
+                                            <th>Item</th>
+                                            <th class="text-center">Qty</th>
+                                            <th style="min-width: 260px;">Matched Product</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($otherItems as $other)
+                                            <tr>
+                                                <td>
+                                                    @if($other->order)
+                                                        <a href="{{ route('orders.show', $other->order_id) }}" target="_blank">{{ $other->order->order_number }}</a>
+                                                    @else
+                                                        -
+                                                    @endif
+                                                </td>
+                                                <td>{{ $other->order->salesChannel->name ?? '-' }}</td>
+                                                <td>{{ optional($other->order->order_date ?? null)->format('M d, Y') ?? '-' }}</td>
+                                                <td>{{ \Illuminate\Support\Str::limit($other->title, 40) }}</td>
+                                                <td class="text-center">{{ $other->quantity }}</td>
+                                                <td>
+                                                    <select class="form-select other-item-product-select" data-item-id="{{ $other->id }}">
+                                                        <option value="">-- Not matched --</option>
+                                                        @foreach($products as $product)
+                                                            <option value="{{ $product->id }}">{{ $product->name }} ({{ $product->sku }})</option>
+                                                        @endforeach
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            @endif
         </div>
 
         <div class="col-md-4">
@@ -170,9 +236,33 @@
                 theme: 'bootstrap-5'
             });
 
+            $('.other-item-product-select, #applyAllProduct').select2({
+                placeholder: 'Search and select a product...',
+                allowClear: true,
+                width: '100%',
+                theme: 'bootstrap-5'
+            });
+
+            // Apply one product to this order's items with the SKU and all the other orders listed
+            $('#applyAllBtn').on('click', function() {
+                var productId = $('#applyAllProduct').val();
+                if (!productId) { return; }
+                $('.other-item-product-select').val(productId).trigger('change');
+                $('.item-product-select').each(function() {
+                    if (!$(this).val()) { $(this).val(productId).trigger('change'); }
+                });
+            });
+
             $('#saveOrderBtn').on('click', function() {
                 var $btn = $(this);
                 var items = [];
+                var otherItems = [];
+
+                $('.other-item-product-select').each(function() {
+                    if ($(this).val()) {
+                        otherItems.push({ id: $(this).data('item-id'), product_id: $(this).val() });
+                    }
+                });
 
                 $('.item-product-select').each(function() {
                     items.push({
@@ -191,6 +281,7 @@
                     tracking_number: $('#tracking_number').val(),
                     items: items
                 };
+                if (otherItems.length) { payload.other_items = otherItems; }
 
                 $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Saving...');
 

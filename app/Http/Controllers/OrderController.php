@@ -328,7 +328,7 @@ class OrderController extends Controller
     /**
      * Show the form for editing the specified order (for web views)
      */
-    public function edit(string $id)
+    public function edit(Request $request, string $id)
     {
         $order = Order::with(['items.product', 'salesChannel'])->findOrFail($id);
         $salesChannels = SalesChannel::all();
@@ -336,7 +336,20 @@ class OrderController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'sku']);
 
-        return view('orders.edit', compact('order', 'salesChannels', 'products'));
+        // Coming from the Unmatched SKUs page: also list every other order that
+        // has this same unmatched SKU, so they can all be matched in one go.
+        $matchSku = trim((string) $request->query('sku', ''));
+        $otherItems = collect();
+        if ($matchSku !== '') {
+            $otherItems = OrderItem::with('order.salesChannel')
+                ->whereNull('product_id')
+                ->where('sku', $matchSku)
+                ->where('order_id', '!=', $order->id)
+                ->orderByDesc('id')
+                ->get();
+        }
+
+        return view('orders.edit', compact('order', 'salesChannels', 'products', 'matchSku', 'otherItems'));
     }
 
     /**
@@ -362,10 +375,14 @@ class OrderController extends Controller
             'items' => 'nullable|array',
             'items.*.id' => 'required_with:items|integer|exists:order_items,id',
             'items.*.product_id' => 'nullable|integer|exists:products,id',
+            'other_items' => 'nullable|array',
+            'other_items.*.id' => 'required_with:other_items|integer|exists:order_items,id',
+            'other_items.*.product_id' => 'nullable|integer|exists:products,id',
         ]);
 
         $itemUpdates = $validated['items'] ?? [];
-        unset($validated['items']);
+        $otherItemUpdates = $validated['other_items'] ?? [];
+        unset($validated['items'], $validated['other_items']);
 
         try {
             // Track status changes
@@ -405,6 +422,31 @@ class OrderController extends Controller
                     if ($item->updateInventory()) {
                         $recordedCount++;
                     }
+                }
+            }
+
+            // Same-SKU unmatched items from OTHER orders (only still-unmatched ones may be changed here).
+            foreach ($otherItemUpdates as $itemUpdate) {
+                $newProductId = $itemUpdate['product_id'] ?? null;
+                if (!$newProductId) {
+                    continue;
+                }
+
+                /** @var OrderItem|null $item */
+                $item = OrderItem::where('id', $itemUpdate['id'])->whereNull('product_id')->first();
+                if (!$item) {
+                    continue;
+                }
+
+                $product = Product::find($newProductId);
+                $item->product_id = $newProductId;
+                if ($product && $product->sku) {
+                    $item->sku = $product->sku;
+                }
+                $item->save();
+
+                if (!$item->inventory_updated && $item->updateInventory()) {
+                    $recordedCount++;
                 }
             }
 
@@ -1093,7 +1135,7 @@ class OrderController extends Controller
             ->whereNotNull('order_items.sku')
             ->where('order_items.sku', '!=', '')
             ->whereIn('order_items.id', function ($sub) {
-                $sub->selectRaw('MIN(id)')
+                $sub->selectRaw('MAX(id)')
                     ->from('order_items')
                     ->whereNull('product_id')
                     ->whereNotNull('sku')
