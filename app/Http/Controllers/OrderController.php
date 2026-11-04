@@ -50,7 +50,10 @@ class OrderController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Order::with(['items', 'salesChannel']);
+        $query = Order::with(['items', 'salesChannel'])
+            ->withSum(['items as total_cost' => function ($query) {
+                $query->where('is_bundle_summary', 0);
+            }], 'cost_at_sale');
 
         // Filter by sales channel
         if ($request->filled('sales_channel_id')) {

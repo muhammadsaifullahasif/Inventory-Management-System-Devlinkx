@@ -160,6 +160,7 @@
                             ['key' => 'customer', 'label' => 'Customer', 'default' => true],
                             ['key' => 'items', 'label' => 'Items', 'default' => true],
                             ['key' => 'total', 'label' => 'Total', 'default' => true],
+                            ['key' => 'cost', 'label' => 'Cost', 'default' => false],
                             ['key' => 'status', 'label' => 'Status', 'default' => true],
                             ['key' => 'address_type', 'label' => 'Address Type', 'default' => false],
                             ['key' => 'order_date', 'label' => 'Order Date', 'default' => true],
@@ -205,6 +206,7 @@
                                         'customer' => ['label' => 'Customer', 'column' => 'buyer_name'],
                                         'items' => ['label' => 'Items', 'column' => null],
                                         'total' => ['label' => 'Total', 'column' => 'total'],
+                                        'cost' => ['label' => 'Cost', 'column' => 'cost'],
                                         'status' => ['label' => 'Status', 'column' => 'order_status'],
                                         'address_type' => ['label' => 'Address Type', 'column' => 'address_type'],
                                         'order_date' => ['label' => 'Order Date', 'column' => 'order_date'],
@@ -296,6 +298,9 @@
                                     </td>
                                     <td data-column="total">
                                         <span class="fw-semibold">{{ $order->currency ?? 'USD' }} {{ number_format($order->total, 2) }}</span>
+                                    </td>
+                                    <td data-column="cost">
+                                        <span class="fw-semibold">{{ $order->currency ?? 'USD' }} {{ number_format($order->total_cost, 2) }}</span>
                                     </td>
                                     <td data-column="status">
                                         @php
@@ -503,6 +508,7 @@
                                                             <th style="width: 300px;">Item Name</th>
                                                             <th style="width: 200px;">SKU</th>
                                                             <th style="width: 100px;" class="text-center">Qty</th>
+                                                            <th style="width: 150px;" class="text-end">Unit Cost</th>
                                                             <th style="width: 150px;" class="text-end">Unit Price</th>
                                                             <th style="width: 150px;" class="text-end">Total</th>
                                                         </tr>
@@ -541,6 +547,7 @@
                                                                         @endif
                                                                     </td>
                                                                     <td class="text-center fw-bold">{{ $item->quantity }}</td>
+                                                                    <td class="text-end fw-semibold">{{ $order->currency ?? 'USD' }} {{ number_format($item->cost_at_sale, 2) }}</td>
                                                                     <td class="text-end fw-semibold">{{ $order->currency ?? 'USD' }} {{ number_format($item->unit_price, 2) }}</td>
                                                                     <td class="text-end fw-bold">{{ $order->currency ?? 'USD' }} {{ number_format($item->total_price, 2) }}</td>
                                                                 </tr>
@@ -566,6 +573,7 @@
                                                                             @endif
                                                                         </td>
                                                                         <td class="text-center">{{ $component->quantity }}</td>
+                                                                        <td class="text-end text-muted">{{ $order->currency ?? 'USD' }} {{ number_format($component->cost_at_sale, 2) }}</td>
                                                                         <td class="text-end text-muted">-</td>
                                                                         <td class="text-end text-muted">-</td>
                                                                     </tr>
@@ -586,7 +594,7 @@
                                                                         @endif
                                                                     </td>
                                                                     <td>
-                                                                        <span style="white-space: normal; width: 300px; display: block;" class="fw-semibold">{{ \Illuminate\Support\Str::limit($item->title, 50) }}</span>
+                                                                        <span style="white-space: normal; width: 300px; display: block;" class="fw-semibold">{{ $item->title, 50 }}</span>
                                                                         @if ($item->channel_item_id)
                                                                             <span class="d-block fs-11 text-muted">{{ $item->channel_item_id }}</span>
                                                                         @endif
@@ -608,6 +616,7 @@
                                                                         @endif
                                                                     </td>
                                                                     <td class="text-center fw-semibold">{{ $item->quantity }}</td>
+                                                                    <td class="text-end fw-semibold">{{ $order->currency ?? 'USD' }} {{ number_format($item->cost_at_sale, 2) }}</td>
                                                                     <td class="text-end">{{ $order->currency ?? 'USD' }} {{ number_format($item->unit_price, 2) }}</td>
                                                                     <td class="text-end fw-semibold">{{ $order->currency ?? 'USD' }} {{ number_format($item->total_price, 2) }}</td>
                                                                 </tr>
@@ -627,6 +636,7 @@
                                                             <tr>
                                                                 <td colspan="3"></td>
                                                                 <td class="text-center fw-bold">{{ $footerItems->sum('quantity') }}</td>
+                                                                <td class="text-end"></td>
                                                                 <td class="text-end"></td>
                                                                 <td class="text-end fw-bold">{{ $order->currency ?? 'USD' }} {{ number_format($footerItems->sum('total_price'), 2) }}</td>
                                                             </tr>
