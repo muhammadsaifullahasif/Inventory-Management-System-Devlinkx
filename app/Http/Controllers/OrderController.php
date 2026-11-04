@@ -84,6 +84,13 @@ class OrderController extends Controller
             }
         }
 
+        // Filter by stock status at the time the order arrived
+        if ($request->stock_at_order === 'out_of_stock') {
+            $query->whereHas('items', fn ($q) => $q->where('was_out_of_stock', true));
+        } elseif ($request->stock_at_order === 'in_stock') {
+            $query->whereDoesntHave('items', fn ($q) => $q->where('was_out_of_stock', true));
+        }
+
         // Filter by date range
         if ($request->filled('date_from')) {
             $query->whereDate('order_date', '>=', $request->date_from);
@@ -1212,6 +1219,55 @@ class OrderController extends Controller
         ];
 
         return view('orders.unmatched-skus', compact('items', 'salesChannels', 'stats'));
+    }
+
+    /**
+     * List orders that contained at least one item that was out of stock when the order arrived.
+     */
+    public function outOfStockOrders(Request $request)
+    {
+        $query = Order::query()
+            ->with(['salesChannel', 'items' => fn ($q) => $q->where('was_out_of_stock', true)])
+            ->whereHas('items', fn ($q) => $q->where('was_out_of_stock', true));
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('order_number', 'like', "%{$search}%")
+                    ->orWhereHas('items', function ($iq) use ($search) {
+                        $iq->where('was_out_of_stock', true)
+                            ->where(function ($w) use ($search) {
+                                $w->where('sku', 'like', "%{$search}%")
+                                    ->orWhere('title', 'like', "%{$search}%");
+                            });
+                    });
+            });
+        }
+
+        if ($request->filled('sales_channel_id')) {
+            $query->where('sales_channel_id', $request->sales_channel_id);
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('order_date', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('order_date', '<=', $request->date_to);
+        }
+
+        $orders = $query->orderByDesc('order_date')
+            ->paginate($request->input('per_page', 20))
+            ->withQueryString();
+
+        $salesChannels = SalesChannel::all();
+
+        $stats = [
+            'total_orders' => Order::whereHas('items', fn ($q) => $q->where('was_out_of_stock', true))->count(),
+            'total_items' => OrderItem::where('was_out_of_stock', true)->count(),
+        ];
+
+        return view('orders.out-of-stock', compact('orders', 'salesChannels', 'stats'));
     }
 
     /**

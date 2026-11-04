@@ -110,6 +110,14 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
+                                <label class="form-label">Stock at Order Time</label>
+                                <select name="stock_at_order" class="form-select form-select-sm">
+                                    <option value="">All</option>
+                                    <option value="out_of_stock" {{ request('stock_at_order') == 'out_of_stock' ? 'selected' : '' }}>Out of Stock</option>
+                                    <option value="in_stock" {{ request('stock_at_order') == 'in_stock' ? 'selected' : '' }}>In Stock</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
                                 <label class="form-label">Ship By Deadline</label>
                                 <select name="shipment_deadline" class="form-select form-select-sm">
                                     <option value="">All</option>

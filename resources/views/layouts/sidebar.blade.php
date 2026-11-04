@@ -46,6 +46,9 @@
                             <li class="nxl-item {{ request()->routeIs('orders.unmatched-skus') ? 'active' : '' }}">
                                 <a class="nxl-link" href="{{ route('orders.unmatched-skus') }}">Unmatched SKUs</a>
                             </li>
+                            <li class="nxl-item {{ request()->routeIs('orders.out-of-stock') ? 'active' : '' }}">
+                                <a class="nxl-link" href="{{ route('orders.out-of-stock') }}">Out of Stock Orders</a>
+                            </li>
                             @endcan
                             {{-- <li class="nxl-item {{ request()->routeIs('reports.shipping-checklist') ? 'active' : '' }}">
                                 <a class="nxl-link" href="{{ route('reports.shipping-checklist') }}">Shipping Checklist</a>

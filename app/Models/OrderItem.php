@@ -40,6 +40,7 @@ class OrderItem extends Model
         'item_paid_time',
         'variation_attributes',
         'inventory_updated',
+        'was_out_of_stock',
         'cost_at_sale',
     ];
 
@@ -53,8 +54,23 @@ class OrderItem extends Model
         'cost_at_sale' => 'decimal:4',
         'item_paid_time' => 'datetime',
         'inventory_updated' => 'boolean',
+        'was_out_of_stock' => 'boolean',
         'is_bundle_summary' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        // Record whether system-wide stock could cover this line when the order arrived.
+        // Runs on create, before any inventory deduction, so it reflects stock on arrival.
+        static::creating(function (OrderItem $item) {
+            if ($item->was_out_of_stock || $item->is_bundle_summary || !$item->product_id) {
+                return;
+            }
+
+            $available = (float) ProductStock::where('product_id', $item->product_id)->sum('quantity');
+            $item->was_out_of_stock = $available < (float) $item->quantity;
+        });
+    }
 
     /**
      * Get the order this item belongs to
