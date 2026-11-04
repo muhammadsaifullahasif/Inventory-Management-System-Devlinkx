@@ -1251,22 +1251,29 @@ class OrderController extends Controller
     }
 
     /**
-     * List orders that contained at least one item that was out of stock when the order arrived.
+     * List order items that were out of stock when their order arrived.
      */
     public function outOfStockOrders(Request $request)
     {
-        $orders = $this->buildOutOfStockOrdersQuery($request)
+        $items = $this->buildOutOfStockItemsQuery($request)
             ->paginate($request->input('per_page', 20))
             ->withQueryString();
 
+        $this->attachLastPurchases($items->getCollection());
+
         $salesChannels = SalesChannel::all();
+
+        $shipments = DB::table('purchases')
+            ->where('delete_status', '0')
+            ->orderByDesc('id')
+            ->get(['id', 'purchase_number']);
 
         $stats = [
             'total_orders' => Order::whereHas('items', fn ($q) => $q->where('was_out_of_stock', true))->count(),
             'total_items' => OrderItem::where('was_out_of_stock', true)->count(),
         ];
 
-        return view('orders.out-of-stock', compact('orders', 'salesChannels', 'stats'));
+        return view('orders.out-of-stock', compact('items', 'salesChannels', 'shipments', 'stats'));
     }
 
     /**
@@ -1274,47 +1281,87 @@ class OrderController extends Controller
      */
     public function exportOutOfStockOrders(Request $request)
     {
-        $orders = $this->buildOutOfStockOrdersQuery($request)->get();
+        $items = $this->buildOutOfStockItemsQuery($request)->get();
+
+        $this->attachLastPurchases($items);
 
         return Excel::download(
-            new \App\Exports\OrdersExport($orders),
+            new \App\Exports\OutOfStockItemsExport($items),
             'out-of-stock-orders-' . now()->format('Y-m-d') . '.xlsx'
         );
     }
 
-    protected function buildOutOfStockOrdersQuery(Request $request)
+    protected function buildOutOfStockItemsQuery(Request $request)
     {
-        $query = Order::query()
-            ->with(['salesChannel', 'items' => fn ($q) => $q->where('was_out_of_stock', true)])
-            ->whereHas('items', fn ($q) => $q->where('was_out_of_stock', true));
+        $query = OrderItem::query()
+            ->with(['order.salesChannel'])
+            ->where('was_out_of_stock', true);
 
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('order_number', 'like', "%{$search}%")
-                    ->orWhereHas('items', function ($iq) use ($search) {
-                        $iq->where('was_out_of_stock', true)
-                            ->where(function ($w) use ($search) {
-                                $w->where('sku', 'like', "%{$search}%")
-                                    ->orWhere('title', 'like', "%{$search}%");
-                            });
-                    });
+                $q->where('sku', 'like', "%{$search}%")
+                    ->orWhere('title', 'like', "%{$search}%")
+                    ->orWhereHas('order', fn ($oq) => $oq->where('order_number', 'like', "%{$search}%"));
             });
         }
 
         if ($request->filled('sales_channel_id')) {
-            $query->where('sales_channel_id', $request->sales_channel_id);
+            $query->whereHas('order', fn ($oq) => $oq->where('sales_channel_id', $request->sales_channel_id));
         }
 
         if ($request->filled('date_from')) {
-            $query->whereDate('order_date', '>=', $request->date_from);
+            $query->whereHas('order', fn ($oq) => $oq->whereDate('order_date', '>=', $request->date_from));
         }
 
         if ($request->filled('date_to')) {
-            $query->whereDate('order_date', '<=', $request->date_to);
+            $query->whereHas('order', fn ($oq) => $oq->whereDate('order_date', '<=', $request->date_to));
         }
 
-        return $query->orderByDesc('order_date');
+        // Only products that appear in the given shipment (purchase)
+        if ($request->filled('shipment_id')) {
+            $shipmentId = $request->shipment_id;
+            $query->whereIn('product_id', function ($sub) use ($shipmentId) {
+                $sub->select('product_id')
+                    ->from('purchase_items')
+                    ->where('purchase_id', $shipmentId);
+            });
+        }
+
+        return $query->orderByDesc(
+            Order::select('order_date')->whereColumn('orders.id', 'order_items.order_id')->limit(1)
+        );
+    }
+
+    /**
+     * Set last_purchase_id / last_purchase_number on each item: the most recent
+     * shipment (purchase) that contained the item's product.
+     */
+    protected function attachLastPurchases($items): void
+    {
+        $productIds = $items->pluck('product_id')->filter()->unique()->values();
+
+        if ($productIds->isEmpty()) {
+            return;
+        }
+
+        $latestIds = DB::table('purchase_items')
+            ->join('purchases', 'purchases.id', '=', 'purchase_items.purchase_id')
+            ->whereIn('purchase_items.product_id', $productIds)
+            ->where('purchases.delete_status', '0')
+            ->groupBy('purchase_items.product_id')
+            ->selectRaw('purchase_items.product_id, MAX(purchases.id) as purchase_id')
+            ->pluck('purchase_id', 'product_id');
+
+        $numbers = DB::table('purchases')
+            ->whereIn('id', $latestIds->values())
+            ->pluck('purchase_number', 'id');
+
+        foreach ($items as $item) {
+            $purchaseId = $latestIds[$item->product_id] ?? null;
+            $item->last_purchase_id = $purchaseId;
+            $item->last_purchase_number = $purchaseId ? ($numbers[$purchaseId] ?? null) : null;
+        }
     }
 
     /**
