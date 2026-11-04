@@ -213,7 +213,8 @@ Route::middleware(['auth'])->group(function () {
     // Orders Management
     Route::post('/orders/shipping-rates', [OrderController::class, 'getShippingRates'])->name('orders.shipping-rates');
     Route::get('/orders/{id}/rate-info', [OrderController::class, 'rateInfo'])->name('orders.rate-info');
-    Route::post('/orders/bulk-delete', [OrderController::class, 'bulkDelete'])->name('orders.bulk-delete');
+    Route::get('/orders/export', [OrderController::class, 'export'])->name('orders.export');
+    Route::post('/orders/bulk-delete',[OrderController::class, 'bulkDelete'])->name('orders.bulk-delete');
     Route::resource('/orders', OrderController::class);
     Route::get('/orders/ebay/{ebayOrderId}', [OrderController::class, 'getByEbayOrderId'])->name('orders.ebay');
     Route::post('/orders/{id}/ship', [OrderController::class, 'markAsShipped'])->name('orders.ship');
@@ -232,6 +233,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/orders-returns-refunds/export', [OrderController::class, 'exportReturnsRefunds'])->name('orders.returns-refunds.export');
     Route::get('/orders-unmatched-skus', [OrderController::class, 'unmatchedSkus'])->name('orders.unmatched-skus');
     Route::get('/orders-out-of-stock', [OrderController::class, 'outOfStockOrders'])->name('orders.out-of-stock');
+    Route::get('/orders-out-of-stock/export', [OrderController::class, 'exportOutOfStockOrders'])->name('orders.out-of-stock.export');
     Route::get('/orders-unmatched-skus/export', [OrderController::class, 'exportUnmatchedSkus'])->name('orders.unmatched-skus.export');
 
     // Returns (manual + eBay, restock-tracked)

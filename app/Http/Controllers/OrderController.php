@@ -34,6 +34,7 @@ class OrderController extends Controller
 
         $this->middleware(PermissionMiddleware::using('view orders'), ['only' => [
             'index', 'show', 'getByEbayOrderId', 'rateInfo', 'getShippingRates', 'statistics',
+            'export', 'outOfStockOrders', 'exportOutOfStockOrders',
             'unmatchedSkus', 'exportUnmatchedSkus', 'returnsRefunds', 'exportReturnsRefunds',
         ]]);
         $this->middleware(PermissionMiddleware::using('add orders'), ['only' => ['create', 'store']]);
@@ -49,6 +50,64 @@ class OrderController extends Controller
      * Display a listing of orders
      */
     public function index(Request $request)
+    {
+        $query = $this->buildOrdersQuery($request);
+
+        $categoryIds = $this->catalogIds($request, 'category_id');
+        $brandIds = $this->catalogIds($request, 'brand_id');
+
+        // Sort
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        // Paginate
+        $perPage = $request->input('per_page', 25);
+        $orders = $query->paginate($perPage);
+
+        // Get sales channels for filter dropdown
+        $salesChannels = SalesChannel::all();
+        $categories = Category::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
+
+        // Get active carriers for the ship modal
+        $shippingCarriers = Shipping::where('active_status', '1')
+            ->where('delete_status', '0')
+            ->orderBy('is_default', 'desc')
+            ->orderBy('name')
+            ->get(['id', 'name', 'type', 'is_default']);
+
+        // Return JSON if requested via API
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'data' => $orders,
+            ]);
+        }
+
+        // return $orders;
+        return view('orders.index', compact('orders', 'salesChannels', 'shippingCarriers', 'perPage', 'categories', 'brands', 'categoryIds', 'brandIds'));
+    }
+
+    /**
+     * Export the orders list to Excel, applying the same filters as the index page.
+     */
+    public function export(Request $request)
+    {
+        $orders = $this->buildOrdersQuery($request)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return Excel::download(
+            new \App\Exports\OrdersExport($orders),
+            'orders-' . now()->format('Y-m-d') . '.xlsx'
+        );
+    }
+
+    /**
+     * Build the filtered orders query shared by the index page and its export.
+     */
+    protected function buildOrdersQuery(Request $request)
     {
         $query = Order::with(['items', 'salesChannel'])
             ->withSum(['items as total_cost' => function ($query) {
@@ -150,37 +209,7 @@ class OrderController extends Controller
             }
         }
 
-        // Sort
-        $sortBy = $request->input('sort_by', 'created_at');
-        $sortOrder = $request->input('sort_order', 'desc');
-        $query->orderBy($sortBy, $sortOrder);
-
-        // Paginate
-        $perPage = $request->input('per_page', 25);
-        $orders = $query->paginate($perPage);
-
-        // Get sales channels for filter dropdown
-        $salesChannels = SalesChannel::all();
-        $categories = Category::orderBy('name')->get();
-        $brands = Brand::orderBy('name')->get();
-
-        // Get active carriers for the ship modal
-        $shippingCarriers = Shipping::where('active_status', '1')
-            ->where('delete_status', '0')
-            ->orderBy('is_default', 'desc')
-            ->orderBy('name')
-            ->get(['id', 'name', 'type', 'is_default']);
-
-        // Return JSON if requested via API
-        if ($request->wantsJson()) {
-            return response()->json([
-                'success' => true,
-                'data' => $orders,
-            ]);
-        }
-
-        // return $orders;
-        return view('orders.index', compact('orders', 'salesChannels', 'shippingCarriers', 'perPage', 'categories', 'brands', 'categoryIds', 'brandIds'));
+        return $query;
     }
 
     /**
@@ -1226,6 +1255,35 @@ class OrderController extends Controller
      */
     public function outOfStockOrders(Request $request)
     {
+        $orders = $this->buildOutOfStockOrdersQuery($request)
+            ->paginate($request->input('per_page', 20))
+            ->withQueryString();
+
+        $salesChannels = SalesChannel::all();
+
+        $stats = [
+            'total_orders' => Order::whereHas('items', fn ($q) => $q->where('was_out_of_stock', true))->count(),
+            'total_items' => OrderItem::where('was_out_of_stock', true)->count(),
+        ];
+
+        return view('orders.out-of-stock', compact('orders', 'salesChannels', 'stats'));
+    }
+
+    /**
+     * Export the Out of Stock Orders list (same filters as the page) to Excel.
+     */
+    public function exportOutOfStockOrders(Request $request)
+    {
+        $orders = $this->buildOutOfStockOrdersQuery($request)->get();
+
+        return Excel::download(
+            new \App\Exports\OrdersExport($orders),
+            'out-of-stock-orders-' . now()->format('Y-m-d') . '.xlsx'
+        );
+    }
+
+    protected function buildOutOfStockOrdersQuery(Request $request)
+    {
         $query = Order::query()
             ->with(['salesChannel', 'items' => fn ($q) => $q->where('was_out_of_stock', true)])
             ->whereHas('items', fn ($q) => $q->where('was_out_of_stock', true));
@@ -1256,18 +1314,7 @@ class OrderController extends Controller
             $query->whereDate('order_date', '<=', $request->date_to);
         }
 
-        $orders = $query->orderByDesc('order_date')
-            ->paginate($request->input('per_page', 20))
-            ->withQueryString();
-
-        $salesChannels = SalesChannel::all();
-
-        $stats = [
-            'total_orders' => Order::whereHas('items', fn ($q) => $q->where('was_out_of_stock', true))->count(),
-            'total_items' => OrderItem::where('was_out_of_stock', true)->count(),
-        ];
-
-        return view('orders.out-of-stock', compact('orders', 'salesChannels', 'stats'));
+        return $query->orderByDesc('order_date');
     }
 
     /**

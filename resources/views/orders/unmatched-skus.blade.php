@@ -79,7 +79,7 @@
                     <label class="form-label fs-12 text-muted">To Date</label>
                     <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}">
                 </div>
-                <div class="col-md-2 d-flex align-items-end gap-2">
+                <div class="col-md-3 d-flex align-items-end gap-2">
                     <button type="submit" class="btn btn-primary btn-sm">
                         <i class="feather-search me-2"></i>
                         Filter

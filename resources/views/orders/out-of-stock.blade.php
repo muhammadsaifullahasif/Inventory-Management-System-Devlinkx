@@ -64,7 +64,7 @@
                     <label class="form-label fs-12 text-muted">To Date</label>
                     <input type="date" name="date_to" class="form-control form-control-sm" value="{{ request('date_to') }}">
                 </div>
-                <div class="col-md-2 d-flex align-items-end gap-2">
+                <div class="col-md-3 d-flex align-items-end gap-2">
                     <button type="submit" class="btn btn-primary btn-sm">
                         <i class="feather-search me-2"></i>
                         Filter
@@ -72,6 +72,10 @@
                     <a href="{{ route('orders.out-of-stock') }}" class="btn btn-light-brand btn-sm">
                         <i class="feather-x me-2"></i>
                         Clear
+                    </a>
+                    <a href="{{ route('orders.out-of-stock.export', request()->query()) }}" class="btn btn-success btn-sm">
+                        <i class="feather-download me-2"></i>
+                        Export
                     </a>
                 </div>
             </form>

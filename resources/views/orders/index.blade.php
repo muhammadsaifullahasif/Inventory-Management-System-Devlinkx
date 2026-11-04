@@ -137,12 +137,15 @@
                             </div>
                             @include('partials.filters.multi-select-dropdown', ['name' => 'category_id', 'label' => 'Category', 'items' => $categories, 'selectedIds' => $categoryIds, 'idPrefix' => 'orders_category'])
                             @include('partials.filters.multi-select-dropdown', ['name' => 'brand_id', 'label' => 'Brand', 'items' => $brands, 'selectedIds' => $brandIds, 'idPrefix' => 'orders_brand'])
-                            <div class="col-md-2 d-flex align-items-end gap-2">
+                            <div class="col-md-3 d-flex align-items-end gap-2">
                                 <button type="submit" class="btn btn-primary btn-sm">
                                     <i class="feather-search me-2"></i>Filter
                                 </button>
                                 <a href="{{ route('orders.index') }}" class="btn btn-light-brand btn-sm">
                                     <i class="feather-x me-2"></i>Clear
+                                </a>
+                                <a href="{{ route('orders.export', request()->query()) }}" class="btn btn-success btn-sm">
+                                    <i class="feather-download me-2"></i>Export
                                 </a>
                             </div>
                         </div>
