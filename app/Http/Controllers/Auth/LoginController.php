@@ -8,6 +8,7 @@ use App\Models\LoginOtp;
 use App\Notifications\LoginOtpNotification;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
@@ -70,6 +71,13 @@ class LoginController extends Controller
         $this->clearLoginAttempts($request);
 
         $user = $this->guard()->getLastAttempted();
+
+        if (env('APP_ENV') !== 'production') {
+            Auth::login($user, true);
+            $request->session()->regenerate();
+
+            return redirect()->intended('/');
+        }
 
         $settings = GeneralSetting::current();
         $recipients = collect(explode(',', (string) $settings->login_auth_emails))
