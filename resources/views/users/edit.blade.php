@@ -56,13 +56,27 @@
                         @enderror
                     </div>
                 </div>
-                <div class="mb-3">
-                    <label for="password" class="form-label">Password</label>
-                    <input type="password" id="password" name="password" class="form-control @error('password') is-invalid @enderror" placeholder="New Password" autocomplete="new-password">
-                    <small class="text-muted">Leave blank if you don't want to change the password.</small>
-                    @error('password')
-                        <span class="invalid-feedback">{{ $message }}</span>
-                    @enderror
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" id="password" name="password" class="form-control @error('password') is-invalid @enderror" placeholder="New Password" autocomplete="new-password">
+                        <small class="text-muted">Leave blank if you don't want to change the password.</small>
+                        @error('password')
+                            <span class="invalid-feedback">{{ $message }}</span>
+                        @enderror
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="status" class="form-label">Status</label>
+                        <div class="form-check form-switch">
+                            @if ($user->id === auth()->id())
+                                <input type="checkbox" role="switch" class="form-check-input" id="status" checked disabled>
+                            @else
+                                <input type="hidden" name="active_status" value="0">
+                                <input type="checkbox" role="switch" class="form-check-input" id="status" name="active_status" value="1" {{ old('active_status', $user->active_status) == '1' ? 'checked' : '' }}>
+                            @endif
+                            <label for="status" class="form-check-label">Active</label>
+                        </div>
+                    </div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Roles</label>

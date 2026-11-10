@@ -72,6 +72,12 @@ class LoginController extends Controller
 
         $user = $this->guard()->getLastAttempted();
 
+        if (! $user->isActive()) {
+            throw ValidationException::withMessages([
+                $this->username() => 'This account has been deactivated. Contact your administrator.',
+            ]);
+        }
+
         if (env('APP_ENV') !== 'production') {
             Auth::login($user, true);
             $request->session()->regenerate();

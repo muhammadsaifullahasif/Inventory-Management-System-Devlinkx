@@ -126,11 +126,16 @@ class UserController extends Controller
         $request->validate([
             'name' => 'required',
             'email' => 'required|email|unique:users,email,'.$id.',id',
+            'active_status' => 'nullable|in:0,1',
         ]);
 
         $user = User::findOrFail($id);
         $this->authorizeManageUser($user);
         $this->authorizeRoleAssignment($request->role);
+
+        if ($request->input('active_status') === '0' && $user->id === auth()->id()) {
+            return redirect()->back()->with('error', 'You cannot deactivate your own account.')->withInput();
+        }
 
         try {
             $passwordChanged = !empty($request->password);
@@ -138,6 +143,9 @@ class UserController extends Controller
 
             $user->name = $request->name;
             $user->email = $request->email;
+            if ($request->has('active_status')) {
+                $user->active_status = $request->input('active_status');
+            }
             if ($passwordChanged) {
                 $user->password = Hash::make($request->password);
             }

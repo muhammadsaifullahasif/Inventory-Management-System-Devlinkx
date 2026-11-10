@@ -50,6 +50,13 @@ class LoginOtpController extends Controller
         $otp->update(['used_at' => now()]);
 
         $user = User::findOrFail($userId);
+
+        if (! $user->isActive()) {
+            $request->session()->forget(['login_otp_user_id', 'login_otp_remember']);
+
+            return redirect()->route('login')->withErrors(['email' => 'This account has been deactivated. Contact your administrator.']);
+        }
+
         $remember = (bool) $request->session()->pull('login_otp_remember', false);
         $request->session()->forget('login_otp_user_id');
 

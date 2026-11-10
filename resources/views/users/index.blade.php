@@ -117,6 +117,7 @@
                                         'name' => ['label' => 'Name', 'column' => 'name', 'style' => '', 'sort' => true],
                                         'email' => ['label' => 'Email', 'column' => 'email', 'style' => '', 'sort' => true],
                                         'role' => ['label' => 'Role', 'column' => 'role', 'style' => '', 'sort' => false],
+                                        'active_status' => ['label' => 'Status', 'column' => 'active_status', 'style' => '', 'sort' => true],
                                         'created_at' => ['label' => 'Created At', 'column' => 'created_at', 'style' => '', 'sort' => true],
                                     ];
                                 @endphp
@@ -173,6 +174,13 @@
                                             <span class="badge bg-soft-primary text-primary">{{ $role->name }}</span>
                                         @endforeach
                                     </td>
+                                    <td data-column="active_status">
+                                        @if ($user->isActive())
+                                            <span class="badge bg-soft-success text-success">Active</span>
+                                        @else
+                                            <span class="badge bg-soft-danger text-danger">Inactive</span>
+                                        @endif
+                                    </td>
                                     <td data-column="created_at"><span class="fs-12 text-muted">{{ \Carbon\Carbon::parse($user->created_at)->format('d M, Y') }}</span></td>
                                     <td>
                                         <div class="hstack gap-2 justify-content-end">
@@ -196,7 +204,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="text-center py-4 text-muted">No users found.</td>
+                                    <td colspan="8" class="text-center py-4 text-muted">No users found.</td>
                                 </tr>
                             @endforelse
                         </tbody>
