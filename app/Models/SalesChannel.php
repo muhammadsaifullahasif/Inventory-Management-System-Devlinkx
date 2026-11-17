@@ -96,6 +96,16 @@ class SalesChannel extends Model
             ->using(SalesChannelProduct::class);
     }
 
+    public function messageThreads()
+    {
+        return $this->hasMany(MessageThread::class);
+    }
+
+    public function messageState()
+    {
+        return $this->hasOne(MessageChannelState::class);
+    }
+
     /**
      * Get active products (where listing is active)
      */

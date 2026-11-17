@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             ChartOfAccountsSeeder::class,
             AccountingPermissionsSeeder::class,
             ModulePermissionsSeeder::class,
+            MessagePermissionsSeeder::class,
         ]);
 
         // User::factory(10)->create();

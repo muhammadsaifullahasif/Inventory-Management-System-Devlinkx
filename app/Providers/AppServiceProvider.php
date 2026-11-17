@@ -12,6 +12,7 @@ use App\Services\Ebay\EbayNotificationService;
 use App\Services\Ebay\EbayOrderService;
 use App\Services\Ebay\EbayService;
 use App\Services\Ebay\EbayXmlBuilder;
+use App\Services\Messaging\MessageDriverManager;
 use App\Support\AuditContext;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
@@ -46,6 +47,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(EbayApiClient::class);
         $this->app->singleton(EbayXmlBuilder::class);
+        $this->app->singleton(MessageDriverManager::class);
         $this->app->singleton(EbayService::class);
         $this->app->singleton(EbayOrderService::class);
         $this->app->singleton(EbayNotificationService::class);

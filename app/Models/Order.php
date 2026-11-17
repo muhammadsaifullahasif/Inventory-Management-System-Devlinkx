@@ -161,6 +161,14 @@ class Order extends Model
     }
 
     /**
+     * Buyer message threads linked to this order
+     */
+    public function messageThreads()
+    {
+        return $this->hasMany(MessageThread::class);
+    }
+
+    /**
      * Get the order meta data
      */
     public function metas()
