@@ -128,7 +128,8 @@ class SalesChannelController extends Controller
         // Clean up scopes - remove any extra whitespace and ensure single spaces
         $scopes = preg_replace('/\s+/', ' ', trim($salesChannel->user_scopes));
 
-        $url = env('EBAY_AUTH_URL')
+        // config(), not env(): env() returns null once config is cached, which produced a relative URL.
+        $url = config('services.ebay.auth_url')
             . '?client_id=' . rawurlencode($salesChannel->client_id)
             . '&response_type=code'
             . '&redirect_uri=' . rawurlencode($salesChannel->ru_name)
@@ -167,7 +168,7 @@ class SalesChannelController extends Controller
 
             $response = Http::asForm()
                 ->withBasicAuth($sales_channel->client_id, $sales_channel->client_secret)
-                ->post(env('EBAY_TOKEN_URL'), [
+                ->post(config('services.ebay.token_url'), [
                     'grant_type'   => 'authorization_code',
                     'code'         => $code,
                     'redirect_uri' => $sales_channel->ru_name,
