@@ -42,8 +42,9 @@ return [
         'dev_id' => env('EBAY_DEV_ID'),
         'ru_name' => env('EBAY_RU_NAME'),
         'scopes' => env('EBAY_SCOPES'),
-        'auth_url' => env('EBAY_AUTH_URL', 'https://auth.ebay.com/oauth2/authorize'),
-        'token_url' => env('EBAY_TOKEN_URL', 'https://api.ebay.com/identity/v1/oauth2/token'),
+        // `?:` (not an env() default) so a blank "EBAY_AUTH_URL=" in .env still falls back to eBay's address.
+        'auth_url' => env('EBAY_AUTH_URL') ?: 'https://auth.ebay.com/oauth2/authorize',
+        'token_url' => env('EBAY_TOKEN_URL') ?: 'https://api.ebay.com/identity/v1/oauth2/token',
     ],
 
 ];

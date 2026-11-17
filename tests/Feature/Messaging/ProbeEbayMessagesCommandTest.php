@@ -98,6 +98,45 @@ class ProbeEbayMessagesCommandTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_all_prints_one_row_per_store_and_fails_when_any_store_needs_attention(): void
+    {
+        $good = $this->makeChannel('https://api.ebay.com/oauth/api_scope/commerce.message');
+        $bad = SalesChannel::create([
+            'name' => 'Needs Reauth Store',
+            'type' => 'ebay',
+            'user_scopes' => 'https://api.ebay.com/oauth/api_scope',
+            'access_token' => 'tok',
+            'access_token_expires_at' => now()->addHour(),
+        ]);
+        SalesChannel::create(['name' => 'Not An eBay Store', 'type' => 'shopify']);
+
+        Http::fake([
+            self::BASE . '/conversation*' => Http::response(['conversations' => [[
+                'conversationId' => 'c1',
+                'latestMessage' => ['senderUsername' => 'michael_c', 'recipientUsername' => 'apex_auto'],
+            ]]]),
+        ]);
+
+        $this->artisan('messages:probe', ['--all' => true, '--no-detail' => true])
+            ->expectsTable(
+                ['ID', 'Store', 'Scope listed', 'eBay call', 'Conversations', 'Usernames'],
+                [
+                    [$good->id, 'Apex Auto Body Parts', 'yes', 'OK', '1 buyer / 1 eBay', 'OK'],
+                    [$bad->id, 'Needs Reauth Store', 'no', 'skipped (scope not listed)', '-', '-'],
+                ],
+            )
+            ->expectsOutputToContain('1 of 2 store(s) need attention')
+            ->doesntExpectOutputToContain('Not An eBay Store')
+            ->assertExitCode(1);
+    }
+
+    public function test_it_requires_a_channel_or_all(): void
+    {
+        $this->artisan('messages:probe')
+            ->expectsOutputToContain('Give a sales channel ID, or use --all')
+            ->assertExitCode(1);
+    }
+
     public function test_it_rejects_unknown_channels(): void
     {
         $this->artisan('messages:probe', ['channel' => 999])
