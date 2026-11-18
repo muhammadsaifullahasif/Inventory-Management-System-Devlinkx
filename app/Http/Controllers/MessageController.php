@@ -3,15 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Models\Message;
+use App\Models\MessageSavedReply;
 use App\Models\MessageThread;
 use App\Models\SalesChannel;
 use App\Models\SalesChannelProduct;
+use App\Models\User;
+use App\Notifications\MessageThreadAssignedNotification;
+use App\Services\Messaging\Contracts\MessageChannelDriver;
 use App\Services\Messaging\Exceptions\MessagingException;
 use App\Services\Messaging\MessageDriverManager;
+use App\Services\Messaging\MessageSender;
 use App\Services\Messaging\MessageSyncService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 
 /**
@@ -40,8 +46,11 @@ class MessageController extends Controller
     public function __construct(
         private MessageSyncService $sync,
         private MessageDriverManager $drivers,
+        private MessageSender $sender,
     ) {
         $this->middleware(PermissionMiddleware::using('view messages'));
+        $this->middleware(PermissionMiddleware::using('reply messages'), ['only' => ['reply', 'retry', 'note', 'status', 'read']]);
+        $this->middleware(PermissionMiddleware::using('assign messages'), ['only' => ['assign']]);
     }
 
     public function index()
@@ -177,6 +186,126 @@ class MessageController extends Controller
         ] + $this->presentDetail($thread->refresh()));
     }
 
+    // ------------------------------------------------------------------ team actions
+
+    /**
+     * Send a reply to the buyer through the store's sales channel (synchronously).
+     */
+    public function reply(Request $request, MessageThread $thread): JsonResponse
+    {
+        $data = $request->validate(['body' => ['required', 'string', 'max:' . MessageSender::MAX_LENGTH]]);
+
+        try {
+            $message = $this->sender->reply($thread, $request->user(), $data['body']);
+        } catch (MessagingException $e) {
+            return $this->failure($thread, $e->getMessage(), 422);
+        }
+
+        return $this->afterSend($thread, $message);
+    }
+
+    /**
+     * Try again to send a reply that failed.
+     */
+    public function retry(Request $request, MessageThread $thread, Message $message): JsonResponse
+    {
+        abort_unless($message->thread_id === $thread->id, 404);
+
+        try {
+            $message = $this->sender->retry($message, $request->user());
+        } catch (MessagingException $e) {
+            return $this->failure($thread, $e->getMessage(), 422);
+        }
+
+        return $this->afterSend($thread, $message);
+    }
+
+    /**
+     * Internal note, visible to the team only.
+     */
+    public function note(Request $request, MessageThread $thread): JsonResponse
+    {
+        $data = $request->validate(['body' => ['required', 'string', 'max:' . MessageSender::MAX_LENGTH]]);
+
+        $this->sender->note($thread, $request->user(), $data['body']);
+
+        return $this->done($thread);
+    }
+
+    public function status(Request $request, MessageThread $thread): JsonResponse
+    {
+        $data = $request->validate(['status' => ['required', Rule::in(array_keys(self::STATUS_LABELS))]]);
+
+        $this->sender->setStatus($thread, $data['status']);
+
+        return $this->done($thread);
+    }
+
+    public function assign(Request $request, MessageThread $thread): JsonResponse
+    {
+        $data = $request->validate(['user_id' => ['nullable', 'integer', 'exists:users,id']]);
+
+        $assignee = null;
+        if (!empty($data['user_id'])) {
+            $assignee = User::findOrFail($data['user_id']);
+
+            if (!$assignee->can('view messages')) {
+                return $this->failure($thread, 'That person cannot access the Messages inbox.', 422);
+            }
+        }
+
+        $previous = $thread->assigned_user_id;
+        $this->sender->assign($thread, $assignee);
+
+        if ($assignee && $assignee->id !== $previous && $assignee->id !== $request->user()->id) {
+            try {
+                $assignee->notify(new MessageThreadAssignedNotification($thread->id, $this->buyerLabel($thread), $request->user()->name));
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        return $this->done($thread);
+    }
+
+    /**
+     * Mark a conversation read or unread (also on the sales channel).
+     */
+    public function read(Request $request, MessageThread $thread): JsonResponse
+    {
+        $data = $request->validate(['read' => ['required', 'boolean']]);
+
+        try {
+            $warning = $this->sender->setRead($thread, (bool) $data['read']);
+        } catch (MessagingException $e) {
+            return $this->failure($thread, $e->getMessage(), 502);
+        }
+
+        return $this->done($thread, $warning ? ['warning' => $warning] : []);
+    }
+
+    private function afterSend(MessageThread $thread, Message $message): JsonResponse
+    {
+        if ($message->delivery_status === Message::DELIVERY_FAILED) {
+            return $this->failure($thread, 'The message was not delivered: ' . ($message->error ?: 'unknown error') . ' You can retry it from the conversation.', 502);
+        }
+
+        return $this->done($thread);
+    }
+
+    /**
+     * @param array<string,mixed> $extra
+     */
+    private function done(MessageThread $thread, array $extra = []): JsonResponse
+    {
+        return response()->json(['success' => true] + $extra + $this->presentDetail($thread->refresh()));
+    }
+
+    private function failure(MessageThread $thread, string $message, int $status): JsonResponse
+    {
+        return response()->json(['success' => false, 'message' => $message] + $this->presentDetail($thread->refresh()), $status);
+    }
+
     // ------------------------------------------------------------------ queries
 
     private function applySearch(Builder $query, ?string $term): void
@@ -287,7 +416,7 @@ class MessageController extends Controller
      */
     private function presentDetail(MessageThread $thread): array
     {
-        $thread->load(['salesChannel:id,name', 'assignee:id,name', 'order', 'product', 'messages' => fn ($q) => $q->orderBy('sent_at')->orderBy('id')]);
+        $thread->load(['salesChannel', 'assignee:id,name', 'order', 'product', 'messages' => fn ($q) => $q->orderBy('sent_at')->orderBy('id')]);
 
         $buyer = $this->buyerLabel($thread);
 
@@ -315,11 +444,75 @@ class MessageController extends Controller
                 'attachments' => $m->attachments ?? [],
                 'sent_at' => $m->sent_at?->toIso8601String(),
                 'failed' => $m->delivery_status === Message::DELIVERY_FAILED,
+                'error' => $m->delivery_status === Message::DELIVERY_FAILED ? $m->error : null,
                 'unread' => $m->isInbound() && !$m->read_at,
+                'by_me' => $m->sent_by_user_id !== null && $m->sent_by_user_id === auth()->id(),
             ])->values(),
             'product' => $this->presentProduct($thread),
             'order' => $this->presentOrder($thread),
+            'actions' => $this->presentActions($thread),
         ];
+    }
+
+    /**
+     * What the current user may do with this conversation, plus the data the reply box needs.
+     *
+     * @return array<string,mixed>
+     */
+    private function presentActions(MessageThread $thread): array
+    {
+        $user = auth()->user();
+        $canReplyPerm = (bool) $user?->can('reply messages');
+        $canAssign = (bool) $user?->can('assign messages');
+
+        $caps = $this->drivers->forChannel($thread->salesChannel)->capabilities();
+        $system = $thread->isPlatformSystem();
+
+        $canReply = $canReplyPerm && !$system && in_array(MessageChannelDriver::CAP_SEND, $caps, true);
+
+        return [
+            'can_reply' => $canReply,
+            'can_note' => $canReplyPerm,
+            'can_assign' => $canAssign,
+            'can_mark_read' => $canReplyPerm && !$system,
+            'can_mark_unread' => $canReplyPerm && !$system && in_array(MessageChannelDriver::CAP_MARK_READ, $caps, true),
+            'reply_blocked_reason' => $system ? 'Platform notices cannot be replied to.' : null,
+            'max_length' => MessageSender::MAX_LENGTH,
+            'assignable' => $canAssign ? $this->assignableUsers() : [],
+            'saved_replies' => $canReply ? $this->savedReplies($thread) : [],
+        ];
+    }
+
+    /**
+     * Team members who can open the inbox.
+     *
+     * @return array<int,array{id:int,name:string}>
+     */
+    private function assignableUsers(): array
+    {
+        return User::query()->orderBy('name')->get(['id', 'name'])
+            ->filter(fn (User $u) => $u->can('view messages'))
+            ->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Active saved replies with {buyer_name}, {item_title} and {order_number} filled in for this conversation.
+     *
+     * @return array<int,array{id:int,title:string,body:string}>
+     */
+    private function savedReplies(MessageThread $thread): array
+    {
+        $vars = [
+            'buyer_name' => $this->buyerLabel($thread),
+            'item_title' => $thread->product?->name,
+            'order_number' => $thread->order?->order_number,
+        ];
+
+        return MessageSavedReply::query()->where('is_active', true)->orderBy('title')->get()
+            ->map(fn (MessageSavedReply $r) => ['id' => $r->id, 'title' => $r->title, 'body' => $r->render(array_filter($vars, fn ($v) => $v !== null && $v !== ''))])
+            ->all();
     }
 
     /**

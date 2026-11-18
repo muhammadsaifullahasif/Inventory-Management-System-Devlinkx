@@ -6,6 +6,9 @@ use App\Models\Message;
 use App\Models\MessageChannelState;
 use App\Models\MessageThread;
 use App\Models\SalesChannel;
+use App\Models\User;
+use App\Notifications\NewBuyerMessageNotification;
+use App\Support\NotificationRecipients;
 use App\Services\Messaging\Contracts\MessageChannelDriver;
 use App\Services\Messaging\Contracts\ProvidesSystemThreads;
 use App\Services\Messaging\Data\MessageData;
@@ -16,6 +19,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Throwable;
 
 /**
@@ -32,6 +36,9 @@ class MessageSyncService
     public const DEFAULT_BACKFILL_DAYS = 30;
 
     private const LOCK_SECONDS = 600;
+    /** Messages older than this are history (e.g. a backfill) and do not raise a bell notification. */
+    private const NOTIFY_WITHIN_HOURS = 6;
+
     private const PREVIEW_LENGTH = 200;
 
     public function __construct(
@@ -219,7 +226,9 @@ class MessageSyncService
      */
     private function persistMessages(MessageThread $thread, array $messages, bool $isNew): int
     {
-        return DB::transaction(function () use ($thread, $messages, $isNew) {
+        $newInboundAt = null;
+
+        $created = DB::transaction(function () use ($thread, $messages, $isNew, &$newInboundAt) {
             $previousLastAt = $thread->last_message_at;
             $thread->save();
 
@@ -234,6 +243,7 @@ class MessageSyncService
                 if ($message->direction === Message::DIRECTION_INBOUND
                     && (!$previousLastAt || ($message->sentAt && $message->sentAt->gt($previousLastAt)))) {
                     $newInbound = true;
+                    $newInboundAt = $message->sentAt;
                 }
             }
 
@@ -241,6 +251,32 @@ class MessageSyncService
 
             return $created;
         });
+
+        if ($newInboundAt && $newInboundAt->gt(now()->subHours(self::NOTIFY_WITHIN_HOURS))) {
+            $this->notifyTeam($thread);
+        }
+
+        return $created;
+    }
+
+    /**
+     * Bell notification for a fresh buyer message: to the assignee, or to the admins when unassigned.
+     * Only for recent messages, so a backfill of old conversations does not flood the bell.
+     * Never allowed to fail the sync.
+     */
+    private function notifyTeam(MessageThread $thread): void
+    {
+        try {
+            $recipients = $thread->assigned_user_id
+                ? User::query()->whereKey($thread->assigned_user_id)->get()
+                : NotificationRecipients::admins();
+
+            if ($recipients->isNotEmpty()) {
+                Notification::send($recipients, NewBuyerMessageNotification::forThread($thread->loadMissing('salesChannel')));
+            }
+        } catch (\Throwable $e) {
+            Log::channel('messages')->warning('Could not notify the team about a new buyer message', ['thread_id' => $thread->id, 'error' => $e->getMessage()]);
+        }
     }
 
     /**
@@ -254,6 +290,29 @@ class MessageSyncService
             ->where('thread_id', $thread->id)
             ->where('external_message_id', $data->externalMessageId)
             ->first();
+
+        // A reply sent from the inbox is stored before the platform reports it. If the send response carried
+        // no message id (or the request timed out after the platform accepted it), adopt that row instead of
+        // adding a duplicate bubble.
+        if (!$existing && $data->direction === Message::DIRECTION_OUTBOUND) {
+            $existing = Message::query()
+                ->where('thread_id', $thread->id)
+                ->whereNull('external_message_id')
+                ->where('direction', Message::DIRECTION_OUTBOUND)
+                ->whereNotNull('sent_by_user_id')
+                ->where('body', trim($data->body))
+                ->orderBy('id')
+                ->first();
+
+            if ($existing) {
+                $existing->forceFill([
+                    'external_message_id' => $data->externalMessageId,
+                    'delivery_status' => Message::DELIVERY_SENT,
+                    'error' => null,
+                    'sent_at' => $data->sentAt ?? $existing->sent_at,
+                ]);
+            }
+        }
 
         if ($existing) {
             // Keep our own metadata (who on the team sent it, auto-reply flag); only refresh platform data.
@@ -301,6 +360,7 @@ class MessageSyncService
     {
         $latest = $thread->messages()
             ->where('direction', '!=', Message::DIRECTION_INTERNAL_NOTE)
+            ->where(fn ($q) => $q->whereNull('delivery_status')->orWhere('delivery_status', '!=', Message::DELIVERY_FAILED))
             ->orderByDesc('sent_at')
             ->orderByDesc('id')
             ->first();

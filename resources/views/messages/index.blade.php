@@ -114,6 +114,16 @@
     .msg-attach img { max-width: 180px; max-height: 140px; border-radius: .5rem; border: 1px solid var(--msg-border); display: block; }
     .msg-attach a.file { font-size: .78rem; text-decoration: underline; color: inherit; }
     .msg-thread-foot { padding: .7rem 1rem; border-top: 1px solid var(--msg-border); font-size: .8rem; color: var(--msg-muted); }
+    .msg-thread-foot.msg-composer { padding: .6rem 1rem .8rem; color: var(--msg-text); }
+    .msg-ctabs { display: flex; align-items: center; gap: .25rem; margin-bottom: .4rem; }
+    .msg-ctab { border: 0; background: transparent; padding: .25rem .7rem; border-radius: 1rem; font-size: .8rem; color: var(--msg-muted); font-weight: 600; }
+    .msg-ctab.active { background: var(--msg-active); color: var(--msg-text); }
+    .msg-ctab.note.active { background: var(--msg-note-bg); color: var(--msg-note-fg); }
+    .msg-composer.is-note textarea { background: var(--msg-note-bg); color: var(--msg-note-fg); }
+    .msg-composer textarea { resize: vertical; min-height: 64px; max-height: 220px; font-size: .88rem; }
+    .msg-cfoot { display: flex; align-items: center; gap: .5rem; margin-top: .45rem; flex-wrap: wrap; }
+    .msg-cfoot select { max-width: 200px; }
+    .msg-retry { border: 0; background: transparent; color: #dc3545; text-decoration: underline; padding: 0 .2rem; font-size: .7rem; }
     .msg-banner { margin: .5rem 1rem 0; padding: .45rem .7rem; border-radius: .5rem; font-size: .78rem; background: #fff1d6; color: #7a4a00; }
     html.app-skin-dark .msg-banner { background: #3b2f10; color: #f1cf7a; }
 
@@ -231,13 +241,27 @@
                             <h6 id="msg-th-name"></h6>
                             <div class="d-flex flex-wrap gap-2 align-items-center mt-1" id="msg-th-meta"></div>
                         </div>
+                        <button type="button" class="btn btn-sm btn-success d-none" id="msg-resolve"><i class="feather-check me-1"></i><span>Resolve</span></button>
                         <button type="button" class="btn btn-sm btn-light-brand msg-info" id="msg-info" title="Buyer & order details"><i class="feather-info"></i></button>
                         <button type="button" class="avatar-text avatar-md text-danger msg-close" id="msg-close" title="Close conversation" aria-label="Close conversation"><i class="feather-x"></i></button>
                     </div>
                     <div id="msg-th-banner"></div>
                     <div class="msg-thread-body" id="msg-th-body"></div>
-                    <div class="msg-thread-foot">
-                        <i class="feather-lock me-1"></i>Replying from the inbox is coming in the next update. For now, reply from the sales channel itself.
+                    <div class="msg-thread-foot msg-composer d-none" id="msg-composer">
+                        <div class="d-none" id="msg-blocked"></div>
+                        <div class="d-none" id="msg-compose-form">
+                            <div class="msg-ctabs">
+                                <button type="button" class="msg-ctab active" data-mode="reply" id="msg-tab-reply">Reply to buyer</button>
+                                <button type="button" class="msg-ctab note" data-mode="note">Internal note</button>
+                                <span class="ms-auto fs-12 text-muted" id="msg-sending-as"></span>
+                            </div>
+                            <textarea class="form-control" id="msg-compose-text" rows="3" placeholder="Write a reply... (Ctrl+Enter to send)"></textarea>
+                            <div class="msg-cfoot">
+                                <select class="form-select form-select-sm d-none" id="msg-saved" aria-label="Saved replies"></select>
+                                <span class="fs-12 text-muted ms-auto" id="msg-ccount"></span>
+                                <button type="button" class="btn btn-sm btn-primary" id="msg-send"><i class="feather-send me-1"></i><span>Send</span></button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -268,7 +292,7 @@
     var POLL_MS = 20000;
 
     var state = { tab: 'all', store: '', q: '', page: 1, hasMore: false, threads: [], counts: null,
-                  selectedId: null, selectedLastAt: null, token: 0, signature: '' };
+                  selectedId: null, selectedLastAt: null, token: 0, signature: '', actions: null, thread: null, mode: 'reply', drafts: {}, composerFor: null, sending: false };
 
     var $app = document.getElementById('msg-app');
     var $list = document.getElementById('msg-list');
@@ -297,12 +321,11 @@
     }
     function fmtTime(iso) { return iso ? new Date(iso).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) : ''; }
 
-    function request(method, url) {
-        return fetch(url, {
-            method: method,
-            credentials: 'same-origin',
-            headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF}
-        }).then(function (r) {
+    function request(method, url, body) {
+        var headers = {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF};
+        var opts = {method: method, credentials: 'same-origin', headers: headers};
+        if (body !== undefined) { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+        return fetch(url, opts).then(function (r) {
             return r.json().catch(function () { return {}; }).then(function (data) { return {ok: r.ok, status: r.status, data: data}; });
         });
     }
@@ -415,7 +438,7 @@
             var label = m.kind === 'auto_reply' ? 'Automatic reply' : (m.kind === 'note' ? 'Internal note' : (m.sender || ''));
             out += '<div class="msg-bubble-wrap ' + side + '">'
                  +   '<div class="msg-bubble ' + cls + '">' + esc(m.body) + attachmentsHtml(m.attachments) + '</div>'
-                 +   '<div class="msg-meta' + (m.failed ? ' failed' : '') + '">' + esc(label ? label + ' · ' : '') + esc(fmtTime(m.sent_at)) + (m.failed ? ' · not delivered' : '') + '</div>'
+                 +   '<div class="msg-meta' + (m.failed ? ' failed' : '') + '">' + esc(label ? label + ' · ' : '') + esc(fmtTime(m.sent_at)) + (m.failed ? ' · not delivered' + (state.actions && state.actions.can_reply ? ' <button type="button" class="msg-retry" data-retry="' + m.id + '">Retry</button>' : '') + (m.error ? ' <span title="' + esc(m.error) + '">(why?)</span>' : '') : '') + '</div>'
                  + '</div>';
         });
         return out || '<div class="msg-empty"><span>No messages stored for this conversation yet.</span></div>';
@@ -423,6 +446,8 @@
 
     function renderThread(data, opts) {
         var t = data.thread;
+        state.actions = data.actions || null;
+        state.thread = t;
         document.getElementById('msg-thread-empty').classList.add('d-none');
         var view = document.getElementById('msg-thread-view');
         view.classList.remove('d-none'); view.classList.add('d-flex');
@@ -441,6 +466,60 @@
         if (!opts || !opts.keepScroll || atBottom) body.scrollTop = body.scrollHeight;
 
         renderDetails(data);
+        renderControls(data);
+    }
+
+    // Resolve button + reply box. The textarea is only reset when another conversation is opened, so a draft survives polling.
+    function renderControls(data) {
+        var t = data.thread, a = data.actions || {};
+        var resolve = document.getElementById('msg-resolve');
+        var resolved = t.status === 'resolved';
+        resolve.querySelector('span').textContent = resolved ? 'Reopen' : 'Resolve';
+        resolve.className = 'btn btn-sm ' + (resolved ? 'btn-light-brand' : 'btn-success') + (a.can_note ? '' : ' d-none');
+
+        var box = document.getElementById('msg-composer'), form = document.getElementById('msg-compose-form'), blocked = document.getElementById('msg-blocked');
+        box.classList.remove('d-none');
+        if (!a.can_note) {
+            form.classList.add('d-none');
+            blocked.classList.remove('d-none');
+            blocked.innerHTML = '<i class="feather-lock me-1"></i>You can read this conversation but not reply to it.';
+            return;
+        }
+        blocked.classList.toggle('d-none', a.can_reply || !a.reply_blocked_reason);
+        blocked.innerHTML = a.reply_blocked_reason ? '<i class="feather-lock me-1"></i>' + esc(a.reply_blocked_reason) : '';
+        form.classList.remove('d-none');
+
+        document.getElementById('msg-tab-reply').classList.toggle('d-none', !a.can_reply);
+
+        if (state.composerFor !== t.id) {
+            state.composerFor = t.id;
+            state.mode = a.can_reply ? 'reply' : 'note';
+            var d = state.drafts[t.id] || {};
+            document.getElementById('msg-compose-text').value = d[state.mode] || '';
+        } else if (!a.can_reply) {
+            state.mode = 'note';
+        }
+        document.getElementById('msg-sending-as').textContent = t.store ? 'Sending as ' + t.store.short : '';
+
+        var sel = document.getElementById('msg-saved'), reps = a.saved_replies || [];
+        sel.innerHTML = '<option value="">Saved replies</option>' + reps.map(function (r, i) { return '<option value="' + i + '">' + esc(r.title) + '</option>'; }).join('');
+        paintComposer();
+    }
+
+    function paintComposer() {
+        var a = state.actions || {}, note = state.mode === 'note';
+        document.getElementById('msg-composer').classList.toggle('is-note', note);
+        document.querySelectorAll('.msg-ctab').forEach(function (b) { b.classList.toggle('active', b.dataset.mode === state.mode); });
+        var ta = document.getElementById('msg-compose-text');
+        ta.placeholder = note ? 'Write a note for your team (the buyer will not see it)...' : 'Write a reply to the buyer... (Ctrl+Enter to send)';
+        document.getElementById('msg-saved').classList.toggle('d-none', note || !(a.saved_replies || []).length);
+        var send = document.getElementById('msg-send');
+        send.querySelector('span').textContent = state.sending ? 'Sending...' : (note ? 'Add note' : 'Send');
+        send.disabled = state.sending;
+        var max = a.max_length || 2000, len = ta.value.length;
+        var counter = document.getElementById('msg-ccount');
+        counter.textContent = len ? len + ' / ' + max : '';
+        counter.style.color = len > max ? '#dc3545' : '';
     }
 
     function renderDetails(data) {
@@ -475,9 +554,27 @@
                + '</div>';
         }
 
-        h += '<div class="msg-card"><h6>Team activity</h6>'
-           + '<div class="msg-kv"><span>Assigned to</span><span>' + (t.assignee ? esc(t.assignee.name) : '<span class="text-muted">Unassigned</span>') + '</span></div>'
-           + '<div class="text-muted fs-12 mt-1">Internal notes are visible to your team only.</div></div>';
+        var a = data.actions || {};
+        h += '<div class="msg-card"><h6>Team</h6>';
+        if (a.can_assign) {
+            h += '<label class="fs-12 text-muted mb-1" for="msg-assignee">Assigned to</label>'
+               + '<select class="form-select form-select-sm mb-2" id="msg-assignee"><option value="">Unassigned</option>'
+               + (a.assignable || []).map(function (u) { return '<option value="' + u.id + '"' + (t.assignee && t.assignee.id === u.id ? ' selected' : '') + '>' + esc(u.name) + '</option>'; }).join('')
+               + '</select>';
+        } else {
+            h += '<div class="msg-kv"><span>Assigned to</span><span>' + (t.assignee ? esc(t.assignee.name) : '<span class="text-muted">Unassigned</span>') + '</span></div>';
+        }
+        if (a.can_note) {
+            h += '<label class="fs-12 text-muted mb-1" for="msg-status">Status</label>'
+               + '<select class="form-select form-select-sm mb-2" id="msg-status">'
+               + [['pending', 'Needs reply'], ['awaiting_buyer', 'Awaiting buyer'], ['resolved', 'Resolved']].map(function (o) { return '<option value="' + o[0] + '"' + (t.status === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('')
+               + '</select>'
+               + '<div class="d-flex gap-2">'
+               + (a.can_mark_read && t.unread > 0 ? '<button type="button" class="btn btn-sm btn-light-brand flex-fill" id="msg-mark-read">Mark read</button>' : '')
+               + (a.can_mark_unread && t.unread === 0 ? '<button type="button" class="btn btn-sm btn-light-brand flex-fill" id="msg-mark-unread">Mark unread</button>' : '')
+               + '</div>';
+        }
+        h += '<div class="text-muted fs-12 mt-2">Internal notes are visible to your team only.</div></div>';
 
         document.getElementById('msg-details-empty').classList.add('d-none');
         var view = document.getElementById('msg-details-view');
@@ -598,8 +695,94 @@
         paint();
     })();
 
+    // ------------------------------------------------------- team actions
+    function applyResult(res) {
+        if (res.data && res.data.thread && res.data.thread.id === state.selectedId) {
+            state.selectedLastAt = res.data.thread.last_at;
+            renderThread(res.data, {keepScroll: false});
+        }
+        showBanner(res.ok ? (res.data.warning || '') : ((res.data && res.data.message) || 'Something went wrong. Please try again.'));
+        loadList(true);
+    }
+
+    function act(path, body) {
+        var id = state.selectedId;
+        if (!id) return Promise.resolve();
+        return request('POST', URLS.base + '/' + id + '/' + path, body).then(function (res) {
+            if (id === state.selectedId) applyResult(res);
+            return res;
+        });
+    }
+
+    function saveDraft() {
+        if (!state.composerFor) return;
+        var d = state.drafts[state.composerFor] = state.drafts[state.composerFor] || {};
+        d[state.mode] = document.getElementById('msg-compose-text').value;
+    }
+
+    function setMode(mode) {
+        saveDraft();
+        state.mode = mode;
+        var d = state.drafts[state.composerFor] || {};
+        document.getElementById('msg-compose-text').value = d[mode] || '';
+        paintComposer();
+    }
+
+    function send() {
+        if (state.sending || !state.selectedId) return;
+        var ta = document.getElementById('msg-compose-text'), text = ta.value.trim();
+        if (!text) { ta.focus(); return; }
+        var id = state.selectedId, mode = state.mode;
+        state.sending = true; paintComposer();
+        act(mode === 'note' ? 'note' : 'reply', {body: text}).then(function (res) {
+            state.sending = false;
+            if (res && res.ok) {
+                var d = state.drafts[id] = state.drafts[id] || {};
+                d[mode] = '';
+                if (id === state.selectedId && mode === state.mode) ta.value = '';
+            }
+            paintComposer();
+        }).catch(function () { state.sending = false; showBanner('Network problem. Your text is still in the box.'); paintComposer(); });
+    }
+
+    document.getElementById('msg-send').addEventListener('click', send);
+    document.getElementById('msg-compose-text').addEventListener('input', function () { saveDraft(); paintComposer(); });
+    document.getElementById('msg-compose-text').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); }
+    });
+    document.querySelectorAll('.msg-ctab').forEach(function (b) { b.addEventListener('click', function () { setMode(b.dataset.mode); }); });
+    document.getElementById('msg-saved').addEventListener('change', function () {
+        var r = ((state.actions || {}).saved_replies || [])[this.value];
+        if (r) {
+            var ta = document.getElementById('msg-compose-text');
+            ta.value = ta.value ? ta.value + '\n' + r.body : r.body;
+            saveDraft(); paintComposer(); ta.focus();
+        }
+        this.value = '';
+    });
+    document.getElementById('msg-resolve').addEventListener('click', function () {
+        act('status', {status: state.thread && state.thread.status === 'resolved' ? 'pending' : 'resolved'});
+    });
+    document.getElementById('msg-th-body').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-retry]');
+        if (!b || !state.selectedId) return;
+        b.disabled = true;
+        request('POST', URLS.base + '/' + state.selectedId + '/messages/' + b.dataset.retry + '/retry', {}).then(applyResult);
+    });
+    document.getElementById('msg-details-view').addEventListener('change', function (e) {
+        if (e.target.id === 'msg-assignee') act('assign', {user_id: e.target.value || null});
+        if (e.target.id === 'msg-status') act('status', {status: e.target.value});
+    });
+    document.getElementById('msg-details-view').addEventListener('click', function (e) {
+        if (e.target.id === 'msg-mark-read') act('read', {read: true});
+        if (e.target.id === 'msg-mark-unread') act('read', {read: false});
+    });
+
     loadList(true);
     setInterval(poll, POLL_MS);
+
+    var deepLink = parseInt(new URLSearchParams(window.location.search).get('thread') || '', 10);
+    if (deepLink > 0) openThread(deepLink);
 })();
 </script>
 @endpush

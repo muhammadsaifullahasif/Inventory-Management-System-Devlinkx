@@ -15,6 +15,7 @@ class SettingsController extends Controller
             $user->can('manage audit-settings') => redirect()->route('settings.audit-log.edit'),
             $user->can('manage backup-settings') => redirect()->route('settings.backup.edit'),
             $user->can('edit shipping') => redirect()->route('settings.shipping.edit'),
+            $user->can('manage message-settings') => redirect()->route('settings.messages.edit'),
             default => abort(403),
         };
     }

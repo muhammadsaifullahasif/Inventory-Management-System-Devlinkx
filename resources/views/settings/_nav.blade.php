@@ -28,5 +28,12 @@
                 </a>
             </li>
         @endcan
+        @can('manage message-settings')
+            <li class="nav-item">
+                <a class="nav-link {{ request()->routeIs('settings.messages.*') ? 'active' : '' }}" href="{{ route('settings.messages.edit') }}">
+                    <i class="feather-message-square me-1"></i> Messages
+                </a>
+            </li>
+        @endcan
     </ul>
 </div>

@@ -111,7 +111,7 @@
                                 if (d.latest && d.latest.store) body += (body ? ' · ' : '') + d.latest.store;
                                 try {
                                     var n = new Notification(title, {body: body, tag: 'inventory-messages', renotify: true, icon: @json(asset('assets/images/favicon.ico'))});
-                                    n.onclick = function () { window.focus(); window.location.href = inboxUrl; n.close(); };
+                                    n.onclick = function () { window.focus(); window.location.href = inboxUrl + (d.new === 1 && d.latest ? '?thread=' + d.latest.thread_id : ''); n.close(); };
                                 } catch (e) {}
                             }
 
@@ -449,7 +449,7 @@
                     @endcanany
                 @endcanany
 
-                @canany(['manage general-settings', 'manage audit-settings', 'manage backup-settings', 'edit shipping'])
+                @canany(['manage general-settings', 'manage audit-settings', 'manage backup-settings', 'edit shipping', 'manage message-settings'])
                     <!-- Settings Section Caption -->
                     <li class="nxl-item nxl-caption">
                         <label>Settings</label>

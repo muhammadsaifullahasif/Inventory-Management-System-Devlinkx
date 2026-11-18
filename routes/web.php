@@ -9,6 +9,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\MessageSettingController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderReturnController;
 use App\Http\Controllers\NotificationController;
@@ -109,6 +110,10 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/backup', [BackupSettingController::class, 'update'])->name('backup.update');
         Route::get('/shipping', [ShippingSettingController::class, 'edit'])->name('shipping.edit');
         Route::put('/shipping', [ShippingSettingController::class, 'update'])->name('shipping.update');
+        Route::get('/messages', [MessageSettingController::class, 'edit'])->name('messages.edit');
+        Route::post('/messages/replies', [MessageSettingController::class, 'store'])->name('messages.replies.store');
+        Route::put('/messages/replies/{reply}', [MessageSettingController::class, 'update'])->whereNumber('reply')->name('messages.replies.update');
+        Route::delete('/messages/replies/{reply}', [MessageSettingController::class, 'destroy'])->whereNumber('reply')->name('messages.replies.destroy');
     });
 
     // Categories
@@ -179,6 +184,14 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/messages/{thread}', [MessageController::class, 'show'])->whereNumber('thread')->name('messages.show');
     Route::post('/messages/{thread}/refresh', [MessageController::class, 'refresh'])
         ->whereNumber('thread')->middleware('throttle:60,1')->name('messages.refresh');
+    Route::middleware('throttle:60,1')->whereNumber(['thread', 'message'])->group(function () {
+        Route::post('/messages/{thread}/reply', [MessageController::class, 'reply'])->name('messages.reply');
+        Route::post('/messages/{thread}/messages/{message}/retry', [MessageController::class, 'retry'])->name('messages.retry');
+        Route::post('/messages/{thread}/note', [MessageController::class, 'note'])->name('messages.note');
+        Route::post('/messages/{thread}/status', [MessageController::class, 'status'])->name('messages.status');
+        Route::post('/messages/{thread}/assign', [MessageController::class, 'assign'])->name('messages.assign');
+        Route::post('/messages/{thread}/read', [MessageController::class, 'read'])->name('messages.read');
+    });
 
     // Sales Channel
     Route::resource('/sales-channels', SalesChannelController::class);
