@@ -167,6 +167,9 @@
         <div class="page-header-right ms-auto">
             <div class="page-header-right-items">
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    <button type="button" class="btn btn-sm btn-light-brand d-none" id="msg-notify-toggle">
+                        <i class="feather-bell-off me-1" id="msg-notify-icon"></i><span id="msg-notify-label">Enable desktop alerts</span>
+                    </button>
                     @if($health['total'] > 0)
                         @if(empty($health['problems']))
                             <span class="badge bg-soft-success text-success" title="Every store synced within the last 15 minutes">
@@ -565,6 +568,35 @@
         if ($app.classList.contains('show-details')) { $app.classList.remove('show-details'); return; }
         if (state.selectedId) closeThread();
     });
+
+    // ---- Desktop notifications (the sidebar script does the polling and shows them) ----
+    (function () {
+        var btn = document.getElementById('msg-notify-toggle');
+        if (!btn || !('Notification' in window)) return;
+        var ON_KEY = 'msgNotifyOn', LAST_KEY = 'msgNotifyLastId';
+        function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+        function set(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+        function paint() {
+            var denied = Notification.permission === 'denied';
+            var on = Notification.permission === 'granted' && get(ON_KEY) === '1';
+            btn.classList.remove('d-none');
+            btn.disabled = denied;
+            btn.classList.toggle('btn-success', on);
+            btn.classList.toggle('btn-light-brand', !on);
+            document.getElementById('msg-notify-icon').className = (on ? 'feather-bell' : 'feather-bell-off') + ' me-1';
+            document.getElementById('msg-notify-label').textContent = denied ? 'Alerts blocked' : (on ? 'Desktop alerts on' : 'Enable desktop alerts');
+            btn.title = denied ? 'Notifications are blocked for this site. Allow them in your browser's site settings.'
+                : (on ? 'Click to turn off desktop alerts for new buyer messages' : 'Show a desktop notification when a new buyer message arrives');
+        }
+        function turnOn() { set(ON_KEY, '1'); set(LAST_KEY, null); paint(); window.dispatchEvent(new Event('messages:counts-changed')); }
+        btn.addEventListener('click', function () {
+            if (get(ON_KEY) === '1' && Notification.permission === 'granted') { set(ON_KEY, null); paint(); return; }
+            if (Notification.permission === 'granted') { turnOn(); return; }
+            Promise.resolve(Notification.requestPermission(function (p) { if (p === 'granted') turnOn(); else paint(); }))
+                .then(function (p) { if (p === 'granted') turnOn(); else paint(); }).catch(paint);
+        });
+        paint();
+    })();
 
     loadList(true);
     setInterval(poll, POLL_MS);

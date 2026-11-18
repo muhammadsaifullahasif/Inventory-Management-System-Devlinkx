@@ -89,13 +89,33 @@ class MessageController extends Controller
     }
 
     /**
-     * Lightweight numbers for the sidebar badge.
+     * Lightweight numbers for the sidebar badge, plus what the browser needs to raise a desktop
+     * notification: how many buyer messages arrived after message id `after`, and the newest one.
+     * Without `after` it only returns the newest id, so the browser can set a baseline silently.
      */
-    public function counts(): JsonResponse
+    public function counts(Request $request): JsonResponse
     {
         $c = $this->tabCounts(null);
 
-        return response()->json(['unread' => $c['unread'], 'pending' => $c['pending']]);
+        $inbound = Message::query()
+            ->where('messages.direction', Message::DIRECTION_INBOUND)
+            ->whereHas('thread', fn (Builder $q) => $q->where('thread_kind', '!=', MessageThread::KIND_PLATFORM_SYSTEM));
+
+        $latest = (clone $inbound)->with('thread.salesChannel')->orderByDesc('messages.id')->first();
+        $after = $request->integer('after', 0);
+
+        return response()->json([
+            'unread' => $c['unread'],
+            'pending' => $c['pending'],
+            'latest_id' => $latest?->id ?? 0,
+            'new' => $after > 0 ? (clone $inbound)->where('messages.id', '>', $after)->count() : 0,
+            'latest' => $latest ? [
+                'thread_id' => $latest->thread_id,
+                'buyer' => $latest->thread->buyer_username ?: ($latest->sender_name ?: 'Buyer'),
+                'store' => $this->shortStoreName((string) $latest->thread->salesChannel?->name),
+                'preview' => \Illuminate\Support\Str::limit(trim((string) $latest->body), 140),
+            ] : null,
+        ]);
     }
 
     /**

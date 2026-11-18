@@ -149,7 +149,33 @@ class MessageInboxTest extends TestCase
 
         $this->actingAs($this->viewer)->getJson('/messages/counts')
             ->assertOk()
-            ->assertExactJson(['unread' => 1, 'pending' => 1]);
+            ->assertJson(['unread' => 1, 'pending' => 1, 'latest_id' => 0, 'new' => 0, 'latest' => null]);
+    }
+
+    public function test_counts_report_new_buyer_messages_for_desktop_notifications(): void
+    {
+        $t = $this->thread($this->apex, 'a', 'jane_doe', unread: 1);
+        $system = $this->thread($this->satmec, 's', 'ebay');
+        $system->update(['thread_kind' => MessageThread::KIND_PLATFORM_SYSTEM]);
+
+        $msg = fn (MessageThread $thread, string $ext, string $direction, string $body) => \App\Models\Message::create([
+            'thread_id' => $thread->id, 'external_message_id' => $ext, 'direction' => $direction,
+            'sender_kind' => $direction === 'inbound' ? 'buyer' : 'seller', 'body' => $body, 'sent_at' => now(),
+        ]);
+
+        $first = $msg($t, 'm1', 'inbound', 'Is this in stock?');
+        $msg($t, 'm2', 'outbound', 'Yes it is');                 // our reply: never notifies
+        $msg($system, 'm3', 'inbound', 'eBay notice');          // platform thread: never notifies
+
+        // No baseline yet: only the newest id comes back, nothing is "new".
+        $this->actingAs($this->viewer)->getJson('/messages/counts')
+            ->assertJson(['latest_id' => $first->id, 'new' => 0, 'latest' => ['buyer' => 'jane_doe', 'preview' => 'Is this in stock?']]);
+
+        $this->actingAs($this->viewer)->getJson('/messages/counts?after=' . $first->id)->assertJson(['new' => 0]);
+
+        $second = $msg($t, 'm4', 'inbound', 'And the color?');
+        $this->actingAs($this->viewer)->getJson('/messages/counts?after=' . $first->id)
+            ->assertJson(['new' => 1, 'latest_id' => $second->id, 'latest' => ['preview' => 'And the color?']]);
     }
 
     // -------------------------------------------------------------------- show

@@ -88,18 +88,55 @@
                     </style>
                     @push('scripts')
                     <script>
-                        // Unread badge: same polling approach as the notification bell (60s, only while the tab is visible).
+                        // Unread badge + desktop notifications for new buyer messages.
+                        // Polls every 60s. A hidden tab keeps polling only while notifications are switched on
+                        // (the toggle lives on the Messages page and is stored in localStorage).
                         (function () {
                             var badge = document.getElementById('msg-sidebar-badge');
                             if (!badge) return;
+                            var ON_KEY = 'msgNotifyOn', LAST_KEY = 'msgNotifyLastId';
+                            var inboxUrl = @json(route('messages.index'));
+                            var countsUrl = @json(route('messages.counts'));
+
+                            function store(key, val) { try { if (val === null) localStorage.removeItem(key); else localStorage.setItem(key, String(val)); } catch (e) {} }
+                            function read(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+                            function notifying() {
+                                return 'Notification' in window && Notification.permission === 'granted' && read(ON_KEY) === '1';
+                            }
+
+                            function notify(d) {
+                                var who = d.latest ? d.latest.buyer : 'a buyer';
+                                var title = d.new > 1 ? d.new + ' new buyer messages' : 'New message from ' + who;
+                                var body = d.latest ? (d.new > 1 ? 'Latest from ' + who + ': ' : '') + d.latest.preview : '';
+                                if (d.latest && d.latest.store) body += (body ? ' · ' : '') + d.latest.store;
+                                try {
+                                    var n = new Notification(title, {body: body, tag: 'inventory-messages', renotify: true, icon: @json(asset('assets/images/favicon.ico'))});
+                                    n.onclick = function () { window.focus(); window.location.href = inboxUrl; n.close(); };
+                                } catch (e) {}
+                            }
+
                             function load() {
-                                if (document.hidden) return;
-                                fetch(@json(route('messages.counts')), {headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'}, credentials: 'same-origin'})
+                                var active = notifying();
+                                if (document.hidden && !active) return;
+                                var last = parseInt(read(LAST_KEY) || '0', 10);
+                                var url = countsUrl + (active && last > 0 ? '?after=' + last : '');
+                                fetch(url, {headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'}, credentials: 'same-origin'})
                                     .then(function (r) { return r.ok ? r.json() : null; })
                                     .then(function (d) {
                                         if (!d) return;
                                         badge.textContent = d.unread > 99 ? '99+' : d.unread;
                                         badge.classList.toggle('d-none', !d.unread);
+
+                                        if (!notifying()) return;
+                                        // Re-read: another open tab may already have announced these messages.
+                                        var stored = parseInt(read(LAST_KEY) || '0', 10);
+                                        if (stored === 0) { store(LAST_KEY, d.latest_id); return; }   // first run: baseline, no alert
+                                        if (d.latest_id > stored) {
+                                            store(LAST_KEY, d.latest_id);
+                                            // No alert when the person is already looking at the inbox.
+                                            var watching = !document.hidden && document.hasFocus() && /\/messages/.test(location.pathname);
+                                            if (d.new > 0 && stored === last && !watching) notify(d);
+                                        }
                                     })
                                     .catch(function () {});
                             }
