@@ -7,6 +7,7 @@ use App\Models\MessageThread;
 use App\Models\SalesChannel;
 use App\Services\Ebay\EbayMessageApiClient;
 use App\Services\Messaging\Contracts\MessageChannelDriver;
+use App\Services\Messaging\Contracts\ProvidesSystemThreads;
 use App\Services\Messaging\Data\MessageData;
 use App\Services\Messaging\Data\SendMessageData;
 use App\Services\Messaging\Data\SentMessageData;
@@ -23,7 +24,7 @@ use Carbon\CarbonInterface;
  * was checked against live responses from all 7 stores on 2026-11-18. NOT yet verified
  * live: send_message and update_conversation (the probe is read-only).
  */
-class EbayMessageDriver implements MessageChannelDriver
+class EbayMessageDriver implements MessageChannelDriver, ProvidesSystemThreads
 {
     private const PAGE_SIZE = 50;
     private const MAX_PAGES = 100; // safety stop against runaway pagination
@@ -175,7 +176,12 @@ class EbayMessageDriver implements MessageChannelDriver
     {
         $start = $this->passStartedAt ?? now();
 
-        return $start->copy()->subSeconds(self::CURSOR_OVERLAP_SECONDS)->utc()->toIso8601String();
+        return $this->cursorFromTime($start->copy()->subSeconds(self::CURSOR_OVERLAP_SECONDS));
+    }
+
+    public function cursorFromTime(CarbonInterface $time): string
+    {
+        return $time->copy()->utc()->toIso8601String();
     }
 
     // ---------------------------------------------------------------
@@ -321,7 +327,9 @@ class EbayMessageDriver implements MessageChannelDriver
         }
 
         try {
-            return Carbon::parse((string) $value);
+            // eBay sends UTC ("...Z"). Convert to the app timezone, because Eloquent saves a Carbon's
+            // wall-clock time as-is and reads it back as app time (the app runs in America/Los_Angeles).
+            return Carbon::parse((string) $value)->setTimezone(config('app.timezone'));
         } catch (\Throwable) {
             return null;
         }

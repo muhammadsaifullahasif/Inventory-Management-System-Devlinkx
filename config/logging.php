@@ -154,6 +154,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Messages inbox sync (warnings and errors)
+        'messages' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/messages/messages.log'),
+            'level' => 'warning',
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
         // eBay competitor price comparison (Market Research feature)
         'ebay-price-comparison' => [
             'driver' => 'daily',

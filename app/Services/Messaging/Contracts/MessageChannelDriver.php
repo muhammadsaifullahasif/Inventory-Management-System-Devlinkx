@@ -8,6 +8,7 @@ use App\Services\Messaging\Data\SendMessageData;
 use App\Services\Messaging\Data\SentMessageData;
 use App\Services\Messaging\Data\ThreadData;
 use App\Services\Messaging\Exceptions\MessagingException;
+use Carbon\CarbonInterface;
 
 /**
  * One implementation per sales-channel type (eBay, WooCommerce, Shopify, ...).
@@ -62,6 +63,13 @@ interface MessageChannelDriver
 
     /**
      * The next sync cursor after a successful pass (e.g. the pass's start time).
+     * Call after fully iterating fetchThreads().
      */
     public function nextCursor(): string;
+
+    /**
+     * A cursor meaning "everything changed since $time", for backfills and `--from`.
+     * Keeps the cursor format private to the driver.
+     */
+    public function cursorFromTime(CarbonInterface $time): string;
 }

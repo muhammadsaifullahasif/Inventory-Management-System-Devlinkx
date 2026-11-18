@@ -82,6 +82,14 @@ Schedule::command('ebay:sync-finances')
     ->appendOutputTo(storage_path('logs/ebay-finance-sync.log'))
     ->onFailure($onScheduleFailure('ebay:sync-finances'));
 
+// Messages inbox: pull new buyer messages from every connected store every 2 minutes.
+// Each run only asks eBay for conversations changed since the last good run (see MessageSyncService).
+Schedule::command('messages:sync')
+    ->everyTwoMinutes()
+    ->withoutOverlapping(10)
+    ->appendOutputTo(storage_path('logs/messages-sync.log'))
+    ->onFailure($onScheduleFailure('messages:sync'));
+
 // Market Research: refresh eBay competitor price comparisons hourly (rotates through catalog, oldest-compared first)
 Schedule::command('price-comparison:run --limit=50')
     ->hourly()
@@ -156,5 +164,5 @@ Schedule::job(new ArchiveAuditLogsJob())
     ->onFailure($onScheduleFailure('ArchiveAuditLogsJob'));
 
 // Automatically runs the queue worker every minute cleanly via internal code routing
-Schedule::command('queue:work database --queue=ebay-imports,inventory-sync,default --stop-when-empty --max-time=50 --timeout=1800')
+Schedule::command('queue:work database --queue=ebay-imports,inventory-sync,messages,default --stop-when-empty --max-time=50 --timeout=1800')
     ->everyFiveMinutes();

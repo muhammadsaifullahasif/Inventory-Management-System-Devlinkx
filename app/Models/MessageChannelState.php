@@ -37,7 +37,12 @@ class MessageChannelState extends Model
      */
     public static function forChannel(SalesChannel $channel): self
     {
-        return static::firstOrCreate(['sales_channel_id' => $channel->id]);
+        // Defaults are passed explicitly: a freshly created model does not carry the column
+        // defaults, so messaging_enabled would read as empty (= disabled) on the first call.
+        return static::firstOrCreate(
+            ['sales_channel_id' => $channel->id],
+            ['messaging_enabled' => true, 'auto_reply_enabled' => false],
+        );
     }
 
     public function markSynced(?string $cursor = null): void
