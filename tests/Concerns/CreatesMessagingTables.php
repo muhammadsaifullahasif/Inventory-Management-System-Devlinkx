@@ -70,6 +70,7 @@ trait CreatesMessagingTables
             $t->id();
             $t->unsignedBigInteger('order_id');
             $t->string('channel_item_id')->nullable();
+            $t->string('sku')->nullable();
         });
 
         foreach (glob(base_path('database/migrations/2026_11_18_00000*_*.php')) as $file) {

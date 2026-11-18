@@ -45,6 +45,9 @@ class MessageSyncServiceTest extends TestCase
     {
         parent::setUp();
 
+        // The fixtures use fixed dates; pin "now" so the 14-day relink window does not age out of the tests.
+        \Illuminate\Support\Carbon::setTestNow('2026-11-18 20:00:00');
+
         $this->createMessagingTables();
 
         $this->channel = SalesChannel::create([
