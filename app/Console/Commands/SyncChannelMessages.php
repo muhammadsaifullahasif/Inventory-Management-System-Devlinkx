@@ -26,6 +26,8 @@ class SyncChannelMessages extends Command
             return 1;
         }
 
+        $startedAt = microtime(true);
+
         $channels = SalesChannel::query()
             ->whereNotNull('refresh_token')
             ->whereNotNull('client_id')
@@ -67,8 +69,11 @@ class SyncChannelMessages extends Command
         }
 
         $this->newLine();
-        $this->info("Message sync complete: {$totals['threads_seen']} threads seen, {$totals['threads_created']} new, "
-            . "{$totals['messages_created']} new messages" . ($failed ? ", {$failed} store(s) failed" : '') . '.');
+        // Timestamp and duration: the scheduler appends this output to messages-sync.log, which otherwise has no times.
+        $this->info('[' . now()->toDateTimeString() . '] Message sync complete: '
+            . "{$totals['threads_seen']} threads seen, {$totals['threads_created']} new, "
+            . "{$totals['messages_created']} new messages" . ($failed ? ", {$failed} store(s) failed" : '')
+            . sprintf('. (%.1fs)', microtime(true) - $startedAt));
 
         // Like the other syncs: fail the scheduled task only when every store failed.
         return $failed === $channels->count() ? 1 : 0;
