@@ -19,9 +19,9 @@ use Carbon\CarbonInterface;
  * eBay implementation of the messaging contract (Commerce Message API).
  * All eBay-specific names and shapes stay in this class and EbayMessageApiClient.
  *
- * NOTE: the JSON field names read below (conversationId, latestMessage, messageBody,
- * senderUsername, readStatus, ...) follow eBay's docs but are unverified against live
- * data; the mapping is deliberately tolerant. Re-check it against the Phase 0 captures.
+ * The read side (getConversations / getConversation payloads, messageMedia, page size 50)
+ * was checked against live responses from all 7 stores on 2026-11-18. NOT yet verified
+ * live: send_message and update_conversation (the probe is read-only).
  */
 class EbayMessageDriver implements MessageChannelDriver
 {
@@ -31,9 +31,23 @@ class EbayMessageDriver implements MessageChannelDriver
 
     private ?CarbonInterface $passStartedAt = null;
 
+    /**
+     * eBay's own system conversations (payout notices, return updates, ...) outnumber buyer
+     * conversations roughly 5 to 1 (about 11,000 vs 2,400 across the 7 stores) and carry no
+     * message text in the list call, so they are skipped unless explicitly enabled.
+     */
+    private bool $includeSystemThreads = false;
+
     public function __construct(
         private EbayMessageApiClient $api,
     ) {}
+
+    public function withSystemThreads(bool $include = true): static
+    {
+        $this->includeSystemThreads = $include;
+
+        return $this;
+    }
 
     public function capabilities(): array
     {
@@ -55,7 +69,11 @@ class EbayMessageDriver implements MessageChannelDriver
 
         $own = $this->ownUsernames($channel);
 
-        foreach ([EbayMessageApiClient::TYPE_FROM_MEMBERS, EbayMessageApiClient::TYPE_FROM_EBAY] as $type) {
+        $types = $this->includeSystemThreads
+            ? [EbayMessageApiClient::TYPE_FROM_MEMBERS, EbayMessageApiClient::TYPE_FROM_EBAY]
+            : [EbayMessageApiClient::TYPE_FROM_MEMBERS];
+
+        foreach ($types as $type) {
             for ($page = 0, $offset = 0; $page < self::MAX_PAGES; $page++, $offset += self::PAGE_SIZE) {
                 $body = $this->api->getConversations($channel, $type, $filters, self::PAGE_SIZE, $offset);
                 $conversations = $body['conversations'] ?? [];
@@ -95,7 +113,12 @@ class EbayMessageDriver implements MessageChannelDriver
 
         usort($messages, fn (MessageData $a, MessageData $b) => ($a->sentAt?->getTimestamp() ?? 0) <=> ($b->sentAt?->getTimestamp() ?? 0));
 
+        // The single-conversation call omits these (verified against live responses), so carry
+        // them over from the stored thread instead of letting a refresh blank them out.
         $conversation['conversationId'] = $conversation['conversationId'] ?? $thread->external_thread_id;
+        $conversation['referenceId'] = $conversation['referenceId'] ?? $thread->external_reference_id;
+        $conversation['referenceType'] = $conversation['referenceType'] ?? $thread->reference_type;
+        $conversation['unreadCount'] = $conversation['unreadCount'] ?? $thread->unread_count;
 
         return $this->buildThread($conversation, $type, $own, $messages, fullHistory: true);
     }
@@ -186,8 +209,11 @@ class EbayMessageDriver implements MessageChannelDriver
             }
         }
 
-        $subject = $conversation['conversationTitle']
-            ?? ($conversation['latestMessage']['subject'] ?? null);
+        // For system conversations the title is meaningful ("Return 5333331605: Issue refund").
+        // For buyer conversations eBay just repeats the latest message text, so it is not a subject.
+        $subject = $type === EbayMessageApiClient::TYPE_FROM_EBAY
+            ? ($conversation['conversationTitle'] ?? null)
+            : null;
 
         return new ThreadData(
             externalThreadId: (string) ($conversation['conversationId'] ?? ''),

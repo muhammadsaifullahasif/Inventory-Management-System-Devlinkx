@@ -68,20 +68,28 @@ class EbayMessageDriverTest extends TestCase
                 ]]]);
             }
 
+            // Live shape: system conversations have a title and NO latestMessage.
             return Http::response(['conversations' => [[
                 'conversationId' => 'sys-1',
+                'conversationStatus' => 'ACTIVE',
+                'conversationTitle' => 'Return 5333331605: Issue refund',
                 'conversationType' => 'FROM_EBAY',
-                'latestMessage' => [
-                    'messageId' => 'm-1',
-                    'messageBody' => 'Policy update',
-                    'senderUsername' => 'eBay',
-                    'recipientUsername' => 'apex_auto',
-                    'createdDate' => '2026-11-17T10:00:00.000Z',
-                ],
+                'createdDate' => '2026-11-17T10:00:00.000Z',
+                'referenceId' => '188436749399',
+                'referenceType' => 'LISTING',
+                'unreadCount' => 1,
             ]]]);
         });
 
-        $threads = iterator_to_array($this->driver()->fetchThreads($this->channel()), false);
+        // Default: buyer conversations only.
+        $buyerOnly = iterator_to_array($this->driver()->fetchThreads($this->channel()), false);
+        $this->assertCount(1, $buyerOnly);
+        $this->assertSame('conv-1', $buyerOnly[0]->externalThreadId);
+        $this->assertNull($buyerOnly[0]->subject, 'buyer-thread "title" is just the latest message text');
+        Http::assertNotSent(fn (Request $r) => str_contains($r->url(), 'FROM_EBAY'));
+
+        // Opt in to eBay system conversations.
+        $threads = iterator_to_array($this->driver()->withSystemThreads()->fetchThreads($this->channel()), false);
 
         $this->assertCount(2, $threads);
 
@@ -100,7 +108,10 @@ class EbayMessageDriverTest extends TestCase
 
         $this->assertSame(MessageThread::KIND_PLATFORM_SYSTEM, $system->threadKind);
         $this->assertNull($system->buyerUsername);
-        $this->assertSame(Message::SENDER_PLATFORM, $system->messages[0]->senderKind);
+        $this->assertSame('Return 5333331605: Issue refund', $system->subject);
+        $this->assertSame('188436749399', $system->externalReferenceId);
+        $this->assertSame(1, $system->unreadCount);
+        $this->assertSame([], $system->messages, 'text needs a separate fetchThread call');
     }
 
     public function test_seller_messages_are_outbound(): void
@@ -113,8 +124,20 @@ class EbayMessageDriverTest extends TestCase
             ],
         ])]);
 
-        $thread = new MessageThread(['external_thread_id' => 'conv-1', 'thread_kind' => MessageThread::KIND_UNKNOWN]);
+        $thread = new MessageThread([
+            'external_thread_id' => 'conv-1',
+            'thread_kind' => MessageThread::KIND_UNKNOWN,
+            'external_reference_id' => '1234567890',
+            'reference_type' => 'LISTING',
+            'unread_count' => 3,
+        ]);
         $data = $this->driver()->fetchThread($this->channel(), $thread);
+
+        // Live detail responses carry no conversationId / referenceId / unreadCount: kept from the stored thread.
+        $this->assertSame('conv-1', $data->externalThreadId);
+        $this->assertSame('1234567890', $data->externalReferenceId);
+        $this->assertSame('LISTING', $data->referenceType);
+        $this->assertSame(3, $data->unreadCount);
 
         $this->assertTrue($data->hasFullHistory);
         $this->assertSame(['m-1', 'm-2'], array_map(fn ($m) => $m->externalMessageId, $data->messages), 'oldest first');
