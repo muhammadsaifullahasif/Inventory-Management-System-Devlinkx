@@ -359,6 +359,24 @@ class EbayApiClient
             }
             $short = $errors[0]['ShortMessage'] ?? 'Unknown error';
             $long = $errors[0]['LongMessage'] ?? '';
+
+            // The exception message keeps only the short text. Record what eBay support needs
+            // (error code, parameters, Build and CorrelationID) so a failure can be traced later.
+            Log::channel('ebay')->error('eBay API call returned Ack=Failure', [
+                'errors' => array_map(fn ($e) => [
+                    'code' => $e['ErrorCode'] ?? null,
+                    'severity' => $e['SeverityCode'] ?? null,
+                    'classification' => $e['ErrorClassification'] ?? null,
+                    'short' => $e['ShortMessage'] ?? null,
+                    'long' => $e['LongMessage'] ?? null,
+                    'parameters' => $e['ErrorParameters'] ?? null,
+                ], is_array($errors) ? array_filter($errors, 'is_array') : []),
+                'build' => $response['Build'] ?? null,
+                'version' => $response['Version'] ?? null,
+                'correlation_id' => $response['CorrelationID'] ?? null,
+                'timestamp' => $response['Timestamp'] ?? null,
+            ]);
+
             throw new Exception("eBay API Error: {$short}" . ($long ? " - {$long}" : ''));
         }
     }
