@@ -229,7 +229,7 @@
                             <div class="d-flex flex-wrap gap-2 align-items-center mt-1" id="msg-th-meta"></div>
                         </div>
                         <button type="button" class="btn btn-sm btn-light-brand msg-info" id="msg-info" title="Buyer & order details"><i class="feather-info"></i></button>
-                        <button type="button" class="btn btn-sm btn-light-brand msg-close" id="msg-close" title="Close conversation" aria-label="Close conversation"><i class="feather-x"></i></button>
+                        <button type="button" class="avatar-text avatar-md text-danger msg-close" id="msg-close" title="Close conversation" aria-label="Close conversation"><i class="feather-x"></i></button>
                     </div>
                     <div id="msg-th-banner"></div>
                     <div class="msg-thread-body" id="msg-th-body"></div>

@@ -75,6 +75,17 @@
                             <span class="badge bg-danger ms-2 d-none" id="msg-sidebar-badge" title="Conversations with unread messages"></span>
                         </a>
                     </li>
+                    <style>
+                        /* Collapsed sidebar (icons only): float the counter over the icon's corner.
+                           While the collapsed sidebar is hovered it expands, so the normal inline badge returns. */
+                        html.minimenu .nxl-navigation:not(:hover) .nxl-link { position: relative; }
+                        html.minimenu .nxl-navigation:not(:hover) #msg-sidebar-badge {
+                            position: absolute; top: 3px; right: 3px; margin: 0 !important;
+                            min-width: 18px; height: 18px; padding: 0 5px;
+                            font-size: 10px; line-height: 18px; border-radius: 9px;
+                            box-shadow: 0 0 0 2px var(--bs-body-bg, #fff);
+                        }
+                    </style>
                     @push('scripts')
                     <script>
                         // Unread badge: same polling approach as the notification bell (60s, only while the tab is visible).
