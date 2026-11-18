@@ -585,7 +585,7 @@
             btn.classList.toggle('btn-light-brand', !on);
             document.getElementById('msg-notify-icon').className = (on ? 'feather-bell' : 'feather-bell-off') + ' me-1';
             document.getElementById('msg-notify-label').textContent = denied ? 'Alerts blocked' : (on ? 'Desktop alerts on' : 'Enable desktop alerts');
-            btn.title = denied ? 'Notifications are blocked for this site. Allow them in your browser's site settings.'
+            btn.title = denied ? 'Notifications are blocked for this site. Allow them in the browser site settings.'
                 : (on ? 'Click to turn off desktop alerts for new buyer messages' : 'Show a desktop notification when a new buyer message arrives');
         }
         function turnOn() { set(ON_KEY, '1'); set(LAST_KEY, null); paint(); window.dispatchEvent(new Event('messages:counts-changed')); }
