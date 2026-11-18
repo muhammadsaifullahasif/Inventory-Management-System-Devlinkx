@@ -8,6 +8,7 @@ use App\Http\Controllers\RackController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\MessageController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderReturnController;
 use App\Http\Controllers\NotificationController;
@@ -170,6 +171,14 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('/purchases', PurchaseController::class);
     Route::get('/purchases/{id}/receive', [PurchaseController::class, 'receiveStock'])->name('purchases.receive');
     Route::post('/purchases/{id}/receive', [PurchaseController::class, 'processReceiveStock'])->name('purchases.receive.store');
+
+    // Messages inbox (buyer conversations from every connected store)
+    Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
+    Route::get('/messages/feed', [MessageController::class, 'feed'])->name('messages.feed');
+    Route::get('/messages/counts', [MessageController::class, 'counts'])->name('messages.counts');
+    Route::get('/messages/{thread}', [MessageController::class, 'show'])->whereNumber('thread')->name('messages.show');
+    Route::post('/messages/{thread}/refresh', [MessageController::class, 'refresh'])
+        ->whereNumber('thread')->middleware('throttle:60,1')->name('messages.refresh');
 
     // Sales Channel
     Route::resource('/sales-channels', SalesChannelController::class);

@@ -17,6 +17,7 @@ trait CreatesMessagingTables
         Schema::create('users', function (Blueprint $t) {
             $t->id();
             $t->string('name')->nullable();
+            $t->timestamps();
         });
 
         Schema::create('sales_channels', function (Blueprint $t) {
@@ -37,6 +38,17 @@ trait CreatesMessagingTables
         Schema::create('products', function (Blueprint $t) {
             $t->id();
             $t->string('name')->nullable();
+            $t->string('sku')->nullable();
+            $t->decimal('price', 10, 2)->nullable();
+            $t->string('product_image')->nullable();
+        });
+
+        // Product always eager-loads its meta rows.
+        Schema::create('product_metas', function (Blueprint $t) {
+            $t->id();
+            $t->unsignedBigInteger('product_id');
+            $t->string('meta_key')->nullable();
+            $t->text('meta_value')->nullable();
         });
 
         Schema::create('sales_channel_product', function (Blueprint $t) {
@@ -63,5 +75,23 @@ trait CreatesMessagingTables
         foreach (glob(base_path('database/migrations/2026_11_18_00000*_*.php')) as $file) {
             (require $file)->up();
         }
+    }
+
+    /**
+     * Roles/permissions tables (spatie) and the notifications table, for tests that go through
+     * the permission middleware or render the full page layout.
+     */
+    protected function createAuthTables(): void
+    {
+        (require base_path('vendor/spatie/laravel-permission/database/migrations/create_permission_tables.php.stub'))->up();
+
+        Schema::create('notifications', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->string('type');
+            $t->morphs('notifiable');
+            $t->text('data');
+            $t->timestamp('read_at')->nullable();
+            $t->timestamps();
+        });
     }
 }

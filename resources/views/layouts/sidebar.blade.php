@@ -66,6 +66,40 @@
                     </li>
                 @endcan
 
+                <!-- Messages (buyer conversations from all stores) -->
+                @can('view messages')
+                    <li class="nxl-item {{ request()->routeIs('messages.*') ? 'active' : '' }}">
+                        <a href="{{ route('messages.index') }}" class="nxl-link">
+                            <span class="nxl-micon"><i class="feather-mail"></i></span>
+                            <span class="nxl-mtext">Messages</span>
+                            <span class="badge bg-danger ms-2 d-none" id="msg-sidebar-badge" title="Conversations with unread messages"></span>
+                        </a>
+                    </li>
+                    @push('scripts')
+                    <script>
+                        // Unread badge: same polling approach as the notification bell (60s, only while the tab is visible).
+                        (function () {
+                            var badge = document.getElementById('msg-sidebar-badge');
+                            if (!badge) return;
+                            function load() {
+                                if (document.hidden) return;
+                                fetch(@json(route('messages.counts')), {headers: {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest'}, credentials: 'same-origin'})
+                                    .then(function (r) { return r.ok ? r.json() : null; })
+                                    .then(function (d) {
+                                        if (!d) return;
+                                        badge.textContent = d.unread > 99 ? '99+' : d.unread;
+                                        badge.classList.toggle('d-none', !d.unread);
+                                    })
+                                    .catch(function () {});
+                            }
+                            load();
+                            setInterval(load, 60000);
+                            window.addEventListener('messages:counts-changed', load);
+                        })();
+                    </script>
+                    @endpush
+                @endcan
+
                 <!-- Products -->
                 @canany(['view products', 'add products', 'edit products', 'delete products', 'view categories', 'add categories', 'edit categories', 'delete categories', 'view brands', 'add brands', 'edit brands', 'delete brands', 'view market-research', 'export market-research'])
                     <li class="nxl-item nxl-hasmenu {{ request()->routeIs(['products.*', 'categories.*', 'brands.*', 'market-research.*']) ? 'active nxl-trigger' : '' }}">

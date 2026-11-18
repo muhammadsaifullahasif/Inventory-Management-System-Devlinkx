@@ -178,17 +178,59 @@ class MessageSyncService
             $stats['details_fetched']++;
         }
 
-        DB::transaction(function () use ($thread, $messages, $isNew, &$stats) {
+        $stats['messages_created'] += $this->persistMessages($thread, $messages, $isNew);
+
+        $this->linker->link($thread);
+
+        $stats[$isNew ? 'threads_created' : 'threads_updated']++;
+    }
+
+    /**
+     * Re-read one thread from the platform (used when staff open it in the inbox).
+     * Read-only on the platform side; only our database changes.
+     *
+     * @return int New messages found
+     *
+     * @throws MessagingException
+     */
+    public function refreshThread(MessageThread $thread): int
+    {
+        $channel = $thread->salesChannel;
+        $driver = $this->drivers->forChannel($channel);
+
+        $detail = $driver->fetchThread($channel, $thread);
+
+        // Remember how fresh this is, so the next list sync does not fetch the same conversation again.
+        if ($detail->updatedAt && (!$thread->external_updated_at || $detail->updatedAt->gt($thread->external_updated_at))) {
+            $thread->external_updated_at = $detail->updatedAt;
+        }
+
+        $created = $this->persistMessages($thread, $detail->messages, isNew: false);
+        $this->linker->link($thread);
+
+        return $created;
+    }
+
+    /**
+     * Save the thread and store its messages, then recompute last-message fields and status.
+     *
+     * @param array<int,MessageData> $messages
+     * @return int Messages newly created
+     */
+    private function persistMessages(MessageThread $thread, array $messages, bool $isNew): int
+    {
+        return DB::transaction(function () use ($thread, $messages, $isNew) {
             $previousLastAt = $thread->last_message_at;
             $thread->save();
 
+            $created = 0;
             $newInbound = false;
             foreach ($messages as $message) {
                 if (!$this->storeMessage($thread, $message)) {
                     continue;
                 }
 
-                $stats['messages_created']++;
+                $created++;
                 if ($message->direction === Message::DIRECTION_INBOUND
                     && (!$previousLastAt || ($message->sentAt && $message->sentAt->gt($previousLastAt)))) {
                     $newInbound = true;
@@ -196,11 +238,9 @@ class MessageSyncService
             }
 
             $this->refreshDerivedFields($thread, $isNew, $newInbound);
+
+            return $created;
         });
-
-        $this->linker->link($thread);
-
-        $stats[$isNew ? 'threads_created' : 'threads_updated']++;
     }
 
     /**
