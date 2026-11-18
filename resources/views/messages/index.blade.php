@@ -131,6 +131,7 @@
     .msg-product .noimg { width: 52px; height: 52px; border-radius: .4rem; background: var(--msg-in-bg); display: flex; align-items: center; justify-content: center; color: var(--msg-muted); }
 
     .msg-back, .msg-info { display: none; }
+    .msg-close { display: inline-flex; flex: 0 0 auto; }
 
     /* narrower screens: one pane at a time */
     @media (max-width: 1399.98px) {
@@ -145,6 +146,7 @@
         .msg-app.show-thread .msg-list-pane { display: none; }
         .msg-app.show-thread .msg-thread-pane { display: flex; }
         .msg-back { display: inline-flex; }
+        .msg-close { display: none; }   /* the back arrow does the same job on phones */
         .msg-bubble-wrap { max-width: 92%; }
     }
 </style>
@@ -227,6 +229,7 @@
                             <div class="d-flex flex-wrap gap-2 align-items-center mt-1" id="msg-th-meta"></div>
                         </div>
                         <button type="button" class="btn btn-sm btn-light-brand msg-info" id="msg-info" title="Buyer & order details"><i class="feather-info"></i></button>
+                        <button type="button" class="btn btn-sm btn-light-brand msg-close" id="msg-close" title="Close conversation" aria-label="Close conversation"><i class="feather-x"></i></button>
                     </div>
                     <div id="msg-th-banner"></div>
                     <div class="msg-thread-body" id="msg-th-body"></div>
@@ -510,6 +513,24 @@
         });
     }
 
+    // Close the open conversation and go back to the empty state (also what the phone back arrow does).
+    function closeThread() {
+        state.selectedId = null;
+        state.selectedLastAt = null;
+        state.token++;   // any request still in flight for the closed conversation is ignored when it returns
+
+        $app.classList.remove('show-thread', 'show-details');
+        document.querySelectorAll('.msg-row.active').forEach(function (r) { r.classList.remove('active'); });
+
+        var view = document.getElementById('msg-thread-view');
+        view.classList.add('d-none'); view.classList.remove('d-flex');
+        document.getElementById('msg-thread-empty').classList.remove('d-none');
+
+        document.getElementById('msg-details-view').classList.add('d-none');
+        document.getElementById('msg-details-empty').classList.remove('d-none');
+        showBanner('');
+    }
+
     // ----------------------------------------------------------------- events
     $list.addEventListener('click', function (e) {
         var more = e.target.closest('#msg-more');
@@ -535,9 +556,15 @@
         searchTimer = setTimeout(function () { state.q = v; loadList(true); }, 300);
     });
 
-    document.getElementById('msg-back').addEventListener('click', function () { $app.classList.remove('show-thread'); });
+    document.getElementById('msg-back').addEventListener('click', closeThread);
+    document.getElementById('msg-close').addEventListener('click', closeThread);
     document.getElementById('msg-info').addEventListener('click', function () { $app.classList.toggle('show-details'); });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $app.classList.remove('show-details'); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        if (/^(INPUT|SELECT|TEXTAREA)$/.test((e.target.tagName || ''))) return;   // Esc inside the search box is not "close"
+        if ($app.classList.contains('show-details')) { $app.classList.remove('show-details'); return; }
+        if (state.selectedId) closeThread();
+    });
 
     loadList(true);
     setInterval(poll, POLL_MS);
