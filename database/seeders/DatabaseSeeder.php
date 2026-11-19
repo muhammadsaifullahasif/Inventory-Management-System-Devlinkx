@@ -25,6 +25,7 @@ class DatabaseSeeder extends Seeder
             AccountingPermissionsSeeder::class,
             ModulePermissionsSeeder::class,
             MessagePermissionsSeeder::class,
+            SuperAdminSeeder::class,
         ]);
 
         // User::factory(10)->create();
