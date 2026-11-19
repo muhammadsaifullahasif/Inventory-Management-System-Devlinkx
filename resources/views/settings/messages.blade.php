@@ -76,13 +76,13 @@
                                     $day = $settings->office_hours[$key] ?? null;
                                     $closed = old("hours.$key.closed", $day === null ? 1 : 0);
                                 @endphp
-                                <div class="d-flex align-items-center gap-2 mb-2">
+                                <div class="d-flex align-items-center gap-2 mb-2 office-day">
                                     <span style="width:90px">{{ $label }}</span>
-                                    <input type="time" class="form-control form-control-sm" style="max-width:130px" name="hours[{{ $key }}][open]" value="{{ old("hours.$key.open", $day['open'] ?? '08:00') }}">
+                                    <input type="time" class="form-control form-control-sm" style="max-width:130px" name="hours[{{ $key }}][open]" value="{{ old("hours.$key.open", $day['open'] ?? '08:00') }}" @disabled($closed)>
                                     <span>to</span>
-                                    <input type="time" class="form-control form-control-sm" style="max-width:130px" name="hours[{{ $key }}][close]" value="{{ old("hours.$key.close", $day['close'] ?? '17:00') }}">
+                                    <input type="time" class="form-control form-control-sm" style="max-width:130px" name="hours[{{ $key }}][close]" value="{{ old("hours.$key.close", $day['close'] ?? '17:00') }}" @disabled($closed)>
                                     <div class="form-check ms-2 mb-0">
-                                        <input class="form-check-input" type="checkbox" name="hours[{{ $key }}][closed]" value="1" id="closed-{{ $key }}" @checked($closed)>
+                                        <input class="form-check-input" type="checkbox" name="hours[{{ $key }}][closed]" value="1" data-closed-toggle id="closed-{{ $key }}" @checked($closed)>
                                         <label class="form-check-label" for="closed-{{ $key }}">Closed</label>
                                     </div>
                                 </div>
@@ -190,3 +190,18 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    // A closed day has no opening or closing time: grey out (and do not submit) that day's time inputs.
+    document.querySelectorAll('.office-day [data-closed-toggle]').forEach(function (box) {
+        var apply = function () {
+            box.closest('.office-day').querySelectorAll('input[type="time"]').forEach(function (t) {
+                t.disabled = box.checked;
+            });
+        };
+        box.addEventListener('change', apply);
+        apply();
+    });
+</script>
+@endpush
