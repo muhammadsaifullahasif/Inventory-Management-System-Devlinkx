@@ -111,7 +111,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/shipping', [ShippingSettingController::class, 'edit'])->name('shipping.edit');
         Route::put('/shipping', [ShippingSettingController::class, 'update'])->name('shipping.update');
         Route::get('/messages', [MessageSettingController::class, 'edit'])->name('messages.edit');
-        Route::post('/messages/replies', [MessageSettingController::class, 'store'])->name('messages.replies.store');
+        Route::put('/messages/auto-reply', [MessageSettingController::class, 'updateAutoReply'])->name('messages.auto-reply.update');
+        Route::post('/messages/replies',[MessageSettingController::class, 'store'])->name('messages.replies.store');
         Route::put('/messages/replies/{reply}', [MessageSettingController::class, 'update'])->whereNumber('reply')->name('messages.replies.update');
         Route::delete('/messages/replies/{reply}', [MessageSettingController::class, 'destroy'])->whereNumber('reply')->name('messages.replies.destroy');
     });

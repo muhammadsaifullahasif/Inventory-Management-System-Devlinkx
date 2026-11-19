@@ -44,6 +44,7 @@ class MessageSyncService
     public function __construct(
         private MessageDriverManager $drivers,
         private ThreadLinker $linker,
+        private AutoReplyService $autoReplies,
     ) {}
 
     /**
@@ -256,6 +257,15 @@ class MessageSyncService
             $this->notifyTeam($thread);
         }
 
+        if ($newInboundAt) {
+            // Outside office hours the buyer gets one automatic answer. Never allowed to fail the sync.
+            try {
+                $this->autoReplies->maybeReply($thread);
+            } catch (\Throwable $e) {
+                Log::channel('messages')->error('Automatic reply check failed', ['thread_id' => $thread->id, 'error' => $e->getMessage()]);
+            }
+        }
+
         return $created;
     }
 
@@ -299,7 +309,7 @@ class MessageSyncService
                 ->where('thread_id', $thread->id)
                 ->whereNull('external_message_id')
                 ->where('direction', Message::DIRECTION_OUTBOUND)
-                ->whereNotNull('sent_by_user_id')
+                ->where(fn ($q) => $q->whereNotNull('sent_by_user_id')->orWhere('is_auto_reply', true))
                 ->where('body', trim($data->body))
                 ->orderBy('id')
                 ->first();
@@ -361,6 +371,8 @@ class MessageSyncService
         $latest = $thread->messages()
             ->where('direction', '!=', Message::DIRECTION_INTERNAL_NOTE)
             ->where(fn ($q) => $q->whereNull('delivery_status')->orWhere('delivery_status', '!=', Message::DELIVERY_FAILED))
+            // An automatic "we are offline" answer is not a team reply: the buyer still needs a person.
+            ->where(fn ($q) => $q->whereNull('is_auto_reply')->orWhere('is_auto_reply', false))
             ->orderByDesc('sent_at')
             ->orderByDesc('id')
             ->first();
