@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\Messaging\Contracts\MessageChannelDriver;
 use App\Services\Messaging\Data\SendMessageData;
+use Illuminate\Http\UploadedFile;
 use App\Services\Messaging\Exceptions\MessagingException;
 use App\Services\Messaging\Exceptions\MissingScopeException;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -31,20 +32,34 @@ class MessageSender
         private MessageDriverManager $drivers,
         private AuditLogger $audit,
         private MessageHealth $health,
+        private MessageAttachments $attachments,
     ) {}
 
     /**
      * Send a reply to the buyer. Returns the stored message (delivery_status says whether it went out).
      *
+     * @param array<int,UploadedFile> $files optional attachments (the channel downloads them from a link)
+     *
      * @throws MessagingException when the thread cannot be replied to at all (nothing is stored)
      */
-    public function reply(MessageThread $thread, User $user, string $body): Message
+    public function reply(MessageThread $thread, User $user, string $body, array $files = []): Message
     {
         $body = $this->cleanBody($body);
         $this->assertCanReply($thread);
 
-        return $this->withThreadLock($thread, function () use ($thread, $user, $body) {
+        if ($files) {
+            $driver = $this->drivers->forChannel($thread->salesChannel);
+            if (!in_array(MessageChannelDriver::CAP_ATTACHMENTS, $driver->capabilities(), true)) {
+                throw new MessagingException('This sales channel does not support attachments.');
+            }
+            $this->attachments->assertDeliverable();
+        }
+
+        return $this->withThreadLock($thread, function () use ($thread, $user, $body, $files) {
+            $stored = $files ? $this->attachments->store($files) : [];
+
             $message = Message::create([
+                'attachments' => $stored ?: null,
                 'thread_id' => $thread->id,
                 'direction' => Message::DIRECTION_OUTBOUND,
                 'sender_kind' => Message::SENDER_SELLER,
@@ -169,9 +184,14 @@ class MessageSender
         $driver = $this->drivers->forChannel($channel);
 
         try {
+            if ($message->attachments) {
+                $this->attachments->assertDeliverable();
+            }
+
             $sent = $driver->send($channel, new SendMessageData(
                 body: $message->body,
                 externalThreadId: $thread->external_thread_id,
+                attachments: $this->attachments->forDriver($message->attachments),
             ));
         } catch (MessagingException $e) {
             if ($e instanceof MissingScopeException) {
@@ -205,7 +225,7 @@ class MessageSender
             ])->save();
         });
 
-        $this->log('message_replied', $thread, [], ['message_id' => $message->id, 'length' => mb_strlen($message->body)]);
+        $this->log('message_replied', $thread, [], ['message_id' => $message->id, 'length' => mb_strlen($message->body), 'attachments' => count($message->attachments ?? [])]);
 
         return $message->refresh();
     }

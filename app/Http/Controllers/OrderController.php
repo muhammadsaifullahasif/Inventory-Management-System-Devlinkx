@@ -361,7 +361,32 @@ class OrderController extends Controller
             ? app(EbayFinanceSyncService::class)->buildEarningsBreakdown($order)
             : null;
 
-        return view('orders.show', compact('order', 'metaData', 'shippingCarriers', 'earningsBreakdown'));
+        $messageThreads = $this->linkedMessageThreads($order);
+
+        return view('orders.show', compact('order', 'metaData', 'shippingCarriers', 'earningsBreakdown', 'messageThreads'));
+    }
+
+    /**
+     * Buyer conversations linked to this order, each with its latest few messages (internal notes left out).
+     * Empty for users who cannot open the inbox, and if the messaging tables are not migrated yet.
+     */
+    private function linkedMessageThreads(Order $order): \Illuminate\Support\Collection
+    {
+        if (!auth()->user()?->can('view messages')) {
+            return collect();
+        }
+
+        try {
+            return $order->messageThreads()
+                ->with('salesChannel:id,name')
+                ->orderByDesc('last_message_at')
+                ->get()
+                ->each(fn ($thread) => $thread->setRelation('recentMessages', $thread->messages()
+                    ->where('direction', '!=', 'internal_note')
+                    ->latest('sent_at')->latest('id')->limit(3)->get()->reverse()->values()));
+        } catch (\Throwable) {
+            return collect();
+        }
     }
 
     /**

@@ -49,6 +49,10 @@ Route::middleware('guest')->group(function () {
 
 // Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
 
+// Files attached to replies. Public on purpose: eBay downloads them from here (see MessageAttachmentController).
+Route::get('/message-files/{token}/{name}', [\App\Http\Controllers\MessageAttachmentController::class, 'show'])
+    ->middleware('throttle:120,1')->name('messages.file');
+
 Route::middleware(['auth'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 

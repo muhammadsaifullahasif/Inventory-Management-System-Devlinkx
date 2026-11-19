@@ -967,6 +967,11 @@ class EbayController extends Controller
                 }
             }
 
+            // A buyer message arrived: refresh this store's inbox now instead of waiting for the next scheduled sync.
+            if (EbayNotificationService::isMessageNotification($notificationType, $jsonData)) {
+                $this->refreshMessagesAfterResponse($salesChannel, $notificationType);
+            }
+
             return response('OK', 200);
         } catch (Exception $e) {
             Log::channel('ebay')->error('eBay Platform Notification processing error', [
@@ -1099,6 +1104,11 @@ class EbayController extends Controller
                 }
             }
 
+            // A buyer message arrived: refresh this store's inbox now instead of waiting for the next scheduled sync.
+            if (EbayNotificationService::isMessageNotification($notificationType, $jsonData)) {
+                $this->refreshMessagesAfterResponse($salesChannel, $notificationType);
+            }
+
             return response('OK', 200);
         } catch (Exception $e) {
             Log::channel('ebay')->error('eBay Platform Notification processing error', [
@@ -1107,6 +1117,37 @@ class EbayController extends Controller
             ]);
 
             return response('OK', 200);
+        }
+    }
+
+    /**
+     * Sync one store's messages right after this webhook has been answered (eBay must get its 200 quickly).
+     * The notification payload is not trusted for content: the sync reads the real conversations through
+     * the Message API. Bursts are collapsed to one refresh per few seconds, and the scheduled sync every
+     * 2 minutes remains the safety net if anything here is skipped or fails.
+     */
+    protected function refreshMessagesAfterResponse(SalesChannel $salesChannel, string $notificationType): void
+    {
+        try {
+            if (!app(\App\Services\Messaging\MessageDriverManager::class)->supports($salesChannel)) {
+                return;
+            }
+
+            if (!\Illuminate\Support\Facades\Cache::add("messages-webhook-refresh:{$salesChannel->id}", 1, 10)) {
+                return;
+            }
+
+            Log::channel('messages')->info('eBay message notification received; refreshing the store', [
+                'sales_channel_id' => $salesChannel->id,
+                'notification_type' => $notificationType,
+            ]);
+
+            \App\Jobs\SyncChannelMessagesJob::dispatchAfterResponse($salesChannel->id);
+        } catch (\Throwable $e) {
+            Log::channel('messages')->warning('Could not start a message refresh from an eBay notification', [
+                'sales_channel_id' => $salesChannel->id,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 

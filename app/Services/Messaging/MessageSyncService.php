@@ -333,9 +333,13 @@ class MessageSyncService
             // Keep our own metadata (who on the team sent it, auto-reply flag); only refresh platform data.
             $existing->fill([
                 'body' => $data->body,
-                'attachments' => $data->attachments ?: null,
                 'raw' => $data->raw,
             ]);
+            // A reply sent from the inbox keeps its own attachment record (it carries the stored file, which
+            // the platform's copy of the message does not); everything else takes the platform's list.
+            if (!($existing->sent_by_user_id && $existing->attachments)) {
+                $existing->attachments = $data->attachments ?: null;
+            }
             if ($data->isRead && !$existing->read_at) {
                 $existing->read_at = now();
             }

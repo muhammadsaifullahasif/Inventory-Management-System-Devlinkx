@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Notifications\MessageThreadAssignedNotification;
 use App\Services\Messaging\Contracts\MessageChannelDriver;
 use App\Services\Messaging\Exceptions\MessagingException;
+use App\Services\Messaging\MessageAttachments;
 use App\Services\Messaging\MessageDriverManager;
 use App\Services\Messaging\MessageHealth;
 use App\Services\Messaging\MessageSender;
@@ -48,6 +49,7 @@ class MessageController extends Controller
         private MessageDriverManager $drivers,
         private MessageSender $sender,
         private MessageHealth $health,
+        private MessageAttachments $attachments,
     ) {
         $this->middleware(PermissionMiddleware::using('view messages'));
         $this->middleware(PermissionMiddleware::using('reply messages'), ['only' => ['reply', 'retry', 'note', 'status', 'read']]);
@@ -195,10 +197,19 @@ class MessageController extends Controller
      */
     public function reply(Request $request, MessageThread $thread): JsonResponse
     {
-        $data = $request->validate(['body' => ['required', 'string', 'max:' . MessageSender::MAX_LENGTH]]);
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:' . MessageSender::MAX_LENGTH],
+            'files' => ['nullable', 'array', 'max:' . MessageAttachments::MAX_FILES],
+            'files.*' => ['file', 'max:' . MessageAttachments::MAX_KB, 'mimes:' . implode(',', MessageAttachments::allowedExtensions())],
+        ], [
+            'files.max' => 'You can attach at most ' . MessageAttachments::MAX_FILES . ' files.',
+            'files.*.max' => 'Each attachment can be at most ' . (MessageAttachments::MAX_KB / 1024) . ' MB.',
+            'files.*.mimes' => 'Attachments can be images, PDF, Word or text files.',
+            'files.*.uploaded' => 'A file could not be uploaded (it may be larger than the server allows).',
+        ]);
 
         try {
-            $message = $this->sender->reply($thread, $request->user(), $data['body']);
+            $message = $this->sender->reply($thread, $request->user(), $data['body'], $request->file('files', []));
         } catch (MessagingException $e) {
             return $this->failure($thread, $e->getMessage(), 422);
         }
@@ -405,7 +416,7 @@ class MessageController extends Controller
                 'kind' => $m->is_auto_reply ? 'auto_reply' : ($m->isInternalNote() ? 'note' : $m->direction),
                 'sender' => $m->sender_name,
                 'body' => $m->body,
-                'attachments' => $m->attachments ?? [],
+                'attachments' => $this->attachments->forDisplay($m->attachments),
                 'sent_at' => $m->sent_at?->toIso8601String(),
                 'failed' => $m->delivery_status === Message::DELIVERY_FAILED,
                 'error' => $m->delivery_status === Message::DELIVERY_FAILED ? $m->error : null,
@@ -442,6 +453,10 @@ class MessageController extends Controller
             'can_mark_unread' => $canReplyPerm && !$system && in_array(MessageChannelDriver::CAP_MARK_READ, $caps, true),
             'reply_blocked_reason' => $system ? 'Platform notices cannot be replied to.' : null,
             'max_length' => MessageSender::MAX_LENGTH,
+            'can_attach' => $canReply && in_array(MessageChannelDriver::CAP_ATTACHMENTS, $caps, true),
+            'attach_max_files' => MessageAttachments::MAX_FILES,
+            'attach_max_mb' => MessageAttachments::MAX_KB / 1024,
+            'attach_accept' => '.' . implode(',.', MessageAttachments::allowedExtensions()),
             'assignable' => $canAssign ? $this->assignableUsers() : [],
             'saved_replies' => $canReply ? $this->savedReplies($thread) : [],
         ];

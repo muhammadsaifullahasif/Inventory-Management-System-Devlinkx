@@ -63,7 +63,7 @@ class MessageWorkflowTest extends TestCase
     {
         $thread = $this->thread(unread: 2);
         $inbound = $this->message($thread, 'in-1', 'inbound', 'Is this in stock?');
-        Http::fake([self::SEND => Http::response(['messageId' => 'out-1', 'conversationId' => 'c1', 'createdDate' => '2026-11-19T18:00:00.000Z'])]);
+        Http::fake([self::SEND => Http::response(['messageId' => 'out-1', 'conversationId' => 'c1', 'createdDate' => now()->addMinute()->utc()->toIso8601String()])]);
 
         $this->actingAs($this->agent)->postJson("/messages/{$thread->id}/reply", ['body' => "  Yes, it is.  "])
             ->assertOk()
@@ -100,7 +100,7 @@ class MessageWorkflowTest extends TestCase
         $thread = $this->thread(status: MessageThread::STATUS_PENDING);
         Http::fake([self::SEND => Http::sequence()
             ->push(['errors' => [['errorId' => 20400, 'message' => 'Invalid conversation']]], 400)
-            ->push(['messageId' => 'out-1', 'createdDate' => '2026-11-19T18:00:00.000Z'])]);
+            ->push(['messageId' => 'out-1', 'createdDate' => now()->addMinute()->utc()->toIso8601String()])]);
 
         $res = $this->actingAs($this->agent)->postJson("/messages/{$thread->id}/reply", ['body' => 'Hello there'])
             ->assertStatus(502)
@@ -153,7 +153,7 @@ class MessageWorkflowTest extends TestCase
     {
         $thread = $this->thread();
         Http::fake([
-            self::SEND => Http::response(['createdDate' => '2026-11-19T18:00:00.000Z']),   // no messageId
+            self::SEND => Http::response(['createdDate' => now()->addMinute()->utc()->toIso8601String()]),   // no messageId
             'api.ebay.com/commerce/message/v1/conversation/*' => Http::response([
                 'conversationType' => 'FROM_MEMBERS',
                 'messages' => [[

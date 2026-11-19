@@ -54,6 +54,7 @@ class EbayMessageDriver implements MessageChannelDriver, ProvidesSystemThreads
     {
         return [
             self::CAP_SEND,
+            self::CAP_ATTACHMENTS,
             self::CAP_MARK_READ,
             self::CAP_START_THREAD,
         ];

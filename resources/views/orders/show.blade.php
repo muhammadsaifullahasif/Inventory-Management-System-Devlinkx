@@ -772,6 +772,8 @@
             </div>
             @endif
 
+            @include('orders.partials._messages-card')
+
             <!-- Actions Card -->
             <div class="card mt-4">
                 <div class="card-header">

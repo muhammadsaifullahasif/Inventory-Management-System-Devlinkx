@@ -123,6 +123,11 @@
     .msg-composer textarea { resize: vertical; min-height: 64px; max-height: 220px; font-size: .88rem; }
     .msg-cfoot { display: flex; align-items: center; gap: .5rem; margin-top: .45rem; flex-wrap: wrap; }
     .msg-cfoot select { max-width: 200px; }
+    .msg-files { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .4rem; }
+    .msg-file-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .5rem; border-radius: 1rem; font-size: .74rem;
+        background: var(--msg-in-bg); border: 1px solid var(--msg-border); max-width: 220px; }
+    .msg-file-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .msg-file-chip button { border: 0; background: transparent; padding: 0; line-height: 1; color: inherit; opacity: .7; }
     .msg-retry { border: 0; background: transparent; color: #dc3545; text-decoration: underline; padding: 0 .2rem; font-size: .7rem; }
     .msg-banner { margin: .5rem 1rem 0; padding: .45rem .7rem; border-radius: .5rem; font-size: .78rem; background: #fff1d6; color: #7a4a00; }
     html.app-skin-dark .msg-banner { background: #3b2f10; color: #f1cf7a; }
@@ -257,7 +262,10 @@
                                 <span class="ms-auto fs-12 text-muted" id="msg-sending-as"></span>
                             </div>
                             <textarea class="form-control" id="msg-compose-text" rows="3" placeholder="Write a reply... (Ctrl+Enter to send)"></textarea>
+                            <div class="msg-files d-none" id="msg-files-list"></div>
                             <div class="msg-cfoot">
+                                <button type="button" class="btn btn-sm btn-light-brand d-none" id="msg-attach-btn" title="Attach files"><i class="feather-paperclip"></i></button>
+                                <input type="file" class="d-none" id="msg-files" multiple>
                                 <select class="form-select form-select-sm d-none" id="msg-saved" aria-label="Saved replies"></select>
                                 <span class="fs-12 text-muted ms-auto" id="msg-ccount"></span>
                                 <button type="button" class="btn btn-sm btn-primary" id="msg-send"><i class="feather-send me-1"></i><span>Send</span></button>
@@ -293,7 +301,7 @@
     var POLL_MS = 20000;
 
     var state = { tab: 'all', store: '', q: '', page: 1, hasMore: false, threads: [], counts: null,
-                  selectedId: null, selectedLastAt: null, token: 0, signature: '', actions: null, thread: null, mode: 'reply', drafts: {}, composerFor: null, sending: false };
+                  selectedId: null, selectedLastAt: null, token: 0, signature: '', actions: null, thread: null, mode: 'reply', drafts: {}, composerFor: null, sending: false, files: [] };
 
     var $app = document.getElementById('msg-app');
     var $list = document.getElementById('msg-list');
@@ -325,7 +333,8 @@
     function request(method, url, body) {
         var headers = {'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF};
         var opts = {method: method, credentials: 'same-origin', headers: headers};
-        if (body !== undefined) { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+        if (body instanceof FormData) { opts.body = body; }   // the browser sets the multipart boundary itself
+        else if (body !== undefined) { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
         return fetch(url, opts).then(function (r) {
             return r.json().catch(function () { return {}; }).then(function (data) { return {ok: r.ok, status: r.status, data: data}; });
         });
@@ -494,6 +503,7 @@
 
         if (state.composerFor !== t.id) {
             state.composerFor = t.id;
+            state.files = [];
             state.mode = a.can_reply ? 'reply' : 'note';
             var d = state.drafts[t.id] || {};
             document.getElementById('msg-compose-text').value = d[state.mode] || '';
@@ -514,6 +524,7 @@
         var ta = document.getElementById('msg-compose-text');
         ta.placeholder = note ? 'Write a note for your team (the buyer will not see it)...' : 'Write a reply to the buyer... (Ctrl+Enter to send)';
         document.getElementById('msg-saved').classList.toggle('d-none', note || !(a.saved_replies || []).length);
+        paintFiles();
         var send = document.getElementById('msg-send');
         send.querySelector('span').textContent = state.sending ? 'Sending...' : (note ? 'Add note' : 'Send');
         send.disabled = state.sending;
@@ -735,16 +746,55 @@
         if (!text) { ta.focus(); return; }
         var id = state.selectedId, mode = state.mode;
         state.sending = true; paintComposer();
-        act(mode === 'note' ? 'note' : 'reply', {body: text}).then(function (res) {
+        var payload = {body: text};
+        if (mode === 'reply' && state.files.length) {
+            payload = new FormData();
+            payload.append('body', text);
+            state.files.forEach(function (f) { payload.append('files[]', f); });
+        }
+        act(mode === 'note' ? 'note' : 'reply', payload).then(function (res) {
             state.sending = false;
             if (res && res.ok) {
                 var d = state.drafts[id] = state.drafts[id] || {};
                 d[mode] = '';
+                if (mode === 'reply') state.files = [];
                 if (id === state.selectedId && mode === state.mode) ta.value = '';
             }
             paintComposer();
         }).catch(function () { state.sending = false; showBanner('Network problem. Your text is still in the box.'); paintComposer(); });
     }
+
+    function paintFiles() {
+        var a = state.actions || {}, can = !!a.can_attach && state.mode === 'reply';
+        var btn = document.getElementById('msg-attach-btn'), list = document.getElementById('msg-files-list');
+        btn.classList.toggle('d-none', !can);
+        document.getElementById('msg-files').accept = a.attach_accept || '';
+        var files = can ? state.files : [];
+        list.classList.toggle('d-none', !files.length);
+        list.innerHTML = files.map(function (f, i) {
+            return '<span class="msg-file-chip"><i class="feather-paperclip"></i><span title="' + esc(f.name) + '">' + esc(f.name) + '</span>'
+                 + '<button type="button" data-remove-file="' + i + '" aria-label="Remove ' + esc(f.name) + '">&times;</button></span>';
+        }).join('');
+    }
+
+    document.getElementById('msg-attach-btn').addEventListener('click', function () { document.getElementById('msg-files').click(); });
+    document.getElementById('msg-files').addEventListener('change', function () {
+        var a = state.actions || {}, maxFiles = a.attach_max_files || 5, maxBytes = (a.attach_max_mb || 5) * 1024 * 1024, problem = '';
+        Array.prototype.forEach.call(this.files, function (f) {
+            if (state.files.length >= maxFiles) { problem = 'You can attach at most ' + maxFiles + ' files.'; }
+            else if (f.size > maxBytes) { problem = f.name + ' is larger than ' + (a.attach_max_mb || 5) + ' MB.'; }
+            else { state.files.push(f); }
+        });
+        this.value = '';
+        showBanner(problem);
+        paintComposer();
+    });
+    document.getElementById('msg-files-list').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-remove-file]');
+        if (!b) return;
+        state.files.splice(parseInt(b.dataset.removeFile, 10), 1);
+        paintComposer();
+    });
 
     document.getElementById('msg-send').addEventListener('click', send);
     document.getElementById('msg-compose-text').addEventListener('input', function () { saveDraft(); paintComposer(); });

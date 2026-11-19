@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Message;
 use App\Models\MessageSetting;
 use App\Models\MessageThread;
+use App\Services\Messaging\MessageAttachments;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -29,7 +30,7 @@ class PruneMessages extends Command
     private const MIN_DAYS = 30;
     private const CHUNK = 200;
 
-    public function handle(): int
+    public function handle(MessageAttachments $attachments): int
     {
         $dry = (bool) $this->option('dry-run');
         $days = $this->option('days') !== null ? (int) $this->option('days') : MessageSetting::current()->retention_days;
@@ -55,8 +56,12 @@ class PruneMessages extends Command
             $messages = $threads ? Message::query()->whereIn('thread_id', $ids()->select('id'))->count() : 0;
 
             if (!$dry) {
-                $ids()->select('id')->orderBy('id')->chunkById(self::CHUNK, function ($chunk) {
+                $ids()->select('id')->orderBy('id')->chunkById(self::CHUNK, function ($chunk) use ($attachments) {
                     $chunkIds = $chunk->pluck('id')->all();
+
+                    // Files we stored for replies in these conversations go with them.
+                    Message::query()->whereIn('thread_id', $chunkIds)->whereNotNull('attachments')->get(['id', 'attachments'])
+                        ->each(fn (Message $m) => $attachments->delete($m->attachments));
                     DB::transaction(function () use ($chunkIds) {
                         Message::query()->whereIn('thread_id', $chunkIds)->delete();
                         MessageThread::query()->whereIn('id', $chunkIds)->delete();

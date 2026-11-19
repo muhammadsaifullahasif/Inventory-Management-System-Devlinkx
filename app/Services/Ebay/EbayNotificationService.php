@@ -106,6 +106,29 @@ class EbayNotificationService
     ];
 
     /**
+     * Events that mean "a buyer message arrived or changed". They only trigger a refresh of the
+     * store's inbox; the message content is always read through the Message API, never from the payload.
+     */
+    public const MESSAGE_EVENTS = [
+        'AskSellerQuestion',
+        'MyMessagesM2MMessage',
+        'M2MMessageStatusChange',
+    ];
+
+    /**
+     * Platform Notifications use the response of the matching Get call as their root element
+     * (GetMemberMessagesResponse / GetMyMessagesResponse) and name the event inside it.
+     *
+     * @param array<string,mixed> $data the notification converted to an array
+     */
+    public static function isMessageNotification(string $rootName, array $data): bool
+    {
+        return in_array($rootName, self::MESSAGE_EVENTS, true)
+            || in_array($data['NotificationEventName'] ?? null, self::MESSAGE_EVENTS, true)
+            || in_array($rootName, ['GetMemberMessagesResponse', 'GetMyMessagesResponse'], true);
+    }
+
+    /**
      * Recommended events for order management
      */
     public const ORDER_EVENTS = [
