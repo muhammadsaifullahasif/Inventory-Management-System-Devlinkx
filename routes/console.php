@@ -90,6 +90,14 @@ Schedule::command('messages:sync')
     ->appendOutputTo(storage_path('logs/messages-sync.log'))
     ->onFailure($onScheduleFailure('messages:sync'));
 
+// Messages retention: delete old resolved conversations (if a period is set in Settings > Messages)
+// and clear stale raw platform payloads. Runs at night, after the audit archive.
+Schedule::command('messages:prune')
+    ->dailyAt('03:45')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/messages-prune.log'))
+    ->onFailure($onScheduleFailure('messages:prune'));
+
 // Market Research: refresh eBay competitor price comparisons hourly (rotates through catalog, oldest-compared first)
 Schedule::command('price-comparison:run --limit=50')
     ->hourly()

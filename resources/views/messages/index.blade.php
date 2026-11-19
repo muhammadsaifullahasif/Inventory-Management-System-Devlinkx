@@ -200,6 +200,7 @@
 @endsection
 
 @section('content')
+@include('messages._reauthorize-banner')
 <div class="col-12">
     <div class="msg-app" id="msg-app">
         <div class="msg-tabs" id="msg-tabs" role="tablist">

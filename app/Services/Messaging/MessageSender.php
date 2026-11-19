@@ -9,6 +9,7 @@ use App\Services\AuditLogger;
 use App\Services\Messaging\Contracts\MessageChannelDriver;
 use App\Services\Messaging\Data\SendMessageData;
 use App\Services\Messaging\Exceptions\MessagingException;
+use App\Services\Messaging\Exceptions\MissingScopeException;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +30,7 @@ class MessageSender
     public function __construct(
         private MessageDriverManager $drivers,
         private AuditLogger $audit,
+        private MessageHealth $health,
     ) {}
 
     /**
@@ -172,6 +174,9 @@ class MessageSender
                 externalThreadId: $thread->external_thread_id,
             ));
         } catch (MessagingException $e) {
+            if ($e instanceof MissingScopeException) {
+                $this->health->reportMissingScope($channel, $e->getMessage());
+            }
             $message->update(['delivery_status' => Message::DELIVERY_FAILED, 'error' => mb_substr($e->getMessage(), 0, 1000)]);
             Log::channel('messages')->warning('Reply could not be sent', ['thread_id' => $thread->id, 'error' => $e->getMessage()]);
 

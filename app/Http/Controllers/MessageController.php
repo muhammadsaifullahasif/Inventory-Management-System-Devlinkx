@@ -12,6 +12,7 @@ use App\Notifications\MessageThreadAssignedNotification;
 use App\Services\Messaging\Contracts\MessageChannelDriver;
 use App\Services\Messaging\Exceptions\MessagingException;
 use App\Services\Messaging\MessageDriverManager;
+use App\Services\Messaging\MessageHealth;
 use App\Services\Messaging\MessageSender;
 use App\Services\Messaging\MessageSyncService;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,7 +28,6 @@ use Spatie\Permission\Middleware\PermissionMiddleware;
 class MessageController extends Controller
 {
     private const PAGE_SIZE = 30;
-    private const HEALTHY_WITHIN_MINUTES = 15;
     private const TABS = ['all', 'unread', 'pending', 'mine', 'awaiting', 'resolved'];
 
     private const STATUS_LABELS = [
@@ -47,6 +47,7 @@ class MessageController extends Controller
         private MessageSyncService $sync,
         private MessageDriverManager $drivers,
         private MessageSender $sender,
+        private MessageHealth $health,
     ) {
         $this->middleware(PermissionMiddleware::using('view messages'));
         $this->middleware(PermissionMiddleware::using('reply messages'), ['only' => ['reply', 'retry', 'note', 'status', 'read']]);
@@ -57,7 +58,8 @@ class MessageController extends Controller
     {
         return view('messages.index', [
             'stores' => $this->stores(),
-            'health' => $this->health(),
+            'health' => $this->health->summary(),
+            'reauthorize' => $this->health->needingReauthorization(),
         ]);
     }
 
@@ -348,44 +350,6 @@ class MessageController extends Controller
             ->get(['id', 'name'])
             ->map(fn (SalesChannel $c) => $this->presentStore($c))
             ->all();
-    }
-
-    /**
-     * Sync health for the header chip: how many stores synced recently and which have problems.
-     *
-     * @return array{total:int, healthy:int, problems:array<int,array{name:string,reason:string}>}
-     */
-    private function health(): array
-    {
-        $channels = SalesChannel::query()
-            ->whereIn('type', $this->drivers->supportedTypes())
-            ->with('messageState')
-            ->get();
-
-        $total = 0;
-        $problems = [];
-        $cutoff = now()->subMinutes(self::HEALTHY_WITHIN_MINUTES);
-
-        foreach ($channels as $channel) {
-            $state = $channel->messageState;
-
-            if ($state && !$state->messaging_enabled) {
-                continue; // switched off on purpose
-            }
-
-            $total++;
-            $name = $this->shortStoreName($channel->name);
-
-            if ($state?->last_error) {
-                $problems[] = ['name' => $name, 'reason' => $state->last_error];
-            } elseif (!$state?->last_synced_at) {
-                $problems[] = ['name' => $name, 'reason' => 'Not synced yet'];
-            } elseif ($state->last_synced_at->lt($cutoff)) {
-                $problems[] = ['name' => $name, 'reason' => 'No successful sync in the last ' . self::HEALTHY_WITHIN_MINUTES . ' minutes'];
-            }
-        }
-
-        return ['total' => $total, 'healthy' => $total - count($problems), 'problems' => $problems];
     }
 
     // ------------------------------------------------------------- presentation

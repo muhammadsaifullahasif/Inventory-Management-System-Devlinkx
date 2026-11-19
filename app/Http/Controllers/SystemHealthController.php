@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\BrokenLinkCrawlJob;
 use App\Models\CrawlRun;
 use App\Models\Monitor;
+use App\Services\Messaging\MessageHealth;
 use App\Services\UptimeMonitorService;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\JsonResponse;
@@ -31,8 +32,17 @@ class SystemHealthController extends Controller
         ]]);
     }
 
-    public function index(Request $request): View
+    public function index(Request $request, MessageHealth $messageHealth): View
     {
+        // The health page must still load if the messaging tables are not migrated yet.
+        try {
+            $messageStores = $messageHealth->stores();
+            $messageWorkload = $messageHealth->workload();
+        } catch (\Throwable) {
+            $messageStores = collect();
+            $messageWorkload = ['threads' => 0, 'needing_reply' => 0, 'failed_sends' => 0];
+        }
+
         $db = $this->checkDatabase();
         $queue = $this->checkQueue();
 
@@ -100,6 +110,8 @@ class SystemHealthController extends Controller
             'monitorHistory',
             'avgResponseMs',
             'latestCrawlRun',
+            'messageStores',
+            'messageWorkload',
         ));
     }
 

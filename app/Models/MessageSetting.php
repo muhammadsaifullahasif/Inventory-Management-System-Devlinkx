@@ -16,12 +16,14 @@ class MessageSetting extends Model
         'auto_reply_enabled',
         'auto_reply_text',
         'auto_reply_cooldown_hours',
+        'retention_days',
     ];
 
     protected $casts = [
         'office_hours' => 'array',
         'auto_reply_enabled' => 'boolean',
         'auto_reply_cooldown_hours' => 'integer',
+        'retention_days' => 'integer',
     ];
 
     public const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -53,6 +55,7 @@ class MessageSetting extends Model
             'auto_reply_enabled' => false,
             'auto_reply_text' => 'Thanks for your message. Our team is currently offline. We will reply during our next working day.',
             'auto_reply_cooldown_hours' => 12,
+            'retention_days' => null,
         ]);
     }
 }

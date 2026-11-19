@@ -45,6 +45,7 @@ class MessageSyncService
         private MessageDriverManager $drivers,
         private ThreadLinker $linker,
         private AutoReplyService $autoReplies,
+        private MessageHealth $health,
     ) {}
 
     /**
@@ -110,7 +111,11 @@ class MessageSyncService
                     }
                 }
             } catch (MessagingException $e) {
-                $state->markFailed($e->getMessage());
+                if ($e instanceof MissingScopeException) {
+                    $this->health->reportMissingScope($channel, $e->getMessage());
+                } else {
+                    $state->markFailed($e->getMessage());
+                }
                 Log::channel('messages')->error('Message sync failed', [
                     'sales_channel_id' => $channel->id,
                     'error' => $e->getMessage(),

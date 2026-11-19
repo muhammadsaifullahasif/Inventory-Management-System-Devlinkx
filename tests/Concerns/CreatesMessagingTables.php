@@ -73,7 +73,7 @@ trait CreatesMessagingTables
             $t->string('sku')->nullable();
         });
 
-        foreach (glob(base_path('database/migrations/2026_11_18_00000*_*.php')) as $file) {
+        foreach (glob(base_path('database/migrations/2026_11_1[89]_00000*_*.php')) as $file) {
             (require $file)->up();
         }
     }

@@ -295,6 +295,8 @@
         </div>
     </div>
 
+    @include('system-health._messages')
+
     <!-- Security Warnings -->
     <div class="col-12">
         <div class="card">

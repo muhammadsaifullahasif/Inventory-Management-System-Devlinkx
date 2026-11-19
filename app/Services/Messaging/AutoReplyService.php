@@ -9,6 +9,7 @@ use App\Models\MessageThread;
 use App\Services\Messaging\Contracts\MessageChannelDriver;
 use App\Services\Messaging\Data\SendMessageData;
 use App\Services\Messaging\Exceptions\MessagingException;
+use App\Services\Messaging\Exceptions\MissingScopeException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -33,7 +34,7 @@ class AutoReplyService
 
     public const SENDER_NAME = 'Automatic reply';
 
-    public function __construct(private MessageDriverManager $drivers) {}
+    public function __construct(private MessageDriverManager $drivers, private MessageHealth $health) {}
 
     /**
      * @return Message|null the stored auto-reply, or null when nothing was sent
@@ -91,6 +92,9 @@ class AutoReplyService
                     externalThreadId: $thread->external_thread_id,
                 ));
             } catch (MessagingException $e) {
+                if ($e instanceof MissingScopeException) {
+                    $this->health->reportMissingScope($channel, $e->getMessage());
+                }
                 $fresh->forceFill(['auto_replied_at' => $previous])->save();
                 Log::channel('messages')->warning('Automatic reply could not be sent', ['thread_id' => $thread->id, 'error' => $e->getMessage()]);
                 return null;

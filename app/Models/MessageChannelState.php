@@ -14,6 +14,7 @@ class MessageChannelState extends Model
         'sales_channel_id',
         'messaging_enabled',
         'auto_reply_enabled',
+        'needs_reauthorization',
         'cursor',
         'last_synced_at',
         'last_error',
@@ -23,6 +24,7 @@ class MessageChannelState extends Model
     protected $casts = [
         'messaging_enabled' => 'boolean',
         'auto_reply_enabled' => 'boolean',
+        'needs_reauthorization' => 'boolean',
         'last_synced_at' => 'datetime',
         'last_error_at' => 'datetime',
     ];
@@ -52,6 +54,7 @@ class MessageChannelState extends Model
             'last_synced_at' => now(),
             'last_error' => null,
             'last_error_at' => null,
+            'needs_reauthorization' => false,
         ])->save();
     }
 
@@ -61,5 +64,20 @@ class MessageChannelState extends Model
             'last_error' => mb_substr($error, 0, 2000),
             'last_error_at' => now(),
         ])->save();
+    }
+
+    /**
+     * The platform refused because the store has not granted (or lost) the messaging permission.
+     * Only a successful sync clears this, i.e. after the store has been re-authorized.
+     *
+     * @return bool true when this call newly raised the flag (so admins are told once, not every 2 minutes)
+     */
+    public function markNeedsReauthorization(string $error): bool
+    {
+        $wasRaised = (bool) $this->needs_reauthorization;
+        $this->markFailed($error);
+        $this->forceFill(['needs_reauthorization' => true])->save();
+
+        return !$wasRaised;
     }
 }

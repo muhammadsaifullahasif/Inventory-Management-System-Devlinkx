@@ -7,6 +7,7 @@ use App\Models\MessageSavedReply;
 use App\Models\MessageSetting;
 use App\Models\SalesChannel;
 use App\Services\Messaging\MessageDriverManager;
+use App\Services\Messaging\MessageHealth;
 use App\Services\Messaging\MessageSender;
 use App\Services\Messaging\OfficeHours;
 use Illuminate\Http\RedirectResponse;
@@ -32,11 +33,12 @@ class MessageSettingController extends Controller
         $this->middleware(PermissionMiddleware::using('manage message-settings'));
     }
 
-    public function edit(MessageDriverManager $drivers): View
+    public function edit(MessageDriverManager $drivers, MessageHealth $health): View
     {
         $settings = MessageSetting::current();
 
         return view('settings.messages', [
+            'reauthorize' => $health->needingReauthorization(),
             'replies' => MessageSavedReply::query()->orderBy('title')->get(),
             'placeholders' => ['{buyer_name}', '{item_title}', '{order_number}'],
             'settings' => $settings,
@@ -62,6 +64,7 @@ class MessageSettingController extends Controller
             'timezone' => ['required', 'timezone'],
             'auto_reply_text' => [Rule::requiredIf($enabled), 'nullable', 'string', 'max:' . MessageSender::MAX_LENGTH],
             'auto_reply_cooldown_hours' => ['required', 'integer', 'min:1', 'max:168'],
+            'retention_days' => ['nullable', 'integer', 'min:30', 'max:3650'],
             'hours' => ['required', 'array'],
             'stores' => ['nullable', 'array'],
             'stores.*' => ['integer'],
@@ -98,6 +101,7 @@ class MessageSettingController extends Controller
             'auto_reply_enabled' => $enabled,
             'auto_reply_text' => trim((string) ($data['auto_reply_text'] ?? '')),
             'auto_reply_cooldown_hours' => (int) $data['auto_reply_cooldown_hours'],
+            'retention_days' => ($data['retention_days'] ?? null) !== null ? (int) $data['retention_days'] : null,
         ])->save();
 
         $on = array_map('intval', $data['stores'] ?? []);

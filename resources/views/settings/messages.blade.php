@@ -19,6 +19,7 @@
 
 @section('content')
     @include('settings._nav')
+    @include('messages._reauthorize-banner')
 
     @if(session('success'))
         <div class="col-12">
@@ -112,6 +113,23 @@
                     <div class="mt-4">
                         <button type="submit" class="btn btn-primary"><i class="feather-save me-1"></i>Save office hours &amp; automatic reply</button>
                     </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Keeping old conversations</h5>
+                </div>
+                <div class="card-body">
+                    <label class="form-label" for="retention-days">Delete resolved conversations after (days)</label>
+                    <input type="number" class="form-control" style="max-width:160px" id="retention-days" name="retention_days" min="30" max="3650"
+                           value="{{ old('retention_days', $settings->retention_days) }}" placeholder="Keep forever">
+                    <div class="form-text mb-3">
+                        Leave blank to keep everything. When set, a conversation is deleted, with its messages and notes, only if it is
+                        <strong>resolved</strong> and nothing has happened in it for that many days (minimum 30). Open conversations are never deleted.
+                        This runs every night.
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="feather-save me-1"></i>Save</button>
                 </div>
             </div>
         </form>
